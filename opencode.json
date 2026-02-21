@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "plan",
+  "default_agent": "rpi-orchestrator",
   "model": "opencode/gpt-5.1-codex",
   "small_model": "opencode/gpt-5.1-mini",
   "share": "manual",
@@ -29,18 +29,30 @@
       "rm -rf *": "deny"
     },
     "task": {
-      "*": "deny",
-      "research-analyst": "allow",
-      "product-strategist": "allow",
-      "roadmap-planner": "allow",
-      "quality-gatekeeper": "allow",
-      "integration-operator": "allow"
+      "*": "deny"
     },
     "skill": {
       "*": "allow"
     }
   },
   "agent": {
+    "rpi-orchestrator": {
+      "description": "Primary orchestrator that auto-dispatches domain subagents based on prompt context",
+      "mode": "primary",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "ask",
+        "bash": "ask",
+        "task": {
+          "*": "deny",
+          "research-analyst": "allow",
+          "product-strategist": "allow",
+          "roadmap-planner": "allow",
+          "quality-gatekeeper": "allow",
+          "integration-operator": "allow"
+        }
+      }
+    },
     "build": {
       "permission": {
         "edit": "ask",

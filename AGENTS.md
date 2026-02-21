@@ -4,6 +4,7 @@
 - Enforce RPI workflow: **Research -> Plan -> Implement** for every meaningful change.
 - Research is mandatory before planning; planning is mandatory before implementation.
 - Prefer custom commands (`/research`, `/plan`, `/implement`, `/gate-check`) over ad-hoc prompts for repeatability.
+- Default interaction should use the RPI orchestrator, which auto-dispatches specialist agents when prompt context matches their domain.
 
 ## Product-to-Delivery Flow
 1. Research dossier drafted and challenged (problem, users, constraints, alternatives, evidence).
