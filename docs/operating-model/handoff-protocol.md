@@ -106,3 +106,4 @@ git worktree prune
 - [ ] Verification commands and outcomes are recorded in PR description.
 - [ ] Risks/assumptions are stated.
 - [ ] Reviewer can reproduce validation steps.
+- [ ] `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md` reflect the latest state.

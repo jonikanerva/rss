@@ -30,6 +30,7 @@ Status: Active draft
 ## Documentation and handoff
 
 - Relevant docs under `docs/` are updated when behavior/process changed.
+- `docs/STATUS.md` reflects the current phase, active objective, and next actions.
 - Handoff message states what changed, what was verified, and what remains.
 - Reviewer can reproduce validation using documented commands.
 
