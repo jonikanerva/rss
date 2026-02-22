@@ -1,0 +1,10 @@
+{
+  "fallbackRate" : 0,
+  "p95OfflineProcessingTimeSecondsPerItem" : 2.91145e-05,
+  "p99OfflineProcessingTimeSecondsPerItem" : 2.91145e-05,
+  "pipelineCompletionRate" : 1,
+  "processedItemCount" : 4,
+  "processingDurationSeconds" : 0.000116458,
+  "schemaValidRate" : 1,
+  "totalItemCount" : 4
+}
