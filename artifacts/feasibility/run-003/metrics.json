@@ -1,0 +1,14 @@
+{
+  "evaluatedStoryPairCount" : 3,
+  "fallbackRate" : 0,
+  "groupPurity" : 1,
+  "overmergeRate" : 0,
+  "p95OfflineProcessingTimeSecondsPerItem" : 3.126025e-05,
+  "p99OfflineProcessingTimeSecondsPerItem" : 3.126025e-05,
+  "pipelineCompletionRate" : 1,
+  "processedItemCount" : 4,
+  "processingDurationSeconds" : 0.000125041,
+  "schemaValidRate" : 1,
+  "splitRate" : 0,
+  "totalItemCount" : 4
+}

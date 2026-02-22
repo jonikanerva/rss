@@ -22,15 +22,15 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. Finalize grouping quality metrics integration and stabilize tests.
-   - Owner: Agent
-   - Target: next review slice
-2. Run and document one reproducible feasibility benchmark window.
-   - Owner: Agent + Engineering owner
-   - Target: after metrics stabilize
-3. Update active gate result with evidence links and explicit decision.
+1. Gate evidence linkage and owner decision log update.
    - Owner: Product owner + Engineering owner
-   - Target: after benchmark evidence is attached
+   - Target: signoff on latest run
+2. Expand frozen evaluation dataset to feasibility minimums.
+   - Owner: Agent
+   - Target: next benchmark window
+3. Add categorization quality metrics (macro/per-category F1) to benchmark output.
+   - Owner: Agent
+   - Target: before next frozen rerun
 
 ## Active artifact pointers
 
@@ -50,7 +50,7 @@ Status: Active
 
 ## Last updated
 
-- 2026-02-22 by OpenCode agent
+- 2026-02-22 by OpenCode agent (post run-003 update)
 
 ## Update rule
 

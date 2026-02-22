@@ -13,23 +13,27 @@ Status: Active
 
 ## Active queue
 
-1. [In progress] Grouping quality metrics to benchmark output
-   - Owner: Agent
-   - Acceptance check: benchmark `metrics.json` includes grouping quality fields and tests pass.
-   - Target checkpoint: next commit slice
-
-2. [Ready] Reproducible feasibility run (frozen snapshot)
-   - Owner: Agent
-   - Acceptance check: required files exist under `artifacts/feasibility/<run-id>/`.
-   - Target checkpoint: after item 1 passes
-
-3. [Ready] Gate evidence linkage and decision log update
+1. [In progress] Gate evidence linkage and decision log update
    - Owner: Product owner + Engineering owner
    - Acceptance check: gate document includes evidence links and explicit GO/NO-GO decision.
-   - Target checkpoint: after item 2
+   - Target checkpoint: owner signoff on latest run
+
+2. [Ready] Expand frozen evaluation dataset to feasibility minimums
+   - Owner: Agent
+   - Acceptance check: dataset meets minimum sample requirements in pre-build gate (C1-C5).
+   - Target checkpoint: after item 1 evidence review
+
+3. [Ready] Add categorization quality metrics (F1 + per-category) to benchmark
+   - Owner: Agent
+   - Acceptance check: `metrics.json` includes C2 metrics with reproducible computation.
+   - Target checkpoint: before next frozen rerun
 
 ## Completed history
 
+- 2026-02-22: Grouping quality metrics integrated into benchmark output.
+  - Evidence: `Sources/RSSSpikeCore/GroupingQuality.swift`, `Tests/RSSSpikeCoreTests/GroupingQualityMetricsTests.swift`, `artifacts/feasibility/run-002/metrics.json`
+- 2026-02-22: Reproducible feasibility run completed (`run-003`) with artifact bundle and NO-GO decision log.
+  - Evidence: `artifacts/feasibility/run-003/`, `docs/quality-gates/2026-02-21-feasibility-spike-prebuild-gate-check.md`
 - 2026-02-22: Worktree-per-session default documented in operating model.
   - Evidence: `docs/operating-model/handoff-protocol.md`, `docs/operating-model/cadence.md`
 - 2026-02-22: Multi-agent git isolation research drafted.

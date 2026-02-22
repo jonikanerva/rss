@@ -101,3 +101,41 @@ If FAIL:
 2. Re-run on the same frozen snapshot to preserve comparability.
 3. Update error analysis and decision log.
 4. Keep status FAIL until all C1-C5 criteria pass in one run.
+
+## Latest Evaluation (run-003)
+
+- Run ID: `20260222-095207`
+- Command:
+
+```bash
+swift run rss-spike benchmark \
+  --dataset "data/eval/v0/items.jsonl" \
+  --taxonomy-labels "data/eval/v0/labels-taxonomy.csv" \
+  --story-labels "data/eval/v0/labels-same-story.csv" \
+  --taxonomy-version "v1" \
+  --guideline-version "v1" \
+  --hardware-profile "macos-m1-8gb" \
+  --output "artifacts/feasibility/run-003"
+```
+
+- Decision: **NO-GO**
+- Decision source: `artifacts/feasibility/run-003/decision-log.md`
+
+### Evidence links
+
+- Manifest: `artifacts/feasibility/run-003/dataset-manifest.json`
+- Labels taxonomy: `artifacts/feasibility/run-003/labels-taxonomy.csv`
+- Labels same-story: `artifacts/feasibility/run-003/labels-same-story.csv`
+- Metrics: `artifacts/feasibility/run-003/metrics.json`
+- Chronology: `artifacts/feasibility/run-003/chronology-report.json`
+- Error analysis: `artifacts/feasibility/run-003/error-analysis.md`
+- Dogfood corrections: `artifacts/feasibility/run-003/dogfood-corrections.csv`
+- Decision log: `artifacts/feasibility/run-003/decision-log.md`
+
+### Threshold status snapshot
+
+- C1 Chronology: metric values pass, **sample minimum fails**.
+- C2 Categorization: **insufficient evidence** (F1 metrics not present, sample minimum fails).
+- C3 Grouping: metric values pass, **sample minimum fails**.
+- C4 Human trust proxy: **fails** (no reviewed sample yet).
+- C5 Pipeline feasibility: metric values pass, **sample minimum tied to C1 fails**.
