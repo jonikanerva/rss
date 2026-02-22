@@ -16,9 +16,20 @@ Set these environment variables before setup:
 - `GH_APP_INSTALLATION_ID`
 - `GH_APP_PRIVATE_KEY_PATH`
 
+Recommended (persistent per repository): store these in local git config so you do not need to export them every session.
+
+```bash
+git config --local opencode.githubAppId "2922027"
+git config --local opencode.githubAppInstallationId "111703951"
+git config --local opencode.githubAppPrivateKeyPath "$HOME/.config/opencode/github-app.pem"
+```
+
+These values are stored in `.git/config` (local only, not committed).
+
 Optional:
 
 - `GH_APP_TOKEN` (if omitted, token is minted automatically by script)
+- `GH_APP_ID`, `GH_APP_INSTALLATION_ID`, `GH_APP_PRIVATE_KEY_PATH` as environment variables (override local config for current shell)
 
 ## One-time setup per repository/worktree
 

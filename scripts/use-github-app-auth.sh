@@ -3,6 +3,20 @@ set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 
+read_setting() {
+  local env_name="$1"
+  local git_key="$2"
+  local fallback=""
+
+  if [[ -n "${!env_name:-}" ]]; then
+    fallback="${!env_name}"
+  else
+    fallback="$(git config --local --get "${git_key}" || true)"
+  fi
+
+  printf '%s' "${fallback}"
+}
+
 require_env() {
   local name="$1"
   local value="${!name:-}"
@@ -15,6 +29,14 @@ require_env() {
     exit 1
   fi
 }
+
+GH_APP_ID="$(read_setting GH_APP_ID opencode.githubAppId)"
+GH_APP_INSTALLATION_ID="$(read_setting GH_APP_INSTALLATION_ID opencode.githubAppInstallationId)"
+GH_APP_PRIVATE_KEY_PATH="$(read_setting GH_APP_PRIVATE_KEY_PATH opencode.githubAppPrivateKeyPath)"
+
+export GH_APP_ID
+export GH_APP_INSTALLATION_ID
+export GH_APP_PRIVATE_KEY_PATH
 
 require_env GH_APP_ID
 require_env GH_APP_INSTALLATION_ID
