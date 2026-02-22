@@ -177,3 +177,13 @@ swift run rss-spike benchmark \
 - C3 Grouping: **pass in synthetic run** (purity/split/overmerge present, grouped items >= 2,500).
 - C4 Human trust proxy: **pending real dogfood evidence** (placeholder corrections file only).
 - C5 Pipeline feasibility: **pass** (completion/schema/p95 thresholds met).
+
+## Owner Signoff (Pending)
+
+- Product owner signoff: PENDING
+- Engineering owner signoff: PENDING
+- Signoff timestamp: PENDING
+
+Signoff note:
+
+- Gate cannot move to GO until C4 evidence is based on real reviewed sample and both owners record explicit approval.
