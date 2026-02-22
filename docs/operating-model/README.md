@@ -29,3 +29,4 @@ Recommended docs:
 - `cadence.md`
 - `handoff-protocol.md`
 - `definition-of-done.md`
+- `github-app-auth.md`

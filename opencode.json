@@ -120,7 +120,7 @@
     "github": {
       "type": "remote",
       "url": "https://api.githubcopilot.com/mcp/",
-      "enabled": false
+      "enabled": true
     },
     "context7": {
       "type": "remote",
@@ -130,7 +130,7 @@
   },
   "tools": {
     "linear_*": false,
-    "github_*": false,
+    "github_*": true,
     "context7_*": false
   },
   "instructions": [

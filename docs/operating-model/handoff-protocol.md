@@ -24,12 +24,13 @@ Allowed exceptions (must be documented in PR or handoff note):
 
 1. Start from updated base and create a session worktree + task branch.
    - Naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`.
-2. Implement one logical change at a time.
-3. Run local verification for changed scope.
-4. Create single-purpose commit with clear message.
-5. Repeat until task scope is complete.
-6. Push branch and open PR.
-7. Merge to `main` only via reviewed PR.
+2. Ensure GitHub App auth + bot identity are configured in the active worktree (`./scripts/use-github-app-auth.sh`).
+3. Implement one logical change at a time.
+4. Run local verification for changed scope.
+5. Create single-purpose commit with clear message.
+6. Repeat until task scope is complete.
+7. Push branch and open PR.
+8. Merge to `main` only via reviewed PR.
 
 Worktree creation example:
 
