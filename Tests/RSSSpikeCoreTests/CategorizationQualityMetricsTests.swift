@@ -10,16 +10,16 @@ final class CategorizationQualityMetricsTests: XCTestCase {
             TaxonomyLabel(itemID: "4", category: "security"),
         ]
 
-        let predictedByItemID: [String: String] = [
-            "1": "ai",
-            "2": "apple",
-            "3": "apple",
-            "4": "security",
+        let predictedByItemID: [String: [String]] = [
+            "1": ["ai"],
+            "2": ["apple"],
+            "3": ["apple"],
+            "4": ["security"],
         ]
 
         let metrics = CategorizationQualityEvaluator.evaluate(
             truthLabels: truth,
-            predictedCategoryByItemID: predictedByItemID
+            predictedCategoriesByItemID: predictedByItemID
         )
 
         XCTAssertEqual(metrics.evaluatedItemCount, 4)

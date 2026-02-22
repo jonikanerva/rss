@@ -45,7 +45,7 @@ public enum FeasibilityBenchmarkRunner {
         let pipelineCompletionRate = safeRatio(numerator: processedItemCount, denominator: totalItemCount)
 
         let schemaValidCount = output.items.filter {
-            $0.category.isEmpty == false && $0.groupID.isEmpty == false
+            !$0.categories.isEmpty && $0.groupID.isEmpty == false
         }.count
         let schemaValidRate = safeRatio(numerator: schemaValidCount, denominator: totalItemCount)
 
@@ -56,10 +56,10 @@ public enum FeasibilityBenchmarkRunner {
             labels: storyPairLabels,
             predictedGroupByItemID: predictedGroupByItemID
         )
-        let predictedCategoryByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.category) })
+        let predictedCategoriesByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.categories) })
         let categorizationQuality = CategorizationQualityEvaluator.evaluate(
             truthLabels: taxonomyLabels,
-            predictedCategoryByItemID: predictedCategoryByItemID
+            predictedCategoriesByItemID: predictedCategoriesByItemID
         )
 
         return FeasibilityBenchmarkResult(

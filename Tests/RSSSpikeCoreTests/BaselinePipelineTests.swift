@@ -22,7 +22,7 @@ final class BaselinePipelineTests: XCTestCase {
         let output = pipeline.process(entries: [entry])
 
         XCTAssertEqual(output.items.count, 1)
-        XCTAssertEqual(output.items[0].category, "unsorted")
+        XCTAssertEqual(output.items[0].categories, ["unsorted"])
         XCTAssertEqual(output.items[0].categorySource, .fallback)
     }
 
@@ -96,7 +96,7 @@ final class BaselinePipelineTests: XCTestCase {
 private struct StubCategorizer: EntryCategorizer {
     let result: CategoryPrediction?
 
-    func predict(for entry: FeedEntry) -> CategoryPrediction? {
-        result
+    func predict(for entry: FeedEntry) -> [CategoryPrediction] {
+        if let result { return [result] } else { return [] }
     }
 }

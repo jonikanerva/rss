@@ -23,41 +23,43 @@ public struct CategorizationQualityMetrics: Equatable, Sendable {
 }
 
 public enum CategorizationQualityEvaluator {
+    /// Evaluate multi-label categorization quality.
+    /// `predictedCategoriesByItemID` maps item ID to all predicted categories.
     public static func evaluate(
         truthLabels: [TaxonomyLabel],
-        predictedCategoryByItemID: [String: String]
+        predictedCategoriesByItemID: [String: [String]]
     ) -> CategorizationQualityMetrics {
-        var labelByItemID: [String: String] = [:]
+        // Build truth: itemID -> Set<category>
+        var truthByItemID: [String: Set<String>] = [:]
         for label in truthLabels {
-            labelByItemID[label.itemID] = label.category
+            truthByItemID[label.itemID, default: []].insert(label.category)
         }
 
-        let categories = Set(truthLabels.map(\.category))
+        let allCategories = Set(truthLabels.map(\.category))
         var perCategory: [String: Double] = [:]
-        perCategory.reserveCapacity(categories.count)
+        perCategory.reserveCapacity(allCategories.count)
 
-        var evaluatedItemCount = 0
-        for label in truthLabels {
-            if predictedCategoryByItemID[label.itemID] != nil {
-                evaluatedItemCount += 1
-            }
-        }
+        // Count evaluated items (items that appear in both truth and prediction)
+        let evaluatedItemIDs = Set(truthByItemID.keys).intersection(Set(predictedCategoriesByItemID.keys))
+        let evaluatedItemCount = evaluatedItemIDs.count
 
-        for category in categories {
+        for category in allCategories {
             var tp = 0
             var fp = 0
             var fn = 0
 
-            for (itemID, predicted) in predictedCategoryByItemID {
-                guard let truth = labelByItemID[itemID] else {
-                    continue
-                }
+            for itemID in evaluatedItemIDs {
+                let truthSet = truthByItemID[itemID] ?? []
+                let predSet = Set(predictedCategoriesByItemID[itemID] ?? [])
 
-                if predicted == category && truth == category {
+                let inTruth = truthSet.contains(category)
+                let inPred = predSet.contains(category)
+
+                if inPred && inTruth {
                     tp += 1
-                } else if predicted == category && truth != category {
+                } else if inPred && !inTruth {
                     fp += 1
-                } else if predicted != category && truth == category {
+                } else if !inPred && inTruth {
                     fn += 1
                 }
             }

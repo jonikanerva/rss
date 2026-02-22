@@ -371,29 +371,58 @@ private struct ChronologyPayload: Encodable {
 }
 
 private struct KeywordCategorizer: EntryCategorizer {
-    func predict(for entry: FeedEntry) -> CategoryPrediction? {
+    func predict(for entry: FeedEntry) -> [CategoryPrediction] {
         let text = "\(entry.title) \(entry.summary)".lowercased()
 
-        let keywordToCategory: [(String, String)] = [
-            ("apple", "apple"),
-            ("ai", "ai"),
-            ("security", "security"),
-            ("cloud", "cloud"),
-            ("mobile", "mobile"),
-            ("web", "web"),
-            ("data", "data"),
-            ("policy", "policy"),
-            ("finance", "finance"),
-            ("science", "science"),
+        // User-defined categories with keyword patterns
+        let keywordToCategory: [(keywords: [String], category: String)] = [
+            (["apple", "iphone", "ipad", "mac ", "macbook", "macos", "ios ", "siri", "xcode",
+              "vision pro", "airpods", "apple watch", "wwdc", "app store", "tim cook"],
+             "apple"),
+            (["playstation 5", "playstation5", " ps5 ", "ps5 ", "dualsense", "psn"],
+             "playstation 5"),
+            (["video game", "gaming", "xbox", "nintendo", "steam", "playstation", "game pass",
+              "esports", "rpg", "fps", "mmorpg", "indie game", "game review", "game developer",
+              "console", "switch 2", "game studio", " mod ", "dlc", "roguelike", "souls",
+              "resident evil", "zelda", "pokemon", "balatro", "ubisoft", "capcom", "nioh",
+              "far cry", "assassin", "saints row", "styx", "tomb raider", "god of war",
+              "nier", "xenoblade", "splinter cell", "mario kart", "overwatch"],
+             "video games"),
+            (["artificial intelligence", " ai ", "ai-", "machine learning", "deep learning",
+              "chatgpt", "openai", "anthropic", "llm", "generative ai", "neural", "gpt",
+              "agentic", "codex", "claude", "gemini"],
+             "ai"),
+            (["science", "research", "study finds", "scientists", "physics", "biology",
+              "climate", "space", "nasa", "astronomy"],
+             "science"),
+            (["movie", "film ", "tv show", "series", "netflix", "streaming", "disney",
+              "hbo", "music", "album", "concert", "podcast", "box office", "theater",
+              "karaoke", "projector", "entertainment"],
+             "entertainment"),
+            (["tech", "software", "hardware", "chip", "processor", "battery", "robot",
+              "gadget", "device", "startup", "silicon valley", "venture", "crypto",
+              "internet", "browser", "app ", "phone", "laptop", "tablet", "headphone",
+              "e-reader", "kindle", "wearable", "smart home", "cybersecurity",
+              "hacker", "firewall", "data center", "server"],
+             "technology"),
         ]
 
-        for (keyword, category) in keywordToCategory {
-            if text.contains(keyword) {
-                return CategoryPrediction(label: category, confidence: 0.9)
+        var matches: [CategoryPrediction] = []
+
+        for (keywords, category) in keywordToCategory {
+            for keyword in keywords {
+                if text.contains(keyword) {
+                    matches.append(CategoryPrediction(label: category, confidence: 0.85))
+                    break
+                }
             }
         }
 
-        return CategoryPrediction(label: "general", confidence: 0.55)
+        if matches.isEmpty {
+            return [CategoryPrediction(label: "unsorted", confidence: 0.5)]
+        }
+
+        return matches
     }
 }
 

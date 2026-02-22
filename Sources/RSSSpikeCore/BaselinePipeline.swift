@@ -39,7 +39,7 @@ public struct CategoryPrediction: Equatable, Sendable {
 }
 
 public protocol EntryCategorizer: Sendable {
-    func predict(for entry: FeedEntry) -> CategoryPrediction?
+    func predict(for entry: FeedEntry) -> [CategoryPrediction]
 }
 
 public enum CategorySource: Equatable, Sendable {
@@ -52,7 +52,7 @@ public struct ProcessedItem: Equatable, Sendable {
     public let sourceID: String
     public let title: String
     public let canonicalTimestamp: Date
-    public let category: String
+    public let categories: [String]
     public let categorySource: CategorySource
     public let groupID: String
 
@@ -61,7 +61,7 @@ public struct ProcessedItem: Equatable, Sendable {
         sourceID: String,
         title: String,
         canonicalTimestamp: Date,
-        category: String,
+        categories: [String],
         categorySource: CategorySource,
         groupID: String
     ) {
@@ -69,7 +69,7 @@ public struct ProcessedItem: Equatable, Sendable {
         self.sourceID = sourceID
         self.title = title
         self.canonicalTimestamp = canonicalTimestamp
-        self.category = category
+        self.categories = categories
         self.categorySource = categorySource
         self.groupID = groupID
     }
@@ -113,7 +113,7 @@ public struct BaselinePipeline: Sendable {
                 continue
             }
 
-            let categoryAssignment = assignCategory(for: entry)
+            let categoryAssignment = assignCategories(for: entry)
             let groupID = GroupingPolicy.groupID(for: entry.title)
 
             let processed = ProcessedItem(
@@ -121,7 +121,7 @@ public struct BaselinePipeline: Sendable {
                 sourceID: entry.sourceID,
                 title: entry.title,
                 canonicalTimestamp: canonicalTimestamp,
-                category: categoryAssignment.label,
+                categories: categoryAssignment.labels,
                 categorySource: categoryAssignment.source,
                 groupID: groupID
             )
@@ -141,15 +141,15 @@ public struct BaselinePipeline: Sendable {
         return PipelineOutput(items: sortedItems, chronologyReport: chronologyReport)
     }
 
-    private func assignCategory(for entry: FeedEntry) -> (label: String, source: CategorySource) {
-        guard let prediction = categorizer.predict(for: entry),
-              prediction.confidence >= confidenceThreshold,
-              prediction.label.isEmpty == false
-        else {
-            return (label: fallbackCategory, source: .fallback)
+    private func assignCategories(for entry: FeedEntry) -> (labels: [String], source: CategorySource) {
+        let predictions = categorizer.predict(for: entry)
+        let accepted = predictions.filter { $0.confidence >= confidenceThreshold && !$0.label.isEmpty }
+
+        guard !accepted.isEmpty else {
+            return (labels: [fallbackCategory], source: .fallback)
         }
 
-        return (label: prediction.label, source: .model)
+        return (labels: accepted.map(\.label), source: .model)
     }
 }
 

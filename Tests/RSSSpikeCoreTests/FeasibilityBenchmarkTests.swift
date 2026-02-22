@@ -53,7 +53,7 @@ final class FeasibilityBenchmarkTests: XCTestCase {
 private struct StubBenchmarkCategorizer: EntryCategorizer {
     let predictions: [String: CategoryPrediction]
 
-    func predict(for entry: FeedEntry) -> CategoryPrediction? {
-        predictions[entry.id]
+    func predict(for entry: FeedEntry) -> [CategoryPrediction] {
+        if let p = predictions[entry.id] { return [p] } else { return [] }
     }
 }
