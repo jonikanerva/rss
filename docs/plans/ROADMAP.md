@@ -12,16 +12,16 @@ Status: Active draft
 
 1. R1: Research baseline approved
    - Outcome: Research dossier(s) define problem, alternatives, evidence, and recommendation.
-   - State: In progress
+   - State: Complete
 2. R2: Feasibility spike plan and contracts
    - Outcome: Chronology, categorization, and grouping contract is documented with acceptance criteria.
-   - State: In progress
+   - State: Complete
 3. R3: Feasibility implementation evidence
    - Outcome: Reproducible benchmark artifacts and quality metrics are attached.
-   - State: In progress
+   - State: In progress (pipeline complete, awaiting human review for C4 evidence)
 4. R4: Pre-build gate decision
    - Outcome: GO/NO-GO decision with owner signoff.
-   - State: Pending
+   - State: Blocked on R3 (human review)
 5. R5: Hard MVP execution plan lock
    - Outcome: Approved roadmap for full scaffold after gate pass.
    - State: Pending
@@ -29,6 +29,10 @@ Status: Active draft
 ## Critical path
 
 - R1 -> R2 -> R3 -> R4 -> R5
+
+## Current bottleneck
+
+- **R3 → R4 transition** is blocked on human dogfood review of 303 real RSS items (`data/eval/dogfood-v1/review-sheet.csv`). All automated pipeline metrics pass. The only missing evidence is the C4 Human Trust Proxy (correction rate from real reviewed sample).
 
 ## Dependencies
 

@@ -20,15 +20,23 @@ Status: Active
 - Gate decision is explicit (GO/NO-GO) with owner signoff.
 - Handoff allows a new agent to continue without additional discovery questions.
 
+## Where we are right now
+
+- Pipeline has been refactored to **multi-label categorization** (7 user-defined categories + unsorted fallback).
+- **303 real RSS articles** from 8 feeds are parsed and ready for human review.
+- Benchmark pipeline (`dogfood-run-002`) passes all automated gate criteria (completion 100%, fallback 19.5%, chronology 0 inversions).
+- **Blocker**: Gate criterion C4 (Human Trust Proxy) requires the product owner to review the 303-item CSV and record correction rate. This is the only remaining blocker before GO/NO-GO decision.
+- All work is on branch `feat/dogfood-real-data` (2 commits ahead of `main`, not yet pushed/PR'd).
+
 ## Next actions (max 3)
 
-1. Gate evidence linkage and owner decision log update.
-   - Owner: Product owner + Engineering owner
-   - Target: signoff on latest run
-2. Replace synthetic dogfood correction evidence with real review sample.
-   - Owner: Product owner + Agent
-   - Target: before owner signoff
-3. Owner signoff on latest gate run.
+1. Human review of `data/eval/dogfood-v1/review-sheet.csv` (303 items).
+   - Owner: Product owner
+   - Target: fill in `categories_correct`, `correct_categories`, `grouping_correct`, `notes` columns
+2. Compute correction rate from review and update gate evidence.
+   - Owner: Agent
+   - Target: after item 1
+3. Owner signoff on gate decision (GO/NO-GO).
    - Owner: Product owner + Engineering owner
    - Target: after item 2
 
@@ -41,6 +49,16 @@ Status: Active
 - Working model: `docs/operating-model/README.md`
 - Live priorities: `docs/plans/NEXT-ACTIONS.md`
 - Milestone view: `docs/plans/ROADMAP.md`
+- **Review sheet**: `data/eval/dogfood-v1/review-sheet.csv`
+- **Latest benchmark**: `artifacts/feasibility/dogfood-run-002/`
+
+## Branch state
+
+- Active branch: `feat/dogfood-real-data` (2 commits ahead of `main`, not pushed)
+- Commits:
+  1. `feat(pipeline): refactor to multi-label categorization with 7 user-defined categories`
+  2. `feat(dogfood): add real RSS data pipeline with 303 items from 8 feeds`
+- All 13 tests pass on this branch.
 
 ## Ownership
 
@@ -50,7 +68,7 @@ Status: Active
 
 ## Last updated
 
-- 2026-02-22 by OpenCode agent (post run-005 update)
+- 2026-02-22 by OpenCode agent (post dogfood-run-002, session pause)
 
 ## Update rule
 
