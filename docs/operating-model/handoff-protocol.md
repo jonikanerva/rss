@@ -8,15 +8,35 @@ Status: Active draft
 
 Define how work progresses from local edits to review-ready commits with minimal interruption and predictable handoffs.
 
+## Workspace isolation default
+
+- Default mode: create one `git worktree` per implementation session.
+- One session = one worktree = one task branch = one PR scope.
+- Goal: keep `index` and working tree isolated between parallel agents/sessions.
+
+Allowed exceptions (must be documented in PR or handoff note):
+
+- Short single-developer hotfix with no parallel agent activity.
+- Read-only analysis/documentation session with no commits.
+- Submodule or repo edge case where worktree is known to be unstable (use separate clone).
+
 ## Branch and commit progression
 
-1. Start from updated base and create task branch.
+1. Start from updated base and create a session worktree + task branch.
    - Naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`.
 2. Implement one logical change at a time.
 3. Run local verification for changed scope.
 4. Create single-purpose commit with clear message.
 5. Repeat until task scope is complete.
 6. Push branch and open PR.
+7. Merge to `main` only via reviewed PR.
+
+Worktree creation example:
+
+```bash
+mkdir -p .worktrees
+git worktree add ".worktrees/<topic>-<session>" -b "feat/<topic>" main
+```
 
 ## Commit cadence
 
@@ -64,6 +84,20 @@ Agent pauses and asks for explicit confirmation when:
 - Preferred rollback: `git revert <sha>` for already committed branch changes.
 - For uncommitted local mistakes: safe targeted edits (avoid destructive reset unless explicitly requested).
 - Never force-push `main`; avoid force push on any branch unless explicitly requested.
+
+## Merge and cleanup cadence
+
+- After PR merge, remove the session worktree within 24h.
+- Run `git worktree prune` at least weekly.
+- Keep stale session branches out of local workspace; delete merged branches during cleanup.
+
+Cleanup example:
+
+```bash
+git worktree remove ".worktrees/<topic>-<session>"
+git branch -d feat/<topic>
+git worktree prune
+```
 
 ## PR handoff checklist
 
