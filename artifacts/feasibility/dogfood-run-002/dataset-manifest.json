@@ -1,0 +1,11 @@
+{
+  "datasetPath" : "data\/eval\/dogfood-v1\/items.jsonl",
+  "guidelineVersion" : "v1",
+  "hardwareProfile" : "macos-m1-8gb",
+  "itemCount" : 303,
+  "runID" : "20260222-120030",
+  "runStartedAt" : "2026-02-22T12:00:30Z",
+  "storyLabelsPath" : "data\/eval\/dogfood-v1\/labels-same-story.csv",
+  "taxonomyLabelsPath" : "data\/eval\/dogfood-v1\/labels-taxonomy.csv",
+  "taxonomyVersion" : "v1"
+}

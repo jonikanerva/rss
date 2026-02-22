@@ -1,0 +1,850 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>MacRumors: Mac News and Rumors - Front Page</title>
+	<atom:link href="https://feeds.macrumors.com/MacRumors-Front" rel="self" type="application/rss+xml" />
+	<link>https://www.macrumors.com</link>
+	
+	<description>Apple, iPhone, iPad, Mac News and Rumors</description>
+	<lastBuildDate>Sun, 22 Feb 2026 03:59:43 PST</lastBuildDate>
+
+	<language>en</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://www.macrumors.com</generator>
+		
+		<item>
+		<title>Anker&#039;s Weekend Sale Includes Big Savings on Newest Prime Chargers</title>
+		<link>https://www.macrumors.com/2026/02/21/ankers-weekend-sale/</link>
+		<comments>https://forums.macrumors.com/threads/ankers-weekend-sale-includes-big-savings-on-newest-prime-chargers.2478022/</comments>
+		<pubDate>Sat, 21 Feb 2026 07:39:12 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/21/ankers-weekend-sale/</guid>
+		<dc:creator>Mitchel Broussard</dc:creator>
+		<category>Deals</category>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[Earlier this month, Anker <a href="https://www.macrumors.com/2026/02/02/anker-prime-wireless-charging-station/">debuted</a> its new Prime 3-in-1 Wireless Charging Station with a <a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fproduct%2FB0FHWK3W1S">launch discount on Amazon</a>. This deal is still available this weekend, allowing you to clip an on-page coupon on Amazon to get the accessory for &#36;119.99, down from &#36;149.99.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/anker-charging-february.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1035106" /><em><small>Note: MacRumors is an affiliate partner with Amazon. When you click a link and make a purchase, we may receive a small payment, which helps us keep the site running.</small></em><br/>
+<br/>
+The Prime 3-in-1 Wireless Charging Station features Qi2.2 support, which lets a compatible MagSafe ‌iPhone‌ charge at up to 25W. It's the same speed as Apple's ‌MagSafe‌ charger, and it is 10W faster than the standard Qi2 ‌MagSafe‌ chargers. You can also simultaneously charge an Apple Watch and AirPods with the device.<br/>
+<br/>
+<div class="center-wrap"><em><strong>Note: You won't see the deal price until checkout.</strong></em></div><br/>
+<div class="center-wrap"><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fproduct%2FB0FHWK3W1S"target="_blank"><div class="fancybutton"><div class="fancybadge">&#36;30 OFF</div>Anker Prime 3-in-1 Wireless Charging Station for &#36;119.99</div></a></div><br/>
+<br/>
+There are plenty of other Anker discounts happening on Amazon this week, including the Prime 14-in-1 Thunderbolt 5 Dock back at its all-time low price of <a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Docking-Thunderbolt-Transfer-Charging%2Fdp%2FB0DSVVJXK5%2Fref%3Dast_sto_dp_puis"><strong>&#36;339.99</strong></a>, down from &#36;399.99. You can find this accessory and more on sale in the lists below, and note that as of writing only the new Prime 3-in-1 Wireless Charging Station requires an on-page coupon.<br/>
+<br/>
+<div class="center-wrap"><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Docking-Thunderbolt-Transfer-Charging%2Fdp%2FB0DSVVJXK5%2Fref%3Dast_sto_dp_puis"target="_blank"><div class="fancybutton"><div class="fancybadge">&#36;60 OFF</div>Anker Prime 14-in-1 Thunderbolt 5 Dock for &#36;339.99</div></a></div><br/>
+<h2>Wall Chargers</h2><br/>
+<ul><li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Charging-Foldable-Recognition-Non-Battery%2Fdp%2FB0G1MRLXMV%2Fref%3Dast_sto_dp_puis%3Fth%3D1">Nano USB-C Wall Charger</a> - &#36;29.99, down from &#36;39.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Detachable-Extension-Non-Battery-Non-Wireless%2Fdp%2FB0BSGH355C%2Fref%3Dast_sto_dp_puis">6-in-1 USB-C Power Strip</a> - &#36;59.99, down from &#36;109.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Multi-Device-Charging-Advanced-Intuitive%2Fdp%2FB0DFCH3C4W%2Fref%3Dast_sto_dp_puis%3Fth%3D1">140W 4-Port GaN USB-C Charger</a> - &#36;89.99, down from &#36;99.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Docking-Thunderbolt-Transfer-Charging%2Fdp%2FB0DSVVJXK5%2Fref%3Dast_sto_dp_puis">14-in-1 Prime Thunderbolt 5 Dock</a> - &#36;339.99, down from &#36;399.99</li></ul><br/>
+<h2>Wireless Chargers</h2><br/>
+<ul><li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Magnetic-Wireless-Certified-MagSafe-Compatible%2Fdp%2FB0DRCSZ618%2Fref%3Dast_sto_dp_puis%3Fth%3D1">Qi2 MagSafe-Compatible Wireless Charger 2-Pack</a> - &#36;25.98, down from &#36;39.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FCompatible-Anker-Charging-Certified-Wireless%2Fdp%2FB0CF56WHV4%2Fref%3Dast_sto_dp_puis%3Fth%3D1">3-in-1 MagSafe-Compatible Charging Station</a> - &#36;85.99, down from &#36;109.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Magnetic-Charger-Portable-Station%2Fdp%2FB09TT8GZK9%2Fref%3Dast_sto_dp_puis%3Fth%3D1">3-in-1 MagSafe-Compatible Charging Cube</a> - &#36;97.48, down from &#36;149.95</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fproduct%2FB0FHWK3W1S">3-in-1 Prime Wireless Charging Station (NEW)</a> - &#36;119.99 with on-page coupon, down from &#36;149.99</li></ul><br/>
+<h2>Portable Chargers</h2><br/>
+<ul><li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Portable-Charging-TSA-Approved-Included%2Fdp%2FB0F66NH2ZX%2Fref%3Dast_sto_dp_puis%3Fth%3D1">Prime Power Bank 20,100 mAh</a> - &#36;134.99, down from &#36;179.99</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Portable-Generator-Traveling-Emergencies%2Fdp%2FB0D62PMB3R%2Fref%3Dast_sto_dp_puis%3Fth%3D1">SOLIX C300 Power Station with Lantern</a> - &#36;179.99, down from &#36;249.00</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Portable-Station-Generator-Optional%2Fdp%2FB0FN7MSY4L%2Fref%3Dast_sto_dp_puis%3Fth%3D1">SOLIX C1000 Gen 2 Portable Power Station</a> - &#36;469.99, down from &#36;799.00</li><br/>
+<li><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FAnker-Portable-Station-Generator-Optional%2Fdp%2FB0FVFGL38H%2Fref%3Dast_sto_dp_puis%3Fth%3D1">SOLIX C2000 Gen 2 Portable Power Station</a> - &#36;778.99, down from &#36;1,499.00</li></ul><br/>
+<br/>
+If you're on the hunt for more discounts, be sure to visit our <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a> roundup where we recap the best Apple-related bargains of the past week.<br/>
+<br/>
+<hr /><br/>
+<div class="no-raptive"><br/>
+<h3>Deals Newsletter</h3><br/>
+Interested in hearing more about the best deals you can find in 2026? <a href="http://eepurl.com/itTnTk">Sign up</a> for our Deals Newsletter and we'll keep you updated so you don't miss the biggest deals of the season!<br/>
+<br/>
+<div style="text-align:center;margin-bottom:2em;"><br/>
+<br/>
+<form action="http://macrumors.us5.list-manage.com/subscribe/post?u=7d0106b433773bd0aef5828e0&amp;id=eebad02bf4&amp;f_id=00fbede0f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate><input type="email" value="" name="EMAIL" size="30" class="required email" id="mce-EMAIL"  placeholder="Enter Email Address" title="Email Address" /><div class="response" id="mce-error-response" style="display:none"></div><div class="response" id="mce-success-response" style="display:none"></div><div style="position: absolute; left: -5000px;"><input type="text" name="b_7d0106b433773bd0aef5828e0_eebad02bf4" tabindex="-1" value="" title="form" /></div><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div><br/>
+</div><div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/21/ankers-weekend-sale/">Anker&#039;s Weekend Sale Includes Big Savings on Newest Prime Chargers</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/ankers-weekend-sale-includes-big-savings-on-newest-prime-chargers.2478022/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Top Stories: Apple Event on March 4, iOS 26.4 Beta, and More</title>
+		<link>https://www.macrumors.com/2026/02/21/top-stories-apple-event-march-4/</link>
+		<comments>https://forums.macrumors.com/threads/top-stories-apple-event-on-march-4-ios-26-4-beta-and-more.2478017/</comments>
+		<pubDate>Sat, 21 Feb 2026 06:00:00 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/21/top-stories-apple-event-march-4/</guid>
+		<dc:creator>MacRumors Staff</dc:creator>
+		<category>Featured</category>
+		<category>Top Stories</category>
+		
+
+		<description><![CDATA[It looks like our first major Apple product announcements of 2026 are right around the corner, with Apple announcing a "special Apple Experience" for members of the media scheduled for March 4 where we're expecting to see them get hands-on time with several newly announced products.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/top-stories-2026-02-21.jpg" alt="" width="1600" height="900" class="aligncenter size-full wp-image-1037050" /><br/>
+In other Apple news this week, the first betas of iOS 26.4 and related updates include some new features and enhancements, while we heard a bit more about the iPhone 18 Pro and Pro Max coming later this year, so read on below for all the details on these stories and more!<br/>
+<br/>
+<h2>Top Stories</h2><br/>
+<h3>Apple Announces Special Event in New York, London, and Shanghai on March 4</h3><br/>
+Apple this week <a href="https://www.macrumors.com/2026/02/16/apple-announces-special-event-in-new-york/">invited members of the media to a "special Apple Experience"</a> taking place simultaneously in New York, London, and Shanghai on Wednesday, March 4.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Apple-Announces-Special-Event-in-New-York-Feature-1.jpg" alt="" width="1888" height="1063" class="aligncenter size-full wp-image-1036546" /><br/>
+Rather than a traditional Apple event, it sounds like these "experiences" will be opportunities for the media to get hands-on time with a variety of products being announced at the start of or slightly before the event time.<br/>
+<br/>
+It actually sounds like we may be getting <a href="https://www.macrumors.com/2026/02/17/apple-announcements-first-week-of-march/">several days of press release announcements</a> in the first part of the week, culminating in the media experiences on Wednesday. While we don't know exactly what products will be announced that week, there are a <a href="https://www.macrumors.com/2026/02/17/apple-event-march-2026-preview/">host of new products expected in the near future</a> including the iPhone 17e, M5 Pro and M5 Max MacBook Pro models, new iPads, and more.<br/>
+<br/>
+<h3>Everything New in iOS 26.4 Beta 1</h3><br/>
+Following last week's release of iOS 26.3, Apple this week seeded the first betas of iOS 26.4 and related updates.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/iOS-26.4-Whats-New-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036532" /><br/>
+While it doesn't include the more personalized Siri we had been hoping for, <a href="https://www.macrumors.com/guide/ios-26-4-beta-features/">there are a bunch of changes and new features</a> in the update.<br/>
+<br/>
+One of the more interesting changes being prepped for in the release is support for <a href="https://www.macrumors.com/2026/02/18/ios-26-4-major-new-carplay-feature-revealed/">CarPlay video over AirPlay</a>, which will allow users to stream Apple TV and other video content to their car's infotainment screen while their vehicle is parked.<br/>
+<br/>
+<h3>Five iPhone 18 Pro Features Revealed in New Report</h3><br/>
+While the iPhone 18 Pro and Pro Max should have very similar designs to their predecessors, they are likely to be getting an array of new features and upgrades to attract customers.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/11/Coffee-Burgundy-and-Purple-iPhone-18-Pro-Mock.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1025606" /><br/>
+Research analyst Jeff Pu recently <a href="https://www.macrumors.com/2026/02/13/five-iphone-18-pro-features-revealed-in-new-report/">outlined five upgrades he's expecting to see</a> in the new models, and we've recapped a full list of <a href="https://www.macrumors.com/2026/02/18/reasons-to-wait-iphone-18-pro/">ten reasons why you might want to wait</a> for the new models if you're considering buying now.<br/>
+<br/>
+<h3>Apple Reveals How Many iPhones Are Running iOS 26</h3><br/>
+With the transition to the controversial new Liquid Glass design in iOS 26, some users appear to have been holding off on upgrading, but new data released by Apple last week suggests the impact is relatively small.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/08/iOS-26-Glass-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1016183" /><br/>
+<a href="https://www.macrumors.com/2026/02/13/apple-shares-ios-26-adoption-stats/">Apple adoption data</a> shows roughly the same share of devices are running iOS 26 at this point as were running iOS 18 a year ago, although the company did wait three weeks longer to release data this year. So while it appears adoption is lagging a bit this year, it's not a massive difference.<br/>
+<br/>
+<h3>Toyota Rolling Out Apple Wallet Car Keys on iPhone</h3><br/>
+Toyota, the world's largest car manufacturer, is <a href="https://www.macrumors.com/2026/02/17/toyota-apple-wallet-car-keys/">finally rolling out support for Apple's digital car key feature</a>, allowing users to lock, unlock, and start compatible vehicles from the Wallet app on their iPhone or Apple Watch.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Toyota-Rav4-Car-Key-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036635" /><br/>
+Signs of the impending support were discovered back in December, and we've seen our first report of vehicles in the wild supporting it with the new 2026 RAV4.<br/>
+<br/>
+<h3>Apple Launching New 'Sales Coach' App</h3><br/>
+Apple plans to <a href="https://www.macrumors.com/2026/02/13/apple-launching-sales-coach-app/">launch a rebranded "Sales Coach" app</a> on the iPhone and iPad later this month, according to a source familiar with the matter.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Apple-Sales-Coach-App.jpg" alt="" width="1600" height="900" class="aligncenter size-full wp-image-1036364" /><br/>
+"Sales Coach" will arrive as an update to Apple's existing "SEED" app, and it will continue to provide sales tips and training resources to Apple Store and Apple Authorized Reseller employees around the world. For example, there are articles and videos highlighting everything from reasons to upgrade to a newer iPhone to popular iPad features.<br/>
+<br/>
+<h2>MacRumors Newsletter</h2><br/>
+Each week, we publish an email newsletter like this highlighting the top Apple stories, making it a great way to get a bite-sized recap of the week hitting all of the major topics we've covered and tying together related stories for a big-picture view.<br/>
+<br/>
+So if you want to have <a href="https://mailchi.mp/macrumors/feb-19-2026">top stories</a> like the above recap delivered to your email inbox each week, <b><a href="http://eepurl.com/OHdUX">subscribe to our newsletter</a></b>!<div class="linkback">Tag: <a href="https://www.macrumors.com/guide/top-stories/">Top Stories</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/21/top-stories-apple-event-march-4/">Top Stories: Apple Event on March 4, iOS 26.4 Beta, and More</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/top-stories-apple-event-on-march-4-ios-26-4-beta-and-more.2478017/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Apple&#039;s Low-Cost Colorful MacBook: All the Rumors</title>
+		<link>https://www.macrumors.com/2026/02/20/low-cost-macbook-latest-rumors/</link>
+		<comments>https://forums.macrumors.com/threads/apples-low-cost-colorful-macbook-all-the-rumors.2478001/</comments>
+		<pubDate>Fri, 20 Feb 2026 14:37:39 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/low-cost-macbook-latest-rumors/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[Apple has been developing a more affordable version of the MacBook, and it's rumored to be launching in under two weeks. This is going to be one of Apple's most unique Macs, because there hasn't really been anything quite like it before.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/12/Low-Cost-A18-Pro-MacBook-Feature-Pink.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1028724" /><br/>
+We've rounded up everything we know about the low-cost MacBook ahead of its March debut.<br/>
+<br/>
+<h2>Design</h2><br/>
+Rumors about the MacBook's design make it sound a lot like the <a href="https://www.macrumors.com/roundup/macbook-air/">MacBook Air</a>. It will have an aluminum chassis in various colors, and a 12.9-inch or 13-inch display, depending on the rumor.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Multicolored-Low-Cost-A18-Pro-MacBook-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036750" /><br/>
+It's possible the low-cost MacBook will have a thin and light design because it's going to use a lower power A-series chip that doesn't require a lot of heat dissipation, but that's not yet confirmed. Apple used to have a 12-inch MacBook with a thin design and a low-power Core M chip, and it's been suggested that this new MacBook could be something of a revival of that machine.<br/>
+<br/>
+Thinner and lighter typically means more expensive with Apple products, so a super slim design might not be what Apple is optimizing for. Making the low-cost MacBook thinner than the &zwnj;MacBook Air&zwnj; could just confuse the MacBook lineup.<br/>
+<br/>
+With the low-cost <a href="https://www.macrumors.com/roundup/ipad/">iPad</a>, Apple keeps the price down by using older display technology that's not as thin, so we could see that same strategy with the low-cost MacBook. A thicker chassis and a super efficient chip could mean a long battery life, which would be ideal for an educational environment.<br/>
+<br/>
+<h2>Colors</h2><br/>
+The MacBook is going to come in a <a href="https://www.macrumors.com/2026/02/16/low-cost-macbook-yellow-green-blue-pink/">selection of fun colors</a>, and Apple has tested light yellow, light green, blue, pink, silver, and dark gray, according to <em>Bloomberg</em>. Not all of those colors are likely to ship, but it sounds like we'll get at least four of them.<br/>
+<br/>
+Apple analyst <a href="https://www.macrumors.com/guide/ming-chi-kuo/">Ming-Chi Kuo</a> thinks the MacBook will come in yellow, silver, blue, and pink, which would be the same colors that Apple offers for the &zwnj;iPad&zwnj;.<br/>
+<br/>
+<h2>A-Series Chip</h2><br/>
+The most consistent rumor we've heard about the MacBook is its planned chip. Rather than an M-series Mac chip, Apple is planning to use an A-series chip. The low-cost MacBook is expected to use the A18 Pro chip, which Apple first debuted in the <a href="https://www.macrumors.com/roundup/iphone-16/">iPhone 16</a> Pro.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2024/09/A18-Pro-Chip.jpg" alt="" width="1600" height="900" class="aligncenter size-full wp-image-965379" /><br/>
+The A18 Pro uses a second-generation 3-nanometer process. It has a 6-core CPU with four performance cores and two efficiency cores, along with a 6-core GPU and a 16-core Neural Engine for AI-based tasks. In Geekbench benchmarks, the A18 Pro has an average single-core score of 3451, and a multi-core score of 8572. For comparison, the M4 <a href="https://www.macrumors.com/roundup/ipad-pro/">iPad Pro</a> earns a single-core score of 3694 and a multi-core score of 13732 (Apple's next &zwnj;MacBook Air&zwnj; is going to use the M4 chip).<br/>
+<br/>
+The A18 Pro outperforms the <a href="https://www.macrumors.com/guide/m1/">M1</a>, which is the chip that Apple kept around in a lower-cost version of the &zwnj;MacBook Air&zwnj; for several years. An A18 MacBook wouldn't be too far off from the M4 Mac/&zwnj;iPad&zwnj; chips in terms of single-core performance, but there would be a difference in multi-core performance.<br/>
+<br/>
+A MacBook with the A18 chip would be more than powerful enough for day-to-day use like web browsing, document creation, watching videos, and even light photo and video editing. It won't be ideal for system-intensive games or tasks like 4K video editing and 3D rendering, but it will do almost everything an <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> or &zwnj;iPad&zwnj; can do.<br/>
+<br/>
+Apple is developing the low-cost MacBook with students in mind, and it sounds like it will be the Apple equivalent of the affordable Chromebook PCs that are often used by students.<br/>
+<br/>
+<h2>RAM</h2><br/>
+Macs start with 16GB RAM, but the &zwnj;iPhone 16&zwnj; Pro has 8GB RAM, the minimum for <a href="https://www.macrumors.com/guide/apple-intelligence/">Apple Intelligence</a>. We can expect an A18 Pro MacBook to have at least 8GB RAM so it can support &zwnj;Apple Intelligence&zwnj;, but it's possible Apple will give it the 16GB that all Macs have.<br/>
+<br/>
+<h2>Storage</h2><br/>
+The &zwnj;MacBook Air&zwnj; starts with 256GB of storage, but Apple could possibly launch the low-cost MacBook with 128GB.<br/>
+<br/>
+<h2>Ports</h2><br/>
+The A18 Pro chip in the &zwnj;iPhone 16&zwnj; Pro models doesn't support Thunderbolt, so the MacBook will be limited to USB-C (10GB/s) and won't offer Thunderbolt speeds. That will limit display connectivity, so it's likely the A18 Pro MacBook will only support a single external display.<br/>
+<br/>
+<h2>Naming</h2><br/>
+It's not really clear what Apple will name the low-cost Mac notebook. We have the &zwnj;MacBook Air&zwnj; and the <a href="https://www.macrumors.com/roundup/macbook-pro/">MacBook Pro</a>, so it's entirely possible it will be called "MacBook." Apple has used the MacBook name multiple times in the past, and it's not in use at the moment.<br/>
+<br/>
+<h2>Price</h2><br/>
+Pricing on the &zwnj;MacBook Air&zwnj; starts at &#36;999, and the low-cost MacBook is expected to be priced much lower.<br/>
+<br/>
+Apple probably won't want to undercut its &zwnj;iPad&zwnj; pricing by too much. The low-cost &zwnj;iPad&zwnj; with A16 chip starts at &#36;349, and the <a href="https://www.macrumors.com/roundup/ipad-air/">iPad Air</a> with <a href="https://www.macrumors.com/guide/m2/">M2</a> chip starts at &#36;599. A price between &#36;599 and &#36;799 could make the most sense because it wouldn't be as expensive as the &zwnj;MacBook Air&zwnj; or &zwnj;iPad Pro&zwnj;, but would come in at or just over the &zwnj;iPad Air&zwnj;'s cost.<br/>
+<br/>
+&#36;599 would be on par with some of the highly rated Chromebook options that people often purchase for school use, while a &#36;699 or &#36;799 price would be in the same general pricing area, but a little more of a premium price tag. &#36;599 is also the cost of the <a href="https://www.macrumors.com/roundup/iphone-16e/">iPhone 16e</a>, Apple's most affordable &zwnj;iPhone&zwnj; that uses a slightly less powerful A18 chip.<br/>
+<br/>
+<h2>Launch Date</h2><br/>
+Rumors suggest that the low-cost MacBook will be introduced at or just before Apple's March 4 Special Experience that's taking place in New York, London, and Shanghai. Apple could announce the MacBook in a press release ahead of the experience.<br/>
+<br/>
+Select members of the media have been invited to the mini event, and it's likely to provide them with a chance to try the new MacBook and other new devices.<br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/low-cost-macbook-latest-rumors/">Apple&#039;s Low-Cost Colorful MacBook: All the Rumors</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/apples-low-cost-colorful-macbook-all-the-rumors.2478001/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Jony Ive&#039;s First OpenAI Device Will Be Smart Speaker With Camera, 2027 Launch Planned</title>
+		<link>https://www.macrumors.com/2026/02/20/jony-ive-openai-smart-speaker-2027/</link>
+		<comments>https://forums.macrumors.com/threads/jony-ives-first-openai-device-will-be-smart-speaker-with-camera-2027-launch-planned.2477997/</comments>
+		<pubDate>Fri, 20 Feb 2026 12:08:52 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/jony-ive-openai-smart-speaker-2027/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Jony Ive</category>
+		<category>LoveFrom</category>
+		<category>OpenAI</category>
+		
+
+		<description><![CDATA[OpenAI is working on several AI hardware devices in partnership with former Apple designer Jony Ive, and the first product that comes out could be a smart speaker. The company is developing a smart speaker, a smart lamp, and considering AI glasses, according to <em><a href="https://www.theinformation.com/articles/inside-openai-team-developing-ai-devices?rc=583sff">The Information</a></em>, with the speaker set to come out in early 2027.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/05/jony-ive-sam-altman.jpg" alt="" width="1600" height="900" class="aligncenter size-full wp-image-1002771" /><br/>
+OpenAI's smart speaker has an integrated camera and it is designed to learn information about who is using it and what's around them. It will include a facial recognition feature similar to <a href="https://www.macrumors.com/guide/mask-face-id/">Face ID</a>, and users will be able to use the speaker to make purchases. The speaker will have AI integration, so users can ask it questions and make requests.<br/>
+<br/>
+In an internal presentation, OpenAI employees were told that the speaker would observe users and suggest actions to help them achieve goals, such as suggesting an early bedtime ahead of a morning meeting.<br/>
+<br/>
+Apple is working on a similar home hub device that's set to come out this year. The home hub will include an integrated camera and speaker for video calls and controlling smart home products, plus it will have deep integration with the updated version of <a href="https://www.macrumors.com/guide/siri/">Siri</a> that Apple is developing.<br/>
+<br/>
+OpenAI is planning to price the speaker between &#36;200 and &#36;300, with a launch planned for February 2027 at the earliest. OpenAI is exploring a smart lamp and smart glasses, but those products won't be ready until 2028 or later. With the exception of the speaker, OpenAI's hardware development is in the early stages and other products could be canceled.<br/>
+<br/>
+Jony Ive has been working with OpenAI since OpenAI <a href="https://www.macrumors.com/2025/05/21/openai-buys-jony-ive-ai-startup/">acquired Ive's hardware firm</a> io in May 2025. Ive and OpenAI CEO Sam Altman have shared some details on their AI hardware work, suggesting that there was an established prototype <a href="https://www.macrumors.com/2025/11/24/jony-ive-sam-altman-ai-device-2/">in November 2025</a>. At the time, Ive and Altman said the device would be "peaceful" and an "active participant" that's not annoying. The duo also described the device as a product that would "make people feel joy."<br/>
+<br/>
+Additional rumors about OpenAI's plans came following <a href="https://www.macrumors.com/2025/05/22/details-leak-jony-ive-openai-device/">an employee meeting</a>, where Ive and Altman said they didn't want a device with a screen. The device, which is presumably the speaker that <em>The Information</em> says is in development, was described as pocket-sized and contextually aware of the user's surroundings. Altman told employees it's "the coolest piece of technology that the world will have ever seen."<br/>
+<br/>
+While Altman and Ive have promised the next big thing after the <a href="https://www.macrumors.com/guide/iphone/">iPhone</a>, there is some internal tension at OpenAI. Ive's LoveFrom design company has remained separate from OpenAI, but LoveFrom is providing hardware designs to OpenAI. It's up to OpenAI's hardware and software engineers to actually make the products that LoveFrom comes up with.<br/>
+<br/>
+OpenAI employees have apparently complained about LoveFrom's secrecy and slow speed when it comes to design revisions. Former Apple designer Evans Hankey is leading industrial design, and Ive is said to be making the final call on almost all design choices. Other former Apple employees working at OpenAI on hardware include Tang Tan and Scott Cannon, plus <a href="https://www.macrumors.com/guide/eddy-cue/">Eddy Cue</a>'s son Adam Cue is working on OpenAI software.<div class="linkback">Tags: <a href="https://www.macrumors.com/guide/jony-ive/">Jony Ive</a>, <a href="https://www.macrumors.com/guide/lovefrom/">LoveFrom</a>, <a href="https://www.macrumors.com/guide/openai/">OpenAI</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/jony-ive-openai-smart-speaker-2027/">Jony Ive&#039;s First OpenAI Device Will Be Smart Speaker With Camera, 2027 Launch Planned</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/jony-ives-first-openai-device-will-be-smart-speaker-with-camera-2027-launch-planned.2477997/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>The MacRumors Show: What&#039;s Coming at the &#039;Apple Experience&#039;?</title>
+		<link>https://www.macrumors.com/2026/02/20/the-macrumors-show-apple-experience/</link>
+		<comments>https://forums.macrumors.com/threads/the-macrumors-show-whats-coming-at-the-apple-experience.2477987/</comments>
+		<pubDate>Fri, 20 Feb 2026 08:06:17 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/the-macrumors-show-apple-experience/</guid>
+		<dc:creator>Hartley Charlton</dc:creator>
+		<category>Featured</category>
+		<category>Featured (sticky)</category>
+		<category>The MacRumors Show</category>
+		
+
+		<description><![CDATA[We talk through everything to expect at Apple's upcoming "<a href="https://www.macrumors.com/2026/02/16/apple-announces-special-event-in-new-york/">Experience</a>" on March 4, on this week's episode of <a href="https://podcasts.apple.com/us/podcast/whats-coming-at-the-march-4th-apple-experience/id1602394741?i=1000750673857">The MacRumors Show</a>.<br/>
+<br/>
+<div class="center-wrap"><iframe width="560" height="315" src="https://www.youtube.com/embed/8AaXm42Qgbw?si=xAcqZOE_AiO9a1lY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><em><a href="https://www.youtube.com/@themacrumorsshow?sub_confirmation=1">Subscribe to The MacRumors Show YouTube channel</a> for more videos</em></div><br/>
+Earlier this week, Apple today a "special Apple Experience" for the media in New York, London, and Shanghai, taking place on March 4, 2026 at 9:00am ET. It is notable that Apple is specifically using the word "experience," rather than "event." Unlike a full live-streamed event from <a href="https://www.macrumors.com/guide/apple-park/">Apple Park</a>, the March 4 event in other cities is likely to be smaller in scale.<br/>
+<br/>
+The launch of several new Apple products is believed to be imminent. We're most likely to see the announcement of the <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> 17e, a spec-bumped successor to the <a href="https://www.macrumors.com/roundup/iphone-16e/">iPhone 16e</a>, with <a href="https://www.macrumors.com/2026/02/05/iphone-17e-and-ipad-12-rumors/">rumored upgrades</a> including an A19 chip, <a href="https://www.macrumors.com/guide/magsafe/">MagSafe</a>, and Apple's C1X and N1 wireless chips. The device will <a href="https://www.macrumors.com/2026/02/05/iphone-17e-and-ipad-12-rumors/">apparently have a notch</a> despite earlier rumors mentioning a <a href="https://www.macrumors.com/guide/dynamic-island/">Dynamic Island</a>, and <a href="https://www.macrumors.com/2026/02/08/iphone-17e-launch-imminent-with-four-features/">pricing will continue to start at &#36;599</a> in the United States.<br/>
+<br/>
+The all-new low-cost MacBook is likely to arrive, featuring the <a href="https://www.macrumors.com/2026/01/02/12-9-inch-macbook-spring-2026-rumor/">A18 Pro chip</a>, a <a href="https://www.macrumors.com/2026/01/02/12-9-inch-macbook-spring-2026-rumor/">12.9-inch display</a>, and a selection of <a href="https://www.macrumors.com/2026/02/16/low-cost-macbook-yellow-green-blue-pink/">fun color options</a>. The <a href="https://www.macrumors.com/roundup/macbook-pro/">MacBook Pro</a> is also expected to receive the M5 Pro and M5 Max chips, and <a href="https://www.macrumors.com/2025/10/16/new-14-inch-macbook-pro-two-key-upgrades/">PCIe 5.0 support</a> for faster SSD speeds.</li><br/>
+<br/>
+Additionally, the <a href="https://www.macrumors.com/roundup/ipad-air/">iPad Air</a> is due a bump up to the <a href="https://www.macrumors.com/2026/02/08/ipad-12-and-ipad-air-8-reportedly-coming-soon/">M4 chip</a>, while the entry-level <a href="https://www.macrumors.com/roundup/ipad/">iPad</a> is expected to get the <a href="https://www.macrumors.com/2026/02/08/ipad-12-and-ipad-air-8-reportedly-coming-soon/">A18 chip</a> with <a href="https://www.macrumors.com/guide/apple-intelligence/">Apple Intelligence</a> support.<br/>
+<br/>
+A refreshed <a href="https://www.macrumors.com/roundup/macbook-air/">MacBook Air</a>, <a href="https://www.macrumors.com/roundup/mac-studio/">Mac Studio</a>, and Studio Display are also possibilities, along with a new <a href="https://www.macrumors.com/roundup/apple-tv/">Apple TV</a> and <a href="https://www.macrumors.com/roundup/homepod-mini/">HomePod mini</a>. The event could could include a <a href="https://www.macrumors.com/2026/02/19/apple-immersive-f1-vision-pro-march-event/">demo of immersive Formula 1 content</a> on the <a href="https://www.macrumors.com/roundup/apple-vision-pro/">Apple Vision Pro</a>, too.<br/>
+<br/>
+We also discuss iOS 26.4, which is now available in beta. The update includes a new Playlist Playground feature that lets users create a playlist with a text-based prompt, refinements to <a href="https://www.macrumors.com/guide/apple-music/">Apple Music</a>'s design, videos in <a href="https://www.macrumors.com/guide/apple-podcasts/">Apple Podcasts</a>, end-to-end encryption (E2EE) for ‌<a href="https://www.macrumors.com/guide/rcs/">RCS</a>‌ messages, and more. <a href="https://www.macrumors.com/guide/the-macrumors-show/">The MacRumors Show</a> has <a href="https://www.youtube.com/@themacrumorsshow">its own YouTube channel</a>, so make sure you're subscribed to keep up with new episodes and clips.<br/>
+<br/>
+<div class="center-wrap"><a href="https://www.youtube.com/@themacrumorsshow?sub_confirmation=1"><div class="fancybutton">Subscribe to <em>The MacRumors Show</em> YouTube channel!</div></a></div><br/>
+<br/>
+You can also listen to &zwnj;The MacRumors Show&zwnj; on <a href="https://podcasts.apple.com/podcast/id1602394741">Apple Podcasts</a>, <a href="https://open.spotify.com/show/41XOHIA6w8IxAKJZvrnx90">Spotify</a>, <a href="https://overcast.fm/itunes1602394741">Overcast</a>, or other podcast apps. You can also <a href="https://audioboom.com/channels/5096144.rss">copy our RSS feed</a> directly into your player.<br/>
+<br/>
+<div class="center-wrap"><iframe id="embedPlayer" src="https://embed.podcasts.apple.com/us/podcast/the-macrumors-show/id1602394741?itsct=podcast_box_player&amp;itscg=30200&amp;ls=1&amp;theme=auto" height="450px" frameborder="0" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" allow="autoplay *; encrypted-media *; clipboard-write" style="width: 100%; max-width: 660px; overflow: hidden; border-radius: 10px; transform: translateZ(0px); animation: 2s 6 loading-indicator; background-color: rgb(228, 228, 228);"></iframe></div><br/>
+<br/>
+If you haven't already listened to the <a href="https://www.macrumors.com/2026/02/13/the-macrumors-show-siri-delayed-again/">previous episode of The MacRumors Show</a>, catch up to hear our discussion about the upcoming &zwnj;iPhone&zwnj; 17e and &zwnj;iPad&zwnj; models, as well as Apple's apparent <a href="https://www.macrumors.com/2026/02/11/siri-features-delayed-ios-26-4/">issues</a> finalizing the revamped version of <a href="https://www.macrumors.com/guide/siri/">Siri</a>.<br/>
+<br/>
+Subscribe to &zwnj;The MacRumors Show&zwnj; for new episodes every week, where we discuss some of the topical news breaking here on <em>MacRumors</em>, often joined by interesting guests such as <a href="https://www.macrumors.com/2025/09/05/the-macrumors-show-iphone-17-event-expectations/">Kayci Lacob</a>, <a href="https://www.macrumors.com/2024/11/15/the-macrumors-show-apple-pro-apps-updates/">Kevin Nether</a>, <a href="https://www.macrumors.com/2025/04/18/the-macrumors-show-john-gruber-apple-intelligence/">John Gruber</a>, <a href="https://www.macrumors.com/2025/03/21/the-macrumors-show-apple-intelligence-mark-gurman/">Mark Gurman</a>, <a href="https://www.macrumors.com/2024/11/01/the-macrumors-show-jon-prosser-talks-m4-macs/">Jon Prosser</a>, <a href="https://www.macrumors.com/2024/07/05/the-macrumors-show-luke-miani-talks-apple-watch-x/">Luke Miani</a>, <a href="https://www.macrumors.com/2024/04/12/the-macrumors-show-matthew-cassinelli/">Matthew Cassinelli</a>, <a href="https://www.macrumors.com/2024/02/23/the-macrumors-show-brian-tong-vision-pro/">Brian Tong</a>, <a href="https://www.macrumors.com/2024/02/09/the-macrumors-show-one-week-with-vision-pro/">Quinn Nelson</a>, <a href="https://www.macrumors.com/2023/11/10/the-macrumors-show-apple-gaming-ft-toucharcade/">Jared Nelson</a>, <a href="https://www.macrumors.com/2023/11/10/the-macrumors-show-apple-gaming-ft-toucharcade/">Eli Hodapp</a>, <a href="https://www.macrumors.com/2023/10/13/the-macrumors-show-former-apple-executive-mike-bell/">Mike Bell</a>, <a href="https://www.macrumors.com/2023/10/06/the-macrumors-show-sara-dietschy-apple-accessories/">Sara Dietschy</a>, <a href="https://www.macrumors.com/2023/09/15/the-macrumors-show-ijustine-talks-iphone-15/">iJustine</a>, <a href="https://www.macrumors.com/2023/08/25/the-macrumors-show-iphone-15-jon-rettinger/">Jon Rettinger</a>, <a href="https://www.macrumors.com/2023/02/10/the-macrumors-show-andru-edwards-iphone-ultra/">Andru Edwards</a>, <a href="https://www.macrumors.com/2023/05/26/the-macrumors-show-arnold-kim/">Arnold Kim</a>, <a href="https://www.macrumors.com/2023/05/19/the-macrumors-show-ben-sullins-apple-car/">Ben Sullins</a>, <a href="https://www.macrumors.com/2023/04/07/the-macrumors-show-marcus-kane-headset-design/">Marcus Kane</a>, <a href="https://www.macrumors.com/2023/03/24/the-macrumors-show-christopher-lawley-talks-ipados/">Christopher Lawley</a>, <a href="https://www.macrumors.com/2023/03/10/the-macrumors-show-frank-mcshan-yellow-iphone-14/">Frank McShan</a>, <a href="https://www.macrumors.com/2023/02/24/the-macrumors-show-david-lewis-talks-apple-audio/">David Lewis</a>, <a href="https://www.macrumors.com/2023/01/27/the-macrumors-show-tyler-stalman-new-macs/">Tyler Stalman</a>, <a href="https://www.macrumors.com/2022/09/02/the-macrumors-show-apple-event-expectations/">Sam Kohl</a>, <a href="https://www.macrumors.com/2022/10/28/the-macrumors-show-ipados-16-ft-federico-viticci/">Federico Viticci</a>, <a href="https://www.macrumors.com/2022/08/26/the-macrumors-show-thomas-frank-talks-productivity/">Thomas Frank</a>, <a href="https://www.macrumors.com/2022/07/21/the-macrumors-show-jonathan-morrison/">Jonathan Morrison</a>, <a href="https://www.macrumors.com/2022/07/12/the-macrumors-show-ross-young/">Ross Young</a>, <a href="https://www.macrumors.com/2022/06/21/the-macrumors-show-ian-zelbo/">Ian Zelbo</a>, and <a href="https://www.macrumors.com/2022/03/25/the-macrumors-show-rene-ritchie-talks-mac-studio/">Rene Ritchie</a>.<br/>
+<br/>
+&zwnj;The MacRumors Show&zwnj; is on X <a href="https://twitter.com/macrumorsshow"><strong>@MacRumorsShow</strong></a>, so be sure to give us a follow to keep up with the podcast. You can also email us at <strong><a href="mailto:podcast@macrumors.com">podcast@macrumors.com</a></strong> or head over to <a href="https://forums.macrumors.com/threads/the-macrumors-show-discussion-thread.2383023/">The MacRumors Show</a> forum thread. Remember to rate and review the podcast, and let us know what subjects and guests you would like to see in the future.<div class="linkback">Tag: <a href="https://www.macrumors.com/guide/the-macrumors-show/">The MacRumors Show</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/the-macrumors-show-apple-experience/">The MacRumors Show: What&#039;s Coming at the &#039;Apple Experience&#039;?</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/the-macrumors-show-whats-coming-at-the-apple-experience.2477987/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Three Upcoming Apple Products Seemingly Spotted in macOS 26.3 Code</title>
+		<link>https://www.macrumors.com/2026/02/20/macos-26-3-code-three-new-apple-products/</link>
+		<comments>https://forums.macrumors.com/threads/three-upcoming-apple-products-seemingly-spotted-in-macos-26-3-code.2477985/</comments>
+		<pubDate>Fri, 20 Feb 2026 07:36:20 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/macos-26-3-code-three-new-apple-products/</guid>
+		<dc:creator>Joe Rossignol</dc:creator>
+		<category>Featured</category>
+		<category>Displays</category>
+		<category>macOS Tahoe 26</category>
+		<category>MacBook (A18 Pro)</category>
+		<category>Macworld</category>
+		
+
+		<description><![CDATA[<a href="https://www.macrumors.com/2026/02/11/apple-releases-macos-tahoe-26-3/">macOS 26.3</a> hints at Apple's rumored lower-cost MacBook, and two new Studio Display models, according to <a href="https://www.macworld.com/article/3066403/macos-26-3-might-have-just-confirmed-apples-biggest-march-4-surprises.html"><em>Macworld</em>'s Filipe Espósito</a>.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/12/Low-Cost-A18-Pro-MacBook-Feature-Pink.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1028724" /><br/>
+Espósito found the following codenames within macOS 26.3's source code, and he revealed the upcoming products that they likely correspond with, based on previous reporting from <em>Bloomberg</em>'s Mark Gurman and others.<br/>
+<br/>
+The codenames:<ul><li><strong>J700:</strong> Lower-cost MacBook</li><br/>
+<li><strong>J427:</strong> A new Studio Display</li><br/>
+<li><strong>J527:</strong> A new, higher-end Studio Display</li></ul>This is far from the first time that these codenames have been spotted in Apple's software updates. According to <em>MacRumors</em> contributor Aaron Perris, the codenames were also present in updates such as macOS 26.2 and iOS 18.5 last year.<br/>
+<br/>
+As <a href="https://www.macrumors.com/2026/02/19/apple-event-invite-hint-new-macbook-colors/">more</a> and <a href="https://www.macrumors.com/2026/01/15/new-studio-display-or-pro-display-xdr-filing/">more hints</a> stack up, it is clear that all three products are inching closer to release.<br/>
+<br/>
+The prevailing assumption is that Apple will unveil the lower-cost MacBook as part of three days of new product announcements <a href="https://www.macrumors.com/2026/02/17/apple-announcements-first-week-of-march/">in the first week of March</a>. The media would then receive hands-on time with the laptop <a href="https://www.macrumors.com/2026/02/16/apple-announces-special-event-in-new-york/">during the "Apple Experience"</a> in New York, London, and Shanghai on Wednesday, March 4 at 9 a.m. Eastern Time.<br/>
+<br/>
+The new Studio Displays are expected to be released <a href="https://www.macrumors.com/2026/02/03/apple-studio-display-2-rumored-features/">in the first half of 2026</a>, but it is unclear if they will be part of the announcements in the first week of March.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2022/03/mac-studio-and-studio-display.jpeg" alt="" width="1600" height="893" class="aligncenter size-full wp-image-838875" /><br/>
+The lower-cost MacBook is rumored to be <a href="https://www.macrumors.com/2025/06/30/apple-to-launch-low-cost-macbook/">powered by a version of the iPhone 16 Pro's A18 Pro chip</a>, rather than an M-series chip. The laptop will apparently be available in a variety of bright colors, such as <a href="https://www.macrumors.com/2026/02/16/low-cost-macbook-yellow-green-blue-pink/">yellow, green, blue, and/or pink</a>. Other rumored specs include a 12.9-inch display and 8GB of RAM. The starting price remains to be seen, with estimates ranging from &#36;599 to &#36;799 in the United States.<br/>
+<br/>
+The lower-cost MacBook would be an all-new model positioned below the MacBook Air, and it would mark a revival of the "MacBook" brand (with no "Air" or "Pro" designation). Apple sold an Intel-based 12-inch "MacBook" <a href="https://www.macrumors.com/2019/07/09/apple-discontinues-12-inch-macbook/">from 2015 to 2019</a>.<br/>
+<br/>
+At least one of the new Studio Display models is rumored to feature a <a href="https://www.macrumors.com/2025/02/13/apple-mini-led-studio-display/">27-inch screen with mini-LED backlighting</a>, <a href="https://www.macrumors.com/2026/02/04/apple-studio-display-2-unusual-feature-rumor/">up to a 90Hz</a> or <a href="https://www.macrumors.com/2025/12/11/apple-studio-display-2-120hz-hdr-a19-chip/">120Hz refresh rate</a>, <a href="https://www.macrumors.com/2025/12/11/apple-studio-display-2-120hz-hdr-a19-chip/">HDR support</a>, and an <a href="https://www.macrumors.com/2025/12/11/apple-studio-display-2-120hz-hdr-a19-chip/">A19 chip</a> or <a href="https://www.macrumors.com/2025/08/14/a19-pro-chip-coming-to-studio-display-2/">A19 Pro chip</a>. <a href="https://www.macrumors.com/2026/02/09/apple-studio-display-2-latest-rumors/">No major design changes</a> are expected.<br/>
+<br/>
+If the next Studio Display receives mini-LED backlighting and HDR support, its maximum brightness and contrast ratio would be higher than the current model. And a newer A19 or A19 Pro chip — up from the A13 Bionic currently — should contribute to performance improvements, camera-related enhancements, and more.<br/>
+<br/>
+There are no details about the second Studio Display. Presumably, it would be a higher-end model, and we can only dream of a larger 32-inch screen size.<br/>
+<br/>
+The current Studio Display launched in March 2022, alongside the first Mac Studio. It has a 27-inch screen without mini-LED backlighting, a 5K resolution, a 60Hz refresh rate, up to 600 nits brightness, a built-in camera and speakers, one Thunderbolt 3 port, and three USB-C ports. In the U.S., pricing starts at &#36;1,599.<div class="linkback">Related Roundups: <a href="https://www.macrumors.com/roundup/displays/">Apple Pro Display XDR</a>, <a href="https://www.macrumors.com/roundup/studio-display/">Apple Studio Display</a>, <a href="https://www.macrumors.com/roundup/macos-26/">macOS Tahoe</a></div><div class="linkback">Tags: <a href="https://www.macrumors.com/guide/macbook-a18-pro/">MacBook (A18 Pro)</a>, <a href="https://www.macrumors.com/guide/macworld-com/">Macworld</a></div><div class="linkback">Related Forums: <a href="https://forums.macrumors.com/forums/mac-accessories.77">Mac Accessories</a>, <a href="https://forums.macrumors.com/forums/macos-tahoe.250">macOS Tahoe</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/macos-26-3-code-three-new-apple-products/">Three Upcoming Apple Products Seemingly Spotted in macOS 26.3 Code</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/three-upcoming-apple-products-seemingly-spotted-in-macos-26-3-code.2477985/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Best Apple Deals of the Week: Get Up to &#36;1,200 Off Samsung&#039;s Best Monitors and More</title>
+		<link>https://www.macrumors.com/2026/02/20/best-apple-deals-of-the-week-2-20-26/</link>
+		<comments>https://forums.macrumors.com/threads/best-apple-deals-of-the-week-get-up-to-1-200-off-samsungs-best-monitors-and-more.2477983/</comments>
+		<pubDate>Fri, 20 Feb 2026 06:50:28 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/best-apple-deals-of-the-week-2-20-26/</guid>
+		<dc:creator>Mitchel Broussard</dc:creator>
+		<category>Deals</category>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[This week's best Apple-related deals include multiple third-party retailer accessory sales from Samsung, Nomad, Dell, and Otterbox. We're also tracking one of the first big price discounts on the iPhone Air MagSafe Battery in our recap of the week's best deals below.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2022/06/Hero0002.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-847992" /><em><small>Note: MacRumors is an affiliate partner with some of these vendors. When you click a link and make a purchase, we may receive a small payment, which helps us keep the site running.</small></em><br/>
+<br/>
+<h2>Samsung</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/samsung-smart-monitor-m9-green.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036999" /><br/>
+<ul><li><strong>What's the deal?</strong> Save on Samsung monitors, TVs, and more</li><br/>
+<li><strong>Where can I get it?</strong> <a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FSamsung-Monitor-QD-OLED-Warranty-LS32FM902SNXZA%2Fdp%2FB0F5W4R2DM%3Fth%3D1">Amazon</a></li><br/>
+<li><strong>Where can I find the original deal?</strong> <a href="https://www.macrumors.com/2026/02/18/samsung-monitor-sale-amazon/">Right here</a></li></ul><br/>
+<div class="center-wrap"><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fproduct%2FB0DWBSNVHS%2F%3Fsmid%3DATVPDKIKX0DER%26psc%3D1"target="_blank"><div class="fancybutton"><div class="fancybadge">&#36;1,200 OFF</div>Samsung 27-Inch Odyssey 3D Monitor for &#36;799.99</div></a></div><br/>
+<div class="center-wrap"><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2FSamsung-Monitor-QD-OLED-Warranty-LS32FM902SNXZA%2Fdp%2FB0F5W4R2DM%3Fth%3D1"target="_blank"><div class="fancybutton"><div class="fancybadge">&#36;300 OFF</div>Samsung 32-Inch Smart Monitor M9 for &#36;1,299.99</div></a></div><br/>
+<br/>
+Samsung introduced a few big discounts on its monitors, TVs, and more this week on Amazon, including the return of the all-time low price on the newest Smart Monitor. You can get the 32-inch Smart Monitor M9 for &#36;1,299.99, down from &#36;1,599.99.<br/>
+<br/>
+<h2>Nomad</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/nomad-green.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1037000" /><br/>
+<ul><li><strong>What's the deal?</strong> Take up to 49% off Nomad iPhone cases, chargers, and more</li><br/>
+<li><strong>Where can I get it?</strong> <a href="https://www.dpbolvw.net/click-462641-14527713?url=https%3A%2F%2Fnomadgoods.com%2Fcollections%2Foverstock-sale">Nomad</a></li><br/>
+<li><strong>Where can I find the original deal?</strong> <a href="https://www.macrumors.com/2026/02/17/nomads-overstock-sale-2/">Right here</a></li></ul><br/>
+<div class="center-wrap"><a href="https://www.dpbolvw.net/click-462641-14527713?url=https%3A%2F%2Fnomadgoods.com%2Fcollections%2Foverstock-sale"target="_blank"><div class="fancybutton"><div class="fancybadge">UP TO 49% OFF</div>Nomad Overstock Sale</div></a></div><br/>
+<br/>
+Nomad this week has an overstock sale going on with major discounts across a few different product categories. This includes iPhone 17 cases, MagSafe-compatible charging stations, iPad folios, and much more.<br/>
+<br/>
+<h2>iPhone Air MagSafe Battery</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/iphone-air-magsafe-battery-green.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1037001" /><br/>
+<ul><li><strong>What's the deal?</strong> Take &#36;20 off</li><br/>
+<li><strong>Where can I get it?</strong> <a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fdp%2FB0FQFH9BST%3Ftag%3Dmacrumors-20%26linkCode%3Dogi%26th%3D1%26psc%3D1">Amazon</a></li><br/>
+</ul><br/>
+<div class="center-wrap"><a href="https://buy.geni.us/Proxy.ashx?TSID=3088&GR_URL=https%3A%2F%2Fwww.amazon.com%2Fdp%2FB0FQFH9BST%3Ftag%3Dmacrumors-20%26linkCode%3Dogi%26th%3D1%26psc%3D1"target="_blank"><div class="fancybutton"><div class="fancybadge">&#36;20 OFF</div>iPhone Air MagSafe Battery for &#36;79.00</div></a></div><br/>
+<br/>
+Amazon is discounting the iPhone Air MagSafe Battery to &#36;79.00, down from &#36;99.00. This is one of the first notable discounts on the new accessory, and it currently has an estimated February 25 delivery date.<br/>
+<br/>
+<h2>Dell</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/alienware-green.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036998" /><br/>
+<ul><li><strong>What's the deal?</strong> Save on monitors and other accessories from Dell, Alienware, and more</li><br/>
+<li><strong>Where can I get it?</strong> <a href="https://howl.link/i6bwjieyi5rk8">Dell</a></li><br/>
+<li><strong>Where can I find the original deal?</strong> <a href="https://www.macrumors.com/2026/02/19/dells-sitewide-sale/">Right here</a></li></ul><br/>
+<div class="center-wrap"><a href="https://howl.link/i6bwjieyi5rk8"target="_blank"><div class="fancybutton"><div class="fancybadge">SITEWIDE SAVINGS</div>Dell Monitor Sale</div></a></div><br/>
+<br/>
+Dell has a big sale running this week on multiple product categories, and it includes accessories not only from Dell but also Alienware, Logitech, Bose, and JBL. You'll find up to &#36;200 off select monitors from multiple brands in this event, including popular Alienware gaming monitors like the 27-inch Alienware 4K QD-OLED Gaming Monitor for &#36;699.99, down from &#36;899.99.<br/>
+<br/>
+<h2>Otterbox</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/otterbox-iphone-green.jpeg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1037002" /><br/>
+<ul><li><strong>What's the deal?</strong> Take 25% off sitewide</li><br/>
+<li><strong>Where can I get it?</strong> <a href="http://www.dpbolvw.net/click-462641-12147972-1440024949000">Otterbox</a></li></ul><br/>
+<div class="center-wrap"><a href="http://www.dpbolvw.net/click-462641-12147972-1440024949000"target="_blank"><div class="fancybutton"><div class="fancybadge">25% OFF</div>Otterbox Sitewide Sale</div></a></div><br/>
+<br/>
+You can get 25 percent off sitewide this week at Otterbox, just use the code OTTER25 at checkout to save on iPhone cases, screen protectors, accessories, and much more. This sale will end on February 22.<br/>
+<br/>
+If you're on the hunt for more discounts, be sure to visit our <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a> roundup where we recap the best Apple-related bargains of the past week.<br/>
+<br/>
+<hr /><br/>
+<div class="no-raptive"><br/>
+<h3>Deals Newsletter</h3><br/>
+Interested in hearing more about the best deals you can find in 2026? <a href="http://eepurl.com/itTnTk">Sign up</a> for our Deals Newsletter and we'll keep you updated so you don't miss the biggest deals of the season!<br/>
+<br/>
+<div style="text-align:center;margin-bottom:2em;"><br/>
+<br/>
+<form action="http://macrumors.us5.list-manage.com/subscribe/post?u=7d0106b433773bd0aef5828e0&amp;id=eebad02bf4&amp;f_id=00fbede0f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate><input type="email" value="" name="EMAIL" size="30" class="required email" id="mce-EMAIL"  placeholder="Enter Email Address" title="Email Address" /><div class="response" id="mce-error-response" style="display:none"></div><div class="response" id="mce-success-response" style="display:none"></div><div style="position: absolute; left: -5000px;"><input type="text" name="b_7d0106b433773bd0aef5828e0_eebad02bf4" tabindex="-1" value="" title="form" /></div><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div><br/>
+</div><div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/best-apple-deals-of-the-week-2-20-26/">Best Apple Deals of the Week: Get Up to &#36;1,200 Off Samsung&#039;s Best Monitors and More</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/best-apple-deals-of-the-week-get-up-to-1-200-off-samsungs-best-monitors-and-more.2477983/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Rumored Colors for Low-Cost MacBook Were Originally Tested for 2022 MacBook Air Redesign</title>
+		<link>https://www.macrumors.com/2026/02/20/low-cost-macbook-colors-2022-air-redesign/</link>
+		<comments>https://forums.macrumors.com/threads/rumored-colors-for-low-cost-macbook-were-originally-tested-for-2022-macbook-air-redesign.2477980/</comments>
+		<pubDate>Fri, 20 Feb 2026 05:29:38 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/low-cost-macbook-colors-2022-air-redesign/</guid>
+		<dc:creator>Tim Hardwick</dc:creator>
+		<category>Instant Digital</category>
+		<category>MacBook (A18 Pro)</category>
+		
+
+		<description><![CDATA[Apple tested color options for the 2022 MacBook Air redesign that are said to be similar to the finishes planned for its forthcoming low-cost MacBook, according to a Chinese leaker.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Multicolored-Low-Cost-A18-Pro-MacBook-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036750" /><br/>
+Apple is expected to announce its rumored low-cost MacBook at an event on March 4, with the device coming in a selection of bold color options that are believed to include yellow, green, and blue – <a href="https://www.macrumors.com/2026/02/18/low-cost-macbook-expected-on-march-4/">as seen on Apple's invite graphic</a>. <br/>
+<br/>
+In a post on Weibo, the account known as "<a href="https://weibo.com/5143897135/QsJwCDf0W">Instant Digital</a>" says Apple originally planned to offer the same kind of light, playful color scheme for the MacBook Air with M2 chip.<br/>
+<br/>
+Indeed, back in <a href="https://www.macrumors.com/2021/10/21/macbook-air-2022-details-leaked/">October 2021</a>, a proven leaker claimed the redesigned MacBook Air would come in color options that are similar to the 24-inch iMac, but it didn't happen. The model eventually dropped in July 2022 in silver, starlight, space gray, and midnight colors. <br/>
+<br/>
+Writing in his Power On newsletter over the weekend, <a href="https://www.macrumors.com/2026/02/16/low-cost-macbook-yellow-green-blue-pink/"><em>Bloomberg</em>'s Mark Gurman</a> said the colors Apple has tested for its budget MacBook so far include light yellow, light green, blue, pink, classic silver, and dark gray, although he says it's unlikely all of them will ship.<br/>
+<br/>
+If the colorful palette is unveiled, it would make the budget MacBook the most colorful laptop Apple has offered since the iBook G3 era in the late 90s. Apple offered the machines in Tangerine, Blueberry, Indigo, Graphite, and Key Lime.<br/>
+<br/>
+As previously reported by Apple analyst <a href="https://www.macrumors.com/2025/06/30/apple-to-launch-low-cost-macbook/">Ming-Chi Kuo</a>, the low-cost machine will retail for well under &#36;1,000 and run an iPhone chip – potentially the A18 Pro – rather than an M-series processor. It will feature a slightly-under-13-inch display and an aluminum chassis, which is being built using a new, faster manufacturing process that Apple developed to keep costs down, according to Gurman.<br/>
+<br/>
+Apple is believed to be trying to compete with Chromebooks, targeting the budget MacBook at students and enterprise users. Earlier this week, Apple <a href="https://www.macrumors.com/2026/02/16/apple-announces-special-event-in-new-york/">announced</a> a "special Apple Experience" for the media in New York, London, and Shanghai, taking place on March 4, 2026 at 9:00am ET, when we're hoping to get a glimpse of the new machine.<div class="linkback">Tags: <a href="https://www.macrumors.com/guide/instant-digital/">Instant Digital</a>, <a href="https://www.macrumors.com/guide/macbook-a18-pro/">MacBook (A18 Pro)</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/low-cost-macbook-colors-2022-air-redesign/">Rumored Colors for Low-Cost MacBook Were Originally Tested for 2022 MacBook Air Redesign</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/rumored-colors-for-low-cost-macbook-were-originally-tested-for-2022-macbook-air-redesign.2477980/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>iPhone Fold: Launch, Pricing, and What to Expect From Apple&#039;s Foldable</title>
+		<link>https://www.macrumors.com/2026/02/20/iphone-fold-launch-pricing-what-to-expect/</link>
+		<comments>https://forums.macrumors.com/threads/iphone-fold-launch-pricing-and-what-to-expect-from-apples-foldable.2477977/</comments>
+		<pubDate>Fri, 20 Feb 2026 03:21:09 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/20/iphone-fold-launch-pricing-what-to-expect/</guid>
+		<dc:creator>Tim Hardwick</dc:creator>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[Apple is expected to launch a new foldable iPhone this year, based on multiple rumors and credible sources. The long-awaited device has been rumored for years now, but signs increasingly suggest that Apple will release its first foldable device in 2026.<br/>
+<br/>
+<div class="center-wrap"><iframe width="560" height="315" src="https://www.youtube.com/embed/C4biC4hRnA4" title="Apple’s First Foldable iPhone: EVERYTHING We Know So Far (2026 Launch)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><em><a href="https://www.youtube.com/user/macrumors?sub_confirmation=1">Subscribe to the MacRumors YouTube channel</a> for more videos.</em></div><br/>
+Below, we've collated an updated set of key details that have been leaked about Apple's foldable iPhone so far. Apple will allegedly call the device the "‌iPhone‌ Fold," which is the name the media has already adopted when sharing rumors about the product.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Overall Design</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Book-Style</span><br><br/>
+According to <a href="https://www.bloomberg.com/news/newsletters/2025-03-23/apple-aapl-explores-turning-watches-into-wearable-ai-devices-with-cameras-m8ll6mvy"><em>Bloomberg</em>'s Mark Gurman</a>, Apple's foldable iPhone is similar in style to Samsung's Galaxy Z Fold, which uses a book-style folding mechanism, rather than the clamshell design of the Samsung Galaxy Z Flip. <a href="https://mingchikuo.craft.me/84AOn3Ll8Zah6f">Industry analyst Ming-Chi Kuo</a> expects the foldable ‌iPhone‌ to measure between 9 and 9.5 mm when folded, and around 4.5 to 4.8 mm when unfolded. More recently, Weibo-based leaker Instant Digital has said that the foldable iPhone will have a thickness of <a href="https://www.macrumors.com/2025/07/16/foldable-iphone-thickness-and-price-rumors/">at least 4.8mm</a>. The leaker has also <a href="https://www.macrumors.com/2026/02/02/first-foldable-iphone-design-details-revealed/">claimed</a> that the volume buttons will be located on the top edge of the device, aligned to the right, similar to the iPad mini, while the power button and Camera Control continue to be located on the right edge of the device, just like other recent iPhones. The back left of the device is also said to feature an ‌iPhone‌ Air-style camera plateau.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Display</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Dual Screens</span><br><br/>
+When folded, users will interact with a 5.5-inch outer display that is similar to a typical iPhone screen, while unfolding it will reveal a larger 7.8-inch iPad-style screen. These dimensions have been corroborated by <a href="https://www.macrumors.com/2025/02/21/alleged-display-sizes-apple-foldable-iphone/">two</a> reputable <a href="https://www.macrumors.com/2025/03/06/kuo-apple-foldable-iphone-book-style-2000/">sources</a>. However, a more <a href="https://www.macrumors.com/2025/12/16/foldable-iphone-screen-sizes-leaked/">recent report</a> by <em>The Information</em> claims that the device will have a 5.3-inch front screen and a 7.7-inch inner display. According to one rumor, the inner folding display will be approximately the size of a piece of A6 paper and will use a 2,713 x 1,920 resolution, while the outer display will use a 2,088 x 1,422 resolution. Apple is <a href="https://www.macrumors.com/2026/02/05/tougher-display-for-foldable-iphone/">reportedly</a> evaluating a tougher display film technology for its foldable, with the use of a transparent polyimide film as a protective layer that would sit on top of the ultra-thin glass.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Crease Visibility</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">'Crease-Free'</span><br><br/>
+The inner display is said to be <a href="https://www.macrumors.com/2025/02/25/apple-2026-foldable-phone-has-no-crease/">virtually crease-free</a>, thanks to Apple's use of a <a href="https://www.macrumors.com/2025/07/15/foldable-iphone-crease-free-samsung-display/">metal plate</a> that can disperse and control the stress generated by bending the display, according to analyst Ming-Chi Kuo. Apple is said to be using liquid metal in the hinges to improve durability and help eliminate screen creasing. Liquid metal, manufactured using a die-casting process, has been chosen by Apple to address this common issue with foldable devices, <a href="https://www.macrumors.com/2025/03/21/apple-liquid-metal-foldable-iphone-hinges/">according to the analyst</a>. Citing supply chain sources, Chinese site <em>UDN</em> says that Apple has <a href="https://www.macrumors.com/2025/11/24/iphone-fold-2026-engineering-validation/">solved "the crease problem"</a> that has plagued most foldable smartphones, and the foldable ‌iPhone‌ will be the first crease-free foldable smartphone on the market.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Chassis and Hinge</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Durable Materials</span><br><br/>
+The foldable iPhone reportedly has a titanium chassis, with the hinge constructed from a combination of titanium and stainless steel, <a href="https://mingchikuo.craft.me/84AOn3Ll8Zah6f">according to analyst Ming-Chi Kuo</a>. The frame itself will use a titanium alloy to prevent bending issues – a solution that has worked well for Apple's new ultra-thin iPhone Air. However, analyst Jeff Pu <a href="https://www.macrumors.com/2025/10/08/foldable-iphone-titanium-aluminum-frame/">believes</a> that Apple is using aluminum and titanium, whereas Kuo believes a mix of stainless steel and titanium has been chosen. <br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Cameras</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Front and Rear</span><br><br/>
+The foldable iPhone is expected to include a dual-lens rear camera, with a front-facing camera for both folded and unfolded states, <a href="https://mingchikuo.craft.me/84AOn3Ll8Zah6f">according to Kuo</a>. <em>Bloomberg</em>'s Mark Gurman recently <a href="https://www.macrumors.com/2025/08/24/foldable-iphone-rumored-features/">corroborated</a> reports that the device will have four cameras consisting of one front camera, one inner camera, and two rear cameras. Prolific Weibo-based leaker Digital Chat Station claims that the rear dual lenses will be <a href="https://www.macrumors.com/2025/06/26/foldable-iphone-dual-rear-camera-rumor/">48 megapixels each</a>. Other sources have claimed that the inner display features an <a href="https://www.macrumors.com/2025/04/14/iphone-fold-display-resolutions-cameras/">under-screen camera (USC)</a>, while the outer display – in the device's folded state – will have a <a href="https://www.macrumors.com/2025/04/16/iphone-fold-camera-setup-outer-display/">punch-hole camera</a>. A more recent report by <em>The Information</em> claims that the outer display's camera will be located in the <a href="https://www.macrumors.com/2025/12/16/foldable-iphone-screen-sizes-leaked/">top-left corner of the screen</a>.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Authentication</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Touch ID</span><br><br/>
+Kuo believes the phone will <a href="https://mingchikuo.craft.me/84AOn3Ll8Zah6f">forgo Face ID authentication</a>, and instead use a Touch ID side button as a means to save precious internal space, and Bloomberg's Mark Gurman recently <a href="https://www.bloomberg.com/news/newsletters/2025-08-24/apple-to-launch-iphone-17-pro-iphone-17-air-in-september-iphone-fold-next-year-mepmzpcj">corroborated</a> the rumor. Apple has previously integrated Touch ID into the side button of the iPad, iPad Air, and iPad mini.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Cellular Connectivity</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">C2 Modem</span><br><br/>
+The foldable iPhone will use Apple's second-generation C2 modem for cellular connectivity, according to <a href="https://www.macrumors.com/2025/08/24/foldable-iphone-rumored-features/"><em>Bloomberg</em>'s Mark Gurman</a>. Apple debuted its custom-designed C1 modem in the iPhone 16e last year, followed by the C1X featured in the iPhone Air, as part of a multi-year plan to transition away from Qualcomm modems. Gurman says the foldable device will not have a physical SIM slot.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Battery Life</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">High-Density Cells</span><br><br/>
+The device is allegedly features the <a href="https://www.macrumors.com/2026/02/02/first-foldable-iphone-design-details-revealed/">biggest battery ever used in an ‌iPhone‌</a>. Apple is also putting a heavy focus on improving power efficiency by slimming down key components like the display driver to make room for more battery cells, according to a <a href="https://www.macrumors.com/2025/03/21/foldable-iphone-impressive-battery-life-thinness/">Korean blog</a> that has leaked accurate details about unreleased products before. The phone will reportedly use <a href="https://mingchikuo.craft.me/84AOn3Ll8Zah6f">high-density battery cells</a>. Expect the C2 modem to be faster overall, and for it to gain mmWave support in the United States. Further power efficiency improvements are likely too.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Color Options</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Black and White</span><br><br/>
+Apple is currently only testing variations of black and white for the folding phone with suppliers, according to <a href="https://www.bloomberg.com/news/newsletters/2025-08-24/apple-to-launch-iphone-17-pro-iphone-17-air-in-september-iphone-fold-next-year-mepmzpcj"><em>Bloomberg</em>'s Mark Gurman</a>, although he says that Apple's plans could evolve before the device launches.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Pricing</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Premium Segment</span><br><br/>
+<a href="https://www.macrumors.com/2025/03/17/foldable-iphone-price-estimate/">Multiple</a> <a href="https://www.macrumors.com/2025/03/24/foldable-iphone-to-launch-next-year/">reports</a> have suggested the foldable iPhone will be priced between &#36;2,000 and &#36;2,500 in the United States, which could make it the most expensive iPhone ever. Meanwhile, analysts at investment banking firm UBS and Fubon Research believe the phone will be either between <a href="https://www.macrumors.com/2025/07/16/foldable-iphone-thickness-and-price-rumors/">&#36;1,800 and &#36;2,000</a> or around <a href="https://www.macrumors.com/2025/11/24/foldable-iphone-could-cost-2400/">&#36;2,399</a>, respectively. However, Kuo recently <a href="https://www.macrumors.com/2025/10/13/foldable-iphone-could-be-cheaper-than-expected/">claimed</a> that the hinge is expected to carry an average selling price (ASP) of approximately &#36;70 to &#36;80 when mass production begins – well below the market expectation of &#36;100 to &#36;120 or higher. Kuo attributed the cost decline to "assembly design optimization" and Foxconn's influence in production scaling. Whether the reduction in hinge price will reduce retail price or simply bolster Apple's margins is an open question. Regardless of the price, the foldable is expected to tap into Apple's loyal fanbase, some of whom will view it as a "must-have device" if its quality meets expectations.<br/>
+<br/>
+<span style="font-weight: bold; font-size: 18px; color: #4A90E2; margin-top: 2px;">Launch Date</span><br><br/>
+<span style="font-weight: bold; font-size: 14px; color: #FFFFFF; background-color: #4A90E2; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px;">Late 2026</span><br><br/>
+According to industry analyst Jeff Pu, the device entered the <a href="https://www.macrumors.com/2025/03/16/apple-foldables-mass-production-2026/">New Product Introduction (NPI) phase</a> at Foxconn in March 2025, while a November report from Chinese site <em>UDN</em> reported that the device had <a href="https://www.macrumors.com/2025/11/24/iphone-fold-2026-engineering-validation/">entered the engineering validation stage</a>, and Apple is gearing up for mass production. Foxconn is <a href="https://www.macrumors.com/2025/06/18/foldable-iphone-manufacturing-2025-start/">expected</a> to officially start producing Apple's foldable iPhone early in the fourth quarter (October), and a recent report has suggested Apple is already <a href="https://www.macrumors.com/2025/10/31/apple-stockpiling-parts-foldable-iphone/">stockpiling components</a> for pre-production. An exact launch date is currently unknown, but both Kuo and Pu say mass production is planned for the second half of 2026. <em>Bloomberg</em> reporter Mark Gurman has said he expects the device to be <a href="https://www.macrumors.com/2025/03/24/foldable-iphone-to-launch-next-year/">launched this year</a> in the <a href="https://www.bloomberg.com/news/newsletters/2025-08-24/apple-to-launch-iphone-17-pro-iphone-17-air-in-september-iphone-fold-next-year-mepmzpcj">fall season</a>. However, Japan's Mizuho Securities banking firm has suggested a <a href="https://www.macrumors.com/2025/10/17/foldable-iphone-could-be-delayed/">postponement to 2027</a> could still happen because of Apple taking longer to decide on key design elements such as the hinge.<br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/20/iphone-fold-launch-pricing-what-to-expect/">iPhone Fold: Launch, Pricing, and What to Expect From Apple&#039;s Foldable</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/iphone-fold-launch-pricing-and-what-to-expect-from-apples-foldable.2477977/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>iPhone&#039;s Emergency SOS via Satellite Feature Helped Rescue Skiers Caught in Lake Tahoe Avalanche</title>
+		<link>https://www.macrumors.com/2026/02/19/emergency-sos-satellite-rescue-tahoe/</link>
+		<comments>https://forums.macrumors.com/threads/iphones-emergency-sos-via-satellite-feature-helped-rescue-skiers-caught-in-lake-tahoe-avalanche.2477961/</comments>
+		<pubDate>Thu, 19 Feb 2026 16:29:54 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/emergency-sos-satellite-rescue-tahoe/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Apple</category>
+		<category>Rumors</category>
+		<category>Mac</category>
+		<category>iOS</category>
+		<category>iPhone</category>
+		<category>iPad</category>
+		
+
+		<description><![CDATA[Six skiers who survived the avalanche near Lake Tahoe on Tuesday used the Emergency SOS via satellite feature on the <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> to get help, reports <em><a href="https://www.nytimes.com/2026/02/18/us/apple-iphone-sos-satellite-rescue.html">The New York Times</a></em>. Emergency SOS via satellite lets &zwnj;iPhone&zwnj; users communicate with emergency responders via text when a cellular or Wi-Fi connection is not available.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2022/11/Emergency-SOS-via-Satellite-iPhone-YT.jpg" alt="" width="3564" height="1996" class="aligncenter size-full wp-image-873000" /><br/>
+The skiers were able to stay connected to the Nevada County Sheriff's Office for several hours while rescue efforts were coordinated. "One of my personnel was communicating with one of the guides over a four-hour period, giving information back to the Nevada sheriff's office and coordinating what rescues could be permitted," said Don O'Keefe, law enforcement chief for California's Office of Emergency Services.<br/>
+<br/>
+Emergency SOS via satellite is available on the &zwnj;iPhone&zwnj; 14 and later, as well as the <a href="https://www.macrumors.com/roundup/apple-watch-ultra/">Apple Watch Ultra 3</a>. Apple offers the functionality for free.<br/>
+<br/>
+Emergency SOS via satellite has been credited with helping people in multiple off-grid emergencies, from <a href="https://www.macrumors.com/2023/07/24/iphone-14-saves-man-at-mount-wilson/">car accidents</a> to <a href="https://www.macrumors.com/2023/08/10/apple-emergency-sos-maui-wildfire/">wild fires</a>. The feature works in Australia, Austria, Belgium, Canada, France, Germany, Ireland, Italy, Japan, Luxembourg, Mexico, the Netherlands, New Zealand, Portugal, Spain, Switzerland, the U.K., and the U.S.<br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/emergency-sos-satellite-rescue-tahoe/">iPhone&#039;s Emergency SOS via Satellite Feature Helped Rescue Skiers Caught in Lake Tahoe Avalanche</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/iphones-emergency-sos-via-satellite-feature-helped-rescue-skiers-caught-in-lake-tahoe-avalanche.2477961/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>M1 MacBook Air Out of Stock at Walmart as Lower-Cost MacBook Nears</title>
+		<link>https://www.macrumors.com/2026/02/19/m1-macbook-air-out-of-stock-at-walmart/</link>
+		<comments>https://forums.macrumors.com/threads/m1-macbook-air-out-of-stock-at-walmart-as-lower-cost-macbook-nears.2477960/</comments>
+		<pubDate>Thu, 19 Feb 2026 15:35:49 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/m1-macbook-air-out-of-stock-at-walmart/</guid>
+		<dc:creator>Joe Rossignol</dc:creator>
+		<category>MacBook Air 13&quot;</category>
+		<category>MacBook (A18 Pro)</category>
+		
+
+		<description><![CDATA[Apple's older MacBook Air with the M1 chip is now out of stock on Walmart's website in the U.S., amid rumors of a new lower-cost MacBook coming soon.<br/>
+<br/>
+<div class="center-wrap"><img src="https://images.macrumors.com/article-new/2026/02/Multicolored-Low-Cost-A18-Pro-MacBook-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036750" /><em>A colorful MacBook (concept)</em></div><br/>
+Walmart first began selling the MacBook Air with the M1 chip <a href="https://www.macrumors.com/2024/03/15/walmart-selling-macbook-air-with-m1-chip/">for &#36;699 in March 2024</a>. The price later dropped to <a href="https://www.macrumors.com/2024/07/08/walmart-m1-macbook-air-for-649/">&#36;649</a>, <a href="https://www.macrumors.com/2025/08/13/macbook-air-with-m1-chip-599-at-walmart/">then to &#36;599</a>, and briefly to <a href="https://www.macrumors.com/2025/11/25/walmart-selling-m1-macbook-air-for-549/">as low as &#36;549</a> during a Black Friday sale last year. However, we just noticed that it has been out of stock <a href="https://www.pcmag.com/opinions/the-m1-macbook-air-is-missing-but-why?taid=69907569e03fbc000101899e">for a while now</a>, and there is no indication if it will ever be returning.<br/>
+<br/>
+Apple first released the MacBook Air with the M1 chip in November 2020, as one of the first Macs with an Apple silicon chip, instead of an Intel processor. The configuration being sold by Walmart for as low as &#36;549 included 256GB of storage and 8GB of RAM. They were new-in-box units, not refurbished or open-box models. Walmart's website continues to offer refurbished units from "trusted sellers" for as low as &#36;449.<br/>
+<br/>
+Apple <a href="https://www.macrumors.com/2024/03/04/apple-discontinues-m1-macbook-air/">discontinued the MacBook Air with the M1 chip</a> in 2024, after it launched models with the M3 chip, and it has since updated the MacBook Air with the M4 chip. Prior to being discontinued, the model with the M1 chip was being sold for a starting price of &#36;999 brand new, but Amazon sometimes offered it on sale for &#36;749 to &#36;899.<br/>
+<br/>
+The laptop going out of stock at Walmart could be a hint.<br/>
+<br/>
+Apple <a href="https://www.macrumors.com/2025/06/30/apple-to-launch-low-cost-macbook/">plans to release a lower-priced MacBook</a> with a version of the iPhone 16 Pro's A18 Pro chip <a href="https://www.macrumors.com/2026/02/18/low-cost-macbook-expected-on-march-4/">as early as the first week of March</a>, according to several reports and leakers. This would be an all-new model positioned below the MacBook Air in the Mac lineup, and it would mark a revival of the "MacBook" brand (with no "Air" or "Pro" designation).<br/>
+<br/>
+Apple supply chain analyst Ming-Chi Kuo was first to reveal that Apple is allegedly planning a more affordable MacBook. Last year, he said the laptop would have around a 13-inch display and come in fun colors, like <a href="https://www.macrumors.com/2026/02/16/low-cost-macbook-yellow-green-blue-pink/">green, blue, pink, and/or yellow</a>. A few rumors have specifically said it will have a 12.9-inch screen.<br/>
+<br/>
+The lower-cost MacBook could have a lot in common with the <a href="https://www.macrumors.com/2019/07/09/apple-discontinues-12-inch-macbook/">discontinued 12-inch MacBook</a>, including an ultra-thin and lightweight design. However, that model was powered by Intel processors. Apple stopped selling the 12-inch MacBook in July 2019, so there has been a long wait for a similar model powered by Apple silicon.<br/>
+<br/>
+In the iPhone 16 Pro, the A18 Pro chip has a 6-core CPU and a 6-core GPU. The chip's multi-core performance is similar to the M1 chip, so this new MacBook could effectively be a replacement for the MacBook Air with the M1 chip, and that could explain why it is finally out of stock at Walmart ahead of the lower-cost MacBook launching.<br/>
+<br/>
+<a href="https://www.macrumors.com/2026/01/29/apple-responds-to-rising-memory-chip-prices/">Skyrocketing DRAM and NAND storage chip prices</a> may have been a factor too, though.<br/>
+<br/>
+With the A18 Pro chip, the lower-cost MacBook might have only 8GB of RAM, whereas all current MacBook Air and MacBook Pro models start with at least 16GB of RAM. The chip also lacks Thunderbolt support, so the new MacBook would likely be equipped with regular USB-C ports, with slower data transfer speeds and external display limitations.<div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/macbook-air/">MacBook Air</a></div><div class="linkback">Tag: <a href="https://www.macrumors.com/guide/macbook-a18-pro/">MacBook (A18 Pro)</a></div><div class="linkback">Buyer's Guide: <a href="https://buyersguide.macrumors.com/#MacBook_Air">13" MacBook Air (Don't Buy)</a></div><div class="linkback">Related Forum: <a href="https://forums.macrumors.com/forums/macbook-air.122">MacBook Air</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/m1-macbook-air-out-of-stock-at-walmart/">M1 MacBook Air Out of Stock at Walmart as Lower-Cost MacBook Nears</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/m1-macbook-air-out-of-stock-at-walmart-as-lower-cost-macbook-nears.2477960/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Google Chrome Gets Built-In Split View and PDF Annotations</title>
+		<link>https://www.macrumors.com/2026/02/19/chrome-split-view-pdf-annotations/</link>
+		<comments>https://forums.macrumors.com/threads/google-chrome-gets-built-in-split-view-and-pdf-annotations.2477958/</comments>
+		<pubDate>Thu, 19 Feb 2026 15:15:27 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/chrome-split-view-pdf-annotations/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Google Chrome</category>
+		
+
+		<description><![CDATA[Google <a href="https://blog.google/products-and-platforms/products/chrome/chrome-productivity-improvements/">has added</a> three new features to the Chrome desktop browser, including split view for multitasking, PDF annotations, and a Save to Google Drive option.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2022/06/Chrome-Feature-22.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-851161" /><br/>
+Split view for Chrome is a built-in tool that supports using two tabs at the same time side-by-side. Google says that it provides a more streamlined, flexible way to work. There is a split view icon in Chrome that can be clicked to enter the new view.<br/>
+<br/>
+With PDF annotations, the Chrome PDF Viewer can be used to highlight text, insert signatures, and add notes.<br/>
+<br/>
+The Save to Google Drive feature is meant to make it easier for users to locate their downloads. PDFs can be saved to Google Drive from Chrome without redownloading and re-uploading them. Google Drive has a "Saved from Chrome" folder for downloaded files.<div class="linkback">Tag: <a href="https://www.macrumors.com/guide/google-chrome/">Google Chrome</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/chrome-split-view-pdf-annotations/">Google Chrome Gets Built-In Split View and PDF Annotations</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/google-chrome-gets-built-in-split-view-and-pdf-annotations.2477958/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Apple TV Sports Content Including F1, MLS, and Friday Night Baseball Coming to Bars and Restaurants</title>
+		<link>https://www.macrumors.com/2026/02/19/apple-tv-sports-content-everpass/</link>
+		<comments>https://forums.macrumors.com/threads/apple-tv-sports-content-including-f1-mls-and-friday-night-baseball-coming-to-bars-and-restaurants.2477951/</comments>
+		<pubDate>Thu, 19 Feb 2026 13:08:13 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/apple-tv-sports-content-everpass/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Apple</category>
+		<category>Rumors</category>
+		<category>Mac</category>
+		<category>iOS</category>
+		<category>iPhone</category>
+		<category>iPad</category>
+		
+
+		<description><![CDATA[Apple has inked a deal <a href="https://www.businesswire.com/news/home/20260219070713/en/EverPass-Media-and-Apple-Announce-Distribution-Agreement-Bringing-Apple-TV-Sports-to-Commercial-Venues-Nationwide">with EverPass Media</a> to bring <a href="https://www.macrumors.com/roundup/apple-tv/">Apple TV</a> sports content to EverPass customers in the United States. EverPass is a company that bundles premium sports content for restaurants, hotels, casinos, sports bars, and other businesses that want to air sporting events.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/10/Apple-exclusive-F1-partner.jpg" alt="" width="3840" height="2160" class="aligncenter size-full wp-image-1023659" /><br/>
+EverPass will now be able to offer Formula 1, Major League Soccer, and Major League Baseball content to its customers at no additional cost through the main EverPass Core content package. That package also includes Paramount+'s UEFA Champions League, Prime Video's Thursday Night Football, NBA, WNBA and more.<br/>
+<br/>
+The deal includes all-access coverage of every F1 Grand Prix, including practice, qualifying, and Sprint sessions. For MLS, EverPass customers will be able to show enhanced feature matches every weekend during the regular season, plus MLS All-Star Game, Leagues Cup, MLS Cup, and pre-and post-match programming. Also included is Friday Night Baseball, with two MLB Friday night games per week.<br/>
+<br/>
+&zwnj;Apple TV&zwnj; sporting content will be available through EverPass alongside NFL Sunday Ticket, Peacock Sports Pass, Prime Video sports content, and Paramount+.<br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/apple-tv-sports-content-everpass/">Apple TV Sports Content Including F1, MLS, and Friday Night Baseball Coming to Bars and Restaurants</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/apple-tv-sports-content-including-f1-mls-and-friday-night-baseball-coming-to-bars-and-restaurants.2477951/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>iPhone 16e Long-Term Review: What to Know Before the iPhone 17e Launches</title>
+		<link>https://www.macrumors.com/2026/02/19/iphone-16e-long-term-review/</link>
+		<comments>https://forums.macrumors.com/threads/iphone-16e-long-term-review-what-to-know-before-the-iphone-17e-launches.2477945/</comments>
+		<pubDate>Thu, 19 Feb 2026 10:06:21 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/iphone-16e-long-term-review/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Featured</category>
+		<category>iPhone 16e</category>
+		
+
+		<description><![CDATA[As we approach the launch of the <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> 17e, <em>MacRumors</em> videographer Dan Barbera decided to take a look back at the <a href="https://www.macrumors.com/roundup/iphone-16e/">iPhone 16e</a>. He goes over what it's been like using Apple's budget &zwnj;iPhone&zwnj; over the past 12 months, and whether it's worth choosing over one of Apple's more expensive models.<br/>
+<br/>
+<div class="center-wrap"><iframe width="560" height="315" src="https://www.youtube.com/embed/oaDbNoiJ0zI" title="iPhone 1 Year Later Review — Still Worth It? (+ New 17e Leaks!)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><em><a href="https://www.youtube.com/user/macrumors?sub_confirmation=1">Subscribe to the MacRumors YouTube channel</a> for more videos.</em></div><br/>
+The &zwnj;iPhone 16e&zwnj; is &#36;599, so it's &#36;200 cheaper than the <a href="https://www.macrumors.com/roundup/iphone-17/">iPhone 17</a>. &zwnj;iPhone 16e&zwnj; buyers didn't miss much in terms of performance or battery life compared to those who bought Apple's more expensive iPhones, but the device does only have a single camera, which is one of the main downsides.<br/>
+<br/>
+There's a single-lens 48-megapixel Wide Angle lens, so no Telephoto and no Ultra Wide lens, which also means no macro support. The other major feature that's missing is <a href="https://www.macrumors.com/guide/magsafe/">MagSafe</a>, which is majorly inconvenient since &zwnj;MagSafe&zwnj; charging is so prevalent. There's no Camera Control button, but that's easy to do without.<br/>
+<br/>
+Apple used an older design for the &zwnj;iPhone 16e&zwnj;, so it still has a tired-looking notch instead of the <a href="https://www.macrumors.com/guide/dynamic-island/">Dynamic Island</a>, and it only comes in black or white so there are no fun colors to choose from. Other than the camera, design, and &zwnj;MagSafe&zwnj; shortcomings, the &zwnj;iPhone 16e&zwnj; is remarkably similar to Apple's other iPhones and you're not going to notice much in the way of day-to-day differences between the &zwnj;iPhone 16e&zwnj; and a higher-end model.<br/>
+<br/>
+We definitely don't recommend buying an &zwnj;iPhone 16e&zwnj; right now, but the &zwnj;iPhone&zwnj; 17e that's going to launch very soon will absolutely be worth considering over Apple's more expensive flagship iPhones.<br/>
+<br/>
+Rumors suggest the &zwnj;iPhone&zwnj; 17e is going to solve some of the problems that we had with the &zwnj;iPhone 16e&zwnj;. It could get a &zwnj;Dynamic Island&zwnj; for the first time, adding all of the &zwnj;Dynamic Island&zwnj; features like Live Activities, and it's supposedly going to be updated with &zwnj;MagSafe&zwnj;. We're also expecting Apple's upgraded C1X modem and the same A19 chip that's in the &zwnj;iPhone 17&zwnj;.<br/>
+<br/>
+As long as you don't mind the lack of extra cameras, the &zwnj;iPhone&zwnj; 17e, like the &zwnj;iPhone 16e&zwnj;, is going to be a very competitive &zwnj;iPhone&zwnj; that gives you a lot of performance for the money. If you've been waiting to upgrade from an older device, the &zwnj;iPhone&zwnj; 17e has the potential to be a very good buy.<div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/iphone-16e/">iPhone 16e</a></div><div class="linkback">Buyer's Guide: <a href="https://buyersguide.macrumors.com/#iPhone-16e">iPhone 16e (Don't Buy)</a></div><div class="linkback">Related Forum: <a href="https://forums.macrumors.com/forums/iphone.99">iPhone</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/iphone-16e-long-term-review/">iPhone 16e Long-Term Review: What to Know Before the iPhone 17e Launches</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/iphone-16e-long-term-review-what-to-know-before-the-iphone-17e-launches.2477945/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Apple Sued by West Virginia for Allegedly Allowing CSAM Distribution Through iCloud</title>
+		<link>https://www.macrumors.com/2026/02/19/apple-west-virginia-csam-lawsuit/</link>
+		<comments>https://forums.macrumors.com/threads/apple-sued-by-west-virginia-for-allegedly-allowing-csam-distribution-through-icloud.2477946/</comments>
+		<pubDate>Thu, 19 Feb 2026 10:05:00 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/apple-west-virginia-csam-lawsuit/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>Apple Lawsuits</category>
+		
+
+		<description><![CDATA[West Virginia's Attorney General JB McCuskey today announced a lawsuit against Apple, accusing the company of knowingly allowing <a href="https://www.macrumors.com/guide/icloud/">iCloud</a> to be used to distribute and store child sexual abuse material (CSAM). McCuskey says that Apple has opted to "do nothing about it" for years.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2024/12/iCloud-General-Feature-Redux.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-982796" /><br/>
+<blockquote>"Preserving the privacy of child predators is absolutely inexcusable. And more importantly, it violates West Virginia law. Since Apple has so far refused to police themselves and do the morally right thing, I am filing this lawsuit to demand Apple follow the law, report these images, and stop re-victimizing children by allowing these images to be stored and shared," Attorney General JB McCuskey said.</blockquote><br/>
+According to the lawsuit [<a href="https://ago.wv.gov/sites/default/files/2026-02/Filing.pdf">PDF</a>], Apple has described itself as the "greatest platform for distributing child porn" internally, but it submits far fewer reports about CSAM than peers like Google and Meta.<br/>
+<br/>
+Back in 2021, Apple announced <a href="https://www.macrumors.com/2021/08/05/apple-new-child-safety-features/">new child safety features</a>, including a system that would detect known CSAM in images stored in <a href="https://www.macrumors.com/guide/icloud-photo-library/">iCloud Photos</a>. After backlash from <a href="https://www.macrumors.com/2021/08/13/apple-employees-concerns-over-csam/">customers</a>, <a href="https://www.macrumors.com/2021/08/06/snowden-eff-slam-plan-to-scan-messages-images/">digital rights groups</a>, child safety advocates, and <a href="https://www.macrumors.com/2021/08/05/security-researchers-alarmed-apple-csam-plans/">security researchers</a>, Apple decided to <a href="https://www.macrumors.com/2022/12/07/apple-abandons-icloud-csam-detection/">abandon its plans</a> for CSAM detection in &zwnj;iCloud Photos&zwnj;.<br/>
+<br/>
+"Children can be protected without companies combing through personal data, and we will continue working with governments, child advocates, and other companies to help protect young people, preserve their right to privacy, and make the internet a safer place for children and for us all," Apple said when announcing that it would not implement the feature.<br/>
+<br/>
+Apple <a href="https://www.macrumors.com/2023/09/01/apple-explains-csam-plan-abandoned/">later explained</a> that creating a tool for scanning private &zwnj;iCloud&zwnj; data would "create new threat vectors for data thieves to find and exploit."<br/>
+<br/>
+West Virginia's Attorney General says that Apple has shirked its responsibility to protect children under the guise of user privacy, and that Apple's decision not to deploy detection technology is a choice, not passive oversight. The lawsuit suggests that since Apple has end-to-end control over hardware, software, and cloud infrastructure, it is not able to claim to be an "unknowing, passive conduit of CSAM."<br/>
+<br/>
+The lawsuit is seeking punitive damages and injunctive relief requiring Apple to implement effective CSAM detection measures.<br/>
+<br/>
+Apple was also sued in 2024 over its decision to abandon CSAM detection. A lawsuit representing a potential group of 2,680 victims said that Apple's failure to implement CSAM monitoring tools has caused ongoing harm to victims. That lawsuit is seeking &#36;1.2 billion.<div class="linkback">Tag: <a href="https://www.macrumors.com/guide/lawsuit/">Apple Lawsuits</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/apple-west-virginia-csam-lawsuit/">Apple Sued by West Virginia for Allegedly Allowing CSAM Distribution Through iCloud</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/apple-sued-by-west-virginia-for-allegedly-allowing-csam-distribution-through-icloud.2477946/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>MLS 2026 Season Begins February 21 on Apple TV With Free Access for Subscribers</title>
+		<link>https://www.macrumors.com/2026/02/19/major-league-soccer-2026-season-start/</link>
+		<comments>https://forums.macrumors.com/threads/mls-2026-season-begins-february-21-on-apple-tv-with-free-access-for-subscribers.2477941/</comments>
+		<pubDate>Thu, 19 Feb 2026 09:24:35 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/major-league-soccer-2026-season-start/</guid>
+		<dc:creator>Juli Clover</dc:creator>
+		<category>MLS Season Pass</category>
+		
+
+		<description><![CDATA[The 31st Major League Soccer season is <a href="https://www.apple.com/newsroom/2026/02/major-league-soccer-kicks-off-2026-season-on-apple-tv/">set to begin on Saturday, February 21</a>, with games set to be available through the <a href="https://www.macrumors.com/roundup/apple-tv/">Apple TV</a> subscription service. &zwnj;Apple TV&zwnj; subscribers in more than 100 countries can access MLS matches with no blackouts and no additional fees.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-mls-season-begins-2026.jpg" alt="" width="1960" height="1104" class="aligncenter size-full wp-image-1036935" /><br/>
+Apple used to charge &#36;14.99 per month or &#36;99 for the MLS Season Pass, but the Season Pass was removed for the 2026 season to give all &zwnj;Apple TV&zwnj; subscribers access for free. MLS is aiming to expand its fanbase and make content easier to access through its partnership with Apple.<br/>
+<br/>
+Apple says that MLS on &zwnj;Apple TV&zwnj; will include Walmart Saturday Showdown, which spotlights a featured matchup during the Saturday slate of matches throughout the regular season. It will include enhanced production that's designed to "help viewers feel more connected to the match," with Shot on <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> moments captured with dynamic angles. This week's Saturday Showdown will feature LAFC vs Miami at the LA Memorial Coliseum. The game is set to begin at 9:30 p.m. Eastern Time.<br/>
+<br/>
+All 30 MLS teams will take the pitch on February 21 and February 22 for MLS is Back Weekend. 13 of 15 season openers are scheduled for Saturday, with two games on Sunday. The season will begin with St. Louis facing off against Charlotte at 2:30 p.m. Eastern Time. A full schedule can be <a href="https://www.mlssoccer.com/competitions/mls-regular-season/2025/schedule/#date=2026-02-10">found on the MLS website</a>.<br/>
+<br/>
+Soccer fans can keep up to date with scores, stats, and standings throughout the MLS season with the <a href="https://apps.apple.com/us/app/apple-sports/id6446788829">Apple Sports app</a>. The app offers Live Activities for all MLS matches, with live scores and play-by-play information. Apple will also have special curated playlists on <a href="https://www.macrumors.com/guide/apple-music/">Apple Music</a>, dedicated Matchday Guides in <a href="https://www.macrumors.com/guide/apple-maps/">Apple Maps</a>, an MLS hub in the <a href="https://www.macrumors.com/guide/apple-podcasts/">Apple Podcasts</a> app, and MLS info in <a href="https://www.macrumors.com/guide/apple-news/">Apple News</a>.<div class="linkback">Tag: <a href="https://www.macrumors.com/guide/mls-season-pass/">MLS Season Pass</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/major-league-soccer-2026-season-start/">MLS 2026 Season Begins February 21 on Apple TV With Free Access for Subscribers</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/mls-2026-season-begins-february-21-on-apple-tv-with-free-access-for-subscribers.2477941/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Rivian Releases Apple Watch App</title>
+		<link>https://www.macrumors.com/2026/02/19/rivian-introduces-apple-watch-app/</link>
+		<comments>https://forums.macrumors.com/threads/rivian-releases-apple-watch-app.2477938/</comments>
+		<pubDate>Thu, 19 Feb 2026 08:32:48 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/rivian-introduces-apple-watch-app/</guid>
+		<dc:creator>Joe Rossignol</dc:creator>
+		<category>Apple Watch</category>
+		<category>Apple Wallet</category>
+		<category>Rivian</category>
+		
+
+		<description><![CDATA[As <a href="https://www.macrumors.com/2026/02/10/rivian-planning-to-launch-apple-watch-app/">expected</a>, electric vehicle maker Rivian today <a href="https://stories.rivian.com/software-update-rivian-apple-watch-app-2026">released</a> an Apple Watch app, providing R1S and R1T drivers with convenient features on their wrist.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Rivian-Introduces-Apple-Watch-App-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036941" /><br/>
+The app lets you choose up to four one-tap controls for locking or unlocking doors, opening or closing the windows, opening the front or rear trunks, sounding the vehicle's alarm, and more. In addition, you can turn the Apple Watch's Digital Crown to adjust the vehicle's cabin temperature and battery charging target in the app.<br/>
+<br/>
+Rivian also offers an Apple Watch complication, allowing you to view the vehicle's charge level at a glance on your watch face.<br/>
+<br/>
+Rivian recently <a href="https://www.macrumors.com/2025/12/08/rivian-apple-wallet-car-keys-later-this-month/">rolled out Apple Wallet car key support</a> for its second-generation R1S and R1T vehicles. This feature utilizes Ultra Wideband technology, allowing you to simply approach the vehicle, open the door, and start the vehicle, all with your iPhone in your pocket or bag or your Apple Watch on your wrist.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2025/12/Rivian-iPhone-Car-Keys-in-Apple-Wallet-Feature.jpg" alt="" width="1920" height="1080" class="aligncenter size-full wp-image-1029457" /><br/>
+Passive entry functionality requires an iPhone 11 or newer (excluding iPhone SE and iPhone 16e models) or an Apple Watch Series 6 or newer.<br/>
+<br/>
+If you have a first-generation R1S or R1T model, digital key functionality is a bit more limited. You can lock or unlock the vehicle with a tap of the "lock" button in the app. "With the app open, you're ready to drive," says Rivian, for these models.<br/>
+<br/>
+To get the Apple Watch app, head to the App Store and install the latest version of the <a href="https://apps.apple.com/us/app/rivian/id1570215232">Rivian app</a> for the iPhone, and it will extend to the Apple Watch.<div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/apple-watch/">Apple Watch 11</a></div><div class="linkback">Tags: <a href="https://www.macrumors.com/guide/apple-wallet/">Apple Wallet</a>, <a href="https://www.macrumors.com/guide/rivian/">Rivian</a></div><div class="linkback">Buyer's Guide: <a href="https://buyersguide.macrumors.com/#Apple_Watch">Apple Watch (Neutral)</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/rivian-introduces-apple-watch-app/">Rivian Releases Apple Watch App</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/rivian-releases-apple-watch-app.2477938/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Dell&#039;s Sitewide Sale Discounts Alienware Monitors and More</title>
+		<link>https://www.macrumors.com/2026/02/19/dells-sitewide-sale/</link>
+		<comments>https://forums.macrumors.com/threads/dells-sitewide-sale-discounts-alienware-monitors-and-more.2477936/</comments>
+		<pubDate>Thu, 19 Feb 2026 07:43:19 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/dells-sitewide-sale/</guid>
+		<dc:creator>Mitchel Broussard</dc:creator>
+		<category>Deals</category>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[Dell has a <a href="https://howl.link/y4itgh9j3vgyh">big sale running this week</a> on multiple product categories, and it includes accessories not only from Dell but also Alienware, Logitech, Bose, and JBL. We're primarily focusing on monitors in this sale, but you can also find up to &#36;900 off laptops, PCs, and more.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/dell-alienware-deals.jpeg" alt="" width="1920" height="1080" class="aligncenter size-full wp-image-1036903" /><em><small>Note: MacRumors is an affiliate partner with Dell. When you click a link and make a purchase, we may receive a small payment, which helps us keep the site running.</small></em><br/>
+<br/>
+In regards to the monitor deals, you'll find up to &#36;200 off select monitors from multiple brands in this event. This includes popular Alienware gaming monitors, like the 27-inch Alienware 4K QD-OLED Gaming Monitor for <a href="https://howl.link/hlz97kw3z8d5j"><strong>&#36;699.99</strong></a>, down from &#36;899.99.<br/>
+<br/>
+<div class="center-wrap"><a href="https://howl.link/i6bwjieyi5rk8"target="_blank"><div class="fancybutton"><div class="fancybadge">SITEWIDE SAVINGS</div>Dell Monitor Sale</div></a></div><br/>
+<br/>
+We're also tracking deals on everything from gaming mice to Bluetooth speakers and earbuds during this event. You can find some of the highlights in the lists below, but be sure to <a href="https://howl.link/y4itgh9j3vgyh">visit Dell's website</a> to browse the full sale.<br/>
+<br/>
+<h2>Monitors</h2><br/>
+<ul><li><a href="https://howl.link/05unww7uufb6l">24-inch Dell Plus Monitor</a> - &#36;119.99, down from &#36;149.99</li><br/>
+<li><a href="https://howl.link/mls5rxd0y1dot">27-inch Dell Plus QHD Monitor</a> - &#36;189.99, down from &#36;219.99</li><br/>
+<li><a href="https://howl.link/0s71etbgid8im">27-inch Dell Plus 4K Monitor</a> - &#36;239.99, down from &#36;299.99</li><br/>
+<li><a href="https://howl.link/38nobqd0bgwlx">32-inch Dell Plus 4K Monitor</a> - &#36;299.99, down from &#36;369.99</li><br/>
+<li><a href="https://howl.link/gdk6uilvk42dq">34-inch Alienware Curved Gaming Monitor</a> - &#36;299.99, down from &#36;399.99</li><br/>
+<li><a href="https://howl.link/jodh8mdtel359">27-inch Alienware 4K Dual-Resolution Gaming Monitor</a> - &#36;399.99, down from &#36;499.99</li><br/>
+<li><a href="https://howl.link/rgtpbsq340wed">27-inch Alienware QD-OLED Gaming Monitor</a> - &#36;499.99, down from &#36;649.99</li><br/>
+<li><a href="https://howl.link/hlz97kw3z8d5j">27-inch Alienware 4K QD-OLED Gaming Monitor</a> - &#36;699.99, down from &#36;899.99</li><br/>
+<li><a href="https://howl.link/iihkt9hha3e7r">32-inch Alienware 4K QD-OLED Gaming Monitor</a> - &#36;849.99, down from &#36;999.99</li></ul><br/>
+<br/>
+<h2>Accessories</h2><br/>
+<ul><li><a href="https://howl.link/t2e6ili9bgnk7">Alienware Wireless Gaming Mouse</a> - &#36;69.99, down from &#36;99.99</li><br/>
+<li><a href="https://howl.link/hn72y2u81visy">Logitech MX Vertical Wireless Mouse</a> - &#36;99.99, down from &#36;119.99</li><br/>
+<li><a href="https://howl.link/l4ah50nk24069">Bose SoundLink Flex Portable Speaker</a> - &#36;119.00, down from &#36;159.00</li><br/>
+<li><a href="https://howl.link/cl1bw6t0sl8pc">JBL Charge 6 Portable Speaker</a> - &#36;159.95, down from &#36;199.95</li><br/>
+<li><a href="https://howl.link/ds1hg9u24dyc1">Alienware Pro Wireless Gaming Keyboard</a> - &#36;174.99, down from &#36;199.99</li><br/>
+<li><a href="https://howl.link/rr1tg60bnwe5a">Dell Pro Plus Earbuds</a> - &#36;179.99, down from &#36;229.99</li><br/>
+<li><a href="https://howl.link/xpypb9aapii9y">Bose SoundLink Max Portable Speaker</a> - &#36;329.00, down from &#36;399.00</li></ul><br/>
+<br/>
+If you're on the hunt for more discounts, be sure to visit our <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a> roundup where we recap the best Apple-related bargains of the past week.<br/>
+<br/>
+<hr /><br/>
+<div class="no-raptive"><br/>
+<h3>Deals Newsletter</h3><br/>
+Interested in hearing more about the best deals you can find in 2026? <a href="http://eepurl.com/itTnTk">Sign up</a> for our Deals Newsletter and we'll keep you updated so you don't miss the biggest deals of the season!<br/>
+<br/>
+<div style="text-align:center;margin-bottom:2em;"><br/>
+<br/>
+<form action="http://macrumors.us5.list-manage.com/subscribe/post?u=7d0106b433773bd0aef5828e0&amp;id=eebad02bf4&amp;f_id=00fbede0f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate><input type="email" value="" name="EMAIL" size="30" class="required email" id="mce-EMAIL"  placeholder="Enter Email Address" title="Email Address" /><div class="response" id="mce-error-response" style="display:none"></div><div class="response" id="mce-success-response" style="display:none"></div><div style="position: absolute; left: -5000px;"><input type="text" name="b_7d0106b433773bd0aef5828e0_eebad02bf4" tabindex="-1" value="" title="form" /></div><input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button"></div><br/>
+</div><div class="linkback">Related Roundup: <a href="https://www.macrumors.com/roundup/best-apple-deals/">Apple Deals</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/dells-sitewide-sale/">Dell&#039;s Sitewide Sale Discounts Alienware Monitors and More</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/dells-sitewide-sale-discounts-alienware-monitors-and-more.2477936/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Apple Watch: 15 Tips Every Owner Needs to Know</title>
+		<link>https://www.macrumors.com/2026/02/19/apple-watch-15-tips-need-to-know/</link>
+		<comments>https://forums.macrumors.com/threads/apple-watch-15-tips-every-owner-needs-to-know.2477935/</comments>
+		<pubDate>Thu, 19 Feb 2026 07:38:03 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/apple-watch-15-tips-need-to-know/</guid>
+		<dc:creator>Tim Hardwick</dc:creator>
+		<category>Featured</category>
+		
+
+		<description><![CDATA[Apple Watch is now eleven generations in, and packed with useful features that are easy to miss at first glance. To help you get more out of your new device, we've rounded up 15 practical tips you might not have discovered yet, including a few that long-time users often overlook.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2026/02/Apple-Watch-15-Tips-Every-Owner-Needs-to-Know-Feature.jpg" alt="" width="2500" height="1406" class="aligncenter size-full wp-image-1036634" /><br/>
+<br/>
+<h2>Bounce Between Two Apps</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-app-switcher.jpeg" alt="watch" width="1920" height="1080" class="aligncenter size-full wp-image-1036616" /><br/>
+On your Apple Watch, double-press the Digital Crown to see a deck of all currently open apps, and turn it to scroll through them. From this view, you can jump back to the last app you were using. Simply tap on an app screen to switch to it, or swipe left on its card and tap the red X button to quit it.<br/>
+<br/>
+<h2>Switch App Views</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-apps-view.jpeg" alt="app view" width="1920" height="1080" class="aligncenter size-full wp-image-1036618" /><br/>
+If the app grid feels messy, switch to List View. Open the Watch app on iPhone, tap App View, and choose List View. From then on, pressing the Digital Crown will show your apps in a simple, scrollable list.<br/>
+<br/>
+<h2>Rearrange Apps</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/watch-app-iphone-app-view.jpeg" alt="watch app" width="1920" height="1080" class="aligncenter size-full wp-image-1036626" /><br/>
+You can rearrange your apps so that the ones you use most are closer to hand. Simply press and hold on any app in the grid view, then drag it where you want. Alternatively, open the Watch app on your iPhone, go to App View ➝ Arrangement, and move things around there instead.<br/>
+<br/>
+<h2>Ping Your iPhone</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-ping.jpeg" alt="ping" width="1920" height="1080" class="aligncenter size-full wp-image-1036617" /><br/>
+If you've misplaced your iPhone but you're sure it's nearby, open Control Center with a press of the Side button, then tap the phone icon to make it ping. Press and hold that icon and the iPhone's camera flash will blink too, which can help if it's hidden under something.<br/>
+<br/>
+<h2>Skip the Countdown</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-workout-countdown.jpeg" alt="workout" width="1920" height="1080" class="aligncenter size-full wp-image-1036619" /><br/>
+If you're eager to start a workout, the three-second countdown before it starts can be skipped. Just tap the screen when the countdown begins and your workout will start immediately. If you find yourself doing this regularly, consider turning on Precision Start in Settings ➝ Workout.<br/>
+<br/>
+<h2>Customize Vibration Strength</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/prominent-haptics-apple-watch.jpeg" alt="haptics" width="1920" height="1080" class="aligncenter size-full wp-image-1036897" /><br/>
+If you keep missing notifications, go to Settings ➝ Sounds & Haptics ➝ and change from Default to Prominent. This adds an extra tap pattern before alerts so they're harder to ignore.<br/>
+<br/>
+<h2>Perform Precision Timing</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/chronograph-pro-watch-face.jpeg" alt="chronograph" width="1920" height="1080" class="aligncenter size-full wp-image-1036898" /><br/>
+The Chronograph Pro watch face transforms into an actual chronograph. Tap the outer edge surrounding the main 12-hour dial on this watch face to record time on scales of 60, 30, 6, or 3 seconds. Alternatively, select the tachymeter timescale to measure speed based on time travel over a fixed distance.<br/>
+<br/>
+<h2>Jump to the Top</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-jump-to-top.jpeg" alt="jump to top" width="1920" height="1080" class="aligncenter size-full wp-image-1036621" /><br/>
+If you've scrolled way down in an app and want to jump back to the top, just tap the time in the top corner of the screen. It works in most apps and saves a lot of scrolling.<br/>
+<br/>
+<h2>Remove Apps</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/uninstall-apple-watch-apps.jpeg" alt="apps view" width="1920" height="1080" class="aligncenter size-full wp-image-1036622" /><br/>
+Clearing out apps you don't use on your Apple Watch is easy. In the List or Grid View, press and hold on the screen until the apps jiggle, then tap the small x in the corner of the app icon to delete it. This works for most system apps and all third-party apps.<br/>
+<br/>
+<h2>Customize Control Center</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-customize-control-center.jpeg" alt="control center" width="1920" height="1080" class="aligncenter size-full wp-image-1036623" /><br/>
+By default, Control Center (accessed via the Side button) gives you quick access to things like Wi-Fi, battery, and Do Not Disturb. But it's worth seeing what else you can add to it that you'd like quick access to. Tap the Edit button at the bottom, then tap the + icon in the top-left corner of the screen. System options such as New Note and Lights are particularly handy, and you might see some third-party options listed too, depending on your installed apps.<br/>
+<br/>
+<h2>Speak the Time Out Loud</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/apple-watch-mickey-mouse.jpeg" alt="mickey" width="1920" height="1080" class="aligncenter size-full wp-image-1036624" /><br/>
+If you're using the Mickey or Minnie watch face, tap on the character and they'll speak the time out loud. Just make sure your sound is turned on. In fact, you can also have Siri read the time on any watch face by tapping and holding with two fingers on the display. Again though, sound needs to be enabled.<br/>
+<br/>
+<h2>Customize Smart Replies</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/watch-app-smart-replies.jpeg" alt="smart replies" width="1920" height="1080" class="aligncenter size-full wp-image-1036627" /><br/>
+Smart Replies are handy when you want to reply with just a few words. In the Watch app on iPhone, go to Messages and tap Default Replies to customise what shows up. Then when a message comes in, simply swipe down to pick one of your preset replies.<br/>
+<br/>
+<h2>Pause Activity Rings</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/pause-apple-watch-activity-rings.jpeg" alt="activity" width="1920" height="1080" class="aligncenter size-full wp-image-1036901" /><br/>
+Feeling unwell but hoping to keep your streak intact? In the Activity app, select your rings to access the option to suspend them for the day, or set a pause that lasts until a chosen date up to 90 days ahead.<br/>
+<br/>
+<h2>Create a Note</h2><br/>
+<img src="https://images.macrumors.com/article-new/2026/02/create-note-watch.jpeg" alt="notes" width="1920" height="1080" class="aligncenter size-full wp-image-1036904" /><br/>
+In the new Notes app in watchOS 26, you can't modify existing notes on Apple Watch, but you can create a new one by tapping the compose control in the bottom-right corner and speaking your text. Because Notes sync through iCloud, you can refine or reorganize everything later on a device with a physical or on-screen keyboard.<br/>
+<br/>
+<h2>Mute and Dismiss Alerts</h2><br/>
+<img src="https://images.macrumors.com/article-new/2025/07/wrist-flick-watchos-26.gif" alt="" width="1920" height="1080" class="aligncenter size-full wp-image-1011088" /><br/>
+With a quick wrist flip, you can clear the current screen and go back to the watch face. The same gesture can be used to mute calls, stop timers, and dismiss notifications. The feature, which is on by default, is supported on Apple Watch SE (3rd generation), Series 9, Ultra 2, and later.<br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/apple-watch-15-tips-need-to-know/">Apple Watch: 15 Tips Every Owner Needs to Know</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/apple-watch-15-tips-every-owner-needs-to-know.2477935/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+		<item>
+		<title>Apple&#039;s C1X Modem Faces First Reported Failure in iPhone Air</title>
+		<link>https://www.macrumors.com/2026/02/19/c1x-modem-faces-first-failure/</link>
+		<comments>https://forums.macrumors.com/threads/apples-c1x-modem-faces-first-reported-failure-in-iphone-air.2477932/</comments>
+		<pubDate>Thu, 19 Feb 2026 05:58:34 PST</pubDate>
+		<guid isPermaLink="false">https://www.macrumors.com/2026/02/19/c1x-modem-faces-first-failure/</guid>
+		<dc:creator>Hartley Charlton</dc:creator>
+		<category>Apple 5G Modem</category>
+		<category>C1</category>
+		
+
+		<description><![CDATA[A reported hardware failure affecting Apple's new in-house C1X 5G modem in the <a href="https://www.macrumors.com/roundup/iphone-air/">iPhone Air</a> has surfaced online, marking the first known real-world incident involving the company's own baseband technology.<br/>
+<br/>
+<img src="https://images.macrumors.com/article-new/2021/03/Apple-5G-Modem-Feature-16x9.jpg" alt="" width="2240" height="1260" class="alignnone size-full wp-image-788396" /><br/>
+The &zwnj;iPhone Air&zwnj; is the first <a href="https://www.macrumors.com/guide/iphone/">iPhone</a> model to ship with the Apple's internally designed C1X 5G modem, replacing Qualcomm's X75 modem used across the <a href="https://www.macrumors.com/roundup/iphone-16/">iPhone 16</a> lineup. The transition to Apple-designed modems follows years of development after Apple acquired Intel's smartphone modem business in 2019 and began building its own baseband engineering teams and intellectual property portfolio with the goal of reducing reliance on Qualcomm and increasing efficiency.<br/>
+<br/>
+A newly reported incident was first documented in a <a href="https://www.reddit.com/r/iphone/comments/1r8bmth/so_the_iphone_air_c1x_modem_died_suddenly/">support thread</a> on Reddit spotted by <em><a href="https://wccftech.com/iphone-air-c1x-5g-modem-failure-spotted-online/">Wccftech</a></em>, where the user "itstheskylion" described waking up to find the device had completely lost cellular reception. According to the user, the phone displayed no signal bars and diagnostics indicated a hardware-level cellular problem.<br/>
+<br/>
+The device had reportedly been kept in a case since purchase and showed no signs of physical damage. The user said that multiple troubleshooting steps were attempted, including restarting the device, performing a soft reset, and resetting network settings, but none restored cellular connectivity. The user also reported using a dual-SIM configuration with two different carriers, with neither connection functioning, which suggests the issue was not related to a carrier outage or network-specific disruption.<br/>
+<br/>
+Baseband hardware failures are uncommon in modern smartphones due to extensive factory testing and validation processes, but large-scale production inevitably includes a small percentage of defective units. Apple has historically replaced and collected devices that exhibit unusual behavior for internal analysis, particularly when new technologies are involved. At present, there is no evidence that the issue is widespread or indicative of a broader reliability concern. <br/>
+<br/>
+As Apple prepares for the next generation of iPhones, real-world reliability data from early deployments of the C1 and C1X modems is likely to be closely monitored internally as part of the company's ongoing development work. The C1X is expected to come to the &zwnj;iPhone&zwnj; 17e next month, while the <a href="https://www.macrumors.com/roundup/iphone-18/">iPhone 18</a> Pro, &zwnj;iPhone 18&zwnj; Pro Max, and foldable &zwnj;iPhone&zwnj; are rumored to feature Apple's next-generation C2 modem.<div class="linkback">Tags: <a href="https://www.macrumors.com/guide/apple-5g-modem/">Apple 5G Modem</a>, <a href="https://www.macrumors.com/guide/c1/">C1</a></div><br/>This article, &quot;<a href="https://www.macrumors.com/2026/02/19/c1x-modem-faces-first-failure/">Apple&#039;s C1X Modem Faces First Reported Failure in iPhone Air</a>&quot; first appeared on <a href="https://www.macrumors.com">MacRumors.com</a><br/><br/><a href="https://forums.macrumors.com/threads/apples-c1x-modem-faces-first-reported-failure-in-iphone-air.2477932/">Discuss this article</a> in our forums<br/><br/>]]></description>
+		</item>
+		
+	</channel>
+</rss>

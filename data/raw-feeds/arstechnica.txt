@@ -1,0 +1,725 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:media="http://search.yahoo.com/mrss/" >
+    <channel>
+        <title>Ars Technica</title>
+        <atom:link href="https://arstechnica.com/feed/" rel="self" type="application/rss+xml" />
+        <link>https://arstechnica.com</link>
+        <description>Serving the Technologist since 1998. News, reviews, and analysis.</description>
+        <lastBuildDate>Sat, 21 Feb 2026 23:54:38 +0000</lastBuildDate>
+        <language>en-US</language>
+        <sy:updatePeriod>
+            hourly        </sy:updatePeriod>
+        <sy:updateFrequency>
+            1        </sy:updateFrequency>
+        
+<image>
+	<url>https://cdn.arstechnica.net/wp-content/uploads/2016/10/cropped-ars-logo-512_480-60x60.png</url>
+	<title>Ars Technica</title>
+	<link>https://arstechnica.com</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+            <item>
+                <title>Study shows how rocket launches pollute the atmosphere</title>
+                <link>https://arstechnica.com/space/2026/02/study-shows-how-rocket-launches-pollute-the-atmosphere/</link>
+                                    <comments>https://arstechnica.com/space/2026/02/study-shows-how-rocket-launches-pollute-the-atmosphere/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Bob Berwyn, Inside Climate News]]>
+                </dc:creator>
+                <pubDate>Sun, 22 Feb 2026 11:20:03 +0000</pubDate>
+                		<category><![CDATA[Space]]></category>
+		<category><![CDATA[industrial waste]]></category>
+		<category><![CDATA[space pollution]]></category>
+		<category><![CDATA[spacex]]></category>
+		<category><![CDATA[syndication]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/space/2026/02/study-shows-how-rocket-launches-pollute-the-atmosphere/</guid>
+
+                                    <description>
+                        <![CDATA[Is the global atmospheric commons destined to be an industrial waste dumping ground?]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>New <a href="https://www.nature.com/articles/s43247-025-03154-8">research</a> published Thursday bolsters growing concerns that a handful of companies and countries are using the global atmospheric commons as a dumping ground for potentially toxic and climate-altering industrial waste byproducts from loosely regulated commercial space flights.</p>
+<p>The new study analyzed a plume of pollution trailing part of a Falcon rocket that crashed through the upper atmosphere on Feb. 19, 2025, after SpaceX lost control of its reentry. The rocket was launched earlier that month, carrying 20 to 22 Starlink satellites into orbit.</p>
+<p>The authors said it is the first time debris from a specific spacecraft disintegration has been traced and measured in the near-space region about 80 to 110 kilometers above Earth. Changes there can affect the stratosphere, where ozone and climate processes operate. Until recent years, human activities had little impact in that region.</p><p><a href="https://arstechnica.com/space/2026/02/study-shows-how-rocket-launches-pollute-the-atmosphere/">Read full article</a></p>
+<p><a href="https://arstechnica.com/space/2026/02/study-shows-how-rocket-launches-pollute-the-atmosphere/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>1</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2025/10/54717981613_dab21dfbc3_k-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2025/10/54717981613_dab21dfbc3_k-500x500.jpg" width="500" height="500" />
+<media:credit>United Launch Alliance</media:credit><media:text>United Launch Alliance's third Vulcan rocket lifts off August 12, 2025, with a classified payload for the US Space Force.</media:text></media:content>
+            </item>
+                    <item>
+                <title>NASA says it needs to haul the Artemis II rocket back to the hangar for repairs</title>
+                <link>https://arstechnica.com/space/2026/02/nasa-says-it-needs-to-haul-the-artemis-ii-rocket-back-to-the-hangar-for-repairs/</link>
+                                    <comments>https://arstechnica.com/space/2026/02/nasa-says-it-needs-to-haul-the-artemis-ii-rocket-back-to-the-hangar-for-repairs/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Stephen Clark]]>
+                </dc:creator>
+                <pubDate>Sat, 21 Feb 2026 23:54:38 +0000</pubDate>
+                		<category><![CDATA[Science]]></category>
+		<category><![CDATA[Space]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/space/2026/02/nasa-says-it-needs-to-haul-the-artemis-ii-rocket-back-to-the-hangar-for-repairs/</guid>
+
+                                    <description>
+                        <![CDATA["Accessing and remediating any of these issues can only be performed in the VAB."]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p><span class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3">A day after NASA officials expressed optimism that they could be ready to launch the Artemis II mission around the Moon next month, the space agency's administrator announced Saturday that a new problem will require the removal of the rocket from its launch pad in Florida.</span></p>
+<p>The latest issue appeared Friday evening, when data showed an interruption in helium flow into the upper stage of the Space Launch System rocket, NASA Administrator Jared Isaacman wrote in a <a href="https://x.com/NASAAdmin/status/2025231621436186837?s=20">post on X</a>. Isaacman posted a more thorough update Saturday, writing that engineers are still examining the potential cause of the problem, but any fixes must take place inside the Vehicle Assembly Building.</p>
+<p>That means NASA and contractor ground teams will immediately begin preparing to roll the 322-foot-tall (98-meter) SLS rocket off of Launch Complex 39B and back to the VAB. The rocket and its mobile launch platform will ride NASA's crawler-transporter for the 4-mile journey.</p><p><a href="https://arstechnica.com/space/2026/02/nasa-says-it-needs-to-haul-the-artemis-ii-rocket-back-to-the-hangar-for-repairs/">Read full article</a></p>
+<p><a href="https://arstechnica.com/space/2026/02/nasa-says-it-needs-to-haul-the-artemis-ii-rocket-back-to-the-hangar-for-repairs/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>88</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/IMG_0016-1-1152x648-1771717658.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/IMG_0016-1-500x500.jpg" width="500" height="500" />
+<media:credit>Stephen Clark/Ars Technica</media:credit><media:text>The Orion spacecraft and upper stage of the SLS rocket tower nearly 300 feet above NASA's launch platform. Umbilical lines connecting to the Orion service module (upper right) and SLS upper stage (lower right) are visible in this photo taken during rollout to the launch pad last month.</media:text></media:content>
+            </item>
+                    <item>
+                <title>Dinosaur eggshells can reveal the age of other fossils</title>
+                <link>https://arstechnica.com/science/2026/02/dinosaur-eggshells-can-reveal-the-age-of-other-fossils/</link>
+                                    <comments>https://arstechnica.com/science/2026/02/dinosaur-eggshells-can-reveal-the-age-of-other-fossils/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Elizabeth Rayne]]>
+                </dc:creator>
+                <pubDate>Sat, 21 Feb 2026 13:00:01 +0000</pubDate>
+                		<category><![CDATA[Science]]></category>
+		<category><![CDATA[Biology]]></category>
+		<category><![CDATA[dinosaurs]]></category>
+		<category><![CDATA[evolution]]></category>
+		<category><![CDATA[paleontology]]></category>
+		<category><![CDATA[radioactive dating]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/science/2026/02/dinosaur-eggshells-can-reveal-the-age-of-other-fossils/</guid>
+
+                                    <description>
+                        <![CDATA[Like rocks, egg shells can trap isotopes, allowing us to use them to date samples.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>When dinosaur fossils surface at a site, it is often not possible to tell how many millions of years ago their bones were buried. While the different strata of sedimentary rock represent periods of geologic history frozen in time, accurately dating them or the fossils trapped within them has frequently proven to be frustrating.</p>
+<p>Fossilized bones and teeth have been dated with some success before, but that success is inconsistent and depends on the specimens. Both fossilization and the process of sediment turning to rock can alter the bone in ways that interfere with accuracy. While uranium-lead dating is among the most widely used methods for dating materials, it is just an emerging technology when applied to directly dating fossils.</p>
+<p>Dinosaur eggshells might have finally cracked a way to date surrounding rocks and fossils. Led by paleontologist Ryan Tucker of Stellenbosch University, a team of researchers has devised a method of dating eggshells that reveals how long ago they were covered in what was once sand, mud, or other sediments. That information will give the burial time of any other fossils embedded in the same layer of rock.</p><p><a href="https://arstechnica.com/science/2026/02/dinosaur-eggshells-can-reveal-the-age-of-other-fossils/">Read full article</a></p>
+<p><a href="https://arstechnica.com/science/2026/02/dinosaur-eggshells-can-reveal-the-age-of-other-fossils/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>24</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2183166031-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2183166031-500x500.jpg" width="500" height="500" />
+<media:credit>xphotoz</media:credit></media:content>
+            </item>
+                    <item>
+                <title>Have we leapt into commercial genetic testing without understanding it?</title>
+                <link>https://arstechnica.com/science/2026/02/have-we-leapt-into-commercial-genetic-testing-without-understanding-it/</link>
+                                    <comments>https://arstechnica.com/science/2026/02/have-we-leapt-into-commercial-genetic-testing-without-understanding-it/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Diana Gitig]]>
+                </dc:creator>
+                <pubDate>Sat, 21 Feb 2026 12:00:56 +0000</pubDate>
+                		<category><![CDATA[Science]]></category>
+		<category><![CDATA[ethics]]></category>
+		<category><![CDATA[genetic testing]]></category>
+		<category><![CDATA[Genetics]]></category>
+		<category><![CDATA[Genomics]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/science/2026/02/have-we-leapt-into-commercial-genetic-testing-without-understanding-it/</guid>
+
+                                    <description>
+                        <![CDATA[A new book argues that tests might reshape human diversity even if they don't work.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Daphne O. Martschenko and Sam Trejo both want to make the world a better, fairer, more equitable place. But they disagree on whether studying social genomics—elucidating any potential genetic contributions to behaviors ranging from mental illnesses to educational attainment to political affiliation—can help achieve this goal.</p>
+<p>Martschenko’s argument is largely that genetic research and data have almost always been used thus far as a justification to further entrench extant social inequalities. But we know the solutions to many of the injustices in our world—trying to lift people out of poverty, for example—and we certainly don’t need more genetic research to implement them. Trejo’s point is largely that more information is generally better than less. We can’t foresee the benefits that could come from basic research, and this research is happening anyway, whether we like it or not, so we may as well try to harness it as best we can toward good and not ill.</p>
+<p>Obviously, they’re both right. In <a href="https://press.princeton.edu/books/hardcover/9780691237756/what-we-inherit?srsltid=AfmBOorhEUDuvnbOtnDI2SD0N9tV6PpQbM-eSWIj2n1XsL2yvOCxkm3x"><i>What We Inherit: How New Technologies and Old Myths Are Shaping Our Genomic Future</i></a>, we get to see how their collaboration can shed light on our rapidly advancing genetic capabilities.</p><p><a href="https://arstechnica.com/science/2026/02/have-we-leapt-into-commercial-genetic-testing-without-understanding-it/">Read full article</a></p>
+<p><a href="https://arstechnica.com/science/2026/02/have-we-leapt-into-commercial-genetic-testing-without-understanding-it/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>79</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-1491115807-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-1491115807-500x500.jpg" width="500" height="500" />
+<media:credit>Veronika Oliinyk</media:credit></media:content>
+            </item>
+                    <item>
+                <title>Major government research lab appears to be squeezing out foreign scientists</title>
+                <link>https://arstechnica.com/science/2026/02/major-government-research-lab-appears-to-be-squeezing-out-foreign-scientists/</link>
+                                    <comments>https://arstechnica.com/science/2026/02/major-government-research-lab-appears-to-be-squeezing-out-foreign-scientists/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Paresh Dave, wired.com]]>
+                </dc:creator>
+                <pubDate>Sat, 21 Feb 2026 11:31:35 +0000</pubDate>
+                		<category><![CDATA[Science]]></category>
+		<category><![CDATA[NIST]]></category>
+		<category><![CDATA[syndication]]></category>
+		<category><![CDATA[trump administration]]></category>
+		<category><![CDATA[War on science]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/science/2026/02/major-government-research-lab-appears-to-be-squeezing-out-foreign-scientists/</guid>
+
+                                    <description>
+                        <![CDATA["Noncitizens" lost after-hours access to a NIST lab last month.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p><span style="font-weight: 400;">One of the US government’s top </span><a href="https://www.wired.com/story/the-national-institute-of-standards-and-technology-braces-for-mass-firings/"><span style="font-weight: 400;">scientific research labs</span></a><span style="font-weight: 400;"> is taking steps that could drive away foreign scientists, a shift lawmakers and sources tell WIRED could cost the country valuable expertise and damage the agency’s credibility.</span></p>
+<p><span style="font-weight: 400;">The National Institute of Standards and Technology (NIST) helps determine the frameworks underpinning everything from cybersecurity to semiconductor manufacturing. Some of NIST’s recent work includes establishing guidelines for </span><a href="https://www.wired.com/story/inside-the-biden-administrations-unpublished-report-on-ai-safety/"><span style="font-weight: 400;">securing AI systems</span></a><span style="font-weight: 400;"> and identifying health concerns with air purifiers and firefighting gloves. Many of the agency’s thousands of employees, postdoctoral scientists, contractors, and guest researchers are brought in from around the world for their specialized expertise.</span></p>
+<p><span style="font-weight: 400;">“For weeks now, rumors of draconian new measures have been spreading like wildfire, while my staff’s inquiries to NIST have gone unanswered,” Zoe Lofgren, the top Democrat on the House Committee on Science, Space, and Technology, </span><a href="https://democrats-science.house.gov/download/2026-02-19-nist-letter-on-foreign-researcher-policy-final"><span style="font-weight: 400;">wrote in a letter</span></a><span style="font-weight: 400;"> sent to acting NIST Director Craig Burkhardt on Thursday. April McClain Delaney, a fellow Democrat on the committee, cosigned the message.</span></p><p><a href="https://arstechnica.com/science/2026/02/major-government-research-lab-appears-to-be-squeezing-out-foreign-scientists/">Read full article</a></p>
+<p><a href="https://arstechnica.com/science/2026/02/major-government-research-lab-appears-to-be-squeezing-out-foreign-scientists/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>72</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/nist-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/nist-500x500.jpg" width="500" height="500" />
+<media:credit>Dana Romanoff/Getty Images</media:credit></media:content>
+            </item>
+                    <item>
+                <title>After fueling test, optimism grows for March launch of Artemis II to the Moon</title>
+                <link>https://arstechnica.com/space/2026/02/nasa-reports-no-significant-leaks-in-artemis-ii-fueling-test-eyes-march-6-launch/</link>
+                                    <comments>https://arstechnica.com/space/2026/02/nasa-reports-no-significant-leaks-in-artemis-ii-fueling-test-eyes-march-6-launch/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Stephen Clark]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 23:55:43 +0000</pubDate>
+                		<category><![CDATA[Space]]></category>
+		<category><![CDATA[artemis]]></category>
+		<category><![CDATA[artemis II]]></category>
+		<category><![CDATA[human spaceflight]]></category>
+		<category><![CDATA[Kennedy Space Center]]></category>
+		<category><![CDATA[moon]]></category>
+		<category><![CDATA[NASA]]></category>
+		<category><![CDATA[space launch system]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/space/2026/02/nasa-reports-no-significant-leaks-in-artemis-ii-fueling-test-eyes-march-6-launch/</guid>
+
+                                    <description>
+                        <![CDATA[“We’re now targeting March 6 as our earliest launch attempt ... there is still pending work."]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>A second fueling test on NASA's Space Launch System rocket ended Thursday night, giving senior managers enough confidence to move forward with plans to launch four astronauts around the Moon as soon as March 6.</p>
+<p>Unlike the first attempt to load propellants into the SLS rocket on February 2, there were no major leaks during Thursday's practice countdown at Kennedy Space Center in Florida. Technicians swapped seals at the launch pad after hydrogen gas leaked from the rocket's main fueling line earlier this month. This time, the seals held.</p>
+<p class="p1"><span class="s1">"For the most part, those fixes all performed pretty well yesterday," said Lori Glaze, acting associate administrator for NASA's exploration programs. "</span><span class="s1">We were able to fully fuel the SLS rocket within the planned timeline."</span></p><p><a href="https://arstechnica.com/space/2026/02/nasa-reports-no-significant-leaks-in-artemis-ii-fueling-test-eyes-march-6-launch/">Read full article</a></p>
+<p><a href="https://arstechnica.com/space/2026/02/nasa-reports-no-significant-leaks-in-artemis-ii-fueling-test-eyes-march-6-launch/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>83</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/KSC-20260210-PH-JBS01-0126orig-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/KSC-20260210-PH-JBS01-0126orig-500x500.jpg" width="500" height="500" />
+<media:credit>NASA/Ben Smegelsky</media:credit><media:text>NASA's Space Launch System stands more than 320 feet tall on Launch Complex 39B at Kennedy Space Center in Florida.</media:text></media:content>
+            </item>
+                    <item>
+                <title>Microsoft gaming chief Phil Spencer steps down after 38 years with company</title>
+                <link>https://arstechnica.com/gaming/2026/02/microsoft-gaming-chief-phil-spencer-steps-down-after-38-years-with-company/</link>
+                                    <comments>https://arstechnica.com/gaming/2026/02/microsoft-gaming-chief-phil-spencer-steps-down-after-38-years-with-company/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Kyle Orland]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 23:28:21 +0000</pubDate>
+                		<category><![CDATA[Gaming]]></category>
+		<category><![CDATA[executives]]></category>
+		<category><![CDATA[microsoft]]></category>
+		<category><![CDATA[Phil Spencer]]></category>
+		<category><![CDATA[spencer]]></category>
+		<category><![CDATA[XBox]]></category>
+		<category><![CDATA[xbox series x]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/gaming/2026/02/microsoft-gaming-chief-phil-spencer-steps-down-after-38-years-with-company/</guid>
+
+                                    <description>
+                        <![CDATA[Microsoft CoreAI exec Asha Sharma will take over in surprise executive shake-up.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Microsoft Executive Vice President for Gaming Phil Spencer announced he will retire after 38 years at Microsoft and 12 years leading the company's video game efforts. Asha Sharma, an executive currently in charge of Microsoft's CoreAI division, will take his place.</p>
+<p>Xbox President Sarah Bond, who many assumed was being groomed as Spencer's eventual replacement, is also resigning from the company. Current Xbox Studios Head Matt Booty, meanwhile, is being promoted to Executive Vice President and Chief Content Officer and will work closely with Sharma.</p>
+<p>In <a href="https://blogs.microsoft.com/blog/2026/02/20/asha-sharma-named-evp-and-ceo-microsoft-gaming/">his departure note</a>, Spencer said he told Microsoft CEO Satya Nadella last fall that he was "thinking about stepping back and starting the next chapter of my life." Spencer will remain at Microsoft "in an advisory role" through the summer to help Sharma during the transition, he wrote.</p><p><a href="https://arstechnica.com/gaming/2026/02/microsoft-gaming-chief-phil-spencer-steps-down-after-38-years-with-company/">Read full article</a></p>
+<p><a href="https://arstechnica.com/gaming/2026/02/microsoft-gaming-chief-phil-spencer-steps-down-after-38-years-with-company/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>139</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2018/02/dice_spencer-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2018/02/dice_spencer-500x500.jpg" width="500" height="500" />
+<media:credit>Kyle Orland</media:credit><media:text>Microsoft's Phil Spencer speaks at the 2018 DICE conference in Las Vegas.</media:text></media:content>
+            </item>
+                    <item>
+                <title>MAHA moms threaten to turn this car around as RFK Jr. flips on pesticide</title>
+                <link>https://arstechnica.com/health/2026/02/maha-moms-threaten-to-turn-this-car-around-as-rfk-jr-flips-on-pesticide/</link>
+                                    <comments>https://arstechnica.com/health/2026/02/maha-moms-threaten-to-turn-this-car-around-as-rfk-jr-flips-on-pesticide/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Beth Mole]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 23:14:09 +0000</pubDate>
+                		<category><![CDATA[Health]]></category>
+		<category><![CDATA[glyphosate]]></category>
+		<category><![CDATA[MAHA]]></category>
+		<category><![CDATA[Robert F Kenned Jr.]]></category>
+		<category><![CDATA[roundup]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/health/2026/02/maha-moms-threaten-to-turn-this-car-around-as-rfk-jr-flips-on-pesticide/</guid>
+
+                                    <description>
+                        <![CDATA[MAHA members call movement a "sham" after Kennedy supports glyphosate order.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Members of the Make America Health Again movement are in open revolt after founder Robert F. Kennedy Jr. publicly backed President Trump's executive order Wednesday that would increase domestic production of glyphosate—a pesticide the MAHA movement and Kennedy have railed against.</p>
+<p>Vani Hari, an ally of Kennedy who goes by "Food Babe," <a href="https://www.washingtonpost.com/health/2026/02/19/glyphosate-executive-order-maha-backlash/">told The Washington Post</a> she was left "speechless" by the move.</p>
+<p>"We truly were hoping that this administration would put people over corporate power,” she said, "but this action moves us away from that commitment."</p><p><a href="https://arstechnica.com/health/2026/02/maha-moms-threaten-to-turn-this-car-around-as-rfk-jr-flips-on-pesticide/">Read full article</a></p>
+<p><a href="https://arstechnica.com/health/2026/02/maha-moms-threaten-to-turn-this-car-around-as-rfk-jr-flips-on-pesticide/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>266</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2245820783-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2245820783-500x500.jpg" width="500" height="500" />
+<media:credit>Getty | Alex WROBLEWSKI</media:credit><media:text>US Secretary of Health and Human Services Robert F. Kennedy Jr. gestures while speaking during the Make America Healthy Again (MAHA) summit in Washington, DC, on November 12, 2025. </media:text></media:content>
+            </item>
+                    <item>
+                <title>Fury over Discord’s age checks explodes after shady Persona test in UK</title>
+                <link>https://arstechnica.com/tech-policy/2026/02/discord-and-persona-end-partnership-after-shady-uk-age-test-sparks-outcry/</link>
+                                    <comments>https://arstechnica.com/tech-policy/2026/02/discord-and-persona-end-partnership-after-shady-uk-age-test-sparks-outcry/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Ashley Belanger]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 22:41:02 +0000</pubDate>
+                		<category><![CDATA[Policy]]></category>
+		<category><![CDATA[age checks]]></category>
+		<category><![CDATA[age estimation]]></category>
+		<category><![CDATA[age verification]]></category>
+		<category><![CDATA[discord]]></category>
+		<category><![CDATA[openai]]></category>
+		<category><![CDATA[Persona]]></category>
+		<category><![CDATA[united kingdom]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/tech-policy/2026/02/discord-and-persona-end-partnership-after-shady-uk-age-test-sparks-outcry/</guid>
+
+                                    <description>
+                        <![CDATA[Persona confirmed all age-check data from Discord's UK test was deleted.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Shortly after Discord announced that all users will soon be defaulted to teen experiences until their ages are verified, the messaging platform faced <a href="https://arstechnica.com/tech-policy/2026/02/discord-faces-backlash-over-age-checks-after-data-breach-exposed-70000-ids/">immediate backlash</a>.</p>
+<p>One of the major complaints was that Discord planned to collect more government IDs as part of its global age verification process. It shocked many that Discord would be so bold so soon after a third-party breach of a former age check partner's services recently <a href="https://arstechnica.com/security/2025/10/discord-says-hackers-stole-government-ids-of-70000-users/">exposed 70,000 Discord users' government IDs</a>.</p>
+<p>Attempting to reassure users, Discord claimed that most users wouldn't have to show ID, instead relying on video selfies using AI to estimate ages, which raised separate privacy concerns. In the future, perhaps behavioral signals would override the need for age checks for most users, Discord suggested, seemingly downplaying the risk that sensitive data would be improperly stored.</p><p><a href="https://arstechnica.com/tech-policy/2026/02/discord-and-persona-end-partnership-after-shady-uk-age-test-sparks-outcry/">Read full article</a></p>
+<p><a href="https://arstechnica.com/tech-policy/2026/02/discord-and-persona-end-partnership-after-shady-uk-age-test-sparks-outcry/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>73</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2260552299-1024x648.jpg" type="image/jpeg" medium="image" width="1024" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2260552299-500x500.jpg" width="500" height="500" />
+<media:credit>NurPhoto / Contributor | NurPhoto</media:credit></media:content>
+            </item>
+                    <item>
+                <title>FCC asks stations for &quot;pro-America&quot; programming, like daily Pledge of Allegiance</title>
+                <link>https://arstechnica.com/tech-policy/2026/02/fcc-asks-stations-for-pro-america-programming-like-daily-pledge-of-allegiance/</link>
+                                    <comments>https://arstechnica.com/tech-policy/2026/02/fcc-asks-stations-for-pro-america-programming-like-daily-pledge-of-allegiance/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Jon Brodkin]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 22:00:59 +0000</pubDate>
+                		<category><![CDATA[Policy]]></category>
+		<category><![CDATA[brendan carr]]></category>
+		<category><![CDATA[FCC]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/tech-policy/2026/02/fcc-asks-stations-for-pro-america-programming-like-daily-pledge-of-allegiance/</guid>
+
+                                    <description>
+                        <![CDATA[Brendan Carr wants "patriotic" shows for Trump's yearlong America 250 celebration.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Federal Communications Commission Chairman Brendan Carr today urged broadcasters to join a "Pledge America Campaign" that Carr established to support President Trump's "Salute to America 250" project.</p>
+<p>Carr said in a <a href="https://docs.fcc.gov/public/attachments/DOC-418890A1.pdf">press release</a> that "I am inviting broadcasters to pledge to air programming in their local markets in support of this historic national, non-partisan celebration." The press release said Carr is asking broadcasters to "air patriotic, pro-America programming in support of America’s 250th birthday."</p>
+<p>Carr gave what he called examples of content that broadcasters can run if they take the pledge. His examples include "starting each broadcast day with the 'Star Spangled Banner' or Pledge of Allegiance"; airing "PSAs, short segments, or full specials specifically promoting civic education, inspiring local stories, and American history"; running "segments during regular news programming that highlight local sites that are significant to American and regional history, such as National Park Service sites"; airing "music by America’s greatest composers, such as John Philip Sousa, Aaron Copland, Duke Ellington, and George Gershwin"; and providing daily “Today in American History” announcements highlighting significant events from US history.</p><p><a href="https://arstechnica.com/tech-policy/2026/02/fcc-asks-stations-for-pro-america-programming-like-daily-pledge-of-allegiance/">Read full article</a></p>
+<p><a href="https://arstechnica.com/tech-policy/2026/02/fcc-asks-stations-for-pro-america-programming-like-daily-pledge-of-allegiance/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>217</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/brendan-carr-fcc-crest-1152x648-1771622570.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/brendan-carr-fcc-crest-500x500-1771622581.jpg" width="500" height="500" />
+<media:credit>Getty Images | Kevin Dietsch</media:credit><media:text>FCC Chairman Brendan Carr speaks at a news conference following an FCC meeting on February 18, 2026 in Washington, DC.</media:text></media:content>
+            </item>
+                    <item>
+                <title>Meta&#039;s flagship metaverse service leaves VR behind</title>
+                <link>https://arstechnica.com/gadgets/2026/02/metas-flagship-metaverse-service-leaves-vr-behind/</link>
+                                    <comments>https://arstechnica.com/gadgets/2026/02/metas-flagship-metaverse-service-leaves-vr-behind/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Samuel Axon]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 21:49:22 +0000</pubDate>
+                		<category><![CDATA[Gaming]]></category>
+		<category><![CDATA[Tech]]></category>
+		<category><![CDATA[Horizon Worlds]]></category>
+		<category><![CDATA[meta]]></category>
+		<category><![CDATA[metaverse]]></category>
+		<category><![CDATA[mixed reality]]></category>
+		<category><![CDATA[quest]]></category>
+		<category><![CDATA[VR]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/gadgets/2026/02/metas-flagship-metaverse-service-leaves-vr-behind/</guid>
+
+                                    <description>
+                        <![CDATA[The company asserts it will continue to make VR headsets, though.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Meta announced today that it will divorce its Horizon Worlds social and gaming service—once promoted as the company's first major step into the metaverse—from its Quest VR headset platform and digital store.</p>
+<p>The company says it is now "shifting the focus of Worlds to be almost exclusively mobile." The <a href="https://developers.meta.com/horizon/blog/2026-vr-state-of-the-union-horizon-mobile-focus/">announcement</a> is also filled with statements like "we're doubling down on the VR developer ecosystem" that are attempting to head off any suggestion that Meta is retreating from the mixed reality space.</p>
+<p>This is far from the first signal that big changes are happening with Meta's mixed reality strategy. CNBC <a href="https://www.cnbc.com/2026/01/28/metas-reality-labs-posts-6point02-billion-loss-in-fourth-quarter.html">reported</a> that Meta has lost $80 billion on investments in Reality Labs, the company's mixed reality division. More than 1,000 Reality Labs employees were <a href="https://techcrunch.com/2026/01/14/meta-to-reportedly-lay-off-10-of-reality-labs-staff/">laid off</a> in January, but don't misread that as a total closure; more than 15,000 people were working in that part of the organization before the layoffs.</p><p><a href="https://arstechnica.com/gadgets/2026/02/metas-flagship-metaverse-service-leaves-vr-behind/">Read full article</a></p>
+<p><a href="https://arstechnica.com/gadgets/2026/02/metas-flagship-metaverse-service-leaves-vr-behind/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>85</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2025/07/zuckmetaverse-1152x648-1771623136.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2025/07/zuckmetaverse-500x500-1771623130.jpg" width="500" height="500" />
+<media:credit>Meta</media:credit><media:text>Perhaps the most famous image of the metaverse.</media:text></media:content>
+            </item>
+                    <item>
+                <title>Controversial NIH director now in charge of CDC, too, in RFK Jr. shake-up</title>
+                <link>https://arstechnica.com/health/2026/02/with-nih-in-chaos-its-controversial-director-is-taking-over-cdc-too/</link>
+                                    <comments>https://arstechnica.com/health/2026/02/with-nih-in-chaos-its-controversial-director-is-taking-over-cdc-too/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Beth Mole]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 19:44:39 +0000</pubDate>
+                		<category><![CDATA[Health]]></category>
+		<category><![CDATA[anti-vaccine]]></category>
+		<category><![CDATA[Bhattacharya]]></category>
+		<category><![CDATA[CDC]]></category>
+		<category><![CDATA[NIH]]></category>
+		<category><![CDATA[robert f kennedy jr]]></category>
+		<category><![CDATA[vaccine]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/health/2026/02/with-nih-in-chaos-its-controversial-director-is-taking-over-cdc-too/</guid>
+
+                                    <description>
+                        <![CDATA[The unusual dual role has renewed criticism of Bhattacharya's lack of leadership.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Jay Bhattacharya, the director of the National Institutes of Health, is now also the acting director of the Centers for Disease Control and Prevention, an unusual arrangement that has drawn swift criticism from researchers and public health experts.</p>
+<p>Bhattacharya's new role comes amid a leadership shakeup in the Department of Health and Human Services under anti-vaccine Health Secretary Robert F. Kennedy Jr. It also marks the third leader for the beleaguered public health agency under Kennedy.</p>
+<p>Susan Monarez, a microbiologist and long-time federal health official, held the position of acting director before becoming the first <a href="https://arstechnica.com/health/2025/07/cdc-finally-gets-a-director-fdas-top-vaccine-regulator-exits-under-pressure/">Senate-confirmed CDC director</a> at the end of July. But she was in the role just shy of a month before <a href="https://arstechnica.com/health/2025/08/report-cdc-director-being-ousted-just-weeks-after-senate-confirmation/">Kennedy ousted her</a> for—according to Monarez—refusing to rubber-stamp changes to vaccine recommendations made by Kennedy's hand-picked advisors, who are overwhelmingly anti-vaccine themselves.</p><p><a href="https://arstechnica.com/health/2026/02/with-nih-in-chaos-its-controversial-director-is-taking-over-cdc-too/">Read full article</a></p>
+<p><a href="https://arstechnica.com/health/2026/02/with-nih-in-chaos-its-controversial-director-is-taking-over-cdc-too/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>56</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2236807442-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2236807442-500x500.jpg" width="500" height="500" />
+<media:credit>Getty | Andrew Harnik</media:credit><media:text>Director of the National Institutes of Health Jay Bhattacharya, joined by President Donald Trump (L) and Health and Human Services Secretary Robert F. Kennedy Jr., at the White House on September 22, 2025 in Washington, DC. </media:text></media:content>
+            </item>
+                    <item>
+                <title>Wikipedia blacklists Archive.today, starts removing 695,000 archive links</title>
+                <link>https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/</link>
+                                    <comments>https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Jon Brodkin]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 18:35:43 +0000</pubDate>
+                		<category><![CDATA[Features]]></category>
+		<category><![CDATA[Policy]]></category>
+		<category><![CDATA[archive.today]]></category>
+		<category><![CDATA[wikipedia]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/</guid>
+
+                                    <description>
+                        <![CDATA[If DDoSing a blog wasn't bad enough, archive site also tampered with web snapshots.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>The English-language edition of Wikipedia is blacklisting Archive.today after the controversial archive site was used to direct a distributed denial of service (DDoS) attack against a blog.</p>
+<p>In the course of discussing whether Archive.today should be deprecated because of the DDoS, Wikipedia editors discovered that the archive site altered snapshots of webpages to insert the name of the blogger who was targeted by the DDoS. The alterations were apparently fueled by a grudge against the blogger over a post that described how the Archive.today maintainer hid their identity behind several aliases.</p>
+<p>"There is consensus to immediately deprecate <a href="https://en.wikipedia.org/wiki/Archive.today">archive.today</a>, and, as soon as practicable, add it to the spam blacklist (or create an edit filter that blocks adding new links), and remove all links to it," stated an <a href="https://en.wikipedia.org/wiki/Wikipedia:Requests_for_comment/Archive.is_RFC_5">update</a> today on Wikipedia's Archive.today discussion. "There is a strong consensus that Wikipedia should not direct its readers towards a website that hijacks users' computers to run a DDoS attack (see <a href="https://en.wikipedia.org/wiki/Wikipedia:ELNO#EL3">WP:ELNO#3</a>). Additionally, evidence has been presented that archive.today's operators have altered the content of archived pages, rendering it unreliable."</p><p><a href="https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/">Read full article</a></p>
+<p><a href="https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>86</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/wikipedia-1152x648-1771611351.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/wikipedia-500x500-1771611341.jpg" width="500" height="500" />
+<media:credit>Getty Images | Anadolu </media:credit></media:content>
+            </item>
+                    <item>
+                <title>Why Final Fantasy is now targeting PC as its &quot;lead platform&quot;</title>
+                <link>https://arstechnica.com/gaming/2026/02/why-final-fantasy-is-now-targeting-pc-as-its-lead-platform/</link>
+                                    <comments>https://arstechnica.com/gaming/2026/02/why-final-fantasy-is-now-targeting-pc-as-its-lead-platform/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Kyle Orland]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 17:26:59 +0000</pubDate>
+                		<category><![CDATA[Gaming]]></category>
+		<category><![CDATA[Final Fantasy]]></category>
+		<category><![CDATA[pc]]></category>
+		<category><![CDATA[ps5]]></category>
+		<category><![CDATA[RPG]]></category>
+		<category><![CDATA[Sony]]></category>
+		<category><![CDATA[Square]]></category>
+		<category><![CDATA[Square Enix]]></category>
+		<category><![CDATA[Steam]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/gaming/2026/02/why-final-fantasy-is-now-targeting-pc-as-its-lead-platform/</guid>
+
+                                    <description>
+                        <![CDATA[Director says PC is the "foundation" when targeting "high-end environments first."]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>For a long time now, PC gamers have been used to the Final Fantasy series treating their platform as somewhat secondary to the game's core console versions. There are some signs that may be starting to change, though, as director Naoki Hamaguchi has confirmed that the PC is now the "lead platform" for development of the <em>Final Fantasy VII Remake</em> trilogy.</p>
+<p>In <a href="https://automaton-media.com/en/game-development/final-fantasy-7-remake-trilogys-third-entry-will-not-compromise-on-graphics-whatsoever-despite-multiplatform-shift-director-naoki-hamaguchi-addresses-co/">a recent interview with Automaton</a>, Hamaguchi clarified that the team takes the relatively common practice of creating visual assets for its multiplatform games by targeting "high-end environments first," then performing a "reduction" for less powerful platforms. These days, that means "our 3D assets are created at the highest quality level based on PC as the foundation," he said. Players have already noticed this graphical difference in the PC version of <em>Final Fantasy VII Rebirth</em>, Hamaguchi said, and "our philosophy will not change for the third installment."</p>
+<p>While PC gaming is only "gradually expanding in Japan," Hamaguchi said the rapid growth in international PC gamers has led the company to "develop assets with the broad PC market in mind."</p><p><a href="https://arstechnica.com/gaming/2026/02/why-final-fantasy-is-now-targeting-pc-as-its-lead-platform/">Read full article</a></p>
+<p><a href="https://arstechnica.com/gaming/2026/02/why-final-fantasy-is-now-targeting-pc-as-its-lead-platform/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>52</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2024/09/clouddress-1152x648.png" type="image/png" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2024/09/clouddress-500x500.png" width="500" height="500" />
+<media:credit>Nexus Mods</media:credit><media:text>This screenshot of a &amp;quot;Cloud in a dress&amp;quot; mod is being used in place of some other &lt;em&gt;Final Fantasy&lt;/em&gt; PC mods that are way too inappropriate for publication on Ars.</media:text></media:content>
+            </item>
+                    <item>
+                <title>&quot;Million-year-old&quot; fossil skulls from China are far older—and not Denisovans</title>
+                <link>https://arstechnica.com/science/2026/02/new-dates-on-chinese-fossils-raise-question-of-how-many-times-we-left-africa/</link>
+                                    <comments>https://arstechnica.com/science/2026/02/new-dates-on-chinese-fossils-raise-question-of-how-many-times-we-left-africa/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Kiona N. Smith]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 17:03:06 +0000</pubDate>
+                		<category><![CDATA[Science]]></category>
+		<category><![CDATA[anthropology]]></category>
+		<category><![CDATA[Archaeology]]></category>
+		<category><![CDATA[Denisovans]]></category>
+		<category><![CDATA[extinct hominins]]></category>
+		<category><![CDATA[hominin evolution]]></category>
+		<category><![CDATA[homo erectus]]></category>
+		<category><![CDATA[homo longi]]></category>
+		<category><![CDATA[out of africa]]></category>
+		<category><![CDATA[paleoanthropology]]></category>
+		<category><![CDATA[science]]></category>
+		<category><![CDATA[skulls]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/science/2026/02/new-dates-on-chinese-fossils-raise-question-of-how-many-times-we-left-africa/</guid>
+
+                                    <description>
+                        <![CDATA[The revised age may help make sense of 2-million-year-old stone tools elsewhere in China.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Two skulls from Yunxian, in northern China, aren’t ancestors of Denisovans after all; they’re actually the oldest known <i>Homo erectus</i> fossils in eastern Asia.</p>
+<p>A recent study has re-dated the skulls to about 1.77 million years old, which makes them the oldest hominin remains found so far in East Asia. Their age means that <i>Homo erectus</i> (an extinct common ancestor of our species, Neanderthals, and Denisovans) must have spread across the continent much earlier and much faster than we’d previously given them credit for. It also sheds new light on who was making stone tools at some even older archaeological sites in China.</p>
+<h2><b><i>Homo erectus</i> spread like wildfire</b></h2>
+<p>Yunxian is an important—and occasionally contentious—archaeological site on the banks of central China’s Han River. Along with hundreds of stone tools and animal bones, the layers of river sediment have yielded three nearly complete hominin skulls (only two of which have been described in a publication so far). Shantou University paleoanthropologist Hua Tu and his colleagues measured the ratio of two isotopes, aluminum-26 and beryllium-10, in grains of quartz from the sediment layer that once held the skulls. The results suggest that <i>Homo erectus</i> lived and died along the Han River 1.77 million years ago. That's just 130,000 years after the species first appeared in Africa.</p><p><a href="https://arstechnica.com/science/2026/02/new-dates-on-chinese-fossils-raise-question-of-how-many-times-we-left-africa/">Read full article</a></p>
+<p><a href="https://arstechnica.com/science/2026/02/new-dates-on-chinese-fossils-raise-question-of-how-many-times-we-left-africa/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>74</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2025/09/yunxian3-985x648.png" type="image/png" medium="image" width="985" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2025/09/yunxian3-500x500.png" width="500" height="500" />
+<media:credit>government of Wuhan</media:credit><media:text>An archaeologist comes face to face with the Yunxian 3 skull</media:text></media:content>
+            </item>
+                    <item>
+                <title>It&#039;s outright war for the Iron Throne in House of the Dragon S3 teaser</title>
+                <link>https://arstechnica.com/culture/2026/02/its-outright-war-for-the-iron-throne-in-house-of-the-dragon-s3-teaser/</link>
+                                    <comments>https://arstechnica.com/culture/2026/02/its-outright-war-for-the-iron-throne-in-house-of-the-dragon-s3-teaser/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Jennifer Ouellette]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 16:40:31 +0000</pubDate>
+                		<category><![CDATA[Culture]]></category>
+		<category><![CDATA[entertainment]]></category>
+		<category><![CDATA[George R.R. Martin]]></category>
+		<category><![CDATA[HBO]]></category>
+		<category><![CDATA[house of the dragon]]></category>
+		<category><![CDATA[streaming television]]></category>
+		<category><![CDATA[Trailers]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/culture/2026/02/its-outright-war-for-the-iron-throne-in-house-of-the-dragon-s3-teaser/</guid>
+
+                                    <description>
+                        <![CDATA["The king has abdicated his throne. A new line is coming. A new line of unsullied kings."]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<div class="ars-video"><div class="relative" allow="fullscreen" loading="lazy" src="https://www.youtube.com/embed/i6w7O1kwuBk?start=0&amp;wmode=transparent"></div></div>
+<p>With HBO's critically acclaimed <a href="https://arstechnica.com/culture/2025/12/knight-of-the-seven-kingdoms-trailer-brings-levity-to-westeros/"><em>A Knight of the Seven Kingdoms</em></a> gearing up for its season finale on Sunday, it's time to check in on that other <em>Game of Thrones</em> spinoff: the far darker <a href="https://en.wikipedia.org/wiki/House_of_the_Dragon"><em>House of the Dragon</em></a>, which now has a suitably ominous teaser for its upcoming third season.</p>
+<p><strong>(Spoilers for the first two seasons below.)</strong></p>
+<p><a href="https://arstechnica.com/culture/2023/12/tensions-rise-between-targaryens-in-first-teaser-for-house-of-the-dragon-s2/">The series is set</a> nearly 200 years before the events of <em>Game of Thrones, </em>when dragons were still a fixture of Westeros, and chronicles the beginning of the end of House Targaryen’s reign. The primary source material is <a href="https://en.wikipedia.org/wiki/Fire_%26_Blood_(novel)" target="_blank" rel="noopener" data-uri="1e4524e735173b30ff50f2f666a28acc"><em>Fire and Blood</em></a>, a fictional history of the Targaryen kings written by George R.R. Martin. As book readers know, those events culminated in a civil war and the extinction of the dragons—at least until Daenerys Targaryen came along.</p><p><a href="https://arstechnica.com/culture/2026/02/its-outright-war-for-the-iron-throne-in-house-of-the-dragon-s3-teaser/">Read full article</a></p>
+<p><a href="https://arstechnica.com/culture/2026/02/its-outright-war-for-the-iron-throne-in-house-of-the-dragon-s3-teaser/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>26</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/dragon1-1152x648-1771601003.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/dragon1-500x500-1771600995.jpg" width="500" height="500" />
+<media:credit>YouTube/HBO</media:credit></media:content>
+            </item>
+                    <item>
+                <title>Nintendo brings GBA-era Pokémon to the Switch, but not Switch Online subscribers</title>
+                <link>https://arstechnica.com/gaming/2026/02/pokemon-red-and-greens-gba-remakes-are-getting-re-released-on-switch-for-20-a-pop/</link>
+                                    <comments>https://arstechnica.com/gaming/2026/02/pokemon-red-and-greens-gba-remakes-are-getting-re-released-on-switch-for-20-a-pop/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Andrew Cunningham]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 16:30:21 +0000</pubDate>
+                		<category><![CDATA[Gaming]]></category>
+		<category><![CDATA[Game boy Advance]]></category>
+		<category><![CDATA[nintendo switch]]></category>
+		<category><![CDATA[pokemon]]></category>
+		<category><![CDATA[pokemon red]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/gaming/2026/02/pokemon-red-and-greens-gba-remakes-are-getting-re-released-on-switch-for-20-a-pop/</guid>
+
+                                    <description>
+                        <![CDATA[Games appear to be mostly unmodified ports of the well-regarded remakes.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>For my money, the 2004 Game Boy Advance re-releases of <em>Pokémon FireRed </em>and <em>LeafGreen</em> are still the best versions of the original <em>Pokémon</em> games. They fixed most of the bugs and balance issues present in the originals—partly by also including the rosters from <em>Gold</em>/<em>Silver</em> and <em>Ruby</em>/<em>Sapphire</em>—but they're more faithful to the original gameplay, battling and catching mechanics, and graphics than the 2018 <em>Let's Go, Pikachu/Eevee!</em> adaptations for the Switch.</p>
+<p>Someone at Nintendo apparently agrees, as the company <a href="https://www.pokemon.com/us/pokemon-news/the-pokemon-firered-version-and-pokemon-leafgreen-version-games-are-releasing-on-nintendo-switch?cid=&amp;utm_source=tw&amp;utm_medium=social&amp;utm_campaign=vg&amp;utm_term=frlgnswitch">announced today</a> that it's re-releasing those games for the original Switch (and, by extension, the Switch 2, though no Switch 2-specific features were announced). The games will be available after a planned <em>Pokémon Presents</em> stream at 9 am Eastern/6 am Pacific on February 27.</p>
+<p>Subscribers to the <a href="https://www.nintendo.com/us/online/nintendo-switch-online/expansion-pack/">Switch Online + Expansion Pack</a> are in for a disappointment, though. Instead of releasing <em>FireRed </em>and <em>LeafGreen </em>as part of the <a href="https://arstechnica.com/gaming/2023/02/a-quick-look-at-the-switchs-new-game-boy-and-game-boy-advance-emulation/">Switch Online Game Boy Advance</a> collection, Nintendo will release both titles as standalone purchases that will run you $20 apiece. This means that players without a subscription will be able to buy and play the games. But given <a href="https://en.wikipedia.org/wiki/Nintendo_Classics#Game_Boy_Advance">how few GBA games are available</a> for the Switch Online service and how infrequently new ones are released, it does rankle to see otherwise unmodified ports of a prominent game bypass subscribers entirely.</p><p><a href="https://arstechnica.com/gaming/2026/02/pokemon-red-and-greens-gba-remakes-are-getting-re-released-on-switch-for-20-a-pop/">Read full article</a></p>
+<p><a href="https://arstechnica.com/gaming/2026/02/pokemon-red-and-greens-gba-remakes-are-getting-re-released-on-switch-for-20-a-pop/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>41</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/pokemon-fire-red-switch-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/pokemon-fire-red-switch-500x500.jpg" width="500" height="500" />
+<media:credit>Nintendo</media:credit><media:text>Game Boy Advance-era remakes of the first &lt;em&gt;Pokémon&lt;/em&gt; games are coming to the Switch. </media:text></media:content>
+            </item>
+                    <item>
+                <title>Supreme Court blocks Trump&#039;s emergency tariffs, billions in refunds may be owed</title>
+                <link>https://arstechnica.com/tech-policy/2026/02/supreme-court-blocks-trumps-emergency-tariffs-billions-in-refunds-may-be-owed/</link>
+                                    <comments>https://arstechnica.com/tech-policy/2026/02/supreme-court-blocks-trumps-emergency-tariffs-billions-in-refunds-may-be-owed/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Ashley Belanger]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 15:37:15 +0000</pubDate>
+                		<category><![CDATA[Policy]]></category>
+		<category><![CDATA[Donald Trump]]></category>
+		<category><![CDATA[reciprocal tariffs]]></category>
+		<category><![CDATA[tariffs]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/tech-policy/2026/02/supreme-court-blocks-trumps-emergency-tariffs-billions-in-refunds-may-be-owed/</guid>
+
+                                    <description>
+                        <![CDATA[Economists estimated more than $175 billion may need to be refunded.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>The Supreme Court <a href="https://www.supremecourt.gov/opinions/25pdf/24-1287_4gcj.pdf">ruled</a> Friday that Donald Trump was not authorized to implement emergency tariffs to ostensibly block illegal drug flows and offset trade deficits.</p>
+<p>It's not immediately clear what the ruling may mean for businesses that paid various "reciprocal" tariffs that Trump changed frequently, raising and lowering rates at will during tense negotiations with the United States' biggest trade partners.</p>
+<p>Divided 6-3, Supreme Court justices remanded the cases to lower courts, concluding that the International Emergency Economic Powers Act (IEEPA) does not give Trump power to impose tariffs.</p><p><a href="https://arstechnica.com/tech-policy/2026/02/supreme-court-blocks-trumps-emergency-tariffs-billions-in-refunds-may-be-owed/">Read full article</a></p>
+<p><a href="https://arstechnica.com/tech-policy/2026/02/supreme-court-blocks-trumps-emergency-tariffs-billions-in-refunds-may-be-owed/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>307</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2261294684-1024x648.jpg" type="image/jpeg" medium="image" width="1024" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2261294684-500x500.jpg" width="500" height="500" />
+<media:credit>Anna Moneymaker / Staff | Getty Images News</media:credit></media:content>
+            </item>
+                    <item>
+                <title>Tesla slashes Cybertruck prices as it tries to move (unpainted) metal</title>
+                <link>https://arstechnica.com/cars/2026/02/tesla-slashes-cybertruck-prices-as-it-tries-to-move-unpainted-metal/</link>
+                                    <comments>https://arstechnica.com/cars/2026/02/tesla-slashes-cybertruck-prices-as-it-tries-to-move-unpainted-metal/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Jonathan M. Gitlin]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 14:31:05 +0000</pubDate>
+                		<category><![CDATA[Cars]]></category>
+		<category><![CDATA[Tesla Cybertruck]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/cars/2026/02/tesla-slashes-cybertruck-prices-as-it-tries-to-move-unpainted-metal/</guid>
+
+                                    <description>
+                        <![CDATA[The stainless steel pickup truck is Tesla's first real flop.]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Last night, Tesla made some hefty cuts to Cybertruck pricing in an effort to stimulate some sales. The bombastic tri-motor "Cyberbeast" is $15,000 cheaper at $99,990, albeit by dropping some previously free features like supercharging and <a href="https://arstechnica.com/cars/2025/10/tesla-fsd-gets-worse-at-driving-nhtsa-opens-new-investigation/">FSD</a>. And there's now a new $59,990 entry-level model, a dual-motor configuration with a range of 325 miles (523 km) and the same 4.1-second 0–60 mph (0-97 km/h) time as the $79,990 premium all-wheel drive version.</p>
+<p>That actually makes the new entry-level model a good deal, at least in terms of Cybertrucks. Last year, the company <a href="https://www.caranddriver.com/news/a66102567/tesla-cybertruck-rear-wheel-drive-canceled/">introduced and then eliminated</a> a single-motor rear-wheel drive variant, which found few takers when priced at $69,990; an extra motor for $10,000 less is quite a savings, and actually slightly cheaper than the <a href="https://arstechnica.com/cars/2024/08/the-cheapest-tesla-cybertruck-is-99990-promised-60k-model-canceled/">price originally advertised for the RWD truck</a>.</p>
+<p>As you might expect, Tesla has made some changes to get down to the new price. The range and 0–60 mph time might be the same as the more expensive dual-motor Cybertruck, but towing capacity is reduced from 11,000 lbs (4,990 kg) to 7,000 lbs (3,175kg), and cargo capacity drops from 2,500 lbs (1,134 kg) to 2,006 lbs (910 kg).</p><p><a href="https://arstechnica.com/cars/2026/02/tesla-slashes-cybertruck-prices-as-it-tries-to-move-unpainted-metal/">Read full article</a></p>
+<p><a href="https://arstechnica.com/cars/2026/02/tesla-slashes-cybertruck-prices-as-it-tries-to-move-unpainted-metal/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>405</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2259708169-1152x648.jpg" type="image/jpeg" medium="image" width="1152" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2026/02/GettyImages-2259708169-500x500.jpg" width="500" height="500" />
+<media:credit>Reginald Mathalone/NurPhoto via Getty Images</media:credit><media:text>A tenth of Tesla's 2025 Cybertruck sales were to SpaceX, another company owned and controlled by Elon Musk.</media:text></media:content>
+            </item>
+                    <item>
+                <title>An AI coding bot took down Amazon Web Services</title>
+                <link>https://arstechnica.com/ai/2026/02/an-ai-coding-bot-took-down-amazon-web-services/</link>
+                                    <comments>https://arstechnica.com/ai/2026/02/an-ai-coding-bot-took-down-amazon-web-services/#comments</comments>
+                
+                <dc:creator>
+                    <![CDATA[Rafe Rosner-Uddin, Financial Times]]>
+                </dc:creator>
+                <pubDate>Fri, 20 Feb 2026 14:13:32 +0000</pubDate>
+                		<category><![CDATA[AI]]></category>
+		<category><![CDATA[agentic AI]]></category>
+		<category><![CDATA[AI coding]]></category>
+		<category><![CDATA[Amazon]]></category>
+		<category><![CDATA[AWS]]></category>
+		<category><![CDATA[coding]]></category>
+		<category><![CDATA[Kiro]]></category>
+		<category><![CDATA[syndication]]></category>
+                <guid isPermaLink="true">https://arstechnica.com/ai/2026/02/an-ai-coding-bot-took-down-amazon-web-services/</guid>
+
+                                    <description>
+                        <![CDATA[Blames "user error, not AI error" for incident in December involving its Kiro tool.
+]]>
+                    </description>
+                                                                <content:encoded>
+                            <![CDATA[<p>Amazon’s cloud unit has suffered at least two outages due to errors involving its own AI tools, leading some employees to raise doubts about the US tech giant’s push to roll out these coding assistants.</p>
+<p>Amazon Web Services experienced a 13-hour interruption to one system used by its customers in mid-December after engineers allowed its Kiro AI coding tool to make certain changes, according to four people familiar with the matter.</p>
+<p>The people said the agentic tool, which can take autonomous actions on behalf of users, determined that the best course of action was to “delete and recreate the environment.”</p><p><a href="https://arstechnica.com/ai/2026/02/an-ai-coding-bot-took-down-amazon-web-services/">Read full article</a></p>
+<p><a href="https://arstechnica.com/ai/2026/02/an-ai-coding-bot-took-down-amazon-web-services/#comments">Comments</a></p>
+]]>
+                        </content:encoded>
+                                    
+                                    <slash:comments>89</slash:comments>
+                
+                
+                <media:content url="https://cdn.arstechnica.net/wp-content/uploads/2022/12/GettyImages-1192325886-1024x648.jpg" type="image/jpeg" medium="image" width="1024" height="648">
+<media:thumbnail url="https://cdn.arstechnica.net/wp-content/uploads/2022/12/GettyImages-1192325886-500x500.jpg" width="500" height="500" />
+<media:credit>Getty</media:credit></media:content>
+            </item>
+            </channel>
+</rss>

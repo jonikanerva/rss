@@ -1,0 +1,161 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+<channel>
+<title>Techmeme</title>
+<link>http://www.techmeme.com/</link>
+<description>Top news and commentary for technology&apos;s leaders, from all around the web</description>
+<language>en-us</language>
+<pubDate>Sun, 22 Feb 2026 05:01:02 -0500</pubDate>
+<lastBuildDate>Sun, 22 Feb 2026 05:01:02 -0500</lastBuildDate>
+<item>
+  <title>India&apos;s AI Summit highlighted the limits of the country&apos;s AI ambitions, as the US and its tech companies largely dismissed India&apos;s push for global AI governance (Krishn Kaushik/Financial Times)</title>
+  <link>http://www.techmeme.com/260222/p7#a260222p7</link>
+  <description><![CDATA[<A HREF="https://giftarticle.ft.com/giftarticle/actions/redeem/0daeb080-c8e9-4dfe-9add-c34492f83f47"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i7.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p7#a260222p7" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Krishn Kaushik / <A HREF="https://www.ft.com/">Financial Times</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://giftarticle.ft.com/giftarticle/actions/redeem/0daeb080-c8e9-4dfe-9add-c34492f83f47">India's AI Summit highlighted the limits of the country's AI ambitions, as the US and its tech companies largely dismissed India's push for global AI governance</A></B></SPAN>&nbsp; &mdash;&nbsp; The world's most populous country continues to struggle to find its place in an industry dominated by the US and China</P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 05:00:30 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p7#a260222p7</guid>
+</item>
+<item>
+  <title>Anthropic&apos;s data shows software engineering accounts for ~50% of its AI agent tool calls; the remaining verticals are greenfields most founders are overlooking (Garry Tan/Garry&apos;s List)</title>
+  <link>http://www.techmeme.com/260222/p6#a260222p6</link>
+  <description><![CDATA[<A HREF="https://garryslist.org/posts/half-the-ai-agent-market-is-one-category-the-rest-is-wide-open"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i6.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p6#a260222p6" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Garry Tan / <A HREF="https://garryslist.org/">Garry's List</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://garryslist.org/posts/half-the-ai-agent-market-is-one-category-the-rest-is-wide-open">Anthropic's data shows software engineering accounts for ~50% of its AI agent tool calls; the remaining verticals are greenfields most founders are overlooking</A></B></SPAN>&nbsp; &mdash;&nbsp; Anthropic's new data shows software engineering dominates agentic AI.&nbsp; For founders, that's not a warning.&nbsp; It's a treasure map.</P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 02:00:02 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p6#a260222p6</guid>
+</item>
+<item>
+  <title>Source Global: the US consulting market is set to grow 7% in 2026, the fastest pace in the post-COVID era, as companies seek advice on profiting from AI (Stephen Foley/Financial Times)</title>
+  <link>http://www.techmeme.com/260222/p5#a260222p5</link>
+  <description><![CDATA[<A HREF="https://www.ft.com/content/3cd94803-909c-4617-99b0-a1b5061f93ad"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i5.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p5#a260222p5" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Stephen Foley / <A HREF="https://www.ft.com/">Financial Times</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.ft.com/content/3cd94803-909c-4617-99b0-a1b5061f93ad">Source Global: the US consulting market is set to grow 7% in 2026, the fastest pace in the post-COVID era, as companies seek advice on profiting from AI</A></B></SPAN>&nbsp; &mdash;&nbsp; Companies are seeking advice on how to provide energy to data centres and profit from artificial intelligence</P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 01:30:00 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p5#a260222p5</guid>
+</item>
+<item>
+  <title>Sam Altman says currently &quot;the idea of putting data centers in space is ridiculous&quot; and that it is &quot;not something that&apos;s going to matter at scale this decade&quot; (Bijin Jose/The Indian Express)</title>
+  <link>http://www.techmeme.com/260222/p4#a260222p4</link>
+  <description><![CDATA[<A HREF="https://indianexpress.com/article/technology/artificial-intelligence/sam-altman-elon-musk-space-data-centres-10543749/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i4.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p4#a260222p4" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Bijin Jose / <A HREF="https://indianexpress.com/">The Indian Express</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://indianexpress.com/article/technology/artificial-intelligence/sam-altman-elon-musk-space-data-centres-10543749/">Sam Altman says currently &ldquo;the idea of putting data centers in space is ridiculous&rdquo; and that it is &ldquo;not something that's going to matter at scale this decade&rdquo;</A></B></SPAN>&nbsp; &mdash;&nbsp; Once allies at OpenAI, Sam Altman and Elon Musk are now sharply divided over the future of AI infrastructure.</P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 01:20:03 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p4#a260222p4</guid>
+</item>
+<item>
+  <title>Amazon details how a Russian-speaking hacker used generative AI as part of a campaign that breached 600+ FortiGate firewalls across 55 countries in five weeks (Lawrence Abrams/BleepingComputer)</title>
+  <link>http://www.techmeme.com/260222/p3#a260222p3</link>
+  <description><![CDATA[<A HREF="https://www.bleepingcomputer.com/news/security/amazon-ai-assisted-hacker-breached-600-fortigate-firewalls-in-5-weeks/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i3.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p3#a260222p3" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Lawrence Abrams / <A HREF="https://www.bleepingcomputer.com/">BleepingComputer</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.bleepingcomputer.com/news/security/amazon-ai-assisted-hacker-breached-600-fortigate-firewalls-in-5-weeks/">Amazon details how a Russian-speaking hacker used generative AI as part of a campaign that breached 600+ FortiGate firewalls across 55 countries in five weeks</A></B></SPAN>&nbsp; &mdash;&nbsp; Amazon is warning that a Russian-speaking hacker used multiple generative AI services as part of a campaign that breached &hellip; </P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 01:10:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p3#a260222p3</guid>
+</item>
+<item>
+  <title>Salt Lake City-based Jump, a provider of AI tools for financial advisors to automate meeting prep and more, raised an $80M Series B led by Insight Partners (FinSMEs)</title>
+  <link>http://www.techmeme.com/260222/p2#a260222p2</link>
+  <description><![CDATA[<A HREF="https://www.finsmes.com/2026/02/jump-raises-80m-in-series-b-funding.html"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i2.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p2#a260222p2" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> <A HREF="http://www.finsmes.com/">FinSMEs</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.finsmes.com/2026/02/jump-raises-80m-in-series-b-funding.html">Salt Lake City-based Jump, a provider of AI tools for financial advisors to automate meeting prep and more, raised an $80M Series B led by Insight Partners</A></B></SPAN>&nbsp; &mdash;&nbsp; Jump, a Salt Lake City, UT-based provider of artificial intelligence (AI) solutions for financial advisors and other financial services providers &hellip; </P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 00:50:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p2#a260222p2</guid>
+</item>
+<item>
+  <title>Sam Altman says Elon Musk&apos;s idea of putting data centers in space is &apos;ridiculous&apos; (Lauren Edmonds/Business Insider)</title>
+  <link>http://www.techmeme.com/260222/p1#a260222p1</link>
+  <description><![CDATA[<A HREF="https://www.businessinsider.com/sam-altman-elon-musk-data-centers-space-timeline-2026-2"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260222/i1.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260222/p1#a260222p1" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Lauren Edmonds / <A HREF="https://www.businessinsider.com/">Business Insider</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.businessinsider.com/sam-altman-elon-musk-data-centers-space-timeline-2026-2">Sam Altman says Elon Musk's idea of putting data centers in space is &lsquo;ridiculous&rsquo;</A></B></SPAN>&nbsp; &mdash; Elon Musk's SpaceX wants to launch satellites that act as data centers into space.&nbsp; &mdash; OpenAI CEO Sam Altman said placing data centers in space isn't feasible right now.&nbsp; &mdash; He called the idea &ldquo;ridiculous&rdquo; during an event in New Delhi.</P>
+]]></description>
+  <pubDate>Sun, 22 Feb 2026 00:40:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260222/p1#a260222p1</guid>
+</item>
+<item>
+  <title>Trump calls on Netflix to fire board member Susan Rice or face &quot;consequences,&quot; after she said corporations that &quot;take a knee&quot; to Trump would be held accountable (Sam Kim/Bloomberg)</title>
+  <link>http://www.techmeme.com/260221/p12#a260221p12</link>
+  <description><![CDATA[<A HREF="https://www.bloomberg.com/news/articles/2026-02-21/trump-threatens-netflix-with-consequences-over-rice-board-seat"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i12.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p12#a260221p12" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Sam Kim / <A HREF="https://www.bloomberg.com/">Bloomberg</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.bloomberg.com/news/articles/2026-02-21/trump-threatens-netflix-with-consequences-over-rice-board-seat">Trump calls on Netflix to fire board member Susan Rice or face &ldquo;consequences,&rdquo; after she said corporations that &ldquo;take a knee&rdquo; to Trump would be held accountable</A></B></SPAN>&nbsp; &mdash;&nbsp; Donald Trump called on Netflix to fire board member Susan Rice or &ldquo;pay the consequences,&rdquo; &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 23:35:02 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p12#a260221p12</guid>
+</item>
+<item>
+  <title>Sources: DOJ&apos;s review of Netflix&apos;s WBD takeover examines whether Netflix wields anticompetitive leverage over creators in violation of Clayton and Sherman Acts (Josh Sisco/Bloomberg)</title>
+  <link>http://www.techmeme.com/260221/p11#a260221p11</link>
+  <description><![CDATA[<A HREF="https://www.bloomberg.com/news/articles/2026-02-21/doj-probes-netflix-s-power-over-filmmakers-in-warner-deal-review"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i11.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p11#a260221p11" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Josh Sisco / <A HREF="https://www.bloomberg.com/">Bloomberg</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.bloomberg.com/news/articles/2026-02-21/doj-probes-netflix-s-power-over-filmmakers-in-warner-deal-review">Sources: DOJ's review of Netflix's WBD takeover examines whether Netflix wields anticompetitive leverage over creators in violation of Clayton and Sherman Acts</A></B></SPAN>&nbsp; &mdash;&nbsp; The Justice Department's investigation of Netflix Inc.'s proposed $72 billion takeover of Warner Bros. Discovery Inc. includes scrutiny &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 21:00:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p11#a260221p11</guid>
+</item>
+<item>
+  <title>Sam Altman says there is some &quot;AI washing&quot;, where companies blame AI for layoffs that they would otherwise do, alongside &quot;real displacement by AI&quot; of some jobs (AJ Dellinger/Gizmodo)</title>
+  <link>http://www.techmeme.com/260221/p10#a260221p10</link>
+  <description><![CDATA[<A HREF="https://gizmodo.com/sam-altman-says-companies-are-ai-washing-layoffs-2000724759"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i10.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p10#a260221p10" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> AJ Dellinger / <A HREF="http://gizmodo.com/">Gizmodo</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://gizmodo.com/sam-altman-says-companies-are-ai-washing-layoffs-2000724759">Sam Altman says there is some &ldquo;AI washing&rdquo;, where companies blame AI for layoffs that they would otherwise do, alongside &ldquo;real displacement by AI&rdquo; of some jobs</A></B></SPAN>&nbsp; &mdash;&nbsp; Hold up, let him cook.&nbsp; &mdash;&nbsp; Sam Altman is starting to get the sneaking suspicion that companies might &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 20:10:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p10#a260221p10</guid>
+</item>
+<item>
+  <title>Open source projects like VLC and Blender are seeing a decline in the average quality of contributions, likely as AI coding tools lower barriers to entry (Russell Brandom/TechCrunch)</title>
+  <link>http://www.techmeme.com/260221/p9#a260221p9</link>
+  <description><![CDATA[<A HREF="https://techcrunch.com/2026/02/19/for-open-source-programs-ai-coding-tools-are-a-mixed-blessing/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i9.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p9#a260221p9" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Russell Brandom / <A HREF="http://techcrunch.com/">TechCrunch</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://techcrunch.com/2026/02/19/for-open-source-programs-ai-coding-tools-are-a-mixed-blessing/">Open source projects like VLC and Blender are seeing a decline in the average quality of contributions, likely as AI coding tools lower barriers to entry</A></B></SPAN>&nbsp; &mdash;&nbsp; A world that runs on increasingly powerful AI coding tools is one where software creation is cheap &mdash; or so the thinking goes &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 17:10:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p9#a260221p9</guid>
+</item>
+<item>
+  <title>Google is ending Gmailify and POP access in Gmail; new users will lose access in Q1 2026, and existing users will keep both features until later in 2026 (David Nield/Wired)</title>
+  <link>http://www.techmeme.com/260221/p8#a260221p8</link>
+  <description><![CDATA[<A HREF="https://www.wired.com/story/gmail-killing-pop-and-gmailify-access-what-it-means-for-you/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i8.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p8#a260221p8" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> David Nield / <A HREF="http://www.wired.com/">Wired</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.wired.com/story/gmail-killing-pop-and-gmailify-access-what-it-means-for-you/">Google is ending Gmailify and POP access in Gmail; new users will lose access in Q1 2026, and existing users will keep both features until later in 2026</A></B></SPAN>&nbsp; &mdash;&nbsp; If you have multiple email accounts, your Gmail setup may soon need some reorganizing.&nbsp; &mdash;&nbsp; Google giveth, and Google taketh away.</P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 15:15:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p8#a260221p8</guid>
+</item>
+<item>
+  <title>English-language Wikipedia bans Archive.today after editors discover it was used to direct a DDoS attack and tampered with snapshots; 695K+ links to be removed (Jon Brodkin/Ars Technica)</title>
+  <link>http://www.techmeme.com/260221/p7#a260221p7</link>
+  <description><![CDATA[<A HREF="https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i7.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p7#a260221p7" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Jon Brodkin / <A HREF="http://arstechnica.com/">Ars Technica</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://arstechnica.com/tech-policy/2026/02/wikipedia-bans-archive-today-after-site-executed-ddos-and-altered-web-captures/">English-language Wikipedia bans Archive.today after editors discover it was used to direct a DDoS attack and tampered with snapshots; 695K+ links to be removed</A></B></SPAN>&nbsp; &mdash;&nbsp; The English-language edition of Wikipedia is blacklisting Archive.today after the controversial archive site was used to direct &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 13:40:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p7#a260221p7</guid>
+</item>
+<item>
+  <title>Interviews with Cluely&apos;s Roy Lee, Donald Boat, and other highly &quot;agentic&quot; young men, as agency becomes more valuable than technical skills in Silicon Valley (Sam Kriss/Harper&apos;s)</title>
+  <link>http://www.techmeme.com/260221/p6#a260221p6</link>
+  <description><![CDATA[<A HREF="https://harpers.org/archive/2026/03/childs-play-sam-kriss-ai-startup-roy-lee/"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i6.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p6#a260221p6" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> Sam Kriss / <A HREF="http://harpers.org/">Harper's</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://harpers.org/archive/2026/03/childs-play-sam-kriss-ai-startup-roy-lee/">Interviews with Cluely's Roy Lee, Donald Boat, and other highly &ldquo;agentic&rdquo; young men, as agency becomes more valuable than technical skills in Silicon Valley</A></B></SPAN>&nbsp; &mdash;&nbsp; Tech's new generation and the end of thinking &hellip; Cluely and its co-founder Chungin &ldquo;Roy&rdquo; Lee were intensely, and intentionally, controversial.</P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 12:40:01 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p6#a260221p6</guid>
+</item>
+<item>
+  <title>A look at the fundamental questions facing OpenAI: its models have a very large user base but very narrow engagement, incumbents are matching its tech, and more (Benedict Evans)</title>
+  <link>http://www.techmeme.com/260221/p5#a260221p5</link>
+  <description><![CDATA[<A HREF="https://www.ben-evans.com/benedictevans/2026/2/19/how-will-openai-compete-nkg2x"><IMG VSPACE="4" HSPACE="4" BORDER="0" ALIGN="RIGHT" SRC="http://www.techmeme.com/260221/i5.jpg"></A>
+<P><A HREF="http://www.techmeme.com/260221/p5#a260221p5" TITLE="Techmeme permalink"><IMG WIDTH=11 HEIGHT=12 SRC="http://www.techmeme.com/img/pml.png" STYLE="border:none;padding:0;margin:0;"></A> <A HREF="https://www.ben-evans.com/">Benedict Evans</A>:<BR>
+<SPAN STYLE="font-size:1.3em;"><B><A HREF="https://www.ben-evans.com/benedictevans/2026/2/19/how-will-openai-compete-nkg2x">A look at the fundamental questions facing OpenAI: its models have a very large user base but very narrow engagement, incumbents are matching its tech, and more</A></B></SPAN>&nbsp; &mdash;&nbsp; &ldquo;Jakub and Mark set the research direction for the long run.&nbsp; Then after months of work, something incredible emerges &hellip; </P>
+]]></description>
+  <pubDate>Sat, 21 Feb 2026 10:20:06 -0500</pubDate>
+  <guid>http://www.techmeme.com/260221/p5#a260221p5</guid>
+</item>
+</channel>
+</rss>

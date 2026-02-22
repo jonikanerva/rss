@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Kotaku</title>
+	<atom:link href="https://kotaku.com/feed" rel="self" type="application/rss+xml" />
+	<link>https://kotaku.com/</link>
+	<description>Gaming Reviews, News, Tips and More.</description>
+	<lastBuildDate>Sat, 21 Feb 2026 22:42:55 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	
+	<item>
+		<title>The Legend Of Zelda Keeps Flirting With Dumping Fantasy For Sci-Fi</title>
+		<link>https://kotaku.com/legend-zelda-sci-fi-concept-art-40th-anniversary-2000672580</link>
+					<comments>https://kotaku.com/legend-zelda-sci-fi-concept-art-40th-anniversary-2000672580#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Kotzer]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 21:59:44 +0000</pubDate>
+				<category><![CDATA[Retro]]></category>
+		<category><![CDATA[The Legend of Zelda]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672580</guid>
+
+					<description><![CDATA[<img width="1900" height="1077" src="https://kotaku.com/app/uploads/2026/02/link.jpg" class="attachment-full size-full wp-post-image" alt="Link falls through the sky." style="max-width: 100%; height: auto; margin: auto;" decoding="async" fetchpriority="high" srcset="https://kotaku.com/app/uploads/2026/02/link.jpg 1900w, https://kotaku.com/app/uploads/2026/02/link-336x190.jpg 336w, https://kotaku.com/app/uploads/2026/02/link-1280x726.jpg 1280w, https://kotaku.com/app/uploads/2026/02/link-768x435.jpg 768w, https://kotaku.com/app/uploads/2026/02/link-672x381.jpg 672w, https://kotaku.com/app/uploads/2026/02/link-960x544.jpg 960w, https://kotaku.com/app/uploads/2026/02/link-1600x907.jpg 1600w" sizes="(max-width: 1900px) 100vw, 1900px"><br><br>On the series’ 40th anniversary, we look back at all of its attempted space missions]]></description>
+										<content:encoded><![CDATA[<img width="1900" height="1077" src="https://kotaku.com/app/uploads/2026/02/link.jpg" class="attachment-full size-full wp-post-image" alt="Link falls through the sky." style="max-width: 100%; height: auto; margin: auto;" decoding="async" srcset="https://kotaku.com/app/uploads/2026/02/link.jpg 1900w, https://kotaku.com/app/uploads/2026/02/link-336x190.jpg 336w, https://kotaku.com/app/uploads/2026/02/link-1280x726.jpg 1280w, https://kotaku.com/app/uploads/2026/02/link-768x435.jpg 768w, https://kotaku.com/app/uploads/2026/02/link-672x381.jpg 672w, https://kotaku.com/app/uploads/2026/02/link-960x544.jpg 960w, https://kotaku.com/app/uploads/2026/02/link-1600x907.jpg 1600w" sizes="(max-width: 1900px) 100vw, 1900px"><br><br>On the series’ 40th anniversary, we look back at all of its attempted space missions]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/link-1280x726.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>New Xbox Boss Says &#8216;Hear You&#8217; When Asked To Bring Back Exclusives</title>
+		<link>https://kotaku.com/xbox-exclusives-halo-asha-sharma-microsoft-2000672587</link>
+					<comments>https://kotaku.com/xbox-exclusives-halo-asha-sharma-microsoft-2000672587#respond</comments>
+		
+		<dc:creator><![CDATA[Ethan Gach]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 20:09:55 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Asha Sharma]]></category>
+		<category><![CDATA[Halo]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672587</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/steam-deck-1.jpg" class="attachment-full size-full wp-post-image" alt="Master Chief holds an energy weapon." style="max-width: 100%; height: auto; margin: auto;" decoding="async" srcset="https://kotaku.com/app/uploads/2026/02/steam-deck-1.jpg 1920w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Asha Sharma tries to convince the gamers she cares]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/steam-deck-1.jpg" class="attachment-full size-full wp-post-image" alt="Master Chief holds an energy weapon." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/steam-deck-1.jpg 1920w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/steam-deck-1-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Asha Sharma tries to convince the gamers she cares]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/steam-deck-1-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Original Saints Row Designer Believes The Series Is Dead After Publisher Ghosts Him</title>
+		<link>https://kotaku.com/saints-row-6-reboot-chris-stockman-embracer-2000672582</link>
+					<comments>https://kotaku.com/saints-row-6-reboot-chris-stockman-embracer-2000672582#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Kotzer]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 19:00:35 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Saints Row]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672582</guid>
+
+					<description><![CDATA[<img width="964" height="542" src="https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7.jpg" class="attachment-full size-full wp-post-image" alt="A car explodes as people fire guns." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7.jpg 964w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-336x189.jpg 336w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-768x432.jpg 768w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-672x378.jpg 672w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-960x540.jpg 960w" sizes="(max-width: 964px) 100vw, 964px"><br><br>Chris Stockman says Embracer Group is giving him cold shoulder after requesting his pitch]]></description>
+										<content:encoded><![CDATA[<img width="964" height="542" src="https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7.jpg" class="attachment-full size-full wp-post-image" alt="A car explodes as people fire guns." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7.jpg 964w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-336x189.jpg 336w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-768x432.jpg 768w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-672x378.jpg 672w, https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7-960x540.jpg 960w" sizes="(max-width: 964px) 100vw, 964px"><br><br>Chris Stockman says Embracer Group is giving him cold shoulder after requesting his pitch]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2022/08/4ed6a1a9d5644bec94f9e06b362527a7.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Ubisoft Promises Two Far Cry Games Are Coming As The Open-World Shooter Hits Its Longest Hiatus Ever</title>
+		<link>https://kotaku.com/far-cry-7-extraction-shooter-assassins-creed-hexe-ubisoft-2000672574</link>
+					<comments>https://kotaku.com/far-cry-7-extraction-shooter-assassins-creed-hexe-ubisoft-2000672574#respond</comments>
+		
+		<dc:creator><![CDATA[Ethan Gach]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 18:01:27 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Far Cry 7]]></category>
+		<category><![CDATA[Ubisoft]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672574</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af.jpg" class="attachment-full size-full wp-post-image" alt="Art shows characters from Far Cry 6." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af.jpg 1920w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>'Several' <i>Assassin's Creed</i> games are also just around the corner]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af.jpg" class="attachment-full size-full wp-post-image" alt="Art shows characters from Far Cry 6." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af.jpg 1920w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>'Several' <i>Assassin's Creed</i> games are also just around the corner]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2025/06/7ac18fc6897f87f51a0f46671d31d7af-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Hackers Raise The Alarm About Discord&#8217;s Recent Age-Verification Partner</title>
+		<link>https://kotaku.com/discord-age-verification-hack-persona-2000672570</link>
+					<comments>https://kotaku.com/discord-age-verification-hack-persona-2000672570#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Kotzer]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 17:20:23 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Discord]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672570</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/09/watch-dogs-movie.jpg" class="attachment-full size-full wp-post-image" alt="Watch Dogs protagonist appears on a dark city street." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/09/watch-dogs-movie.jpg 1920w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Discord’s contested global age-verification roll-out keeps sounding worse]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/09/watch-dogs-movie.jpg" class="attachment-full size-full wp-post-image" alt="Watch Dogs protagonist appears on a dark city street." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/09/watch-dogs-movie.jpg 1920w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Discord’s contested global age-verification roll-out keeps sounding worse]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2025/09/watch-dogs-movie-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>The 15 Best Steam Deck Games</title>
+		<link>https://kotaku.com/the-best-steam-deck-games-ever-megabonk-balatro-vampire-survivors-2000667367</link>
+					<comments>https://kotaku.com/the-best-steam-deck-games-ever-megabonk-balatro-vampire-survivors-2000667367#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Sat, 21 Feb 2026 13:00:21 +0000</pubDate>
+				<category><![CDATA[The Bests]]></category>
+		<category><![CDATA[Megabonk]]></category>
+		<category><![CDATA[Steam Deck]]></category>
+		<category><![CDATA[Vampire Survivors]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000667367</guid>
+
+					<description><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/steam-deck.jpg" class="attachment-full size-full wp-post-image" alt="A Steam Deck OLED sits on a table." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/steam-deck.jpg 960w, https://kotaku.com/app/uploads/2026/02/steam-deck-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/steam-deck-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/steam-deck-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Here are some of the very best PC games to check out on Valve's portable PC]]></description>
+										<content:encoded><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/steam-deck.jpg" class="attachment-full size-full wp-post-image" alt="A Steam Deck OLED sits on a table." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/steam-deck.jpg 960w, https://kotaku.com/app/uploads/2026/02/steam-deck-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/steam-deck-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/steam-deck-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Here are some of the very best PC games to check out on Valve's portable PC]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/steam-deck.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>That&#8217;s It, I&#8217;m Calling It, Xbox Is Dead, Time Of Death February 20</title>
+		<link>https://kotaku.com/thats-it-im-calling-it-xbox-is-dead-time-of-death-february-20-2000672114</link>
+					<comments>https://kotaku.com/thats-it-im-calling-it-xbox-is-dead-time-of-death-february-20-2000672114#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 23:25:34 +0000</pubDate>
+				<category><![CDATA[Commentary]]></category>
+		<category><![CDATA[Asha Sharma]]></category>
+		<category><![CDATA[Microsoft]]></category>
+		<category><![CDATA[Phil Spencer]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672114</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/dead.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/dead.jpg 1920w, https://kotaku.com/app/uploads/2026/02/dead-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/dead-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/dead-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/dead-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/dead-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/dead-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/dead-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>This isn't a surprising death, when you look back at the last few years]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/dead.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/dead.jpg 1920w, https://kotaku.com/app/uploads/2026/02/dead-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/dead-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/dead-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/dead-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/dead-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/dead-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/dead-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>This isn't a surprising death, when you look back at the last few years]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/dead-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>The Internet Reacts To The Massive Shakeup At Xbox</title>
+		<link>https://kotaku.com/phil-spencer-xbox-sarah-bond-leaving-internet-reaction-2000672112</link>
+					<comments>https://kotaku.com/phil-spencer-xbox-sarah-bond-leaving-internet-reaction-2000672112#respond</comments>
+		
+		<dc:creator><![CDATA[Kenneth Shepard]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 21:43:11 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Phil Spencer]]></category>
+		<category><![CDATA[Sarah Bond]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672112</guid>
+
+					<description><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/image-7.jpg" class="attachment-full size-full wp-post-image" alt="Image (7)" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/image-7.jpg 960w, https://kotaku.com/app/uploads/2026/02/image-7-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/image-7-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/image-7-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Microsoft’s gaming division is seeing a huge shakeup and folks are not optimistic]]></description>
+										<content:encoded><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/image-7.jpg" class="attachment-full size-full wp-post-image" alt="Image (7)" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/image-7.jpg 960w, https://kotaku.com/app/uploads/2026/02/image-7-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/image-7-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/image-7-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Microsoft’s gaming division is seeing a huge shakeup and folks are not optimistic]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/image-7.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Phil Spencer Says Goodbye: &#8216;[Xbox] Deserves A Thoughtful, Deliberate Plan For The Road Ahead&#8217;</title>
+		<link>https://kotaku.com/phil-spencer-goodbye-email-memo-xbox-microsoft-2000672084</link>
+					<comments>https://kotaku.com/phil-spencer-goodbye-email-memo-xbox-microsoft-2000672084#respond</comments>
+		
+		<dc:creator><![CDATA[Ethan Gach]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 21:07:21 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Microsoft]]></category>
+		<category><![CDATA[Phil Spencer]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672084</guid>
+
+					<description><![CDATA[<img width="1920" height="1077" src="https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e.jpg" class="attachment-full size-full wp-post-image" alt="Phil Spencer wears a blue shirt." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e.jpg 1920w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-336x188.jpg 336w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-1280x718.jpg 1280w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-768x431.jpg 768w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-672x377.jpg 672w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-960x539.jpg 960w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-1600x898.jpg 1600w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The 38-year veteran of Microsoft calls his time there an 'epic ride']]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1077" src="https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e.jpg" class="attachment-full size-full wp-post-image" alt="Phil Spencer wears a blue shirt." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e.jpg 1920w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-336x188.jpg 336w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-1280x718.jpg 1280w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-768x431.jpg 768w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-672x377.jpg 672w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-960x539.jpg 960w, https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-1600x898.jpg 1600w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The 38-year veteran of Microsoft calls his time there an 'epic ride']]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2023/09/ef3f154051dc3c0ede0f126b457b609e-1280x718.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Xbox&#8217;s New Boss Promises Not To Flood It With &#8216;Soulless AI Slop&#8217;</title>
+		<link>https://kotaku.com/xboxs-new-boss-promises-not-to-flood-it-with-soulless-ai-slop-2000672087</link>
+					<comments>https://kotaku.com/xboxs-new-boss-promises-not-to-flood-it-with-soulless-ai-slop-2000672087#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 20:56:52 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[AI]]></category>
+		<category><![CDATA[Asha Sharma]]></category>
+		<category><![CDATA[Phil Spencer]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672087</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/xbox-sharma.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/xbox-sharma.jpg 1920w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Asha Sharma, formerly the head of Microsoft's AI division, promises more 'great games'  made by humans]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/xbox-sharma.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/xbox-sharma.jpg 1920w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/xbox-sharma-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Asha Sharma, formerly the head of Microsoft's AI division, promises more 'great games'  made by humans]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/xbox-sharma-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Phil Spencer Retires From Xbox And Sarah Bond Resigns As Microsoft&#8217;s AI Exec Takes Over</title>
+		<link>https://kotaku.com/phil-spencer-xbox-leaving-retirement-microsoft-2000672059</link>
+					<comments>https://kotaku.com/phil-spencer-xbox-leaving-retirement-microsoft-2000672059#respond</comments>
+		
+		<dc:creator><![CDATA[Kenneth Shepard]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 20:27:25 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Xbox]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672059</guid>
+
+					<description><![CDATA[<img width="1042" height="587" src="https://kotaku.com/app/uploads/2026/02/xbox-phil.jpg" class="attachment-full size-full wp-post-image" alt="Phil Spencer appears at the summer 2025 showcase." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/xbox-phil.jpg 1042w, https://kotaku.com/app/uploads/2026/02/xbox-phil-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/xbox-phil-768x433.jpg 768w, https://kotaku.com/app/uploads/2026/02/xbox-phil-672x379.jpg 672w, https://kotaku.com/app/uploads/2026/02/xbox-phil-960x541.jpg 960w" sizes="(max-width: 1042px) 100vw, 1042px"><br><br>Microsoft's gaming division sees a big leadership change amid its messiest console generation yet]]></description>
+										<content:encoded><![CDATA[<img width="1042" height="587" src="https://kotaku.com/app/uploads/2026/02/xbox-phil.jpg" class="attachment-full size-full wp-post-image" alt="Phil Spencer appears at the summer 2025 showcase." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/xbox-phil.jpg 1042w, https://kotaku.com/app/uploads/2026/02/xbox-phil-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/xbox-phil-768x433.jpg 768w, https://kotaku.com/app/uploads/2026/02/xbox-phil-672x379.jpg 672w, https://kotaku.com/app/uploads/2026/02/xbox-phil-960x541.jpg 960w" sizes="(max-width: 1042px) 100vw, 1042px"><br><br>Microsoft's gaming division sees a big leadership change amid its messiest console generation yet]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/xbox-phil.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>PlayStation Fans Are Furious And They’re Taking It Out On Marathon</title>
+		<link>https://kotaku.com/playstation-fans-mad-marathon-bluepoint-boycott-ps5-bungie-2000672040</link>
+					<comments>https://kotaku.com/playstation-fans-mad-marathon-bluepoint-boycott-ps5-bungie-2000672040#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 19:26:13 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Bluepoint Games]]></category>
+		<category><![CDATA[Bungie]]></category>
+		<category><![CDATA[Marathon]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672040</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2.jpg 1920w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-336x189.jpg 336w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-768x432.jpg 768w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-672x378.jpg 672w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-960x540.jpg 960w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Bungie's upcoming live-service first-person sci-fi shooter is landing at the worst possible time following Bluepoint's reported shutdown]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2.jpg 1920w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-336x189.jpg 336w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-768x432.jpg 768w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-672x378.jpg 672w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-960x540.jpg 960w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>Bungie's upcoming live-service first-person sci-fi shooter is landing at the worst possible time following Bluepoint's reported shutdown]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2023/05/949455d36a49e00c4f36058909cbffa2-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Pokémon FireRed And LeafGreen On Switch Has A Sick Special Edition Most People Can’t Get</title>
+		<link>https://kotaku.com/pokemon-firered-leafgreen-switch-edition-japan-center-2000672041</link>
+					<comments>https://kotaku.com/pokemon-firered-leafgreen-switch-edition-japan-center-2000672041#respond</comments>
+		
+		<dc:creator><![CDATA[Kenneth Shepard]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 18:45:30 +0000</pubDate>
+				<category><![CDATA[Pokemon]]></category>
+		<category><![CDATA[Pokémon FireRed and LeafGreen]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672041</guid>
+
+					<description><![CDATA[<img width="1280" height="720" src="https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15.jpg" class="attachment-full size-full wp-post-image" alt="8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15.jpg 1280w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-1200x675.jpg 1200w" sizes="(max-width: 1280px) 100vw, 1280px"><br><br>The GBA ports are coming to Switch next week]]></description>
+										<content:encoded><![CDATA[<img width="1280" height="720" src="https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15.jpg" class="attachment-full size-full wp-post-image" alt="8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15.jpg 1280w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15-1200x675.jpg 1200w" sizes="(max-width: 1280px) 100vw, 1280px"><br><br>The GBA ports are coming to Switch next week]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/8038223d94e481e3d0c2661a45394f5f4042fa0b9264473c334693337b80ae15.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Capcom Begs Fans Not To Share Resident Evil Requiem Footage As Spoilers Start Leaking</title>
+		<link>https://kotaku.com/resident-evil-requiem-leaks-spoilers-leon-grace-ending-2000672031</link>
+					<comments>https://kotaku.com/resident-evil-requiem-leaks-spoilers-leon-grace-ending-2000672031#respond</comments>
+		
+		<dc:creator><![CDATA[Kenneth Shepard]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 18:00:04 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Resident Evil Requiem]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672031</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb.jpg 1920w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The ninth game in the horror series is coming out next week]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb.jpg 1920w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The ninth game in the horror series is coming out next week]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2025/06/7f25a7d88464adaeb4ebec372ad1d2fb-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Most PlayStation 5 Owners Have Been Playing The Same Games Since 2022</title>
+		<link>https://kotaku.com/most-playstation-5-owners-have-been-playing-the-same-games-since-2022-2000672009</link>
+					<comments>https://kotaku.com/most-playstation-5-owners-have-been-playing-the-same-games-since-2022-2000672009#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 17:31:47 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Call of Duty]]></category>
+		<category><![CDATA[Fortnite]]></category>
+		<category><![CDATA[GTA 5]]></category>
+		<category><![CDATA[PlayStation]]></category>
+		<category><![CDATA[PS5]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672009</guid>
+
+					<description><![CDATA[<img width="1342" height="755" src="https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks.jpg" class="attachment-full size-full wp-post-image" alt="Fortnite Sidekicks" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks.jpg 1342w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-1200x675.jpg 1200w" sizes="(max-width: 1342px) 100vw, 1342px"><br><br><i>Fortnite, Roblox, Minecraft,</i> and <i>GTA V</i> continue to be the most popular games, years and years after launch]]></description>
+										<content:encoded><![CDATA[<img width="1342" height="755" src="https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks.jpg" class="attachment-full size-full wp-post-image" alt="Fortnite Sidekicks" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks.jpg 1342w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-1200x675.jpg 1200w" sizes="(max-width: 1342px) 100vw, 1342px"><br><br><i>Fortnite, Roblox, Minecraft,</i> and <i>GTA V</i> continue to be the most popular games, years and years after launch]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2025/10/fortnite-sidekicks-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Beyond Good And Evil 2 Studio Evacuates 500 Over Apparent Bomb Threat Hoax</title>
+		<link>https://kotaku.com/beyond-good-and-evil-2-studio-evacuates-500-over-apparent-bomb-threat-hoax-2000671981</link>
+					<comments>https://kotaku.com/beyond-good-and-evil-2-studio-evacuates-500-over-apparent-bomb-threat-hoax-2000671981#respond</comments>
+		
+		<dc:creator><![CDATA[Ethan Gach]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 17:16:22 +0000</pubDate>
+				<category><![CDATA[Morning Checkpoint]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000671981</guid>
+
+					<description><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/image-24.jpg" class="attachment-full size-full wp-post-image" alt="A shark serves drinks." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/image-24.jpg 960w, https://kotaku.com/app/uploads/2026/02/image-24-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/image-24-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/image-24-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Also: the Saudi Arabia gaming death grip intensifies]]></description>
+										<content:encoded><![CDATA[<img width="960" height="540" src="https://kotaku.com/app/uploads/2026/02/image-24.jpg" class="attachment-full size-full wp-post-image" alt="A shark serves drinks." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/image-24.jpg 960w, https://kotaku.com/app/uploads/2026/02/image-24-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/image-24-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/image-24-672x378.jpg 672w" sizes="(max-width: 960px) 100vw, 960px"><br><br>Also: the Saudi Arabia gaming death grip intensifies]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/image-24.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Night In The Woods Publisher Confronts TikTok Over Racist AI Ads</title>
+		<link>https://kotaku.com/finji-tiktok-racist-genai-ads-usual-june-report-support-2000672007</link>
+					<comments>https://kotaku.com/finji-tiktok-racist-genai-ads-usual-june-report-support-2000672007#respond</comments>
+		
+		<dc:creator><![CDATA[Kenneth Shepard]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 17:12:08 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Usual June]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000672007</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd.jpg 1920w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-336x189.jpg 336w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-768x432.jpg 768w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-672x378.jpg 672w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-960x540.jpg 960w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The shortform video app’s customer service has given Finji the runaround]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd.jpg 1920w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-336x189.jpg 336w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-768x432.jpg 768w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-672x378.jpg 672w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-960x540.jpg 960w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The shortform video app’s customer service has given Finji the runaround]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2019/09/f8ahgewreo9a47n86ojd-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Supreme Court Strikes Down Trump Tariffs That Hiked Prices On Switch, Xbox, And PS5 (Update)</title>
+		<link>https://kotaku.com/supreme-court-strikes-down-trump-tariffs-that-hiked-prices-on-switch-xbox-and-ps5-2000671987</link>
+					<comments>https://kotaku.com/supreme-court-strikes-down-trump-tariffs-that-hiked-prices-on-switch-xbox-and-ps5-2000671987#respond</comments>
+		
+		<dc:creator><![CDATA[Zack Zwiezen]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 15:45:38 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Donald Trump]]></category>
+		<category><![CDATA[Nintendo]]></category>
+		<category><![CDATA[Tariffs]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000671987</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4.jpg 1920w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The court ruled 6-3 that the president couldn't use a 1977 law to enact the tariffs against over 50 countries]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4.jpg 1920w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-336x189.jpg 336w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-768x432.jpg 768w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-672x378.jpg 672w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-960x540.jpg 960w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The court ruled 6-3 that the president couldn't use a 1977 law to enact the tariffs against over 50 countries]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2025/04/ca86d289e7ac3ef0b304360ca1c737c4-1280x720.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Fan Behind Bloodborne Remake Shares Cease And Desist He Got From Sony</title>
+		<link>https://kotaku.com/bloodborne-remake-bluepoint-demons-souls-ps5-sony-playstation-2000671988</link>
+					<comments>https://kotaku.com/bloodborne-remake-bluepoint-demons-souls-ps5-sony-playstation-2000671988#respond</comments>
+		
+		<dc:creator><![CDATA[Lewis Parker]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 15:40:42 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Bloodborne]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000671988</guid>
+
+					<description><![CDATA[<img width="1080" height="607" src="https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433.jpg 1080w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-336x189.jpg 336w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-768x432.jpg 768w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-672x378.jpg 672w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-960x540.jpg 960w" sizes="(max-width: 1080px) 100vw, 1080px"><br><br>The maker of <i>Bloodborne Top Down Arena</i> revealed the legal move after Sony decided to shut down Bluepoint]]></description>
+										<content:encoded><![CDATA[<img width="1080" height="607" src="https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433.jpg" class="attachment-full size-full wp-post-image" alt="" style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433.jpg 1080w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-336x189.jpg 336w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-768x432.jpg 768w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-672x378.jpg 672w, https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433-960x540.jpg 960w" sizes="(max-width: 1080px) 100vw, 1080px"><br><br>The maker of <i>Bloodborne Top Down Arena</i> revealed the legal move after Sony decided to shut down Bluepoint]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2024/09/b4bdd7b4c81613b74d81a61ae6a3b433.jpg" type="image/jpeg" />
+	</item>
+		<item>
+		<title>Square Enix Teases What Fans Pray Is A New Nier Automata Game</title>
+		<link>https://kotaku.com/nier-automata-3-sequel-square-enix-yoko-taro-2000671960</link>
+					<comments>https://kotaku.com/nier-automata-3-sequel-square-enix-yoko-taro-2000671960#respond</comments>
+		
+		<dc:creator><![CDATA[Ethan Gach]]></dc:creator>
+		<pubDate>Fri, 20 Feb 2026 14:34:49 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Nier Automata]]></category>
+		<category><![CDATA[Square Enix]]></category>
+		<guid isPermaLink="false">https://kotaku.com/?p=2000671960</guid>
+
+					<description><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/nier-automata.jpg" class="attachment-full size-full wp-post-image" alt="2B stands next to her sword in the woods." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/nier-automata.jpg 1920w, https://kotaku.com/app/uploads/2026/02/nier-automata-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/nier-automata-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/nier-automata-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/nier-automata-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/nier-automata-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/nier-automata-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/nier-automata-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The action-RPG might finally get a sequel]]></description>
+										<content:encoded><![CDATA[<img width="1920" height="1080" src="https://kotaku.com/app/uploads/2026/02/nier-automata.jpg" class="attachment-full size-full wp-post-image" alt="2B stands next to her sword in the woods." style="max-width: 100%; height: auto; margin: auto;" decoding="async" loading="lazy" srcset="https://kotaku.com/app/uploads/2026/02/nier-automata.jpg 1920w, https://kotaku.com/app/uploads/2026/02/nier-automata-336x189.jpg 336w, https://kotaku.com/app/uploads/2026/02/nier-automata-1280x720.jpg 1280w, https://kotaku.com/app/uploads/2026/02/nier-automata-768x432.jpg 768w, https://kotaku.com/app/uploads/2026/02/nier-automata-672x378.jpg 672w, https://kotaku.com/app/uploads/2026/02/nier-automata-960x540.jpg 960w, https://kotaku.com/app/uploads/2026/02/nier-automata-1600x900.jpg 1600w, https://kotaku.com/app/uploads/2026/02/nier-automata-1200x675.jpg 1200w" sizes="(max-width: 1920px) 100vw, 1920px"><br><br>The action-RPG might finally get a sequel]]></content:encoded>
+					
+					<wfw:commentRss></wfw:commentRss>
+			<slash:comments>0</slash:comments>
+		
+		
+		<enclosure url="https://kotaku.com/app/uploads/2026/02/nier-automata-1280x720.jpg" type="image/jpeg" />
+	</item>
+	</channel>
+</rss>

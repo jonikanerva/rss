@@ -1,0 +1,2216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Daring Fireball</title>
+<subtitle>By John Gruber</subtitle>
+<link rel="alternate" type="text/html" href="https://daringfireball.net/" />
+<link rel="self" type="application/atom+xml" href="https://daringfireball.net/feeds/main" />
+<id>https://daringfireball.net/feeds/main</id>
+
+
+<updated>2026-02-19T23:29:26Z</updated><rights>Copyright © 2026, John Gruber</rights><entry>
+	<title>IMAX and Apple Collaborate to Screen F1 Races Live in Theaters</title>
+	<link rel="alternate" type="text/html" href="https://www.motorsport.com/f1/news/f1-to-screen-live-in-imax-theatres-in-2026-as-apple-tv-unveils-new-us-viewing-experience/10798974/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwn" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/19/imax-and-apple-collaborate-to-screen-f1-races-live-in-theaters" />
+	<id>tag:daringfireball.net,2026:/linked//6.42647</id>
+	<published>2026-02-19T23:29:06Z</published>
+	<updated>2026-02-19T23:29:26Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Lydia Mee, reporting for Motorsport:</p>
+
+<blockquote>
+  <p>IMAX has announced that a select number of races will be shown
+live in IMAX locations across the United States in 2026. The new
+fan viewing experience is part of a collaboration with Apple TV,
+which has taken over the broadcasting rights for the championship
+in the US on a multi-year deal from 2026.</p>
+
+<p>“F1 is a rapidly growing force in sports and culture in the US,
+and by bringing F1 on Apple TV live to IMAX theatres nationwide,
+we’re delivering the energy and excitement to even more screens in
+a truly immersive way,” said Oliver Schusser, Apple’s vice
+president of music, sports, and Beats.</p>
+</blockquote>
+
+<p>You know what would add even <em>more</em> screens in an immersive way? <a href="https://daringfireball.net/linked/2026/02/18/immersive-f1-vision-pro-spitball">If Vision Pro users had access to the same live screenings</a> on virtual IMAX screens.</p>
+
+<div>
+<a  title="Permanent link to ‘IMAX and Apple Collaborate to Screen F1 Races Live in Theaters’"  href="https://daringfireball.net/linked/2026/02/19/imax-and-apple-collaborate-to-screen-f1-races-live-in-theaters">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>One More Spitball Idea for Apple’s March 4 Media Event ‘Experience’: Immersive F1 on Vision Pro?</title>
+	<link rel="alternate" type="text/html" href="https://www.formula1.com/en/latest/article/official-grand-prix-start-times-for-2026-f1-season-confirmed.2UgPfArqH76tzlOYh21jSG" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwm" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/18/immersive-f1-vision-pro-spitball" />
+	<id>tag:daringfireball.net,2026:/linked//6.42646</id>
+	<published>2026-02-19T04:41:38Z</published>
+	<updated>2026-02-19T22:12:35Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>A reader pointed out that <a href="https://www.formula1.com/en/latest/article/official-grand-prix-start-times-for-2026-f1-season-confirmed.2UgPfArqH76tzlOYh21jSG">the 2026 Formula 1 season</a> starts in Australia on March 8. You will recall from October <a href="https://daringfireball.net/linked/2025/10/17/apple-formula-1">that Apple TV is now the exclusive broadcast partner for F1 in the U.S.</a> Apple is already dabbling with live immersive sports broadcasting for VisionOS <a href="https://daringfireball.net/linked/2025/10/17/apple-formula-1">with a limited slate of Lakers games this season</a>. If they have something planned for streaming F1 races live on Vision Pro, with some level of immersion, March 4 would be a pretty good date to demo that experience to the media.</p>
+
+<p>It doesn’t even have to be <em>live</em> race coverage. Technically that’s probably impossible for this season. It would just be a sign of confidence and interest in the platform long-term merely to see <em>some</em> sort of immersive component to F1 on Apple TV, even if it’s not live. Like “ride the track” to experience the turns and elevation changes.</p>
+
+<p>Could just be a total coincidence that the Formula 1 season is starting the weekend after this event. But it seems worth noting.</p>
+
+<div>
+<a  title="Permanent link to ‘One More Spitball Idea for Apple’s March 4 Media Event ‘Experience’: Immersive F1 on Vision Pro?’"  href="https://daringfireball.net/linked/2026/02/18/immersive-f1-vision-pro-spitball">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Paul Ford: ‘The A.I. Disruption Has Arrived, and It Sure Is Fun’</title>
+	<link rel="alternate" type="text/html" href="https://www.nytimes.com/2026/02/18/opinion/ai-software.html?unlocked_article_code=1.NFA.djaw.TBlAp8kE_N-i" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwl" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/18/ford-ai-fun" />
+	<id>tag:daringfireball.net,2026:/linked//6.42645</id>
+	<published>2026-02-18T21:15:10Z</published>
+	<updated>2026-02-18T21:15:11Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Paul Ford, in an op-ed for The New York Times (gift link):</p>
+
+<blockquote>
+  <p>All of the people I love hate this stuff, and all the people I hate love it. And yet, likely because of the same personality flaws that drew me to technology in the first place, I am annoyingly excited.</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘Paul Ford: ‘The A.I. Disruption Has Arrived, and It Sure Is Fun’’"  href="https://daringfireball.net/linked/2026/02/18/ford-ai-fun">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Apple Invites Media to Special ‘Experience’ in New York, London, and Shanghai on March 4</title>
+	<link rel="alternate" type="text/html" href="https://www.macrumors.com/2026/02/16/apple-announces-special-event-in-new-york/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwk" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/17/apple-special-experience-march-4" />
+	<id>tag:daringfireball.net,2026:/linked//6.42644</id>
+	<published>2026-02-18T00:08:45Z</published>
+	<updated>2026-02-18T00:11:23Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Hartley Charlton, MacRumors:</p>
+
+<blockquote>
+  <p>Apple invited select members of the media to the event in three
+major cities around the world. It is simply described as a
+“special Apple Experience,” and there is no further information
+about what it may entail. The invitation features a 3D Apple logo
+design composed of yellow, green, and blue discs.</p>
+
+<p>It is notable that Apple is specifically using the word
+“experience,” rather than “event.” Unlike a full live-streamed
+event from Apple Park, the March 4 event in other cities is likely
+to be smaller in scale.</p>
+</blockquote>
+
+<p>Among the products expected soon — either by annual schedule predictability, or via the rumor mill — are the iPhone 17e, an updated iPad Air (going from the M3 to M4), an updated base-model iPad (going from A16 to A18), updated MacBook Pros with the M5 Pro and Max, updated MacBook Airs (going from M4 to M5 — the M4 models were <a href="https://www.apple.com/newsroom/2025/03/apple-introduces-the-new-macbook-air-with-the-m4-chip-and-a-sky-blue-color/">released in early March last year</a>), and, <a href="https://www.bloomberg.com/news/newsletters/2026-02-15/tesla-carplay-delays-related-to-ios-26-and-fsd-apple-s-new-siri-delays-ios-27">per Gurman</a>, the long-rumored new lower-cost MacBook with an A18 chip (a “MacBook e”, if you will, although I certainly don’t think that will be the name — my guess is Apple will just call it “MacBook” without an adjective).</p>
+
+<p>What strikes me is that March 4 — the “experience” day — is a Wednesday. So my spitball guess is that they announce all these products via Newsroom press releases, day-by-day. Like, say, the iPhone 17e on Monday, new iPad(s) on Tuesday, and new MacBooks on Wednesday. And then the “experience” will be a hands-on thing with in-person demos. Spread the announcements out across a few days, but then have in-person events for members of the media to get a hands-on experience with all of them, station-by-station, without needing to produce an Apple Event keynote film.</p>
+
+<div>
+<a  title="Permanent link to ‘Apple Invites Media to Special ‘Experience’ in New York, London, and Shanghai on March 4’"  href="https://daringfireball.net/linked/2026/02/17/apple-special-experience-march-4">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/02/apple_releases_ios_26_adoption_rates" />
+	<link rel="shorturl" href="http://df4.us/wwj" />
+	<id>tag:daringfireball.net,2026://1.42643</id>
+	<published>2026-02-17T18:49:55Z</published>
+	<updated>2026-02-18T13:41:02Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">At least according to Apple’s own numbers from the App Store, iOS 26 adoption is pretty much exactly in line with the rates for iOS 18 and 17.</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p><a href="https://daringfireball.net/linked/2026/02/17/how-to-force-restart-an-iphone">Speaking of</a> iOS 26, here’s <a href="https://www.macrumors.com/2026/02/13/apple-shares-ios-26-adoption-stats/">Joe Rossignol reporting for MacRumors</a>:</p>
+
+<blockquote>
+  <p>Apple has shared updated <a href="https://developer.apple.com/support/app-store/">iOS 26 and iPadOS 26 adoption
+figures</a>, revealing how many iPhones and iPads are running
+those software versions. These adoption numbers are based on
+iPhones and iPads that transacted on the App Store on February 12,
+2026, according to Apple. The statistics are as follows:</p>
+
+<ul>
+<li>74% of all iPhones introduced in the last four years are running
+iOS 26.</li>
+<li>66% of all iPhones are running iOS 26.</li>
+<li>66% of all iPads introduced in the last four years are running
+iPadOS 26.</li>
+<li>57% of all iPads are running iPadOS 26.</li>
+</ul>
+
+<p>Here is how that compares to the <a href="https://www.macrumors.com/2025/01/24/ios-18-adoption-rate/">iOS 18 adoption figures</a> that
+Apple shared based on iPhones and iPads that transacted on the App
+Store on January 21, 2025:</p>
+
+<ul>
+<li>76% of all iPhones introduced in the last four years were
+running iOS 18.</li>
+<li>68% of all iPhones were running iOS 18.</li>
+<li>63% of all iPads introduced in the last four years were running
+iPadOS 18.</li>
+<li>53% of all iPads were running iPadOS 18.</li>
+</ul>
+</blockquote>
+
+<p>Via the Internet Archive (<a href="https://archive.org/donate">seriously</a>, what would we do without them?), <a href="https://web.archive.org/web/20240206013405/https://developer.apple.com/support/app-store/">here are the numbers Apple released for iOS 17 two years ago</a>, with data collected on 4 February 2024:<sup id="fnr1-2026-02-17"><a href="#fn1-2026-02-17">1</a></sup></p>
+
+<ul>
+<li>76% of all iPhones introduced in the last four years were
+running iOS 17.</li>
+<li>66% of all iPhones were running iOS 17.</li>
+<li>61% of all iPads introduced in the last four years were running
+iPadOS 17.</li>
+<li>53% of all iPads were running iPadOS 17.</li>
+</ul>
+
+<p>These are the numbers I was waiting for <a href="https://daringfireball.net/linked/2026/01/29/apples-own-ios-adoption-numbers">when I followed up three weeks ago</a> about the silly stories, <a href="https://daringfireball.net/2026/01/ios_26_adoption_rate_is_not_bizarrely_low">based on obviously bogus data from StatCounter</a>, that iOS 26’s adoption rate was absurdly low. <a href="https://daringfireball.net/2026/01/ios_26_adoption_rate_is_not_bizarrely_low">I wrote then</a>:</p>
+
+<blockquote>
+  <p>What’s going on, quite obviously, is that Apple itself is
+slow-rolling the automatic updates to iOS 26. For years now
+Apple has steered users, via default suggestions during device
+setup, to adopt settings to allow OS updates to happen
+automatically, including updates to major new versions. Apple
+tends not to push these automatic updates to major new versions
+of iOS until two months after the .0 release in September. This
+year that second wave was delayed by about two weeks, and
+there’s now a third wave starting midway through January. It’s a
+different pattern from previous years — but it’s a pattern
+Apple controls. A large majority of users of all Apple devices
+get major OS updates when, and only when, their devices
+automatically update. Apple has been slower to push those
+updates to iOS 26 than they have been for previous iOS updates
+in recent years. With good reason! iOS 26 is a more significant — and buggier — update than iOS 18 and 17 were.</p>
+</blockquote>
+
+<p>At least according to Apple’s own numbers from the App Store, iOS 26 adoption is pretty much exactly in line with the rates for iOS 18 and 17. There’s no conclusion that should be drawn from this about the general opinion of the Liquid Glass UI design or iOS 26 overall. People may love it, hate it, be ambivalent about it, or not even notice — but most of them let their iPhones (and iPads) update via automatic upgrades pushed by Apple. Their opinions about iOS 26 form <em>after</em> they install it.</p>
+
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1-2026-02-17">
+<p>Looking at these last three years, the only real trend has nothing to do with the iPhone. It’s that the adoption rate for iPads — in both categories, recent models and all models — is trending upward.&nbsp;<a href="#fnr1-2026-02-17"  class="footnoteBackLink"  title="Jump back to footnote 1 in the text.">&#x21A9;&#xFE0E;</a></p>
+</li>
+</ol>
+</div>
+
+
+
+    ]]></content>
+  <title>★ Apple Releases iOS 26 Adoption Rates, and They’re Pretty Much in Line With the Last Few Years</title></entry><entry>
+	<title>How to Force Restart an iPhone</title>
+	<link rel="alternate" type="text/html" href="https://support.apple.com/guide/iphone/force-restart-iphone-iph8903c3ee6/ios" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwi" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/17/how-to-force-restart-an-iphone" />
+	<id>tag:daringfireball.net,2026:/linked//6.42642</id>
+	<published>2026-02-17T17:20:01Z</published>
+	<updated>2026-02-17T19:45:55Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Apple Support:</p>
+
+<blockquote>
+  <p>If iPhone isn’t responding, and you can’t <a href="https://support.apple.com/guide/iphone/turn-iphone-on-or-off-iph841379c3d/26/ios/26#iph6c6b41f36">turn it off then
+on</a>, try forcing it to restart.</p>
+
+<ol>
+<li>Press and quickly release the volume up button.</li>
+<li>Press and quickly release the volume down button.</li>
+<li>Press and hold the side button.</li>
+<li>When the Apple logo appears, release the side button.</li>
+</ol>
+</blockquote>
+
+<p>I upgraded my iPhone 17 Pro to <a href="https://www.macrumors.com/guide/ios-26-3-features/">iOS 26.3</a> this morning (straight from the release version of iOS 26.2 — I skipped the 26.3 betas), and by noon, it was stuck at the lock screen. Pressing and holding the side button and either of the volume buttons at the same time did not bring up the expected screen with “Slide to power off”, “Medical ID”, and “Emergency Call”.</p>
+
+<p>The above force-restart method worked, though. I knew it existed but I’d forgotten how to do it. Luckily, I was sitting right at my Mac, so I had another machine to use to look it up. I’d have been in a jam, though, if I’d been somewhere with only my (stuck) iPhone, so I think this one is worth memorizing.</p>
+
+<p>Step 3, the “press and hold the side button” step, takes quite a few seconds before the screen turns off. So I’m memorizing the process as three steps:</p>
+
+<ol>
+<li>Click the volume up button.</li>
+<li>Click the volume down button.</li>
+<li>Press and hold the side button, patiently, until the Apple logo appears.</li>
+</ol>
+
+<div>
+<a  title="Permanent link to ‘How to Force Restart an iPhone’"  href="https://daringfireball.net/linked/2026/02/17/how-to-force-restart-an-iphone">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	
+	<link rel="alternate" type="text/html" href="https://sentry.io/resources/ios-workshop-jan-2026/?utm_source=daringfireball&amp;utm_medium=paid-display&amp;utm_campaign=general-fy27q1-evergreen&amp;utm_content=static-ad-mobilerss-trysentry" />
+	<link rel="shorturl" href="http://df4.us/wwh" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/feeds/sponsors/2026/02/hands-on_workshop_fix_it_faste" />
+	<id>tag:daringfireball.net,2026:/feeds/sponsors//11.42641</id>
+	<author><name>Daring Fireball Department of Commerce</name></author>
+	<published>2026-02-17T00:01:00Z</published>
+	<updated>2026-02-17T00:02:28Z</updated>
+	<content type="html" xml:base="https://daringfireball.net/feeds/sponsors/" xml:lang="en"><![CDATA[
+<p>Learn how to connect the dots between slowdowns, crashes, and the user experience in your iOS app. This on-demand session covers how to:</p>
+
+<ul>
+<li>Set up Sentry to surface high-priority mobile issues without alert fatigue.</li>
+<li>Use Logs and Breadcrumbs to reconstruct what happened with a crash.</li>
+<li>Find what’s behind a performance bottleneck using Tracing.</li>
+<li>Monitor and reduce the size of your iOS app using Size Analysis.</li>
+</ul>
+
+<p><a href="https://sentry.io/resources/ios-workshop-jan-2026/?utm_source=daringfireball&amp;utm_medium=paid-display&amp;utm_campaign=general-fy27q1-evergreen&amp;utm_content=static-ad-mobilerss-trysentry">Watch it here</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘Hands-On Workshop: Fix It Faster — Crash Reporting, Tracing, and Logs for iOS in Sentry’"  href="https://daringfireball.net/feeds/sponsors/2026/02/hands-on_workshop_fix_it_faste">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+	<title>[Sponsor] Hands-On Workshop: Fix It Faster — Crash Reporting, Tracing, and Logs for iOS in Sentry</title></entry><entry>
+	<title>WorkOS Pipes</title>
+	<link rel="alternate" type="text/html" href="https://workos.com/docs/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=no_rebuild" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwg" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/15/workos-pipes" />
+	<id>tag:daringfireball.net,2026:/linked//6.42640</id>
+	<published>2026-02-15T23:39:14Z</published>
+	<updated>2026-02-15T23:39:15Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>My thanks to WorkOS for sponsoring DF last week. Connecting user accounts to third-party APIs always comes with the same plumbing: OAuth flows, token storage, refresh logic, and provider-specific quirks. WorkOS Pipes removes that overhead. Users connect services like GitHub, Slack, Google, Salesforce, and other supported providers through a drop-in widget. Your back end requests a valid access token from the Pipes API when needed, while Pipes handles credential storage and token refresh. That’s it.</p>
+
+<p><a href="https://workos.com/docs/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=simplify_integrations_cta">Simplify your integrations with WorkOS Pipes</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘WorkOS Pipes’"  href="https://daringfireball.net/linked/2026/02/15/workos-pipes">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Joanna Stern Signs Off From The Wall Street Journal</title>
+	<link rel="alternate" type="text/html" href="https://www.wsj.com/tech/personal-tech/12-years-consumer-tech-phones-ev-ai-74107804?st=YtTDdM&amp;reflink=desktopwebshare_permalink" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwf" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/15/joanna-stern-wsj-signoff" />
+	<id>tag:daringfireball.net,2026:/linked//6.42639</id>
+	<published>2026-02-15T23:37:04Z</published>
+	<updated>2026-02-15T23:37:05Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Joanna Stern (last week):</p>
+
+<blockquote>
+  <p>After 12 years with The Wall Street Journal, this is my final
+column and video as a full-time employee. I’m off to build
+something new and independent. I’ll still pop up on these pages
+and at WSJ events from time to time. Can’t get rid of me that
+easily! Before I go, I wanted to reflect on the past dozen years
+in tech — in a letter to my first-month-on-the-job self.</p>
+</blockquote>
+
+<p>The video version of her sign-off column is worth it for the Velveeta gag alone.</p>
+
+<div>
+<a  title="Permanent link to ‘Joanna Stern Signs Off From The Wall Street Journal’"  href="https://daringfireball.net/linked/2026/02/15/joanna-stern-wsj-signoff">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Gurman: New Siri Might Be Delayed Again</title>
+	<link rel="alternate" type="text/html" href="https://www.bloomberg.com/news/articles/2026-02-11/apple-s-ios-26-4-siri-update-runs-into-snags-in-internal-testing-ios-26-5-27" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwe" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/12/gurman-new-siri-might-be-delayed-again" />
+	<id>tag:daringfireball.net,2026:/linked//6.42638</id>
+	<published>2026-02-12T17:24:34Z</published>
+	<updated>2026-02-12T17:24:34Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Mark Gurman, reporting for Bloomberg:</p>
+
+<blockquote>
+  <p>After planning to include the new capabilities in iOS 26.4 — an
+operating system update slated for March — Apple is now working
+to spread them out over future versions, according to people
+familiar with the matter. That would mean possibly postponing some
+features until at least iOS 26.5, due in May, and iOS 27, which
+comes out in September. [...]</p>
+
+<p>In recent days, Apple instructed engineers to use the upcoming iOS
+26.5 in order to test new Siri features, implying that the
+functionality may have been moved back by at least one release.
+Internal versions of that update now include a notice describing
+the addition of some Siri enhancements. One feature is especially
+likely to slip: the expanded ability for Siri to tap into personal
+data. That technology would let users ask the assistant to, say,
+search old text messages to locate a podcast shared by a friend
+and immediately play it.</p>
+
+<p>Internal iterations of iOS 26.5 also include a settings toggle
+allowing employees to enable a “preview” of that functionality.
+That suggests Apple is weighing the idea of warning users that the
+initial launch is incomplete or may not work reliably — similar
+to what it does with beta tests of new operating systems.</p>
+</blockquote>
+
+<p>When Gurman began reporting about personalized Siri delays a year ago, his reporting turned out to be exactly right. If these features are going to drop in iOS 26.4, they should be in pretty good shape right now internally. If they’re in bad shape right now in internal builds, it’s really hard to see how they could drop in iOS 26.4. And once you start talking about iOS 26.5 (let alone 26.6), we’d be getting <em>really</em> close to WWDC, where Apple’s messaging will turn to the version 27 OSes.</p>
+
+<p>Something <a href="https://daringfireball.net/2025/03/something_is_rotten_in_the_state_of_cupertino">still seems rotten</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘Gurman: New Siri Might Be Delayed Again’"  href="https://daringfireball.net/linked/2026/02/12/gurman-new-siri-might-be-delayed-again">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>More MacOS 26.3 Finder Column View Silliness</title>
+	<link rel="alternate" type="text/html" href="https://lapcatsoftware.com/articles/2026/2/4.html" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwd" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/12/more-macos-263-finder-column-view-silliness" />
+	<id>tag:daringfireball.net,2026:/linked//6.42637</id>
+	<published>2026-02-12T17:13:31Z</published>
+	<updated>2026-02-12T17:13:31Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Jeff Johnson:</p>
+
+<blockquote>
+  <p>In today’s macOS 26.3 update, Apple implemented a “fix” for an
+issue I blogged about a month ago, <a href="https://lapcatsoftware.com/articles/2026/1/4.html">macOS Tahoe broke Finder
+columns view</a>. (At the behest of John Gruber and the <a href="https://support.apple.com/guide/applestyleguide/c-apsgb744e4a3/1.0/web/1.0#apdef2437a79d084">Apple
+Style Guide</a>, I’m now using the term “column view” rather
+than “columns view.”) Specifically, the issue was with the system
+setting to always show scroll bars. [...]</p>
+
+<p>Without the path bar, the columns are now taller, but the vertical
+scrollers remain the same height as before, leaving vertical gaps,
+a ridiculous amount of space between the bottom of the scrollers
+and the bottom of the columns, looking silly and amateurish.</p>
+
+<p>Did nobody inside Apple test this configuration either? Or do they
+simply not care?</p>
+</blockquote>
+
+<p>In one sense, this whole issue with column view in the Finder with scroll bars set to always show is a little thing. It was downright broken in earlier versions of MacOS 26 — you literally could not resize the columns. So now it’s not broken. But as Johnson says, it looks silly and amateurish.</p>
+
+<p>This is the sort of detail that Apple used to strive to get pixel-perfect, all the time, for all settings. “<em>Whatever, good enough</em>” instead of “<em><a href="https://www.folklore.org/How_to_Hire_Insanely_Great_Employees.html">insanely great</a></em>”.</p>
+
+<div>
+<a  title="Permanent link to ‘More MacOS 26.3 Finder Column View Silliness’"  href="https://daringfireball.net/linked/2026/02/12/more-macos-263-finder-column-view-silliness">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Apple Creator Studio Usage Restrictions</title>
+	<link rel="alternate" type="text/html" href="https://arstechnica.com/gadgets/2026/01/seven-things-to-know-about-how-apples-creator-studio-subscriptions-work/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwc" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/11/apple-creator-studio-usage-restrictions" />
+	<id>tag:daringfireball.net,2026:/linked//6.42636</id>
+	<published>2026-02-11T21:04:07Z</published>
+	<updated>2026-02-11T21:40:45Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Andrew Cunningham, writing for Ars Technica at the end of January:</p>
+
+<blockquote>
+  <p>Apple also outlines a number of usage restrictions for the
+generative AI features that rely on external services. Apple says
+that, “at a minimum,” users will be able to generate 50 images, 50
+presentations of between 8 to 10 slides each, and to generate
+presenter notes in Keynote for 700 slides. More usage may be
+possible, but this depends on “the complexity of the queries,
+server availability, and network availability.”</p>
+</blockquote>
+
+<p><a href="https://mastodon.social/@stroughtonsmith/116008952067084300">Steven Troughton-Smith</a>, last week, after creating an entire app with OpenAI’s Codex:</p>
+
+<blockquote>
+  <p>This entire app used 7% of my weekly Codex usage limit. Compare
+that to a single (awful) slideshow in Keynote using 47% of my
+monthly Apple Creator Studio usage limit 👀</p>
+</blockquote>
+
+<p>Something feels off here, by at least an order of magnitude (maybe two?), that creating an entire good app costs way less than creating one shitty slide deck in Keynote. It should be the other way around.</p>
+
+<div>
+<a  title="Permanent link to ‘Apple Creator Studio Usage Restrictions’"  href="https://daringfireball.net/linked/2026/02/11/apple-creator-studio-usage-restrictions">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	
+	<link rel="alternate" type="text/html" href="https://workos.com/docs/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=no_rebuild" />
+	<link rel="shorturl" href="http://df4.us/wwb" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/feeds/sponsors/2026/02/workos_pipes_ship_third-party_2" />
+	<id>tag:daringfireball.net,2026:/feeds/sponsors//11.42635</id>
+	<author><name>Daring Fireball Department of Commerce</name></author>
+	<published>2026-02-10T01:43:40Z</published>
+	<updated>2026-02-10T01:43:40Z</updated>
+	<content type="html" xml:base="https://daringfireball.net/feeds/sponsors/" xml:lang="en"><![CDATA[
+<p>Connecting user accounts to third-party APIs always comes with the same plumbing: OAuth flows, token storage, refresh logic, and provider-specific quirks.</p>
+
+<p><a href="https://workos.com/docs/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=product_name_link">WorkOS Pipes</a> removes that overhead. Users connect services like GitHub, Slack, Google, Salesforce, and other supported providers through a <a href="https://workos.com/docs/widgets/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=drop_in_widget">drop-in widget</a>. Your backend requests a valid access token from the Pipes API when needed, while Pipes handles credential storage and token refresh.</p>
+
+<p><a href="https://workos.com/docs/pipes?utm_source=daringfireball&amp;utm_medium=newsletter&amp;utm_campaign=q12026&amp;utm_content=simplify_integrations_cta">Simplify integrations with WorkOS Pipes</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘WorkOS Pipes: Ship Third-Party Integrations Without Rebuilding OAuth’"  href="https://daringfireball.net/feeds/sponsors/2026/02/workos_pipes_ship_third-party_2">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+	<title>[Sponsor] WorkOS Pipes: Ship Third-Party Integrations Without Rebuilding OAuth</title></entry><entry>
+	<title>OpenAI’s Codex</title>
+	<link rel="alternate" type="text/html" href="https://simonwillison.net/2026/Feb/2/introducing-the-codex-app/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wwa" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/03/openai-codex" />
+	<id>tag:daringfireball.net,2026:/linked//6.42634</id>
+	<published>2026-02-04T01:40:24Z</published>
+	<updated>2026-02-04T01:44:41Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Simon Willison:</p>
+
+<blockquote>
+  <p>OpenAI just released a new macOS app for their Codex coding agent. I’ve had a few days of preview access — it’s a solid app that provides a nice UI over the capabilities of the Codex CLI agent and adds some interesting new features, most notably first-class support for Skills, and Automations for running scheduled tasks.</p>
+</blockquote>
+
+<p>Interesting, for sure. But <a href="https://daringfireball.net/linked/2026/02/03/xcode-ai-agentic-coding">super-duper</a> interesting? I don’t know.</p>
+
+<div>
+<a  title="Permanent link to ‘OpenAI’s Codex’"  href="https://daringfireball.net/linked/2026/02/03/openai-codex">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Xcode 26.3 ‘Unlocks the Power of Agentic Coding’</title>
+	<link rel="alternate" type="text/html" href="https://www.apple.com/newsroom/2026/02/xcode-26-point-3-unlocks-the-power-of-agentic-coding/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww9" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/02/03/xcode-ai-agentic-coding" />
+	<id>tag:daringfireball.net,2026:/linked//6.42633</id>
+	<published>2026-02-04T01:34:54Z</published>
+	<updated>2026-02-04T01:38:32Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Apple Newsroom:</p>
+
+<blockquote>
+  <p>Xcode 26.3 introduces support for agentic coding, a new way in Xcode for developers to build apps using coding agents such as Anthropic’s Claude Agent and OpenAI’s Codex. With agentic coding, Xcode can work with greater autonomy toward a developer’s goals — from breaking down tasks to making decisions based on the project architecture and using built-in tools.</p>
+</blockquote>
+
+<p>I don’t know if this is super-duper interesting news, but I think it’s super-duper interesting that Apple saw the need to release this now, not at WWDC in June.</p>
+
+<div>
+<a  title="Permanent link to ‘Xcode 26.3 ‘Unlocks the Power of Agentic Coding’’"  href="https://daringfireball.net/linked/2026/02/03/xcode-ai-agentic-coding">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Apple Reports Record-Breaking Revenue and Profit for Q1 FY26</title>
+	<link rel="alternate" type="text/html" href="https://www.apple.com/newsroom/2026/01/apple-reports-first-quarter-results/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww8" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/30/apple-reports-record-breaking-revenue-and-profit-for-q1-fy26" />
+	<id>tag:daringfireball.net,2026:/linked//6.42632</id>
+	<published>2026-01-30T19:57:01Z</published>
+	<updated>2026-01-30T20:19:38Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Apple Newsroom, yesterday:</p>
+
+<blockquote>
+  <p>“Today, Apple is proud to report a remarkable, record-breaking
+quarter, with revenue of $143.8 billion, up 16 percent from a year
+ago and well above our expectations,” said Tim Cook, Apple’s CEO.
+“iPhone had its best-ever quarter driven by unprecedented demand,
+with all-time records across every geographic segment, and
+Services also achieved an all-time revenue record, up 14 percent
+from a year ago. We are also excited to announce that our
+installed base now has more than 2.5 billion active devices, which
+is a testament to incredible customer satisfaction for the very
+best products and services in the world.”</p>
+
+<p>“During the December quarter, our record business performance and
+strong margins led to EPS growth of 19 percent, setting a new
+all-time EPS record,” said Kevan Parekh, Apple’s CFO. “These
+exceptionally strong results generated nearly $54 billion in
+operating cash flow, allowing us to return almost $32 billion to
+shareholders.”</p>
+</blockquote>
+
+<p>John Markoff, <a href="https://www.nytimes.com/2006/01/16/technology/michael-dell-should-eat-his-words-apple-chief-suggests.html?unlocked_article_code=1.IVA.y8q3.O6oeC_ygiktA">writing for The New York Times 20 years ago</a>:</p>
+
+<blockquote>
+  <p>It may not be the last laugh, but on Friday afternoon, after the
+close of the stock market, Steven P. Jobs, the chief executive of
+Apple Computer, shared an e-mail chuckle with his employees at the
+expense of Dell, a big rival.</p>
+
+<p>The message was prompted by the 12 percent surge in Apple’s stock
+price last week, which pushed the company’s market capitalization
+to $72.13 billion, passing Dell’s value of $71.97 billion.</p>
+
+<p>In 1997, shortly after Mr. Jobs returned to Apple, the company he
+helped start in 1976, Dell’s founder and chairman, Michael S.
+Dell, was asked at a technology conference what might be done to
+fix Apple, then deeply troubled financially.</p>
+
+<p>“What would I do?” Mr. Dell said to an audience of several
+thousand information technology managers. “I’d shut it down and
+give the money back to the shareholders.”</p>
+
+<p>On Friday, apparently savoring the moment, Mr. Jobs sent a brief
+e-mail message to Apple employees, which read: “Team, it turned
+out that Michael Dell wasn’t perfect at predicting the future.
+Based on today’s stock market close, Apple is worth more than
+Dell. Stocks go up and down, and things may be different tomorrow,
+but I thought it was worth a moment of reflection today. Steve.”</p>
+</blockquote>
+
+<p>Dell’s market cap today: $76 billion. <br />
+Apple’s: $3,824 billion.</p>
+
+<p>Upton Sinclair coined the oft-cited maxim “It is difficult to get a man to understand something, when his salary depends on his not understanding it.” I propose a corollary: It is difficult to get a company to see that certain of its <a href="https://daringfireball.net/2026/01/resizing_windows_macos_26">core competencies</a> are in <a href="https://daringfireball.net/2025/03/something_is_rotten_in_the_state_of_cupertino">severe decline</a> when the company is making more money than ever.</p>
+
+<div>
+<a  title="Permanent link to ‘Apple Reports Record-Breaking Revenue and Profit for Q1 FY26’"  href="https://daringfireball.net/linked/2026/01/30/apple-reports-record-breaking-revenue-and-profit-for-q1-fy26">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Lego Group and Crocs Enter Multi-Year Global Partnership</title>
+	<link rel="alternate" type="text/html" href="https://www.lego.com/en-us/aboutus/news/2026/january/the-lego-group-and-crocs-enter-multi-year-global-partnership?locale=en-us" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww7" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/30/lego-crocs" />
+	<id>tag:daringfireball.net,2026:/linked//6.42631</id>
+	<published>2026-01-30T13:28:54Z</published>
+	<updated>2026-01-30T20:03:09Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Maybe Trump is right and we should go to war against Denmark.</p>
+
+<div>
+<a  title="Permanent link to ‘Lego Group and Crocs Enter Multi-Year Global Partnership’"  href="https://daringfireball.net/linked/2026/01/30/lego-crocs">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘Backseat Software’</title>
+	<link rel="alternate" type="text/html" href="https://blog.mikeswanson.com/backseat-software/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww6" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/29/backseat-software" />
+	<id>tag:daringfireball.net,2026:/linked//6.42630</id>
+	<published>2026-01-29T21:50:32Z</published>
+	<updated>2026-01-29T21:51:01Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Mike Swanson:</p>
+
+<blockquote>
+  <p>What if your car worked like so many apps? You’re driving
+somewhere important…maybe running a little bit late. A few
+minutes into the drive, your car pulls over to the side of the
+road and asks:</p>
+
+<p><em>“How are you enjoying your drive so far?”</em></p>
+
+<p>Annoyed by the interruption, and even more behind schedule, you
+dismiss the prompt and merge back into traffic.</p>
+
+<p>A minute later it does it again.</p>
+
+<p><em>“Did you know I have a new feature? Tap here to learn more.”</em></p>
+
+<p>It blocks your speedometer with an overlay tutorial about the turn
+signal. It highlights the wiper controls and refuses to go away
+until you demonstrate mastery.</p>
+
+<p>Ridiculous, of course.</p>
+
+<p>And yet, this is how a lot of modern software behaves. Not because
+it’s broken, but because we’ve normalized an interruption model
+that would be unacceptable almost anywhere else.</p>
+
+<p>I’ve started to think of this as <em>backseat software</em>: the slow
+shift from software as a tool you operate to software as a channel
+that operates on you. Once a product learns it can talk back, it’s
+remarkably hard to keep it quiet.</p>
+
+<p>This post is about how we got here. Not overnight, but slowly. One
+reasonable step at a time.</p>
+</blockquote>
+
+<p>If that lede pulls you in, like it did for me, you’re going to love the rest of the essay. This is one for the ages. It’s so good.</p>
+
+<div>
+<a  title="Permanent link to ‘‘Backseat Software’’"  href="https://daringfireball.net/linked/2026/01/29/backseat-software">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Let’s Keep an Eye on Apple’s Own iOS Adoption Numbers</title>
+	<link rel="alternate" type="text/html" href="https://developer.apple.com/support/app-store/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww5" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/29/apples-own-ios-adoption-numbers" />
+	<id>tag:daringfireball.net,2026:/linked//6.42629</id>
+	<published>2026-01-29T20:18:48Z</published>
+	<updated>2026-02-17T19:31:16Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>When I wrote last week about <a href="https://daringfireball.net/2026/01/ios_26_adoption_rate_is_not_bizarrely_low">the false narrative that iOS 26 is seeing bizarrely low adoption rates</a> compared to previous years, I neglected one source: Apple itself. Apple’s Developer site publishes a page with <a href="https://developer.apple.com/support/app-store/">iOS and iPadOS usage for devices that “transacted on the App Store”</a>.</p>
+
+<p>The hitch is that they only seem to update those numbers twice a year — once right around now, and once again right before WWDC. As of today, those numbers are still from 4 June 2025. Last year, going from the Internet Archive, the numbers were still from iOS 17 (June 2024) <a href="https://web.archive.org/web/20250123123759/https://developer.apple.com/support/app-store/">on 23 January</a> last year, but were updated for iOS 18 <a href="https://web.archive.org/web/20250125013020/https://developer.apple.com/support/app-store/">on 24 January</a>. Here are those iOS 18 numbers from one year ago this week.</p>
+
+<p>iPhones released in the previous four years:</p>
+
+<ul>
+<li>iOS 18: 76%</li>
+<li>iOS 17: 19%</li>
+<li>iOS &lt; 17: 5%</li>
+</ul>
+
+<p>All iPhones:</p>
+
+<ul>
+<li>iOS 18: 68%</li>
+<li>iOS 17: 19%</li>
+<li>iOS &lt; 17: 13%</li>
+</ul>
+
+<p>iPads released in the previous four years:</p>
+
+<ul>
+<li>iPadOS 18: 63%</li>
+<li>iPadOS 17: 27%</li>
+<li>iPadOS &lt; 17: 10%</li>
+</ul>
+
+<p>All iPads:</p>
+
+<ul>
+<li>iPadOS 18: 53%</li>
+<li>iPadOS 17: 28%</li>
+<li>iPadOS &lt; 17: 19%</li>
+</ul>
+
+<p>(Apple itself manages to present these statistics without ever using the plurals <em>iPhones</em> or <em>iPads</em>, instead referring only to “devices”.)</p>
+
+<p>A year prior in early 2024, Apple updated the numbers at some point between <a href="https://web.archive.org/web/20240123183314/https://developer.apple.com/support/app-store/">23 January</a> and <a href="https://web.archive.org/web/20240206013405/https://developer.apple.com/support/app-store/">6 February</a>. I presume, or at least hope, that they’ll update these numbers for iOS 26 any day now.</p>
+
+<p>[<strong>Update, 17 February 2026:</strong> “<a href="https://daringfireball.net/2026/02/apple_releases_ios_26_adoption_rates">Apple Releases iOS 26 Adoption Rates, and They’re Pretty Much in Line With the Last Few Years</a>”.]</p>
+
+<div>
+<a  title="Permanent link to ‘Let’s Keep an Eye on Apple’s Own iOS Adoption Numbers’"  href="https://daringfireball.net/linked/2026/01/29/apples-own-ios-adoption-numbers">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Box Office Expectations for ‘Melania’</title>
+	<link rel="alternate" type="text/html" href="https://www.thewrap.com/industry-news/box-office/melania-box-office-prediction/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww4" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/29/box-office-expectations-for-melania" />
+	<id>tag:daringfireball.net,2026:/linked//6.42628</id>
+	<published>2026-01-29T15:22:23Z</published>
+	<updated>2026-01-29T15:22:53Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Jeremy Fuster, reporting for TheWrap:</p>
+
+<blockquote>
+  <p>But save for some theaters in Republican-heavy states, the film is
+unlikely to leave much of an impact at a slumping box office, with
+theatrical sources telling TheWrap that “Melania” is projected for
+an opening of around $3 million this weekend.</p>
+
+<p>That would put it below the last right-wing documentary, the Daily
+Wire-produced Matt Walsh film “Am I Racist?,” which opened to $4.5
+million from 1,517 locations in September 2024, finishing with a
+$12.3 million total that made it the highest-grossing doc that
+year. The highest projections are coming from NRG with an estimate
+of around $5 million, though audience interest polls from the
+company have 30% saying they are “definitely not” interested in
+watching the film, an unusually high count for any wide release.</p>
+</blockquote>
+
+<p>These projections are <em>with</em> a $35 million promotional campaign, for a movie Amazon paid $40 million to purchase. (<a href="https://politicalwire.com/2026/01/29/critics-question-marketing-splash-for-melania/">Via Taegan Goddard</a>.)</p>
+
+<div>
+<a  title="Permanent link to ‘Box Office Expectations for ‘Melania’’"  href="https://daringfireball.net/linked/2026/01/29/box-office-expectations-for-melania">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Amazon’s Spending on ‘Melania’ Is a Barely Concealed Bribe</title>
+	<link rel="alternate" type="text/html" href="https://www.nytimes.com/2026/01/28/business/media/amazon-melania-trump-film-critics.html?unlocked_article_code=1.IFA.R85v.5ZtNe8FttfaD" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww3" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/29/amazon-melania-spending" />
+	<id>tag:daringfireball.net,2026:/linked//6.42627</id>
+	<published>2026-01-29T15:19:17Z</published>
+	<updated>2026-01-29T15:19:17Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Nicole Sperling and Brooks Barnes, reporting for The New York Times:</p>
+
+<blockquote>
+  <p>Amazon paid Ms. Trump’s production company $40 million for the
+rights to “Melania,” about $26 million more than the next closest
+bidder, Disney. The fee includes a related docuseries that is
+scheduled to air later this year. The budget for “Melania” is
+unknown, but documentaries that follow a subject for a limited
+amount of time usually cost less than $5 million to produce. The
+$35 million for marketing is 10 times what some other high-profile
+documentaries have received.</p>
+
+<p>All of which has a lot of Hollywood questioning whether Amazon’s
+push is anything more than the company’s attempt to ingratiate
+itself with President Trump.</p>
+</blockquote>
+
+<p>This is a good story, with multiple industry sources with experience making political documentaries, but the Times’s own subhead downplays Amazon’s spending on the film: “The tech giant is spending $35 million to promote its film about the first lady, far more than is typical for documentaries.” They’re spending $35 million now, to promote it, but they already paid $40 million for the rights to the film, <a href="https://www.huffpost.com/entry/melania-trump-documentary-speculation_n_6978f160e4b051911224d57f">$28 million of which is believed to have gone to Melania Trump herself</a>. A $35 million total spend would be a lot compared to other high-profile documentaries, but it’s a $75 million total spend. This is not just a little fishy — it’s a veritable open air seafood market.</p>
+
+<p>Back to the Times:</p>
+
+<blockquote>
+  <p>To grasp just how uncustomary Amazon’s marketing push for
+“Melania” is, consider how Magnolia Pictures handled “<a href="https://www.nytimes.com/2018/05/03/movies/rbg-review-documentary.html">RBG</a>,”
+a portrait of Ruth Bader Ginsburg during her 25th year as a
+Supreme Court justice, in 2018.</p>
+
+<p>CNN Films produced “RBG” for around $1 million. The promotional
+budget, including an awards campaign that helped it land two Oscar
+nominations, totaled about $3 million. The film debuted in 34
+theaters and expanded into 432 locations over several weeks. It
+ultimately collected $14 million, enough to rank as the year’s No.
+1 political documentary.</p>
+</blockquote>
+
+<p>And:</p>
+
+<blockquote>
+  <p>On Friday, “Melania” will also be released in 1,600 theaters
+overseas, where FilmNation, a New York company, is handling
+distribution in more than 20 countries. International ticket sales
+are expected to be weak, according to box office analysts.</p>
+</blockquote>
+
+<p>Shocker.</p>
+
+<div>
+<a  title="Permanent link to ‘Amazon’s Spending on ‘Melania’ Is a Barely Concealed Bribe’"  href="https://daringfireball.net/linked/2026/01/29/amazon-melania-spending">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Kickstarter for Ollie’s Arcade Expansion</title>
+	<link rel="alternate" type="text/html" href="https://blog.iconfactory.com/2026/01/bringing-more-fun-free-retro-gaming-to-ios/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww2" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/29/kickstarter-for-ollies-arcade-expansion" />
+	<id>tag:daringfireball.net,2026:/linked//6.42626</id>
+	<published>2026-01-29T15:01:43Z</published>
+	<updated>2026-01-29T15:01:43Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Ged Maheux, The Iconfactory:</p>
+
+<blockquote>
+  <p>This week we <a href="https://www.kickstarter.com/projects/iconfactory/ollies-arcade-expansion-more-retro-games?ref=user_menu">announced a new Kickstarter</a> that’s aimed at
+expanding the game offerings of Ollie’s Arcade, the fun, ad-free
+retro gaming app we introduced back in 2023. <a href="https://apps.apple.com/us/app/ollies-arcade/id6446127619">Ollie’s
+Arcade</a> has always been a great way to escape doomscrolling,
+even if just for a little while, and now we have an opportunity to
+bring these retro games to even more people on iOS.</p>
+
+<p>The Kickstarter aims to raise enough money to make all of the
+in-app purchase games in the app completely <em>free for everyone</em> to
+enjoy. We also want to bring our beloved puzzle game,
+<a href="https://en.wikipedia.org/wiki/Frenzic">Frenzic</a>, to life once again. Frenzic was one of the very
+first games available on iOS back in 2008, then was reborn as
+<a href="https://frenzic.com/">Frenzic: Overtime</a> on Apple Arcade. Since it left, people
+have been asking us for a new version that they can just pick up
+and play. We couldn’t agree more!</p>
+</blockquote>
+
+<p><a href="https://daringfireball.net/linked/2023/09/03/ollies-arcade">I linked to</a> the Kickstarter for the original Ollie’s Arcade project back in 2023, which was a big success. And I <a href="https://daringfireball.net/linked/2008/11/19/frenzic">first linked to Frenzic</a> all the way back in 2008, when the App Store was only a few months old. It’s just a great concept for a casual game on a small screen, implemented with all of The Iconfactory’s exquisite attention to detail. That’s true for all the games in Ollie’s Arcade, but Frenzic is special.</p>
+
+<p>This new Kickstarter for the Ollie’s Arcade expansion has already hit its funding goal, but it’s approaching the stretch goal for an additional game. There are a zillion games for iOS, but it’s sad how few are ad-free and don’t require a subscription. If you think well-crafted fun games that you can pay for once (for a very reasonable price) should be rewarded, you should join me (<a href="https://www.macstories.net/news/the-iconfactory-launches-kickstarter-to-expand-ollies-arcade-with-frenzic/">and</a> <a href="https://sixcolors.com/link/2026/01/the-iconfactory-wants-to-bring-fun-back-to-your-fingers/">others</a>) in backing this Kickstarter.</p>
+
+<div>
+<a  title="Permanent link to ‘Kickstarter for Ollie’s Arcade Expansion’"  href="https://daringfireball.net/linked/2026/01/29/kickstarter-for-ollies-arcade-expansion">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Comparing the Classic and Unified Views in iOS 26’s Phone App</title>
+	<link rel="alternate" type="text/html" href="https://tidbits.com/2025/11/10/comparing-the-classic-and-unified-views-in-ios-26s-phone-app/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww1" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/28/comparing-the-classic-and-unified-views-in-ios-26s-phone-app" />
+	<id>tag:daringfireball.net,2026:/linked//6.42625</id>
+	<published>2026-01-29T00:10:30Z</published>
+	<updated>2026-01-31T16:15:15Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Adam Engst, back in November, at TidBITS:</p>
+
+<blockquote>
+  <p>Did you know that, regardless of view, you can now swipe left on
+any call to reveal a blue clock icon that lets you create a
+reminder to call back in 1 hour, tonight, tomorrow, or at any
+custom time (below left, slightly doctored)? Reminders appear at
+the top of the Calls list and in your default Reminders list. You
+can also touch and hold a call associated with a contact to
+connect with them in other ways (below right), or touch and hold a
+call from an unknown caller to add them to Contacts.</p>
+</blockquote>
+
+<p>I did not know this, until I read Engst’s article.</p>
+
+<p>One criticism I’ve seen a few times (but to be clear, not from Engst) ever since Apple debuted the new Unified interface for the Phone app back at WWDC, is that it’s somehow wrong that Apple offers it as an option alongside the Classic interface. “<em>When does Apple ever offer options like this?</em>”</p>
+
+<p>I’d argue that Apple <em>used</em> to offer options like this all the time. The Music app on the original iPhone (which app was actually named “iPod” for a while) let you customize all the tabs at the bottom. All of Apple’s good Mac apps (the AppKit ones, primarily) still let you <a href="https://support.apple.com/guide/mac-help/customize-toolbars-mchlb294260e/mac">customize the entire toolbar</a>. The problem isn’t that Apple now offers two very different interfaces for the Phone app. The problem is that Apple stopped offering users ways to significantly tailor apps to their own needs and tastes — and the proof that they stopped is that so many people now think it’s so strange that they’re offering two options for how the Phone app should look and work.</p>
+
+<p>Overall, I like the new Unified layout in the Phone app. But what I love is there remains an option for those who don’t, and that you can switch between the two in a very obvious, easily discoverable (dare I say, hard to miss) way right in the app itself. No need to dig two or three levels deep into the Settings app. You can just switch right there in the main screen of the Phone app itself. It’s things like this that keep me <a href="https://bsky.app/profile/sdw.bsky.social/post/3mdjaglq52c2m">optimistic</a> that Apple is still capable of great <em>new</em> work in UI design.</p>
+
+<div>
+<a  title="Permanent link to ‘Comparing the Classic and Unified Views in iOS 26’s Phone App’"  href="https://daringfireball.net/linked/2026/01/28/comparing-the-classic-and-unified-views-in-ios-26s-phone-app">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Aeronaut 1.0</title>
+	<link rel="alternate" type="text/html" href="https://aeronautapp.com/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/ww0" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/28/aeronaut" />
+	<id>tag:daringfireball.net,2026:/linked//6.42624</id>
+	<published>2026-01-28T22:58:24Z</published>
+	<updated>2026-01-28T23:06:25Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>New Mac app by Mikey Clarke, and it’s just what it says on the tin: a “lovingly crafted Bluesky app designed and built just for the Mac”. I’ve been beta testing Aeronaut for months, and it’s the only interface to Bluesky I actually like. It’s a real Mac app — written mostly in AppKit, supporting all the right UI idioms and platform integrations. It’s not just the best Bluesky client I’ve seen, for any platform, but maybe the best new Mac app I’ve seen in years, period. Certainly the one whose very existence has made me happiest. Next time someone tells me no one makes good new native apps for the Mac anymore, I’m going to tell them Mikey Fucking Clarke does.</p>
+
+<p>$2/month or $15/year. A veritable bargain for an app so nice.</p>
+
+<div>
+<a  title="Permanent link to ‘Aeronaut 1.0’"  href="https://daringfireball.net/linked/2026/01/28/aeronaut">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Bruce Springsteen: ‘Streets of Minneapolis’</title>
+	<link rel="alternate" type="text/html" href="https://brucespringsteen.net/news/2026/streets-of-minneapolis/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvz" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/28/springsteen-streets-of-minneapolis" />
+	<id>tag:daringfireball.net,2026:/linked//6.42623</id>
+	<published>2026-01-28T22:53:27Z</published>
+	<updated>2026-01-28T22:56:00Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Bruce Springsteen:</p>
+
+<blockquote>
+  <p>I wrote this song on Saturday, recorded it yesterday and released
+it to you today in response to the state terror being visited on
+the city of Minneapolis. It’s dedicated to the people of
+Minneapolis, our innocent immigrant neighbors and in memory of
+Alex Pretti and Renee Good.</p>
+</blockquote>
+
+<p>Best line from the lyrics:</p>
+
+<blockquote>
+  <p>Their claim was self-defense, <br />
+Just don’t believe your eyes. <br />
+It’s our blood and bones and these whistles and phones <br />
+Against Miller and Noem’s dirty lies.</p>
+</blockquote>
+
+<p><a href="https://bsky.app/profile/marisakabas.bsky.social/post/3mdjdmowr622r">Whistles</a>, phones, and <a href="https://youtu.be/m3otpjno0UQ?t=300">birds</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘Bruce Springsteen: ‘Streets of Minneapolis’’"  href="https://daringfireball.net/linked/2026/01/28/springsteen-streets-of-minneapolis">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/01/politics_and_the_english_language_january_2026_edition" />
+	<link rel="shorturl" href="http://df4.us/wvy" />
+	<id>tag:daringfireball.net,2026://1.42622</id>
+	<published>2026-01-28T22:00:24Z</published>
+	<updated>2026-01-29T00:20:07Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">Tim Cook’s call for “deescalation” is meaningless without specifying which side he’s calling upon to change course, and there’s no weaker sauce than the weak sauce of “both sides”.</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p>Patrick McGee (author of last year’s bestseller, <em><a href="https://bookshop.org/p/books/apple-in-china-the-capture-of-the-world-s-greatest-company-patrick-mcgee/496b96d06a984e01?ean=9781668053379&amp;next=t&amp;next=t&amp;affiliate=56320">Apple in China</a></em>, and <a href="https://daringfireball.net/thetalkshow/2025/05/29/ep-423">guest on The Talk Show in May</a>), <a href="https://x.com/patrickmcgee_/status/2016344451036413984">commenting on Twitter/X</a> re: <a href="https://daringfireball.net/linked/2026/01/28/tim-cook-memo">Tim Cook’s company-wide memo</a> regarding the “events in Minneapolis”:</p>
+
+<blockquote>
+  <p>This literally says nothing, via intention and cowardice.</p>
+
+<p>It’s the kind of language Orwell attributed to politicians, when
+ready-made phrases assemble themselves and prevent any real
+thought from breaking through.</p>
+</blockquote>
+
+<p>I have <a href="https://daringfireball.net/linked/2014/07/21/orwell-politics-english-language">previously linked</a> to George Orwell’s seminal 1946 essay, “<a href="https://www.orwellfoundation.com/the-orwell-foundation/orwell/essays-and-other-works/politics-and-the-english-language/">Politics and the English Language</a>”. This time I’ll quote a different passage:</p>
+
+<blockquote>
+  <p>In our time it is broadly true that political writing is bad
+writing. Where it is not true, it will generally be found that the
+writer is some kind of rebel, expressing his private opinions and
+not a “party line”. Orthodoxy, of whatever colour, seems to demand
+a lifeless, imitative style. The political dialects to be found in
+pamphlets, leading articles, manifestos, White papers and the
+speeches of undersecretaries do, of course, vary from party to
+party, but they are all alike in that one almost never finds in
+them a fresh, vivid, homemade turn of speech. When one watches
+some tired hack on the platform mechanically repeating the
+familiar phrases — <em>bestial, atrocities, iron heel, bloodstained
+tyranny, free peoples of the world, stand shoulder to shoulder</em> — one often has a curious feeling that one is not watching a live
+human being but some kind of dummy: a feeling which suddenly
+becomes stronger at moments when the light catches the speaker’s
+spectacles and turns them into blank discs which seem to have no
+eyes behind them. And this is not altogether fanciful. A speaker
+who uses that kind of phraseology has gone some distance toward
+turning himself into a machine. The appropriate noises are coming
+out of his larynx, but his brain is not involved, as it would be
+if he were choosing his words for himself. If the speech he is
+making is one that he is accustomed to make over and over again,
+he may be almost unconscious of what he is saying, as one is when
+one utters the responses in church. And this reduced state of
+consciousness, if not indispensable, is at any rate favourable to
+political conformity.</p>
+
+<p>In our time, political speech and writing are largely the defence
+of the indefensible. Things like the continuance of British rule
+in India, the Russian purges and deportations, the dropping of the
+atom bombs on Japan, can indeed be defended, but only by arguments
+which are too brutal for most people to face, and which do not
+square with the professed aims of the political parties. Thus
+political language has to consist largely of euphemism,
+question-begging and sheer cloudy vagueness. Defenceless villages
+are bombarded from the air, the inhabitants driven out into the
+countryside, the cattle machine-gunned, the huts set on fire with
+incendiary bullets: this is called <em>pacification</em>. Millions of
+peasants are robbed of their farms and sent trudging along the
+roads with no more than they can carry: this is called <em>transfer
+of population</em> or <em>rectification of frontiers</em>. People are
+imprisoned for years without trial, or shot in the back of the
+neck or sent to die of scurvy in Arctic lumber camps: this is
+called <em>elimination of unreliable elements</em>. Such phraseology is
+needed if one wants to name things without calling up mental
+pictures of them.</p>
+</blockquote>
+
+<p>Now consider <a href="https://daringfireball.net/linked/2026/01/28/tim-cook-memo">Cook’s memo</a>. Cook avoids most of the sins Orwell describes. He uses short, common words. He eschews hackneyed metaphors. He uses the active, not passive, voice — for the most part. His prayers and sympathies are “with everyone that’s been affected.” Who, exactly, has been affected? Affected how? By whom? Numerous examples come to mind, but not from Cook’s memo. Two Minneapolitans were affected, quite adversely, by being shot in the head and back at point blank range, in broad daylight, by unhinged ICE goons. <a href="https://www.snopes.com/news/2026/01/22/minnesota-5-year-old-ice-bait/">A five-year-old boy</a> — himself a U.S.-born citizen — was affected when ICE agents apprehended his father, used the boy as bait to lure other family members, and is now being held in a <a href="https://www.cnn.com/2025/12/09/politics/migrant-families-ice-detention-facility-texas">notorious</a> detention center in Texas, a thousand miles away.</p>
+
+<p>The list is long, the stories searing. But Cook mentions nothing more specific than “everyone that’s been affected”. Such phraseology is needed if one wants to name things without calling up mental pictures of them, indeed.</p>
+
+<p>“This is a time for deescalation,” Cook wrote. But by whom? The masked federal agents laying siege to Minneapolis, brutalizing its citizenry? Or the <a href="https://www.cbc.ca/news/world/minneapolis-clergy-arrest-protest-9.7058754">thousands of law-abiding citizens</a> protesting the occupation of their neighborhoods, who are, <a href="https://youtu.be/m3otpjno0UQ?t=300">in the words of Seth Meyers</a>, “deploying the most hurtful weapon of all, the bird”? Cook’s call for “deescalation” is meaningless without specifying which side he’s calling upon to change course, and there’s no weaker sauce than the weak sauce of “both sides”. Using words, not to make a point, but to <em>avoid</em> making a point while creating the illusion of having made one, is the true sin. From Orwell’s closing paragraph:</p>
+
+<blockquote>
+  <p>Political language — and with variations this is true of all
+political parties, from Conservatives to Anarchists — is designed
+to make lies sound truthful and murder respectable, and to give an
+appearance of solidity to pure wind.</p>
+</blockquote>
+
+<p>It’s colder in Minnesota, but the wind is gusting in Cupertino.</p>
+
+
+
+    ]]></content>
+  <title>★ Politics and the English Language, January 2026 Edition</title></entry><entry>
+	<title>Tim Cook Wrote a Memo on the ‘Events in Minneapolis’</title>
+	<link rel="alternate" type="text/html" href="https://www.macrumors.com/2026/01/27/tim-cook-responds-after-minneapolis-shootings/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvx" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/28/tim-cook-memo" />
+	<id>tag:daringfireball.net,2026:/linked//6.42621</id>
+	<published>2026-01-28T19:13:41Z</published>
+	<updated>2026-01-29T00:50:19Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Tim Cook, in a company-wide memo (first published by <a href="https://www.bloomberg.com/news/articles/2026-01-28/apple-s-cook-calls-for-deescalation-after-latest-ice-shooting">Mark Gurman</a>):</p>
+
+<blockquote>
+  <p>Team, <br />
+I’m heartbroken by the events in Minneapolis, and my prayers and
+deepest sympathies are with the families, with the communities,
+and with everyone that’s been affected.</p>
+
+<p>This is a time for deescalation. I believe America is strongest
+when we live up to our highest ideals, when we treat everyone with
+dignity and respect no matter who they are or where they’re from,
+and when we embrace our shared humanity. This is something Apple
+has always advocated for. I had a good conversation with the
+president this week where I shared my views, and I appreciate his
+openness to engaging on issues that matter to us all.</p>
+
+<p>I know this is very emotional and challenging for so many. I am
+proud of how deeply our teams care about the world beyond our
+walls. That empathy is one of Apple’s greatest strengths and it is
+something I believe we all cherish.</p>
+
+<p>Thank you for all that you do. <br />
+Tim</p>
+</blockquote>
+
+<p>“Events” is doing a lot of work there, to describe what has happened and is happening in Minneapolis.</p>
+
+<p>Trump’s “openness” on this particular “issue” has been to <a href="https://www.theatlantic.com/politics/2026/01/greg-bovino-demoted-minneapolis-border-patrol/685770/">replace Greg Bovino</a> — the <a href="https://www.thetimes.com/us/american-politics/article/gregory-bovino-coat-border-patrol-j29xxmzmj">diminutive Himmler-cosplaying</a> “commander at large” of Border Control, who insisted, adamantly, <a href="https://www.politico.com/news/2026/01/25/bovino-border-patrol-agents-minneapolis-victims-00745702">that the real victims in Alex Pretti’s murder were the Border Patrol agents</a> who shot him — <a href="https://www.bbc.com/news/articles/cjw1pn4lwjqo">with “border czar” Tom Homan</a>, a man who took a <a href="https://www.ms.now/news/tom-homan-cash-contracts-trump-doj-investigation-rcna232568">$50,000 cash bribe from undercover FBI agents</a> in exchange for a promise to award them government contracts if Trump were reelected.</p>
+
+<p><a href="https://x.com/apollozac/status/2016346258772770826">Zac Hall, on Twitter/X</a>:</p>
+
+<blockquote>
+  <p>Cook took three days to not name Alex Pretti in his not public
+statement and 20 days to not name Renée Good in his not public
+statement. [...]</p>
+
+<p><a href="https://www.apple.com/speaking-up-on-racism/">2020 Tim Cook on Apple’s homepage</a>: “Right now, there is a
+pain deeply etched in the soul of our nation and in the hearts of
+millions. To stand together, we must stand up for one another, and
+recognize the fear, hurt, and outrage rightly provoked by the
+senseless killing of George Floyd and a much longer history of
+racism.”</p>
+</blockquote>
+
+<p>Quite the different message (and medium — this time with nothing on Apple’s website, let alone their homepage) from 2020, for what I consider far more outrageous and alarming killings.</p>
+
+<div>
+<a  title="Permanent link to ‘Tim Cook Wrote a Memo on the ‘Events in Minneapolis’’"  href="https://daringfireball.net/linked/2026/01/28/tim-cook-memo">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Meta’s Response to Reuters Report on ‘Romance AI Chatbots’ for Teenagers</title>
+	<link rel="alternate" type="text/html" href="https://x.com/andymstone/status/2016242174447223049" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvw" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/28/metas-response-to-reuters-report" />
+	<id>tag:daringfireball.net,2026:/linked//6.42620</id>
+	<published>2026-01-28T16:02:25Z</published>
+	<updated>2026-01-28T16:12:33Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Andy Stone, VP of communications at Meta, responding, in a series of tweets on Twitter/X, to <a href="https://www.reuters.com/legal/government/meta-ceo-zuckerberg-blocked-curbs-sex-talking-chatbots-minors-court-filing-2026-01-27/">Jeff Horwitz’s report at Reuters</a> yesterday, <a href="https://daringfireball.net/linked/2026/01/27/horwitz-zuck-meta-teen-sexbots">linked here</a> last night, which claimed that “Zuckerberg blocked curbs on sex-talking chatbots for minors”:</p>
+
+<blockquote>
+  <p>Never let the facts get in the way of a good story, eh,
+<a href="https://x.com/Reuters">@Reuters</a>, <a href="https://x.com/JeffHorwitz">@JeffHorwitz</a>!</p>
+
+<p>The documents you cite in the story itself contradict this
+headline.</p>
+
+<p>The headline says “Zuckerberg blocked curbs on sex-talking
+chatbots for minors”</p>
+
+<p>But the story cites a document that says “Zuckerberg believed that
+AI companions should be blocked from engaging in sexually
+‘explicit’ conversations” w young people.</p>
+
+<p>Huh?!</p>
+</blockquote>
+
+<p>After my post last night, a friend of mine, with a career of experience working in a large company, sent me this:</p>
+
+<blockquote>
+  <p>A word of caution. “Scumbag middle manager says CEO said” is not
+the same as “CEO said.”</p>
+
+<p>I could believe Zuck shitcanned parental controls, but I am
+certain there are thousands of snakes inside that company who
+would lie about it to get what they want.</p>
+</blockquote>
+
+<p>That’s a good and fair point, and I think it’s what Stone is trying to emphasize above. The New Mexico lawsuit filing doesn’t contain evidence that Zuckerberg nixed parental controls for teens engaging in chats with AI bots; it contains evidence that other (unnamed employees) claimed in internal discussions that Zuckerberg had nixed them. That is different.</p>
+
+<p>But so let’s take Zuckerberg out of it personally. It’s still the case that Meta shipped these chatbots for teens to use. And the buck, presumably, stops at Zuck’s desk. <a href="https://www.reuters.com/investigates/special-report/meta-ai-chatbot-guidelines/">Read Horwitz’s report from back in August</a>, detailing a leaked internal document listing Meta’s content guidelines for generative AI chat.</p>
+
+<p><strong>Sidenote:</strong> Why in the world is Meta’s VP of comms doing this on Twitter/X, not Threads, which <a href="https://techcrunch.com/2026/01/18/threads-edges-out-x-in-daily-mobile-users-new-data-shows/">continues to grow</a>?</p>
+
+<div>
+<a  title="Permanent link to ‘Meta’s Response to Reuters Report on ‘Romance AI Chatbots’ for Teenagers’"  href="https://daringfireball.net/linked/2026/01/28/metas-response-to-reuters-report">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Court Filing Claims Zuckerberg Blocked Curbs at Meta on Sex-Talking Chatbots for Minors</title>
+	<link rel="alternate" type="text/html" href="https://www.reuters.com/legal/government/meta-ceo-zuckerberg-blocked-curbs-sex-talking-chatbots-minors-court-filing-2026-01-27/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvv" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/horwitz-zuck-meta-teen-sexbots" />
+	<id>tag:daringfireball.net,2026:/linked//6.42619</id>
+	<published>2026-01-28T00:17:02Z</published>
+	<updated>2026-01-28T00:17:03Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Jeff Horwitz, reporting for Reuters:</p>
+
+<blockquote>
+  <p>Meta Chief Executive Mark Zuckerberg approved allowing minors
+to access AI chatbot companions that safety staffers warned
+were capable of sexual interactions, according to internal Meta
+documents filed in a New Mexico state court case and made
+public Monday.</p>
+
+<p>The lawsuit — brought by the state’s attorney general, Raul
+Torrez, and scheduled for trial next month — alleges that
+Meta “failed to stem the tide of damaging sexual material and
+sexual propositions delivered to children” on Facebook and
+Instagram. [...]</p>
+
+<p>Messages between two employees from March of 2024 state that
+Zuckerberg had rejected creating parental controls for the
+chatbots, and that staffers were working on “Romance AI chatbots”
+that would be allowed for users under the age of 18. We “pushed
+hard for parental controls to turn GenAI off — but GenAI
+leadership pushed back stating Mark decision,” one employee wrote
+in that exchange.</p>
+</blockquote>
+
+<p>Horwitz was with The Wall Street Journal for a long time; his is <a href="https://daringfireball.net/linked/2025/02/28/meta-ultra-violence">a byline</a> worth <a href="https://daringfireball.net/linked/2020/05/27/wsj-facebook-divisiveness">paying attention to</a>.</p>
+
+<div>
+<a  title="Permanent link to ‘Court Filing Claims Zuckerberg Blocked Curbs at Meta on Sex-Talking Chatbots for Minors’"  href="https://daringfireball.net/linked/2026/01/27/horwitz-zuck-meta-teen-sexbots">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘The Secret Fear of the Morally Depraved’</title>
+	<link rel="alternate" type="text/html" href="https://www.theatlantic.com/ideas/2026/01/the-neighbors-defending-minnesota-from-ice/685769/?gift=Je3D9AQS-C17lUTOnl2W8L893jn-xkg4gA0ahaD_Ltw" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvu" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/serwer-minnesota-ice" />
+	<id>tag:daringfireball.net,2026:/linked//6.42618</id>
+	<published>2026-01-27T23:36:54Z</published>
+	<updated>2026-01-27T23:36:55Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Adam Serwer, reporting from the streets of Minneapolis for The Atlantic, “Minnesota Proved MAGA Wrong” (gift link):</p>
+
+<blockquote>
+  <p>The secret fear of the morally depraved is that virtue is actually
+common, and that they’re the ones who are alone. In Minnesota, all
+of the ideological cornerstones of MAGA have been proved false at
+once. Minnesotans, not the armed thugs of ICE and the Border
+Patrol, are brave. Minnesotans have shown that their community is
+socially cohesive — because of its diversity and not in spite of
+it. Minnesotans have found and loved one another in a world
+atomized by social media, where empty men have tried to fill their
+lonely soul with lies about their own inherent superiority.
+Minnesotans have preserved everything worthwhile about “Western
+civilization,” while armed brutes try to tear it down by force.</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘‘The Secret Fear of the Morally Depraved’’"  href="https://daringfireball.net/linked/2026/01/27/serwer-minnesota-ice">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘A CEO, Captured’</title>
+	<link rel="alternate" type="text/html" href="https://om.co/2026/01/27/a-ceo-captured/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvt" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/ceo-captured" />
+	<id>tag:daringfireball.net,2026:/linked//6.42617</id>
+	<published>2026-01-27T23:06:55Z</published>
+	<updated>2026-01-27T23:06:56Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Om Malik:</p>
+
+<blockquote>
+  <p>Cook is not stupid. He is not evil. He is trapped. The iron clasp
+of market expectations has turned him into what he never meant to
+be: a man who goes to parties at the White House while nurses die.</p>
+
+<p>In <em>Tinker Tailor Soldier Spy</em>, Roy Bland captures a cynical,
+post-ideological, corrupt English society: “You scratch my
+conscience; I’ll drive your Jag.” You could say the same of
+today’s Silicon Valley. It used to believe it could change the
+world. Now it just hopes the world won’t change its stock price.</p>
+</blockquote>
+
+<p><a href="https://www.threads.com/@ajgruber/post/DUBBiHyDtmu">Amy Jane Gruber</a>:</p>
+
+<blockquote>
+  <p>If I ever meet Tim Cook I’m going to ask him if Mike Tyson enjoyed
+the movie.</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘‘A CEO, Captured’’"  href="https://daringfireball.net/linked/2026/01/27/ceo-captured">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘Aside From That, Mr. Cook, What Did You Think of the Movie?’</title>
+	<link rel="alternate" type="text/html" href="https://spyglass.org/tim-cook-captured/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvs" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/mg-cook-melania" />
+	<id>tag:daringfireball.net,2026:/linked//6.42616</id>
+	<published>2026-01-27T23:02:49Z</published>
+	<updated>2026-01-27T23:02:49Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>MG Siegler:</p>
+
+<blockquote>
+  <p>Tim Cook is captured. There is simply no other explanation for his
+actions over the past year or so. But it perhaps culminated this
+weekend when Cook went to a special private showing of <a href="https://en.wikipedia.org/wiki/Melania_(film)?ref=spyglass.org">the
+documentary <em>Melania</em></a> at the White House. Yes, <em>that</em>
+<a href="https://en.wikipedia.org/wiki/Melania_Trump?ref=spyglass.org">Melania</a>. That in and of itself would have probably been
+fine. I mean, it’s potentially problematic for a host of reasons
+that I’ll get to, but such is our world right now. Then one shot — a gunshot — turned attending that movie screening into a
+statement...</p>
+
+<p>While Cook was enjoying his popcorn and champagne with the likes
+of Mike Tyson, Tony Robbins, and other “VIPs”, it was complete and
+utter chaos on the streets of Minnesota. Just hours earlier, Alex
+Pretti, a 37-year-old ICU nurse, was shot and killed by ICE
+agents. Maybe, just maybe, postpone the movie premiere?</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘‘Aside From That, Mr. Cook, What Did You Think of the Movie?’’"  href="https://daringfireball.net/linked/2026/01/27/mg-cook-melania">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘Whatever’</title>
+	<link rel="alternate" type="text/html" href="https://nymag.com/intelligencer/article/donald-trump-addresses-health-hand-bruise-stroke-mri-greenland.html" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvr" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/whatever" />
+	<id>tag:daringfireball.net,2026:/linked//6.42615</id>
+	<published>2026-01-27T22:48:42Z</published>
+	<updated>2026-01-27T22:48:43Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Ben Terris, writing for New York Magazine:</p>
+
+<blockquote>
+  <p>Fred Trump died in 1999 at age 93. He had, Trump said, a “heart
+that couldn’t be stopped” with almost no health conditions to
+speak of throughout his long life. “He had one problem,” Trump
+said. “At a certain age, about 86, 87, he started getting, what do
+they call it?” He pointed to his forehead and looked to his press
+secretary for the word that escaped him.</p>
+
+<p>“Alzheimer’s,” Leavitt said.</p>
+
+<p>“Like an Alzheimer’s thing,” Trump said. “Well, I don’t have it.”</p>
+
+<p>“Is it something you think about at all?” I asked.</p>
+
+<p>“No, I don’t think about it at all. You know why?” he said.
+“Because whatever it is, my attitude is whatever.”</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘‘Whatever’’"  href="https://daringfireball.net/linked/2026/01/27/whatever">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Clawdbot Is Now Moltbot</title>
+	<link rel="alternate" type="text/html" href="https://www.molt.bot/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvq" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/clawdbot-is-now-moltbot" />
+	<id>tag:daringfireball.net,2026:/linked//6.42614</id>
+	<published>2026-01-27T20:34:36Z</published>
+	<updated>2026-01-28T16:13:58Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>From the footer on the project’s website:</p>
+
+<blockquote>
+  <p>Moltbot was formerly known as Clawdbot. Independent project, not
+affiliated with Anthropic.</p>
+</blockquote>
+
+<p>Makes sense, to be honest, <a href="https://www.businessinsider.com/clawdbot-changes-name-moltbot-anthropic-trademark-2026-1">that Anthropic would object</a> to naming it a homonym for Claude.</p>
+
+<p>One additional followup to <a href="https://daringfireball.net/linked/2026/01/26/viticci-on-clawdbot">my post the other day</a>. In his terrific introduction to <s>Clawd</s>Moltbot, <a href="https://www.macstories.net/stories/clawdbot-showed-me-what-the-future-of-personal-ai-assistants-looks-like/">Federico Viticci wrote</a>:</p>
+
+<blockquote>
+  <p>I’ve been playing around with Clawdbot so much, I’ve burned
+through 180 million tokens on the Anthropic API (<em>yikes</em>), and
+I’ve had fewer and fewer conversations with the “regular” Claude
+and ChatGPT apps in the process.</p>
+</blockquote>
+
+<p>Those tokens aren’t free. I asked Viticci just how much “yikes” cost, and <a href="https://mastodon.macstories.net/@viticci/115968901926545907">he said</a> around US$560 — using way more input than output tokens.</p>
+
+<div>
+<a  title="Permanent link to ‘Clawdbot Is Now Moltbot’"  href="https://daringfireball.net/linked/2026/01/27/clawdbot-is-now-moltbot">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/01/the_names_they_call_themselves" />
+	<link rel="shorturl" href="http://df4.us/wvp" />
+	<id>tag:daringfireball.net,2026://1.42613</id>
+	<published>2026-01-27T18:12:56Z</published>
+	<updated>2026-01-27T18:12:56Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">*Fascist* and *Nazi* weren’t slurs that were applied to the Italians and Germans by their political or military opponents. That’s what they called themselves. The job won’t be done, this era of madness will not end, until we make *the names Trump’s regime calls themselves* universally acknowledged slurs.</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p>Jonathan Rauch, writing for The Atlantic, “<a href="https://www.theatlantic.com/ideas/2026/01/america-fascism-trump-maga-ice/685751/?gift=aQyUJR7AIw1mJWdQ6Ed6yAGei6y469cre0s3RYa6ArU">Yes, It’s Fascism</a>” (gift link):</p>
+
+<blockquote>
+  <p>Until recently, I resisted using the F-word to describe President
+Trump. For one thing, there were too many elements of classical
+fascism that didn’t seem to fit. For another, the term has been
+overused to the point of meaninglessness, especially by
+left-leaning types who call you a fascist if you oppose abortion
+or affirmative action. For yet another, the term is hazily
+defined, even by its adherents. From the beginning, fascism has
+been an incoherent doctrine, and even today scholars can’t agree
+on its <a href="https://scholarworks.lib.csusb.edu/cgi/viewcontent.cgi?article=1160&amp;context=history-in-the-making">definition</a>. Italy’s original version differed from
+Germany’s, which differed from Spain’s, which differed from
+Japan’s. [...]</p>
+
+<p>When the facts change, I change my mind. Recent events have
+brought Trump’s governing style into sharper focus. <em>Fascist</em> best
+describes it, and reluctance to use the term has now become
+perverse. That is not because of any one or two things he and his
+administration have done but because of the totality. Fascism is
+not a territory with clearly marked boundaries but a constellation
+of characteristics. When you view the stars together, the
+constellation plainly appears.</p>
+</blockquote>
+
+<p>Rauch goes on to describe that constellation clearly and copiously, with evidence. I agree, wholeheartedly, with his conclusion that “If, however, Trump is a fascist <em>president</em>, that does not mean that America is a fascist <em>country</em>.” The shoe fits, however <a href="https://apnews.com/article/trump-swelling-legs-chronic-venous-insufficiency-health-40beb3c818cfb914645db9d1f143fdd8">tightly</a>.</p>
+
+<p>But there’s a problem that’s been gnawing at me ever since the 2.0 Trump Administration began. The entire premise of Rauch’s essay — the issue he changed his mind about — is that it’s contentious to describe people, let alone an entire political party or government, as “fascist” or “Nazi”. With only the most extremist exceptions, it’s a broad cultural value — a shared global value, not merely an American or western one — that the Nazis and Fascists were abominable. Also, they were <a href="https://www.nytimes.com/interactive/2020/05/07/magazine/ve-day-anniversary.html">losers</a>, and their complete and total destruction was <a href="https://www.life.com/history/v-j-day-kiss-times-square/">celebrated</a> around the world. Hitler shot himself, hiding <a href="https://www.life.com/history/after-the-fall-photos-of-hitlers-bunker-and-the-ruins-of-berlin/">in a dingy filthy bunker</a>. Mussolini was summarily executed and his body <a href="https://en.wikipedia.org/wiki/Death_of_Benito_Mussolini">strung up in a public square in Milan</a>. Hirohito surrendered unconditionally and lived his remaining days in quiet shame and infamy. No matter how apt the definition of <em>fascist</em> fits the Trump regime, they themselves reject the term, as they do not see themselves as being on the wrong side, and the definition of fascism is that it’s wrong. And they (exemplified by Trump himself) have a deep-seated psychological aversion to being seen as losers, even when it is as plain to see as the sun <a href="https://www.nytimes.com/interactive/2020/11/03/us/elections/results-president.html">that they have lost</a> — and no one denies that the Fascists and Nazis lost, bigly.</p>
+
+<p>We call Benito Mussolini’s regime “fascist” because <a href="https://www.history.com/articles/mussolini-italy-fascism">he coined the term</a>. His political movement was literally named the Fascist Party. There was no debate whether Hitler and his regime were Nazis <em>because that was their name</em>. “Fascist” and “Nazi” weren’t slurs that were applied to them by their political or military opponents. That’s what they called themselves, and their names <em>became</em> universally recognized slurs because the actions and beliefs of the Fascists and Nazis were universally recognized as reprehensible and evil. And because they lost.</p>
+
+<p>Our goal should not be to make <em>fascist</em> or <em>Nazi</em> apply to Trump’s movement, no matter <a href="https://www.thebulwark.com/p/mattis-told-woodward-he-agreed-trump">how well</a> those rhetorical gloves fit his <a href="https://www.vanityfair.com/news/2016/03/how-donald-trump-became-the-short-fingered-vulgarian">short-fingered</a> <a href="https://www.irishstar.com/news/us-news/donald-trump-hand-bruise-meaning-35799798">disgustingly</a> <a href="https://www.ms.now/news/trump-hand-bruise-photo">bruised</a> hands. Don’t call Trump “Hitler”. Instead, work until “Trump” becomes a new end state of <a href="https://en.wikipedia.org/wiki/Godwin%27s_law">Godwin’s Law</a>.</p>
+
+<p>The job won’t be done, this era of madness will not end, until we make <em>the names they call themselves</em> universally acknowledged slurs.</p>
+
+<p>“MAGA” and “Trumpist”, for sure. “Republican”, <a href="https://www.nbcnews.com/politics/2026-election/minnesota-governor-candidate-chris-madel-gop-immigration-enforcement-rcna255949">perhaps</a>. Make <em>those</em> names <a href="https://www.nytimes.com/interactive/2026/01/24/us/minneapolis-shooting-alex-pretti-timeline.html?unlocked_article_code=1.HlA.jIxp.ieLWsJ7EHyct">shameful</a>, <a href="https://www.wsj.com/politics/policy/the-48-hours-that-convinced-trump-to-change-course-in-minnesota-a91d7683?st=xEZf8d">deservedly</a>, now, and there will be no need to apply the shameful names of hateful anti-democratic illiberal failed nationalist movements from a century ago. We need to assert this rhetoric with urgency, make <em>their</em> names shameful, lest the slur become <em>our</em> name — “American”.</p>
+
+
+
+    ]]></content>
+  <title>★ The Names They Call Themselves</title></entry><entry>
+	<title>What It’s Like to Get Undressed by Grok</title>
+	<link rel="alternate" type="text/html" href="https://www.rollingstone.com/culture/culture-features/grok-sexualized-image-xai-elon-musk-women-1235501436/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvo" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/27/what-its-like-to-get-undressed-by-grok" />
+	<id>tag:daringfireball.net,2026:/linked//6.42612</id>
+	<published>2026-01-27T15:07:07Z</published>
+	<updated>2026-01-27T21:37:33Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Ella Chakarian, writing for Rolling Stone (<a href="https://apple.news/AHps_VbIRQuGmIFYQ7zjz3Q">News+</a>):</p>
+
+<blockquote>
+  <p>On a recent Saturday afternoon, Kendall Mayes was mindlessly
+scrolling on X when she noticed an unsettling trend surface on her
+feed. Users were prompting Grok, the platform’s built-in AI
+feature, to “nudify” women’s images. Mayes, a 25-year-old media
+professional from Texas who uses X to post photos with her friends
+and keep up with news, didn’t think it would happen to her — until it did.</p>
+
+<p>“Put her in a tight clear transparent bikini,” an X user ordered
+the bot under a photo that Mayes posted from when she was 20. Grok
+complied, replacing her white shirt with a clear bikini top. The
+waistband of her jeans and black belt dissolved into thin,
+translucent strings. The see-through top made the upper half of
+her body look realistically naked.</p>
+
+<p>Hiding behind an anonymous profile, the user’s page was filled
+with similar images of women, digitally and nonconsensually
+altered and sexualized. Mayes wanted to cuss the faceless user
+out, but decided to simply block the account. She hoped that would
+be the end of it. Soon, however, her comments became littered with
+more images of herself in clear bikinis and skin-tight latex
+bodysuits. Mayes says that all of the requests came from anonymous
+profiles that also targeted other women. Though some users have
+had their accounts suspended, as of publication, some of the
+images of Mayes are still up on X.</p>
+</blockquote>
+
+<p>And:</p>
+
+<blockquote>
+  <p>Emma, a content creator, was at the grocery store when she saw the
+notifications of people asking Grok to undress her images. [...]
+Numbness washed over Emma when the images finally loaded on her
+timeline. A selfie of her holding a cat had been transformed into
+a nude. The cat was removed from the photo, Emma says, and her
+upper body was made naked.</p>
+
+<p>Emma immediately made her account private and reported the images.
+In an email response reviewed by Rolling Stone, X User Support
+asked her to upload an image of her government-issued ID so they
+could look into the report, but Emma responded that she didn’t
+feel comfortable doing so. [...] In our call, she checked to see
+if some of the image edits she was aware of were still up on X.
+They were. “Oh, my God,” she says, letting out a defeated sigh.
+“It has 15,000 views. Oh, that’s so sad.”</p>
+</blockquote>
+
+<p>This fun app is available, free of charge, on the App Store, which means you know it’s safe and approved by Apple. Get it today.</p>
+
+<div>
+<a  title="Permanent link to ‘What It’s Like to Get Undressed by Grok’"  href="https://daringfireball.net/linked/2026/01/27/what-its-like-to-get-undressed-by-grok">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>The Talk Show: ‘A Mitigated Disaster’</title>
+	<link rel="alternate" type="text/html" href="https://daringfireball.net/thetalkshow/2026/01/26/ep-439" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvn" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/the-talk-show-439" />
+	<id>tag:daringfireball.net,2026:/linked//6.42611</id>
+	<published>2026-01-27T01:32:03Z</published>
+	<updated>2026-01-27T01:32:04Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Daniel Jalkut returns to the show so we can both vent about MacOS 26 Tahoe.</p>
+
+<p><audio
+    src = "https://traffic.libsyn.com/secure/daringfireball/thetalkshow-439-daniel-jalkut.mp3"
+    controls
+    preload = "none"
+/></p>
+
+<p><strong>Sponsored by:</strong></p>
+
+<ul>
+<li><a href="https://notion.com/talkshow">Notion</a>: The AI workspace where teams and AI agents get more done together.</li>
+<li><a href="https://squarespace.com/talkshow">Squarespace</a>: Save 10% off your first purchase of a website or domain using code <strong>talkshow</strong>.</li>
+<li><a href="https://sentry.io/talkshow">Sentry</a>: A real-time error monitoring and tracing platform. Use code <strong>TALKSHOW</strong> for $80 in free credits.</li>
+<li><a href="https://factormeals.com/talkshow50off">Factor</a>: Healthy eating, made easy. Get 50% off your first box, plus free breakfast for 1 year, with code <strong>talkshow50off</strong>.</li>
+</ul>
+
+<div>
+<a  title="Permanent link to ‘The Talk Show: ‘A Mitigated Disaster’’"  href="https://daringfireball.net/linked/2026/01/26/the-talk-show-439">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>There’s a Hidden Preference to Auto-Resize Columns in the Finder on MacOS 14 and 15</title>
+	<link rel="alternate" type="text/html" href="https://forums.realmacsoftware.com/t/auto-resizing-columns-in-finder/52435" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvm" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/hidden-pref-column-resizing" />
+	<id>tag:daringfireball.net,2026:/linked//6.42610</id>
+	<published>2026-01-26T23:18:37Z</published>
+	<updated>2026-01-29T01:12:32Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Good tip from “DifferentDan” on the Realmac customer forum, posted back in November:</p>
+
+<blockquote>
+  <p>I saw on macOS Tahoe 26.1, Apple finally added an option in the
+Column View settings to automatically right size all columns
+individually and that setting would persist, but I don’t really
+like Liquid Glass (yet) so I haven’t updated to Tahoe.</p>
+
+<p>Looks like someone found a workaround however for those that are
+still on Sequoia. Just open up Terminal on your Mac, copy in the
+below, and press return.</p>
+</blockquote>
+
+<p>The one-line command:</p>
+
+<pre><code>defaults write com.apple.finder _FXEnableColumnAutoSizing -bool YES; killall Finder
+</code></pre>
+
+<p>(Change <code>YES</code> to <code>NO</code> if you want to go back.)</p>
+
+<p>Marcel Bresink’s <a href="http://www.bresink.com/osx/TinkerTool.html">TinkerTool</a> is a great free app for adjusting hidden preferences using a proper GUI, and it turns out TinkerTool has exposed this hidden Finder preference for a few years now. You learn something every day. I enabled this a few days ago on MacOS 15 Sequoia, and it seems exactly like the implementation Apple has exposed in the Finder’s View Options window in Tahoe, <a href="https://daringfireball.net/2026/01/resize_columns_to_fit_filenames">which I wrote about Friday</a>. No better, no worse.</p>
+
+<div>
+<a  title="Permanent link to ‘There’s a Hidden Preference to Auto-Resize Columns in the Finder on MacOS 14 and 15’"  href="https://daringfireball.net/linked/2026/01/26/hidden-pref-column-resizing">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Nvidia Set to Supplant Apple as TSMC’s Largest Customer</title>
+	<link rel="alternate" type="text/html" href="https://www.cnbc.com/2026/01/26/nvidia-set-to-supplant-apple-as-tsmcs-largest-customer.html" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvl" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/nvidia-apple-tsmc" />
+	<id>tag:daringfireball.net,2026:/linked//6.42609</id>
+	<published>2026-01-26T22:51:12Z</published>
+	<updated>2026-01-26T22:51:12Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Kif Leswing, CNBC:</p>
+
+<blockquote>
+  <p>Nvidia will become TSMC’s largest customer this year, according to
+analyst estimates and Huang himself. Apple is believed to
+currently be TSMC’s largest customer, mostly to manufacture
+A-series chips for iPhones and M-series chips for PCs and servers.</p>
+
+<p>The positional swap will mark a fundamental shift in the
+semiconductor industry, reflecting Nvidia’s growing importance
+amid the artificial intelligence infrastructure build-out. [...]</p>
+
+<p>Ben Bajarin, principal analyst at Creative Strategies, said he
+<a href="https://thediligencestack.com/p/the-reordering-to-aihpc-tsmcs-2026">projects</a> Nvidia to generate $33 billion in TSMC revenue this
+year, or about 22% of the chip foundry’s total. Apple, by
+comparison, is projected to generate about $27 billion, or about
+18% of TSMC’s revenue.</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘Nvidia Set to Supplant Apple as TSMC’s Largest Customer’"  href="https://daringfireball.net/linked/2026/01/26/nvidia-apple-tsmc">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Airlines That Support Shared Item Location for Luggage With AirTags</title>
+	<link rel="alternate" type="text/html" href="https://www.macrumors.com/2026/01/26/airtag-2-airlines-lost-bags/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvj" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/airlines-airtags" />
+	<id>tag:daringfireball.net,2026:/linked//6.42607</id>
+	<published>2026-01-26T22:10:43Z</published>
+	<updated>2026-01-26T22:10:43Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Joe Rossignol, writing at MacRumors:</p>
+
+<blockquote>
+  <p>Apple offers a <a href="https://www.macrumors.com/2024/11/11/apple-announces-airtag-location-sharing/">Share Item Location feature in the Find My
+app</a> that allows you to temporarily share the location of an
+AirTag-equipped item with others, including employees at
+participating airlines. This way, if you put an AirTag inside your
+bags, the airline can better help you find them in the event they
+are lost or delayed at the airport. [...] Below, we have listed
+most of the airlines that support the feature.</p>
+</blockquote>
+
+<p><a href="https://www.apple.com/newsroom/2026/01/apple-introduces-new-airtag-with-expanded-range-and-improved-findability/">Apple’s announcement</a> claims that 36 airlines support it today, and 15 more are coming soon.</p>
+
+<div>
+<a  title="Permanent link to ‘Airlines That Support Shared Item Location for Luggage With AirTags’"  href="https://daringfireball.net/linked/2026/01/26/airlines-airtags">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Apple Introduces Second-Generation AirTags</title>
+	<link rel="alternate" type="text/html" href="https://www.apple.com/newsroom/2026/01/apple-introduces-new-airtag-with-expanded-range-and-improved-findability/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvi" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/airtags-gen-2" />
+	<id>tag:daringfireball.net,2026:/linked//6.42606</id>
+	<published>2026-01-26T22:02:55Z</published>
+	<updated>2026-01-26T22:02:56Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Apple Newsroom:</p>
+
+<blockquote>
+  <p>Apple’s second-generation Ultra Wideband chip — the same chip
+found in the iPhone 17 lineup, iPhone Air, Apple Watch Ultra 3,
+and Apple Watch Series 11 — powers the new AirTag, making it
+easier to locate than ever before. Using haptic, visual, and audio
+feedback, Precision Finding guides users to their lost items from
+up to 50 percent farther away than the previous generation. And an
+upgraded Bluetooth chip expands the range at which items can be
+located. For the first time, users can use Precision Finding on
+Apple Watch Series 9 or later, or Apple Watch Ultra 2 or later, to
+find their AirTag, bringing a powerful experience to the wrist.</p>
+</blockquote>
+
+<p>Solid update to the original AirTags, which <a href="https://www.apple.com/newsroom/2021/04/apple-introduces-airtag/">debuted five years ago</a>. Better range, louder speaker, increased precision. The form factor remains unchanged, so second-gen AirTags will fit in keychains or holders designed for the first-gen model. They even take the same batteries. Pricing also remains unchanged: $29 for one, $99 for a four-pack.</p>
+
+<div>
+<a  title="Permanent link to ‘Apple Introduces Second-Generation AirTags’"  href="https://daringfireball.net/linked/2026/01/26/airtags-gen-2">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/01/app_store_2025_top_iphone_apps_in_the_us" />
+	<link rel="shorturl" href="http://df4.us/wvh" />
+	<id>tag:daringfireball.net,2026://1.42605</id>
+	<published>2026-01-26T21:49:45Z</published>
+	<updated>2026-01-26T22:34:06Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">The only apps in the top 10 not from Google or Meta are ChatGPT (#1) and TikTok (#4).</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p>I’ve been meaning since last month to link to <a href="https://apps.apple.com/us/iphone/story/id1847717004">Apple’s lists of the top iPhone apps in the U.S. for 2025</a>. Here’s the list of the top 20 free iPhone apps:</p>
+
+<ol>
+<li>ChatGPT</li>
+<li>Threads</li>
+<li>Google</li>
+<li>TikTok — Videos, Shop &amp; LIVE</li>
+<li>WhatsApp Messenger</li>
+<li>Instagram</li>
+<li>YouTube</li>
+<li>Google Maps</li>
+<li>Gmail — Email by Google</li>
+<li>Google Gemini</li>
+<li>Facebook</li>
+<li>CapCut: Photo &amp; Video Editor</li>
+<li>Temu: Shop Like a Billionaire</li>
+<li>T-Life [“All things T-Mobile”]</li>
+<li>Telegram Messenger</li>
+<li>Lemon8 — Lifestyle Community</li>
+<li>Spotify: Music and Podcasts</li>
+<li>Google Chrome</li>
+<li>Snapchat</li>
+<li>rednote</li>
+</ol>
+
+<p>All app names are verbatim, except for T-Life, where I put the app’s secondary slogan in brackets. I had no idea what T-Life was, but the slogan makes it clear. Interesting to me that T-Mobile’s app is on the list but neither Verizon nor AT&amp;T’s are.<sup id="fnr1-2026-01-26"><a href="#fn1-2026-01-26">1</a></sup></p>
+
+<p>I hope a million people sent this list to Elon Musk, to rub some salt in his severe case of butt hurt that led him to file <a href="https://arstechnica.com/tech-policy/2025/08/elon-musk-sues-apple-openai-to-block-exclusive-iphone-chatgpt-integration/">an almost certainly baseless lawsuit in August</a> alleging that ChatGPT consistently tops the App Store list — and Grok does not — because Apple puts a thumb on the scale for these rankings because of its deal with OpenAI to integrate ChatGPT with Apple Intelligence. Here’s the thing. Dishonest people presume the whole world is dishonest. That you either cheat and steal, or you’re going to be cheated and robbed. If Elon Musk ran the App Store, you can be sure that he’d cook the rankings to put apps that he owns, or even just favors, on top. Elon Musk runs Twitter/X, and <a href="https://news.sky.com/story/the-x-effect-how-elon-musk-is-boosting-the-british-right-13464487">that’s how the algorithm there now works</a>: it favors content he prefers, especially his own tweets. Apple doesn’t publish how its lists for top apps are computed (to keep the rankings from being gamed more than they already inevitably are), but judging by how many of these apps come from Apple’s rivals (e.g., Spotify), there’s little reason to think they’re crooked — unless you think the entire world is crooked.</p>
+
+<p>Google has 6 apps on the list, including 5 in the top 10. Meta — certainly no friend of Apple — has 4 apps on the list, including 3 in the top 10. (Slightly interesting, but unsurprising, sign of the times: the Facebook “blue app” dropped out of the top 10.) The only apps in the top 10 not from Google or Meta are ChatGPT (#1) and TikTok (#4).</p>
+
+<p>Microsoft has no apps on the list. <a href="https://www.macworld.com/article/162987/macbu-4.html">Back in the day</a>, the conventional wisdom was that Microsoft made more money, on average, from each Mac sold than they did from each PC sold — despite the fact that nearly all PCs came with a licensed version of Windows — because so many Mac users paid for Microsoft Office at retail prices. I suspect something like that is true with iPhones for Google. A lot of iPhone users spend a lot of time using apps from Google. I would bet that Google makes more ad revenue from the average iPhone user (who, even if they don’t install a single one of Google’s native iOS apps, probably uses Google Search in Safari) than from the average Android user.</p>
+
+<p>Another company that has no apps on this list is Apple itself. If you look at <a href="https://apps.apple.com/us/iphone/charts/6007?chart=top-free">the daily top list of apps in the Productivity category</a>, you will see a lot of apps from Google and Microsoft. But you won’t find Keynote, Pages, or Numbers, because Apple recuses its own apps from such rankings. </p>
+
+<p>Here’s the list of the top 20 <em>paid</em> iPhone apps in 2025 in the U.S.:</p>
+
+<ol>
+<li>HotSchedules</li>
+<li>Shadowrocket</li>
+<li>Procreate Pocket</li>
+<li>AnkiMobile Flashcards</li>
+<li>Paprika Recipe Manager 3</li>
+<li>SkyView®</li>
+<li>TonalEnergy Tuner &amp; Metronome</li>
+<li>AutoSleep Track Sleep on Watch</li>
+<li>Forest: Focus for Productivity</li>
+<li>RadarScope      </li>
+<li>Monash FODMAP Diet</li>
+<li>Merge Watermelon for watch</li>
+<li>Streaks</li>
+<li>Wipr 2</li>
+<li>µBrowser: Watch Web Browser</li>
+<li>PeakFinder</li>
+<li>Threema. The Secure Messenger</li>
+<li>Things 3</li>
+<li>Goblin Tools</li>
+<li>¡Verify Basic</li>
+</ol>
+
+<p>There are a couple of real gems on this list — Procreate, Paprika, Streaks (<a href="https://daringfireball.net/feeds/sponsors/2016/05/streaks">multi</a>-<a href="https://daringfireball.net/feeds/sponsors/2024/11/streaks_and_little_streaks">time</a> DF sponsor), and Things are all apps that I use, or have used, and would recommend. But unlike the list of top free apps, where I’d at least heard of all of them (once I figured out what T-Life was), I have never even heard of most of these paid iPhone apps. Household names these are not.</p>
+
+<p>The market for paid apps isn’t just different from the market for free apps. It’s an entirely different world.</p>
+
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1-2026-01-26">
+<p>This, in turn made me wonder what the subscriber-count standings look like. I assumed T-Mobile was still in third place, but that assumption was wrong. <a href="https://en.wikipedia.org/wiki/List_of_mobile_network_operators_in_the_United_States">According to Wikipedia</a>, here are the number of U.S. subscribers per carrier as of Q3 2025:</p>
+
+<ol>
+<li>Verizon — 146 million</li>
+<li>T-Mobile — 140 million</li>
+<li>AT&amp;T — 119 million</li>
+<li>Boost — 8 million</li>
+</ol>
+
+<p>I’m a Verizon man myself, and <a href="https://daringfireball.net/linked/2026/01/16/verizon-20-bucks">pay handsomely for it</a>. I don’t even remember why exactly, but I despised AT&T back when they were the exclusive U.S. carrier for the iPhone.&nbsp;<a href="#fnr1-2026-01-26"  class="footnoteBackLink"  title="Jump back to footnote 1 in the text.">&#x21A9;&#xFE0E;</a></p>
+</li>
+</ol>
+</div>
+
+
+
+    ]]></content>
+  <title>★ App Store 2025 Top iPhone Apps in the U.S.</title></entry><entry>
+	<title>From the DF Archive: ‘Untitled Document Syndrome’</title>
+	<link rel="alternate" type="text/html" href="https://daringfireball.net/2009/02/untitled_document_syndrome" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvg" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/from-the-df-archive-untitled-document-syndrome" />
+	<id>tag:daringfireball.net,2026:/linked//6.42604</id>
+	<published>2026-01-26T20:32:46Z</published>
+	<updated>2026-01-27T01:34:52Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Yours truly back in 2009, hitting upon the same themes from <a href="https://daringfireball.net/linked/2026/01/26/chayka-textedit">the item I just posted</a> about TextEdit vs. Apple Notes:</p>
+
+<blockquote>
+  <p>This, I think, explains the relative popularity of Mac OS X’s
+included Stickies application. For years, Stickies’s popularity
+confounded me. Why would anyone use a note-taking utility that
+requires you to leave every saved note open in its own window on
+screen? The more you use it, the more cluttered it gets. But
+here’s the thing: cluttered though it may be, <em>you never have to
+save anything in Stickies</em>. Switch to Stickies, Command-N, type
+your new note, and you’re done. (And, yes, if you create a new
+sticky note, then force-quit Stickies, the note you just created
+will be there when next you launch the app. Stickies’s auto-save
+happens while you type, not just at quit time.) It feels easy and
+it feels safe. Stickies does not offer a good long-term storage
+design, but it offers a frictionless short-term
+jot-something-down-right-now design.</p>
+</blockquote>
+
+<p>Here we are in 2026, 17 years later, and, unsurprisingly, some things have changed. Apple Notes didn’t get a Mac version until Mac OS X 10.8 Mountain Lion in 2012. And Apple Notes didn’t really get <em>good</em> until 2016 or 2017. I still use Yojimbo, the library-based Mac app I wrote about in the above piece in 2009, but I don’t use it nearly as much as I used to. I use Apple Notes instead, for most notes, because it has good clients for iPhone and iPad (and Vision Pro and even Apple Watch).</p>
+
+<p>Other things, however, have not changed since 2009. Like the Stickies app, which is still around in MacOS 26 Tahoe, largely unchanged, except for <a href="https://onefoottsunami.com/2025/11/05/tahoes-terrible-icons/#:~:text=STICKIES">a sad Liquid Glass-style icon</a>. If you still use Stickies, you should consider moving to Apple Notes. There’s even a command (File → Export All to Notes...) to import all your notes from Stickies into Apple Notes, with subfolders in Notes for each color sticky note. Apple Notes on the Mac even supports one of Stickies’s signature features: the Window → Float on Top command will keep a note’s window floating atop the windows from other apps even when Apple Notes is in the background.</p>
+
+<p>(Stickies has another cool feature that no other current app I know of does: it still supports “<a href="https://en.wikipedia.org/wiki/WindowShade">window shading</a>”. Double-click the title bar of a note in Stickies and the rest of the window will “roll up”, leaving only the title bar behind. Double-click again and it rolls down. This was a built-in feature for all windows in all apps on classic Mac OS, starting with Mac OS 8, but was replaced in favor of minimizing windows into the Dock with Mac OS X. Window shading was a better feature (and could have been kept <em>alongside</em> minimizing into the Dock). With the Stickies app, window shading works particularly well with the aforementioned Float on Top feature — you can keep a floating window available, atop all other windows, but while it’s rolled up it hardly takes up any space or obscures anything underneath.)</p>
+
+<div>
+<a  title="Permanent link to ‘From the DF Archive: ‘Untitled Document Syndrome’’"  href="https://daringfireball.net/linked/2026/01/26/from-the-df-archive-untitled-document-syndrome">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>‘TextEdit and the Relief of Simple Software’</title>
+	<link rel="alternate" type="text/html" href="https://www.newyorker.com/culture/infinite-scroll/textedit-and-the-relief-of-simple-software" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvf" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/chayka-textedit" />
+	<id>tag:daringfireball.net,2026:/linked//6.42603</id>
+	<published>2026-01-26T19:54:55Z</published>
+	<updated>2026-01-27T15:31:59Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Perhaps at the opposite end of the complexity and novelty spectrum from <a href="https://daringfireball.net/linked/2026/01/26/viticci-on-clawdbot">Federico Viticci’s intro to Clawdbot</a> is <a href="https://www.newyorker.com/culture/infinite-scroll/textedit-and-the-relief-of-simple-software">this piece by Kyle Chayka</a>, writing at The New Yorker, from October:</p>
+
+<blockquote>
+  <p>Amid the accelerating automation of our computers — and the
+proliferation of assistants and companions and agents designed to
+execute tasks for us — I’ve been thinking more about the desktop
+that’s hidden in the background of the laptop I use every day.
+Mine is strewn with screenshots and Word documents and e-books.
+What I’ve accrued the most of by far, though, are TextEdit files,
+from the bare-bones Mac app that just lets you type stuff into a
+blank window. Apple computers have come with text-editing software
+since the original Mac was released, in 1984; the current
+iteration of the program launched in the mid-nineties and has
+survived relatively unchanged. Over the past few years, I’ve found
+myself relying on TextEdit more as every other app has grown more
+complicated, adding cloud uploads, collaborative editing, and now
+generative A.I. TextEdit is not connected to the internet, like
+Google Docs. It is not part of a larger suite of workplace
+software, like Microsoft Word. You can write in TextEdit, and you
+can format your writing with a bare minimum of fonts and styling.
+Those files are stored as RTFs (short for rich-text format), one
+step up from the most basic TXT file. TextEdit now functions as my
+to-do-list app, my e-mail drafting window, my personal calendar,
+and my stash of notes to self, which act like digital Post-its.</p>
+
+<p>I trust in TextEdit. It doesn’t redesign its interface without
+warning, the way Spotify does; it doesn’t hawk new features, and
+it doesn’t demand I update the app every other week, as Google
+Chrome does. I’ve tried out other software for keeping track of my
+random thoughts and ideas in progress — the personal note-storage
+app Evernote; the task-management board Trello; the collaborative
+digital workspace Notion, which can store and share company
+information. Each encourages you to adapt to a certain philosophy
+of organization, with its own formats and filing systems. But
+nothing has served me better than the brute simplicity of
+TextEdit, which doesn’t try to help you at all with the process of
+thinking. Using the app is the closest you can get to writing
+longhand on a screen. I could make lists on actual paper, of
+course, but I’ve also found that my brain has been so irredeemably
+warped by keyboards that I can only really get my thoughts down by
+typing.</p>
+</blockquote>
+
+<p>Old habits are hard to break. And trust me, I, <a href="https://daringfireball.net/projects/markdown/">of all people</a>, know the value of writing stuff — all sorts of stuff — in plain text files. (RTF isn’t plain text, but it is a stable and standard format.) I’ve been using BBEdit <a href="https://www.barebones.com/company/history.html">since 1992</a>, not just as an occasional utility, but as part of my daily arsenal of essential tools.</p>
+
+<p>But I get the feeling that Chayka would be better served switching from TextEdit to Apple Notes for most of these things he’s creating. Saving a whole pile of notes to yourself as text files on your desktop, with no organization into sub-folders, isn’t wrong. The whole point of “just put it on the desktop” is to absolve yourself of thinking about where to file something properly. That’s friction, and if you face a bit of friction every time you want to jot something down, it increases the likelihood that <em>you won’t jot it down</em> because you didn’t want to deal with the friction.</p>
+
+<p>You actually don’t need to save or name documents in TextEdit anymore. One of the best changes to MacOS in the last two decades has been <a href="https://support.apple.com/guide/mac-help/change-desktop-dock-settings-mchlp1119/15.0/mac">the  persistence of open document windows</a>, including unsaved changes to existing files, and never-saved untitled document windows. Try this: open TextEdit, make a new untitled document, and type something — anything — into the new window. Next, don’t just quit TextEdit, but force quit it (⌥⌘Esc). Relaunch TextEdit, and your unsaved new document should be right where you left it, with every character you typed.</p>
+
+<p>But a big pile of unorganized RTF files on your desktop — or a big pile of unsaved document windows that remain open, in perpetuity, in TextEdit — is no way to live. You can use TextEdit like that, it <em>supports</em> being used like that, but it wasn’t <em>designed</em> to be used like that.</p>
+
+<p>Apple Notes was designed to be used like this. Open Notes, ⌘N, type whatever you want, and switch back to whatever you were doing before. There is no Save command. There are no files. And while a few dozen text files on your desktop starts to look messy, and makes individual items hard to find, you can stash <em>thousands</em> of notes in Apple Notes and they just organize themselves into a simple list, sorted, by default, by most recently modified. You can create folders and assign tags in Notes, but you don’t need to. Don’t make busy work for yourself. And with iCloud, you get fast reliable syncing of all your notes to all of your other Apple devices: iPhone, iPad, Vision Pro, <a href="https://support.apple.com/guide/watch/create-and-view-notes-apdc6fb0a03f/watchos">even your Watch now</a>.</p>
+
+<p>Sometimes you just want to stick with what you’re used to. I get it. I am, very much, a creature of habit. And TextEdit is comforting for its simplicity, reliability, and unchanging consistency spanning literally decades. But there’s no question in my mind that nearly everyone using TextEdit as a personal notes system would be better served — and happier, once they adjust to the change — by switching to Apple Notes.</p>
+
+<div>
+<a  title="Permanent link to ‘‘TextEdit and the Relief of Simple Software’’"  href="https://daringfireball.net/linked/2026/01/26/chayka-textedit">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Federico Viticci on Clawdbot</title>
+	<link rel="alternate" type="text/html" href="https://www.macstories.net/stories/clawdbot-showed-me-what-the-future-of-personal-ai-assistants-looks-like/" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wve" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/26/viticci-on-clawdbot" />
+	<id>tag:daringfireball.net,2026:/linked//6.42602</id>
+	<published>2026-01-26T17:58:37Z</published>
+	<updated>2026-01-27T20:18:47Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>Federico Viticci, writing at MacStories:</p>
+
+<blockquote>
+  <p>If this intro just gave you whiplash, imagine my reaction when I
+first started playing around with <a href="https://clawd.bot/">Clawdbot</a>, the incredible
+<a href="https://github.com/clawdbot/clawdbot">open-source project</a> by <a href="https://steipete.me/">Peter Steinberger</a> (a name
+that should be <a href="https://www.macstories.net/linked/ios-10-3-beta-re-introduces-warning-for-old-32-bit-apps-suggests-future-incompatibility/">familiar to longtime MacStories readers</a>)
+that’s become <em>very</em> popular in certain AI communities over the
+past few weeks. I kept seeing Clawdbot being mentioned by people I
+follow; eventually, I gave in to peer pressure, followed the
+instructions provided by the funny crustacean mascot on the app’s
+<a href="https://docs.clawd.bot/start/getting-started">website</a>, installed Clawdbot on my new M4 Mac mini (which
+is not my main production machine), and <a href="https://docs.clawd.bot/channels/telegram">connected it to
+Telegram</a>.</p>
+
+<p>To say that Clawdbot has fundamentally altered my perspective of
+what it means to have an intelligent, personal AI assistant in
+2026 would be an understatement. I’ve been playing around with
+Clawdbot so much, I’ve burned through 180 million tokens on the
+Anthropic API ( <em>yikes</em> ), and I’ve had fewer and fewer
+conversations with the “regular” Claude and ChatGPT apps in the
+process. Don’t get me wrong: Clawdbot is a nerdy project, a
+tinkerer’s laboratory that is not poised to overtake the
+popularity of consumer LLMs any time soon. Still, Clawdbot points
+at a fascinating future for digital assistants, and it’s exactly
+the kind of bleeding-edge project that MacStories readers will
+appreciate.</p>
+
+<p>Clawdbot can be overwhelming at first, so I’ll try my best to
+explain what it is and why it’s so exciting and fun to play
+around with.</p>
+</blockquote>
+
+<p>Overwhelming indeed. Clawdbot is undeniably impressive, and <a href="https://x.com/steipete/status/2015828441342292139">interest in it is skyrocketing</a>. But because of its complexity and scope, it’s one of those things where all the excitement is being registered by people who already understand it. This essay from Viticci is the first thing I’ve seen that really helped me <em>start</em> to understand it.</p>
+
+<div>
+<a  title="Permanent link to ‘Federico Viticci on Clawdbot’"  href="https://daringfireball.net/linked/2026/01/26/viticci-on-clawdbot">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+	<title>Meh</title>
+	<link rel="alternate" type="text/html" href="https://meh.com/go/df" />
+	<link rel="shorturl" type="text/html" href="http://df4.us/wvd" />
+	<link rel="related" type="text/html" href="https://daringfireball.net/linked/2026/01/25/meh" />
+	<id>tag:daringfireball.net,2026:/linked//6.42601</id>
+	<published>2026-01-25T17:04:18Z</published>
+	<updated>2026-01-26T23:30:07Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<content type="html" xml:base="https://daringfireball.net/linked/" xml:lang="en"><![CDATA[
+<p>My thanks to Meh for sponsoring last week at DF. Meh puts up a new deal every day, and they do it with panache. As they say, “It’s actual, real, weird shit you didn’t know existed for half the price you would’ve guessed.”</p>
+
+<p>Don’t tell any of my other sponsors, but <a href="https://meh.com/go/df">Meh</a> is my favorite <a href="https://daringfireball.net/feeds/sponsors/archive">longtime DF sponsor</a>. I love the way their orange graphics look against DF’s <code>#4a525a</code> background. And I always love their sponsored posts that go into the RSS feed at the start of the sponsorship week. I’ll just quote theirs from this week in full:</p>
+
+<blockquote>
+  <p>Everything sucks. The whole world’s going to shit, especially our
+part of it, and it can feel like anything fun or silly is sticking
+your head in the sand.</p>
+
+<p>And yet. It doesn’t help to just be miserable. If you’re going to
+last, you’ve got to find your little moments of joy, or as a break
+from the misery.</p>
+
+<p>Buying our crap at Meh is not how you solve the world’s problems.
+We’re not that crass. But maybe a minute a day of reading our
+little write-up, and a couple minutes of catching up with the Meh
+community, of making a few new online friends, and yes, of
+occasionally picking up a weird gadget or strange snack you’ve
+never heard of is just a few minutes you get to take a break, not
+giving in to how bad everything else is.</p>
+
+<p>Of course we would say that. Of course we benefit from that.
+But it is also part of why we have a quirky write-up. Why we
+have a community. Why we’re selling whatever weird thing is
+over at Meh today.</p>
+</blockquote>
+
+<div>
+<a  title="Permanent link to ‘Meh’"  href="https://daringfireball.net/linked/2026/01/25/meh">&nbsp;★&nbsp;</a>
+</div>
+
+	]]></content>
+  </entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/01/ios_26_adoption_rate_is_not_bizarrely_low" />
+	<link rel="shorturl" href="http://df4.us/wvc" />
+	<id>tag:daringfireball.net,2026://1.42600</id>
+	<published>2026-01-25T00:14:52Z</published>
+	<updated>2026-02-17T19:31:01Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">A change to how Safari reports the OS it is running on led many in the media to lose their minds.</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p>A few weeks ago there were a rash of stories claiming that iOS 26 is seeing bizarrely low adoption rates from iPhone users. The methodology behind these numbers is broken and the numbers are totally wrong. Those false numbers are so low, so jarringly different from previous years, that it boggles my mind that they didn’t raise a red flag for anyone who took a moment to consider them.</p>
+
+<p>The ball started rolling with this post from Ed Hardy at Cult of Mac on January 8, “<a href="https://www.cultofmac.com/news/ios-26-adoption-struggles-with-iphone-users">iOS 26 Still Struggles to Gain Traction With iPhone Users</a>”, which began:</p>
+
+<blockquote>
+  <p>Only a tiny percentage of iPhone users have installed iOS 26,
+according to data from a web analytics service. The adoption rate
+is far less than previous iOS versions at this same point months
+after their releases. The data only reveals how few iPhone users
+run Apple’s latest operating system upgrade, not why they’ve
+chosen to avoid it. But the most likely candidate is the new
+Liquid Glass look of the update. [...]</p>
+
+<p>Roughly four months after launching in mid-September, <a href="https://gs.statcounter.com/ios-version-market-share/mobile-tablet/worldwide/#monthly-202601-202601-bar">only about
+15% of iPhone users have some version of the new operating system
+installed</a>. That’s according to data for January 2026 from
+StatCounter. Instead, most users hold onto previous versions.</p>
+
+<p>For comparison, in January 2025, about <a href="https://gs.statcounter.com/ios-version-market-share/mobile-tablet/worldwide/#monthly-202501-202501-bar">63% of iPhone users had
+some iOS 18 version</a> installed. So after roughly the same
+amount of time, the adoption rate of Apple [<em>sic</em>] newest OS was
+about four times higher.</p>
+</blockquote>
+
+<p>Those links point to Statcounter, a web analytics service. A lot of websites include Statcounter’s analytics tracker, and Statcounter’s tracker attempts to determine the version of the OS each visitor’s device is running. The problem is, starting with Safari 26 — the version that ships with iOS 26 — Safari changed how it reports its user agent string. From the WebKit blog, “<a href="https://webkit.org/blog/17333/webkit-features-in-safari-26-0/">WebKit Features in Safari 26.0</a>”:</p>
+
+<blockquote>
+  <p>Also, now in Safari on iOS, iPadOS, and visionOS 26 the user agent
+string no longer lists the current version of the operating
+system. Safari 18.6 on iOS has a UA string of:</p>
+
+<p><code>Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X)
+AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6
+Mobile/15E148 Safari/604.1</code></p>
+
+<p>And Safari 26.0 on iOS has a UA string of:</p>
+
+<p><code>Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X)
+AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0
+Mobile/15E148 Safari/604.1</code></p>
+
+<p>This matches the long-standing behavior on macOS, where the user
+agent string for Safari 26.0 is:</p>
+
+<p><code>Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0
+Safari/605.1.15</code></p>
+
+<p>It was back in 2017 when Safari on Mac first started freezing the
+Mac OS string. Now the behavior on iOS, iPadOS, and visionOS does
+the same in order to minimize compatibility issues. The WebKit and
+Safari version number portions of the string will continue to
+change with each release.</p>
+</blockquote>
+
+<p>In other words, Safari now reports, in its user agent string, that it’s running on iOS 18.6 when it is running on iOS 18.6, and reports that it’s running on iOS 18.6 <em>when it’s running on iOS 26.0 or later</em>. And it’s going to keep reporting that it’s running on iOS 18.6 forever, just like how Safari 26 on MacOS reports that it’s running on MacOS 10.15 Catalina, from 2019.</p>
+
+<p>Statcounter completely dropped the ball on this change, and it explains the entirety of this false narrative that iOS 26 adoption is incredibly low. (Statcounter has a <a href="https://gs.statcounter.com/detect">“detect” page</a> where you can see what browser and OS it thinks you’re using.) The reason they reported that 15 percent of iPhone users were using iOS 26 is probably because that’s the amount of web traffic Statcounter sees from iOS 26 web browsers that aren’t Safari (most of which, I’ll bet, are in-app browser views in social media apps).</p>
+
+<p>Nick Heer, at Pixel Envy, <a href="https://pxlnv.com/blog/updating-the-record-on-ios-26/">wrote a good piece delving into this saga</a>. And then he <a href="https://pxlnv.com/linklog/ios-26-usage-updates/">posted a follow-up item</a> pointing out that (a) Statcounter’s CEO has acknowledged their error and they’re fixing it; and (b) Wikimedia publishes network-wide stats that serve as a good baseline. The audience for Wikipedia is, effectively, the audience for the web itself. And Wikipedia’s stats show that while iOS 26 adoption, in January 2026, isn’t absurdly low (as Statcounter had been suggesting, erroneously, and writers like <a href="https://www.cultofmac.com/news/ios-26-adoption-struggles-with-iphone-users">Ed Hardy at Cult of Mac</a> and <a href="https://www.macworld.com/article/3022985/ios-26s-failure-shows-what-happens-when-you-take-customers-for-granted.html">David Price</a> <a href="https://www.macworld.com/article/3028428/ios-26-is-a-massive-flop-with-iphone-users-and-you-can-probably-guess-why.html">at Macworld</a> foolishly regurgitated, no matter how little sense it made that the numbers would be <em>that</em> low), they are in fact lower than those for iOS 18 a year ago and iOS 17 two years ago. Per Wikimedia:</p>
+
+<ul>
+<li>iOS 26, January 2026: 50%</li>
+<li>iOS 18, January 2025: 72%</li>
+<li>iOS 17, January 2024: 65%</li>
+</ul>
+
+<p>So, no, iOS 26 adoption isn’t at just 15 percent, which only a dope would believe, but it’s not as high as previous iOS versions in previous years at this point on the calendar. Something, obviously, is going on.</p>
+
+<p>David Smith, developer of popular apps like <a href="https://apps.apple.com/us/app/widgetsmith/id1523682319">Widgetsmith</a> and <a href="https://apps.apple.com/us/app/pedometer/id712286167">Pedometer++</a>, <a href="https://mastodon.social/@_Davidsmith/115932682921860872">on Mastodon</a>:</p>
+
+<blockquote>
+  <p>I noticed iOS 26 adoption had entered a ‘third wave’ of rapid
+adoption. So I made a graph of the relative adoption versus iOS 18
+at this point in the release cycle.</p>
+
+<p>While lower than iOS 18 at this point for my apps (65% vs. 78%),
+the shape of this graph says to me that Apple is in full control
+of the adoption rate and can tune it to their plans. The
+coordinated surges are Apple dialing up automatic updates.</p>
+
+<p>If this surge were as long as previous ones, we’d hit the
+saturation point very soon.</p>
+
+<p><a href="https://mastodon.social/@_Davidsmith/115932682921860872" class="noborder">
+ <img
+  src = "https://daringfireball.net/misc/2026/01/david-smith-ios-v26-v18-adoption.png"
+  alt = "Chart of iOS 26 vs. iOS 18 adoption, day-by-day after each version was released."
+  width = 500
+ /></a></p>
+</blockquote>
+
+<p>What’s going on, quite obviously, is that Apple itself is slow-rolling the automatic updates to iOS 26. For years now Apple has steered users, via default suggestions during device setup, to adopt settings to allow OS updates to happen automatically, including updates to major new versions. Apple tends not to push these automatic updates to major new versions of iOS until two months after the .0 release in September. This year that second wave was delayed by about two weeks, and there’s now a third wave starting midway through January. It’s a different pattern from previous years — but it’s a pattern Apple controls. A large majority of users of all Apple devices get major OS updates when, and only when, their devices automatically update. Apple has been slower to push those updates to iOS 26 than they have been for previous iOS updates in recent years. With good reason! iOS 26 is a more significant — and buggier — update than iOS 18 and 17 were.</p>
+
+<p>People like <em>you</em>, readers of Daring Fireball, may well be hesitant to update to iOS 26, or (<a href="https://daringfireball.net/2026/01/resize_columns_to_fit_filenames">like me</a>) to MacOS 26, or to any of the version 26 OS updates, because you are aware of things (like UI changes) that you are loath to adopt.</p>
+
+<p>But the overwhelming majority of Apple users — especially iPhone users — just let their devices update automatically. They might like iOS 26’s changes, they might dislike them, or they might not care or even notice. But they just let their software updates happen automatically — and they will form the entirety of their opinions regarding iOS 26 after it’s running on their iPhones.</p>
+
+<p>[<strong>Update, 17 February 2026:</strong> “<a href="https://daringfireball.net/2026/02/apple_releases_ios_26_adoption_rates">Apple Releases iOS 26 Adoption Rates, and They’re Pretty Much in Line With the Last Few Years</a>”.]</p>
+
+
+
+    ]]></content>
+  <title>★ The iOS 26 Adoption Rate Is Not Bizarrely Low Compared to Previous Years</title></entry><entry>
+    
+    <link rel="alternate" type="text/html" href="https://daringfireball.net/2026/01/resize_columns_to_fit_filenames" />
+	<link rel="shorturl" href="http://df4.us/wvb" />
+	<id>tag:daringfireball.net,2026://1.42599</id>
+	<published>2026-01-24T03:38:53Z</published>
+	<updated>2026-01-26T23:39:20Z</updated>
+	<author>
+		<name>John Gruber</name>
+		<uri>http://daringfireball.net/</uri>
+	</author>
+	<summary type="text">The unpolished version of the feature we have today only reiterates my belief that Tahoe is a mistake to be avoided. It’s a good idea though, and there aren’t even many of those in Tahoe.</summary>
+	<content type="html" xml:base="https://daringfireball.net/" xml:lang="en"><![CDATA[
+<p>The main reason I’m sticking with MacOS 15 Sequoia, refusing to install 26 Tahoe, is that there are so many <a href="https://daringfireball.net/linked/2026/01/22/macos-26-tahoe-broke-column-view-in-the-finder">severe UI regressions</a> in Tahoe. The <a href="https://daringfireball.net/linked/2026/01/06/nielsen-icons-in-menus">noisy, distracting, inconsistent icons</a> prefixing menu item commands, <a href="https://daringfireball.net/linked/2026/01/05/hard-to-justify-tahoe-icons">ruining the Mac’s signature menu bar system</a>. Indiscriminate transparency that renders so many menus, windows, and sidebars <a href="https://eclecticlight.co/2025/11/09/last-week-on-my-mac-tahoe-26-1-disappointments/">inscrutable and ugly</a>. Windows with childish round corners that are <a href="https://daringfireball.net/2026/01/resizing_windows_macos_26">hard to resize</a>. The <a href="https://daringfireball.net/linked/2025/11/07/tahoes-terrible-icons">comically sad app icons</a>. Why choose to suffer?</p>
+
+<p>But the thing that makes the decision to stay on 15 Sequoia a cinch is that I honestly struggle to think of <em>any</em> features in Tahoe that I’m missing out on. What is there to actually <em>like</em> about Tahoe? One small example is Apple’s Journal app. I’ve been using Journal ever since it debuted as an iPhone-only app in iOS 17.2 in December 2023. 785 entries and counting. With the version 26 OSes, Apple created versions of Journal for iPad and Mac (but not Vision Pro). Syncing works great via iCloud too. All things considered, I’d like to have a version of Journal on my main Mac. But I’m fine without it. I’ve been writing entries without a Mac app since 2023, so I’ll continue doing what I’ve been doing, if I want to create or edit a Journal entry from my Mac: using <a href="https://daringfireball.net/linked/2026/01/19/menu-bar-title-bar-whats-the-difference">iPhone Mirroring</a>.</p>
+
+<p>That’s it. The Journal app is the one new feature Tahoe offers that I wish I had today. I’m not missing out on the latest version of Safari because <a href="https://developer.apple.com/documentation/safari-release-notes/safari-26_2-release-notes">Apple makes Safari 26 available for MacOS 15 Sequoia</a> (and even 14 Sonoma). Some years, Apple adds <a href="https://support.apple.com/guide/iphone/enter-formulas-and-equations-iphb9c2b948f/ios">new features</a> to Apple Notes, and to get those features on every device, you need to update every device to that year’s new OS. This year I don’t think there are any features like that. Everything is perfectly cromulent running iOS 26 on my iPhone and iPad, but sticking with MacOS 15 Sequoia on my primary Mac.</p>
+
+<p>But now that we’ve been <a href="https://daringfireball.net/linked/2026/01/22/macos-26-tahoe-broke-column-view-in-the-finder">poking around at column view</a> in the Tahoe Finder, <a href="https://lapcatsoftware.com/articles/2026/1/8.html">Jeff Johnson has discovered another enticing new feature</a>. On Mac OS 26, the Finder has a new view option (accessed via View → Show View Options) to automatically resize columns to fit the longest visible filename. <a href="https://lapcatsoftware.com/articles/2026/1/8.html">See Johnson’s post</a> for screenshots of the new option in practice.</p>
+
+<p>[<strong>Update:</strong> <a href="https://daringfireball.net/linked/2026/01/26/hidden-pref-column-resizing">Turns out</a>, this auto-resizing feature has been a hidden preference setting in the Finder for a few years now.]</p>
+
+<p>Column view is one of the best <a href="https://infinitemac.org/1989/NeXTStep%201.0">UI innovations from NeXTStep</a>, and if you think about it, has always been the primary metaphor for browsing hierarchical applications in iOS. It’s a good idea for the desktop that proved foundational for mobile. The iPhone Settings app is column view — one column at a time. It’s a way to organize a multi-screen app in a visual, spatial way even when limited to a 3.5-inch display.</p>
+
+<p>Thanks to <a href="https://web.archive.org/web/20000302055440/http://www.kaleidoscope.net/greg/browser.html">Greg’s Browser</a>, a terrific indie app, I’d been using column view on classic Mac OS since 1993, a few years before Apple even bought NeXT, let alone finally shipped Mac OS X (which was when column view first appeared in the Finder). One frustration inherent to column view is that it doesn’t work well with long filenames. It’s a waste of space to resize all columns to a width long enough to accommodate long filenames, but it’s frustrating when a long filename doesn’t fit in a regular-width column.</p>
+
+<p>This new feature in the Tahoe Finder attempts to finally solve this problem. I played around with it this afternoon and it’s ... OK. It feels like an early prototype for what could be a polished feature. For example, it exacerbates some layering bugs in the Finder — if you attempt to rename a file or folder that is partially scrolled under the sidebar, the Tahoe Finder will just draw the rename editing field right on top of the sidebar, even though it belongs to the layer that is scrolled underneath. Here’s what it looks like when I rename a folder named “Example ƒ” to “How is this possible?”:</p>
+
+<p><a href="https://daringfireball.net/misc/2026/01/tahoe-finder-rename-glitch.png" class="noborder">
+  <img
+    src = "https://daringfireball.net/misc/2026/01/tahoe-finder-rename-glitch.png"
+    alt = "Renaming a folder in MacOS 26 Tahoe. The rename editing field from the underlying column is rendered on top of the sidebar."
+    width = 500
+  /></a></p>
+
+<p>On MacOS 15, if you attempt to rename an item that is scrolled under the sidebar in column view, the column containing that item snaps into place next to the sidebar, so it’s fully visible. That snapping into place just feels right. The way Tahoe works, where the column doesn’t move and the text editing field for the filename just gets drawn on top of the sidebar, feels gross, like I’m using a computer that is not a Macintosh. Amateur hour.</p>
+
+<p>I wish I could set this new column-resizing option only to grow columns to accommodate long filenames, and never to shrink columns when the visible items all have short filenames. But the way it currently works, it adjusts all columns to the width of the longest visible filename each column is displaying — narrowing some, and widening others. I want most columns to stay at the default width. With this new option enabled, it looks a bit higgledy-piggledy that every column is a different width.</p>
+
+<p>Also, it’s an obvious shortcoming that the feature only adjusts columns to the size of the longest <em>currently visible</em> filename. If you scroll down in a column and get to a filename that is too long to fit, nothing happens. It just doesn’t fit.</p>
+
+<p>Even a future polished version of this column view feature wouldn’t, in and of itself, be enough to tempt me to upgrade to Tahoe. After 30-some years of columns that don’t automatically adjust their widths, I can wait another year. But we don’t yet have a polished version of this feature. The unpolished version of the feature we have today only reiterates my belief that Tahoe is a mistake to be avoided. It’s a good idea though, and there aren’t even many of those in Tahoe.</p>
+
+
+
+    ]]></content>
+  <title>★ Tahoe Added a Finder Option to Resize Columns to Fit Filenames</title></entry></feed><!-- THE END -->

@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="UTF-8"?><feed
+	xmlns="http://www.w3.org/2005/Atom"
+	xmlns:thr="http://purl.org/syndication/thread/1.0"
+	xml:lang="en-US"
+	>
+	<title type="text">The Verge</title>
+	<subtitle type="text">The Verge is about technology and how it makes us feel. Founded in 2011, we offer our audience everything from breaking news to reviews to award-winning features and investigations, on our site, in video, and in podcasts.</subtitle>
+
+	<updated>2026-02-21T21:58:54+00:00</updated>
+
+	<link rel="alternate" type="text/html" href="https://www.theverge.com" />
+	<id>https://www.theverge.com/rss/index.xml</id>
+	<link rel="self" type="application/atom+xml" href="https://www.theverge.com/rss/index.xml" />
+
+	<icon>https://platform.theverge.com/wp-content/uploads/sites/2/2025/01/verge-rss-large_80b47e.png?w=150&amp;h=150&amp;crop=1</icon>
+		<entry>
+			
+			<author>
+				<name>Terrence O’Brien</name>
+			</author>
+			
+			<title type="html"><![CDATA[Arturia’s FX Collection 6 adds two new effects and a $99 intro version]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/tech/882852/arturia-fx-collection-6" />
+			<id>https://www.theverge.com/?p=882852</id>
+			<updated>2026-02-21T16:11:20-05:00</updated>
+			<published>2026-02-21T16:10:01-05:00</published>
+			<category scheme="https://www.theverge.com" term="Apps" /><category scheme="https://www.theverge.com" term="Entertainment" /><category scheme="https://www.theverge.com" term="Music" /><category scheme="https://www.theverge.com" term="News" /><category scheme="https://www.theverge.com" term="Tech" />
+							<summary type="html"><![CDATA[Arturia launched a new version of its flagship effects suite, FX Collection, which includes two new plugins, EFX Ambient and Pitch Shifter-910. FX Collection 6 also marks the introduction of an Intro version with a selection of six effects covering the basics for $99. That pales in comparison to the 39 effects in the full [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="Arturia’s EFX Ambient." data-caption="" data-portal-copyright="" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/function.png?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-text-align-none">Arturia launched a new version of its flagship effects suite, FX Collection, which includes two new plugins, EFX Ambient and Pitch Shifter-910. <a href="https://www.arturia.com/products/software-effects/fx-collection/overview">FX Collection 6</a> also marks the introduction of an <a href="https://www.arturia.com/products/software-effects/fx-collection/overview#compare-version">Intro</a> version with a selection of six effects covering the basics for $99. That pales in comparison to the 39 effects in the full FX Collection Pro, but that also costs $499.</p>
+<p class="has-text-align-none"><a href="https://www.arturia.com/products/software-effects/pitch-shifter-910/overview">Pitch Shifter-910</a> is based on the iconic <a href="https://www.theverge.com/report/879819/laurie-spiegel-is-celebrating-40-of-music-mouse-with-a-modern-revival">Eventide</a> <a href="https://www.eventideaudio.com/rackmount/h910-harmonizer/">H910 Harmonizer</a> from 1974, an early digital pitchshifter and delay with a very unique character. Arturia does an admirable job preserving its glitchy quirks. Pitch Shifter-910 is not a transparent effect that lets you create natu …</p>
+<p><a href="https://www.theverge.com/tech/882852/arturia-fx-collection-6">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Terrence O’Brien</name>
+			</author>
+			
+			<title type="html"><![CDATA[Georgia says Elon Musk’s America PAC violated election law]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/tech/882838/georgia-elon-musk-america-pac-voter-fraud" />
+			<id>https://www.theverge.com/?p=882838</id>
+			<updated>2026-02-21T11:55:36-05:00</updated>
+			<published>2026-02-21T11:55:36-05:00</published>
+			<category scheme="https://www.theverge.com" term="Elon Musk" /><category scheme="https://www.theverge.com" term="News" /><category scheme="https://www.theverge.com" term="Policy" /><category scheme="https://www.theverge.com" term="Politics" /><category scheme="https://www.theverge.com" term="Tech" />
+							<summary type="html"><![CDATA[For all his bluster about voter fraud, Elon Musk has been one of the most flagrant flaunters of US election law. Now his America PAC has been slapped with a reprimand by the Georgia State Election Board for sending out pre-filled absentee ballot applications. State law prohibits anyone, other than an authorized relative, from sending [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="Elon Musk making a gesture that is ALARMINGLY similar to a Nazi salute, set against the backdrop of the American flag." data-caption="Of course, it’s the guy who constantly complains about voter fraud who may have committed voter fraud. | Image: The Verge" data-portal-copyright="Image: The Verge" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/03/STK022_ELON_MUSK_4_CVIRGINIA_B.webp?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+	Of course, it’s the guy who constantly complains about voter fraud who may have committed voter fraud. | Image: The Verge	</figcaption>
+</figure>
+<p class="has-text-align-none">For all his <a href="https://www.theverge.com/2024/10/24/24278643/xs-biggest-anti-immigrant-poster-is-elon-musk">bluster</a> about <a href="https://www.theverge.com/2024/11/4/24285822/philadelphia-mail-in-ballot-counting-machines-misinformation">voter fraud</a>, Elon Musk has been one of the most flagrant flaunters of US election law. Now his America PAC has been slapped with a <a href="https://newrepublic.com/post/206857/georgia-voter-fraud-elon-musk">reprimand</a> by the <a href="https://www.11alive.com/article/news/politics/georgia-state-election-board-letter-of-reprimand-america-pac-pre-filled-absentee-ballot-applications/85-ddb4f02a-a78a-4931-80e7-0fab668727c4">Georgia State Election Board</a> for sending out pre-filled absentee ballot applications. <a href="https://law.justia.com/codes/georgia/title-21/chapter-2/article-10/section-21-2-381/">State law</a> prohibits anyone, other than an authorized relative, from sending an absentee ballot application prefilled with the elector's information.</p>
+<p class="has-text-align-none">Residents of Chattooga, Cherokee, Coweta, Floyd, and Whitfield counties reported receiving absentee ballot applications from America PAC, partially pre-filled. According to the State Election Board, the applications also failed to note tha …</p>
+<p><a href="https://www.theverge.com/tech/882838/georgia-elon-musk-america-pac-voter-fraud">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Terrence O’Brien</name>
+			</author>
+			
+			<title type="html"><![CDATA[Suspect in Tumbler Ridge school shooting described violent scenarios to ChatGPT]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/ai-artificial-intelligence/882814/tumbler-ridge-school-shooting-chatgpt" />
+			<id>https://www.theverge.com/?p=882814</id>
+			<updated>2026-02-21T16:58:54-05:00</updated>
+			<published>2026-02-21T10:22:57-05:00</published>
+			<category scheme="https://www.theverge.com" term="AI" /><category scheme="https://www.theverge.com" term="News" /><category scheme="https://www.theverge.com" term="OpenAI" />
+							<summary type="html"><![CDATA[The suspect in the mass shooting at Tumbler Ridge, British Columbia, Jesse Van Rootselaar, was raising alarms among employees at OpenAI months before the shooting took place. This past June, Jesse had conversations with ChatGPT involving descriptions of gun violence that triggered the chatbot's automated review system. Several employees raised concerns that her posts could [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="" data-portal-copyright="Image: AFP via Getty Images" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/gettyimages-2260625085.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-text-align-none">The suspect in the <a href="https://www.cbc.ca/news/canada/british-columbia/livestory/active-shooter-alert-tumbler-ridge-secondary-school-bc-live-updates-9.7083740">mass shooting at Tumbler Ridge</a>, British Columbia, Jesse Van Rootselaar, was raising alarms among employees at OpenAI months before the shooting took place. This past June, Jesse had conversations with ChatGPT involving descriptions of gun violence that triggered the chatbot's automated review system. Several employees <a href="http://redible%20and%20imminent%20risk%20of%20serious%20physical%20harm%20to%20others.">raised concerns</a> that her posts could be a precursor to real-world violence and encouraged company leaders to contact the authorities, but they ultimately declined.</p>
+<p class="has-text-align-none">OpenAI spokesperson Kayla Wood told The Verge that, while the company considered referring the account to law enforcement, it was ultimately deci …</p>
+<p><a href="https://www.theverge.com/ai-artificial-intelligence/882814/tumbler-ridge-school-shooting-chatgpt">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Brandon Widder</name>
+			</author>
+			
+			<title type="html"><![CDATA[The Pixel 10A and Soundcore Space One are just two of the best deals this week]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/gadgets/881998/google-pixel-10a-anker-351-power-strip-deal-sale" />
+			<id>https://www.theverge.com/?p=881998</id>
+			<updated>2026-02-21T09:47:37-05:00</updated>
+			<published>2026-02-21T09:45:21-05:00</published>
+			<category scheme="https://www.theverge.com" term="Deals" /><category scheme="https://www.theverge.com" term="Gadgets" /><category scheme="https://www.theverge.com" term="Google" /><category scheme="https://www.theverge.com" term="Google Pixel" /><category scheme="https://www.theverge.com" term="Mobile" /><category scheme="https://www.theverge.com" term="Phones" /><category scheme="https://www.theverge.com" term="Tech" /><category scheme="https://www.theverge.com" term="Verge Shopping" />
+							<summary type="html"><![CDATA[Welcome to the weekend, folks! The Reviews and Guides team here at The Verge is gearing up for all things Unpacked, but Samsung isn’t the only one readying new phones. Google just announced the Pixel 10A, which, for you early adopters, is already up for preorder with a $100 gift card. Elsewhere in deal land, [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="" data-portal-copyright="Image: The Verge" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/Google-Pixel-10A-Deal-Image.png?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-text-align-none">Welcome to the weekend, folks! The Reviews and Guides team here at <em>The Verge</em> is gearing up for <a href="https://www.theverge.com/tech/876717/samsung-galaxy-unpacked-february-2026-s26">all things Unpacked</a>, but Samsung isn’t the only one readying new phones. Google just announced the Pixel 10A, which, for you early adopters, is already <a href="https://www.amazon.com/Google-Pixel-10a-Lavender-Amazon/dp/B0GJ7NSD6M/">up for preorder</a> with a $100 gift card. Elsewhere in deal land, you’ll find steep discounts <a href="https://eufy-us.sjv.io/c/482924/999452/13094?u=https%3A%2F%2Fapp.eufy.com%2Fapp%2Fproducts%2Ft2080111%3Fvariant%3D43804834922682&amp;partnerpropertyid=7032191">on mopping vacuums</a>, slight discounts on <a href="https://www.amazon.com/Soundcore-Cancelling-Headphones-Reduction-Comfortable/dp/B0C6KJ3R71/">Soundcore’s cheap ANC headphones</a>, and a rare discount on a <a href="https://www.amazon.com/dp/B0DJTJDN73/">new PC controller</a> with swiveling sticks.</p>
+
+<p class="has-text-align-none">So, let’s get to it, shall we?</p>
+
+<hr class="wp-block-separator has-alpha-channel-opacity" />
+
+<p class="has-text-align-none">We finally have a release date for the <strong>Pixel 10A</strong>: March 5th. What’s more, if you’re thinking about picking up Google’s latest phone, you can already preorder the base-model configuration at <a href="https://www.amazon.com/Google-Pixel-10a-Lavender-Amazon/dp/B0GJ7NSD6M/">Amazon</a> and <a href="https://www.bestbuy.com/product/google-pixel-10a-128gb-unlocked-lavender/J39TC8CKZ8?skuId=6668561">Best Buy</a> with 128GB of storage and a $100 gift card for $499. Alternatively, <a href="http://Anker’s MagGo Wireless Charging Station is on sale for a new low of $39.99 ($50 off) at Woot through February 27th. The foldable, Qi2-certified charger can deliver up to 15W of power to MagSafe-compatible iPhones, fast-charge an Apple Watch Series 11, and top off a pair of earbuds via a third wireless pad. It also doubles as a StandBy-ready dock, so you can use your phone as an ad hoc widget machine.">Amazon is offering it</a> with a free pair of the <a href="https://www.theverge.com/tech/796411/google-pixel-buds-2a-review">Pixel Buds 2A</a>, a fantastic set of recently released earbuds that typically retail for $130.</p>
+
+<p class="has-text-align-none">Despite being a pretty minimal update, Google’s forthcoming Android handset is a pretty solid deal. It doesn’t adopt a lot of features from the flagship Pixel 10 series; however, last year’s Tensor G4 chip is still speedy enough for most tasks, satellite SOS is handy, and you get slightly faster wired and wireless charging. More importantly, it still comes with seven years of OS and security updates, which, personally, I’d take over Magic Cue, Pixel Screenshots, and other AI-based tools any day of the week.</p>
+
+<h5 class="wp-block-heading has-text-align-none"><a href="https://www.theverge.com/tech/880400/pixel-10a-hands-on-a-little-too-much-like-pixel-9a">Read our hands-on impressions</a>.</h5>
+<div class="product-block"><h3>Google Pixel 10A</h3>
+<figure class="product-image"><img width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/268356_Pixel_10A_and_Pixel_Buds_2A_OGrove7.jpg?w=300" class="attachment-medium size-medium" alt="Illuminated screen of a Google Pixel 10A in someone’s hand." /></figure>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/Google-Pixel-10a-Lavender-Amazon/dp/B0GJ7NSD6M/"> <strike>$599</strike> $499 at <strong>Amazon (free $100 gift card)</strong></a></li><li><a href="https://www.amazon.com/Google-Pixel-10a-Lavender-Amazon/dp/B0GL3FJ9L5/"> <strike>$629</strike> $499 at <strong>Amazon (free Pixel Buds 2A)</strong></a></li><li><a href="https://www.bestbuy.com/product/google-pixel-10a-128gb-unlocked-lavender/J39TC8CKZ8?skuId=6668561"> <strike>$599</strike> $499 at <strong>Best Buy (free $100 gift card)</strong></a></li></ul></div>
+<p class="has-text-align-none">Twelve. That’s how many AC outlets <strong>Anker’s 351 Power Strip</strong> — which is now available in black or white from <a href="https://www.amazon.com/Anker-Protector-Multiple-Extension-Essential/dp/B09SG2Q23M">Amazon</a> and <a href="https://www.anker.com/products/a9192?variant=42070973022358">Anker</a> for $23.99 ($6 off) — packs into its 9.65-inch, surge-protected build. The beefy power strip also features a 20W USB-C port and two USB-A ports, both of which can deliver up to 15W of juice. Just keep in mind that, like with most power strips and like-minded chargers, you’ll have to split power amongst the USB ports, which are limited to a max output of 15W when charging multiple devices simultaneously.</p>
+<div class="product-block"><h3>Anker 351 Power Strip</h3>
+<figure class="product-image"><img width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/Anker-351-Power-Strip-Lifestyle-Press-Image.jpg?w=300" class="attachment-medium size-medium" alt="" /></figure>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/Anker-Protector-Multiple-Extension-Essential/dp/B09SG2Q23M/"> <strike>$29.99</strike> $23.99 at <strong>Amazon</strong></a></li><li><a href="https://www.anker.com/products/a9192?variant=42070973022358"> <strike>$29.99</strike> $23.99 at <strong>Anker (with code WS7DV2YWISTS)</strong></a></li></ul></div>
+<p class="has-text-align-none">I’m admittedly not a huge fan of fighting games — I have no patience for learning combos, dear readers — but the <strong><a href="https://www.theverge.com/2024/10/29/24282953/turtle-beach-may-have-a-better-way-to-swap-your-controllers-analog-sticks-for-more-buttons">Turtle Beach Stealth Pivot</a></strong> seems like a good compromise if I were forced to choose between a traditional controller and one specifically built for hammering out hadokens. And now, the novel gamepad is on sale at both <a href="https://www.amazon.com/dp/B0DJTJDN73/">Amazon</a> and <a href="https://www.bestbuy.com/product/turtle-beach-stealth-pivot-wireless-smart-pc-gaming-controller-with-rotating-modules-black/JXK5HFZJF7">Best Buy</a> for $99.99 ($40 off), its lowest price to date.</p>
+
+<p class="has-text-align-none">Although Turtle Beach’s wireless PC controller offers a slew of welcome components, including drift-free Hall effect joysticks and adjustable trigger stops, its defining feature is a pair of rotating modules that can “pivot” to reveal a customizable controller layout that’s better suited for retro titles and fighting games. You also get programmable back buttons, the ability to save up to five profiles, and a 3.5mm audio jack, not to mention compatibility with mobile devices over Bluetooth and Xbox consoles via a wired connection.</p>
+<div class="product-block"><h3>Turtle Beach Stealth Pivot</h3>
+<figure class="product-image"><img width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/Turtle-Beach-Stealth-Pivot-Press-Image.jpg?w=300" class="attachment-medium size-medium" alt="" /></figure>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/dp/B0DJTJDN73/"> <strike>$139.99</strike> $99.99 at <strong>Amazon</strong></a></li><li><a href="https://www.bestbuy.com/product/turtle-beach-stealth-pivot-wireless-smart-pc-gaming-controller-with-rotating-modules-black/JXK5HFZJF7"> <strike>$139.99</strike> $99.99 at <strong>Best Buy</strong></a></li></ul></div>
+<p class="has-text-align-none">If you’re looking for a cheap(ish) set of noise-canceling headphones, <strong>Soundcore’s Space One</strong> are on sale at <a href="https://www.amazon.com/Soundcore-Cancelling-Headphones-Reduction-Comfortable/dp/B0C6KJ3R71/">Amazon</a>, <a href="https://www.walmart.com/ip/soundcore-By-Anker-Space-One-Bluetooth-Over-Ear-Headphones-AANC-Up-to-60-Hrs-of-Playtime-3D-SS/1493272962/">Walmart</a>, and <a href="https://www.soundcore.com//products/space-one-a3035011">directly from Soundcore</a> (with code <strong>WS7DV2G0S7DJ</strong>) in all four colors for $79.99 ($20 off), matching their second-best price to date.</p>
+
+<p class="has-text-align-none"><a href="https://www.theverge.com/gadgets/834274/anker-soundcore-space-one-headphones-cyber-monday-deal-sale-2025">During Cyber Monday last year</a>, our own John Higgins waxed poetic about the over-ear cans, namely because they deliver impressive sound and comfort for the price. The sound quality and ANC don’t rival the flagships from Sony or Bose, sure,&nbsp;but you can try over 20 different presets or tweak the sound yourself using the eight-band equalizer in Anker’s companion app. They can also last up to 40 hours with ANC enabled, meaning you should be able to fly from New York to Singapore and back again without ever having to charge them.</p>
+<div class="product-block"><h3>Soundcore Space One</h3>
+<figure class="product-image"><img loading="lazy" width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/11/anker-space-one-deal-featured.jpg?w=300" class="attachment-medium size-medium" alt="A man in an airport looking at a phone while wearing the Anker Space One headphones." /></figure>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/Soundcore-Cancelling-Headphones-Reduction-Comfortable/dp/B0C6KJ3R71/"> <strike>$99</strike> $79.99 at <strong>Amazon</strong></a></li><li><a href="https://www.soundcore.com//products/space-one-a3035011"> <strike>$99.99</strike> $79.99 at <strong>Soundcore (with code WS7DV2G0S7DJ)</strong></a></li><li><a href="https://www.walmart.com/ip/Soundcore-by-Anker-Space-One-Active-Noise-Cancelling-Headphones-2X-Stronger-Voice-Reduction/1493272962"> <strike>$99.99</strike> $79.99 at <strong>Walmart</strong></a></li></ul></div>
+<hr class="wp-block-separator has-alpha-channel-opacity" />
+
+<h2 class="wp-block-heading has-text-align-none">More ways to save this weekend</h2>
+
+<ul class="wp-block-list">
+<li><strong>Google&#8217;s refreshed Nest Cam Indoor</strong>, which launched in October, is already down to a new low of $74.99 ($25 off) at&nbsp;<a href="https://link.theverge.com/click/44196111.9665/aHR0cHM6Ly93d3cuYW1hem9uLmNvbS9Hb29nbGUtTmVzdC1DYW0tSW5kb29yLVdpcmVkL2RwL0IwRk43RExXR0Y_dGg9MSZsaW5rQ29kZT1sbDImdGFnPXZlcmdlbmV3c2xldHRlci0yMCZsaW5rSWQ9MThlMTQzN2U2ODU0ODc2YTI1ZTNlNDZlZDYxZmFmMGQmbGFuZ3VhZ2U9ZW5fVVMmcmVmXz1hc19saV9zc190bCZ1ZWlkPWRiNzA0MGNlNmQ1YWZmNGFkYTMwZWNjMzVlYTBmYTBkJmJ4aWQ9NjBjYTM5NTJkYmE4M2U1OTE0NzBhNTdh/60ca3952dba83e591470a57aB73830f04" target="_blank" rel="noreferrer noopener"></a><a href="https://www.amazon.com/Google-Nest-Cam-Indoor-Wired/dp/B0FN7DLWGF/">Amazon</a>. The wired camera supports 2K HDR video and offers a taller and wider field of view than prior models, along with a new sensor for full-color low-light video. It also comes in <a href="https://www.amazon.com/Google-Nest-Cam-Indoor-Wired/dp/B0FN7GLKCM/">a new berry color</a>, which, for better or worse, seems to be Google&#8217;s latest obsession.</li>
+
+
+
+<li>After a quick series of price drops, Piggyback’s <em><strong>Metroid Prime 1–3: A Visual Retrospective</strong></em> has settled in at $36.59 (about $13 off) at <a href="https://www.amazon.com/Metroid-Prime-1-3-Retrospective-Official/dp/1913330273">Amazon</a> and <a href="https://www.walmart.com/ip/Metroid-Prime-1-3-A-Visual-Retrospective-The-Official-Art-and-Making-of-Metroid-Prime-1-3-Hardcover-9781913330279/14437707119">Walmart</a>, which is the best price we’ve seen on the excellent hardcover. We rarely go out of our way to flag tabletop books at <em>The Verge</em>, but given the treasure trove of stunning concept art and the behind-the-scenes stories on display here, we thought we’d make an exception. It even features assets that never appeared in the trilogy, as if the original mock-ups and juicy developer commentary weren’t enough. <a href="https://www.theverge.com/games/803399/metroid-prime-visual-retrospective-art-book-review">Read our review</a>.</li>
+
+
+
+<li>Eufy’s Robot Vacuum Omni S2 is <a href="https://www.theverge.com/gadgets/850483/eufy-robot-vacuum-omni-s2-ces-2026">right around the corner</a> — which is probably why the <strong>Omni S1 Pro</strong> is available for an all-time low of $699.99 ($800 off) at <a href="https://eufy-us.sjv.io/c/482924/999452/13094?u=https%3A%2F%2Fapp.eufy.com%2Fapp%2Fproducts%2Ft2080111%3Fvariant%3D43804834922682&amp;partnerpropertyid=7032191">Eufy’s online storefront</a> when you use promo code <strong>WS24T2080111</strong>. The robovac / mop hybrid is still a great option for hardwood floors despite being a last-gen pick, especially since it can self-wash and dry its own roller mop as it cleans. It also features AI-powered obstacle avoidance and 8,000Pa of suction, which is enough power to pick up most debris.</li>
+</ul>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Jay Peters</name>
+			</author>
+			
+			<title type="html"><![CDATA[Aerial_Knight’s DropShot captures the thrill of skydiving and makes it stylish]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/games/875259/dropshot-aerial-knight-review-pc-playstation-xbox" />
+			<id>https://www.theverge.com/?p=875259</id>
+			<updated>2026-02-13T15:05:46-05:00</updated>
+			<published>2026-02-21T09:00:00-05:00</published>
+			<category scheme="https://www.theverge.com" term="Entertainment" /><category scheme="https://www.theverge.com" term="Games Review" /><category scheme="https://www.theverge.com" term="Gaming" />
+							<summary type="html"><![CDATA[I've always wanted to go skydiving. Aerial_Knight's DropShot, from indie developer Aerial_Knight, lets me live out that dream - at least in a safe, virtual kind of way. It also lets me shoot bullets from finger guns, wield laser skulls, and wear cool sunglasses while I'm falling through the air. So maybe it's better than [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="" data-portal-copyright="" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/ss_8ba5728835bdf90346ee59b8d9ece2a04a3ac628.1920x1080.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-text-align-none">I've always wanted to go skydiving. <em>Aerial_Knight's DropShot</em>, from indie developer Aerial_Knight, lets me live out that dream - at least in a safe, virtual kind of way. It also lets me shoot bullets from finger guns, wield laser skulls, and wear cool sunglasses while I'm falling through the air. So maybe it's better than the real thing.</p>
+<p class="has-text-align-none">Playing as a character named Smoke Wallace, who was bitten by a dragon that gave him the finger gun that can actually shoot bullets, you plummet toward the ground and try to pick off bad guys with that finger gun or by punching them up close. It's a first-person game, and the perspective really helps sell th …</p>
+<p><a href="https://www.theverge.com/games/875259/dropshot-aerial-knight-review-pc-playstation-xbox">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Lawrence Ulrich</name>
+			</author>
+			
+			<title type="html"><![CDATA[Stellantis is in a crisis of its own making]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/transportation/881987/stellantis-crisis-ev-loss-sales-regulations" />
+			<id>https://www.theverge.com/?p=881987</id>
+			<updated>2026-02-20T14:14:06-05:00</updated>
+			<published>2026-02-21T08:00:00-05:00</published>
+			<category scheme="https://www.theverge.com" term="Cars" /><category scheme="https://www.theverge.com" term="Electric Cars" /><category scheme="https://www.theverge.com" term="Report" /><category scheme="https://www.theverge.com" term="Transportation" />
+							<summary type="html"><![CDATA[Demand for EVs has gone glacial, and one automaker after another is running aground: General Motors threw $7.6 billion overboard. Ford washed $19.5 billion off its books. Leave it to Stellantis to face the most titanic charge yet, a $26.5 billion bill for its own misplaced bet on EVs. The Jeep, Dodge, and Chrysler parent [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="Antonio Filosa attends the presentation of the new Fiat 500 Hybrid at the Stellantis FIAT Mirafiori plant in Turin, Italy, in November of 2025. | Elisa Marchina/NurPhoto via Getty Images" data-portal-copyright="Elisa Marchina/NurPhoto via Getty Images" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/gettyimages-2247870135.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+	Antonio Filosa attends the presentation of the new Fiat 500 Hybrid at the Stellantis FIAT Mirafiori plant in Turin, Italy, in November of 2025. | Elisa Marchina/NurPhoto via Getty Images	</figcaption>
+</figure>
+<p class="has-text-align-none">Demand for EVs has gone glacial, and one automaker after another is running aground: <a href="https://www.theverge.com/transportation/859574/gm-takes-a-6-billion-hit-on-evs">General Motors</a> threw $7.6 billion overboard. <a href="https://www.theverge.com/news/844813/ford-hybrid-erev-f150-energy-storage-jobs">Ford</a> washed $19.5 billion off its books. Leave it to <a href="https://www.theverge.com/transportation/874759/stellantis-takes-a-26-billion-hit-on-evs">Stellantis</a> to face the most titanic charge yet, a $26.5 billion bill for its own misplaced bet on EVs. </p>
+<p class="has-text-align-none">The Jeep, Dodge, and Chrysler parent company hasn't said how much of that unfathomable sum is explicitly due to EV losses, as the write-down wiped away about 25 percent of the company's stock value overnight. Every automaker faces the same cooling EV demand and whipsawing political climate, yet Stellantis appears the most exposed, due in part to longstanding  …</p>
+<p><a href="https://www.theverge.com/transportation/881987/stellantis-crisis-ev-loss-sales-regulations">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Thomas Ricker</name>
+			</author>
+			
+			<title type="html"><![CDATA[Anker’s X1 Pro shouldn’t exist, but I’m so glad it does]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/tech/881788/soundcore-nebula-x1-pro-review-comparison-x1" />
+			<id>https://www.theverge.com/881788/djis-first-robovac-is-an-autonomous-cleaning-drone-you-cant-trust</id>
+			<updated>2026-02-21T07:42:35-05:00</updated>
+			<published>2026-02-21T03:00:00-05:00</published>
+			<category scheme="https://www.theverge.com" term="Accessory Reviews" /><category scheme="https://www.theverge.com" term="Reviews" /><category scheme="https://www.theverge.com" term="Tech" />
+							<summary type="html"><![CDATA[The Soundcore Nebula X1 Pro is too weird to exist. It takes the excellent 4K projector and karaoke microphones from Anker's Nebula X1 and stuffs them inside a powerful five-speaker Google TV party on wheels. It's so absurd that it feels like a gadget fever dream - and I'm here for it. At the heart [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="" data-portal-copyright="" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/IMG_5329.jpeg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-drop-cap has-text-align-none">The <a href="https://www.soundcore.com/products/d2151-nebula-x1-pro-4k-projector?ref=" data-type="link" data-id="https://www.soundcore.com/products/d2151-nebula-x1-pro-4k-projector?ref=">Soundcore Nebula X1 Pro</a> is too weird to exist. It takes the excellent 4K projector and karaoke microphones from Anker's <a href="https://www.theverge.com/reviews/707436/nebula-x1-review-best-portable-projector-price-specs">Nebula X1</a> and stuffs them inside a powerful five-speaker Google TV party on wheels. It's so absurd that it feels like a gadget fever dream - and I'm here for it.</p>
+<p class="has-text-align-none">At the heart of this system is the same liquid-cooled, triple-laser, auto-image-correction-everything projector <a href="https://www.theverge.com/reviews/707436/nebula-x1-review-best-portable-projector-price-specs">I reviewed last summer</a>. It's unbelievably quiet for a 3500 ANSI lumen projector that lays claim to the title of being the brightest and most vivid all-in-one portable projector on the market. Now it's also the loudest, with 400W of audio added to the …</p>
+<p><a href="https://www.theverge.com/tech/881788/soundcore-nebula-x1-pro-review-comparison-x1">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Sheena Vasani</name>
+			</author>
+			
+			<title type="html"><![CDATA[The best e-reader to buy right now]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/23769068/best-ebook-readers" />
+			<id>https://www.theverge.com/23769068/best-ebook-readers</id>
+			<updated>2026-02-20T17:19:29-05:00</updated>
+			<published>2026-02-20T17:19:29-05:00</published>
+			<category scheme="https://www.theverge.com" term="Amazon" /><category scheme="https://www.theverge.com" term="Books" /><category scheme="https://www.theverge.com" term="Buying Guides" /><category scheme="https://www.theverge.com" term="E-Reader Reviews" /><category scheme="https://www.theverge.com" term="Entertainment" /><category scheme="https://www.theverge.com" term="Gadgets" /><category scheme="https://www.theverge.com" term="Reviews" /><category scheme="https://www.theverge.com" term="Tech" /><category scheme="https://www.theverge.com" term="Verge Shopping" />
+							<summary type="html"><![CDATA[Any ebook reader will let you cram a Beauty and the Beast-sized library’s worth of books in your pocket, but so will your phone. An ebook reader offers a more book-like reading experience, with fewer distractions and less eye strain, and many include extra features, like adjustable frontlighting. Some really are pocketable. Others are waterproof [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="" data-caption="" data-portal-copyright="Image: Cath Virginia / The Verge" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25832350/257503_e_book_reader_CVirginia_.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p>Any ebook reader will let you cram a <em>Beauty and the Beast</em>-sized library’s worth of books in your pocket, but so will your phone. An ebook reader offers a more book-like reading experience, with fewer distractions and less eye strain, and many include extra features, like adjustable frontlighting. Some really <em>are</em> pocketable. Others are waterproof or offer physical page-turning buttons, while a few even let you take notes.</p>
+
+<p>I’ve been using ebook readers for more than a decade, and I’ve gone hands-on with dozens, from the Kindle Paperwhite to lesser-known rivals like the PocketBook Era. Whether you want something your kid can throw against the wall or a waterproof, warm-glow Kindle that won’t ruin your spa ambiance, these are the best ebook readers for everyone.&nbsp;</p>
+
+<hr class="wp-block-separator has-alpha-channel-opacity" />
+
+<div class="wp-block-vox-media-highlight vox-media-highlight">
+<h2 class="wp-block-heading"></h2>
+
+
+</div>
+
+<hr class="wp-block-separator has-css-opacity" />
+
+<h2 class="wp-block-heading" id="hovAu3">The best Kindle</h2>
+<div class="product-block"><h3>Kindle Paperwhite (2024)</h3>
+<figure class="product-image"><img loading="lazy" width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25679990/247326_Amazon_Kindle_2024_AKrales_0007.jpg?w=300" class="attachment-medium size-medium" alt="The 2024 Kindle Paperwhite." /></figure>
+<div class="product-scores"><h4>Score: 8</h4><table class="product-pros-cons"><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td><ul><li>The best-looking screen on any e-reader</li><li>Slightly larger screen without a noticeably larger device</li><li>Faster page turns, loading, and a more responsive UI</li><li>A splash of color (without a color screen)</li></ul></td><td><ul><li>Upgrades aren’t as significant as the last Paperwhite</li><li>Lacks stylus support and page turn buttons</li><li>Signature Edition wireless charging is frustrating without magnets</li><li>Signature Edition back panel feels less grippy</li></ul></td></tr></tbody></table></div>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/dp/B0CFPJYX7P"> $159.99 at <strong>Amazon (with ads)</strong></a></li><li><a href="https://www.bestbuy.com/site/amazon-kindle-paperwhite-16-gb-2024-black/6602737.p"> $159.99 at <strong>Best Buy (with ads)</strong></a></li><li><a href="https://www.target.com/p/amazon-kindle-paperwhite-2024/-/A-94165655"> $159.99 at <strong>Target (without ads)</strong></a></li></ul></div>
+<p><em><em><strong>Dimensions: </strong>7 x 5 x .3 inches<strong> </strong>/ <strong>Weight:</strong> 211 grams / <strong>Screen area and resolution:</strong> 7-inch screen, 300ppi resolution / <strong>Storage:</strong> 16GB / <strong>Other features:</strong> IPX8 waterproofing, Bluetooth audio support&nbsp;</em></em></p>
+
+<p>If you mostly buy ebooks from Amazon, you’ll want a Kindle, and the 12th-gen Kindle Paperwhite is the best choice for most people. It’s $70 cheaper than the Kobo Libra Colour — my top non-Amazon e-reader — yet offers many of the same features, including a spacious 7-inch 300pi display with rich contrast levels. Unlike Amazon’s entry-level Kindle, it also features IPX8 water resistance and an adjustable warm frontlight that <span>reduces blue light, which</span> can interrupt melatonin production. The $199.99 <a href="https://www.amazon.com/All-new-Amazon-Kindle-Paperwhite-Signature/dp/B0C8RR4WN3/">Signature Edition Paperwhite</a> also supports wireless charging, a rare feature in an e-reader.</p>
+<img src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25821061/247464_Kindle_Paperwhite_ALiszewski_0002.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" alt="" title="" data-has-syndication-rights="1" data-caption="&lt;em&gt;The latest Kindle Paperwhite offers a sharp display that’s easy to read.&lt;/em&gt;" data-portal-copyright="" />
+<p>Amazon dominates the US ebook market, so Kindle owners have access to advantages that owners of other ebook readers don’t. Much of Amazon’s hardware strategy depends on offering cut-rate discounts to pull you into its content ecosystem. If you have Prime and buy a lot of Kindle ebooks, the Paperwhite is the best choice because its ebooks and audiobooks are often on sale at Amazon, and Prime members get more free content through Prime Reading. Rivals like Kobo offer sales, too, but it’s hard for them to offer discounts as steep as Amazon.</p>
+
+<p>There are downsides, though. The Paperwhite includes lockscreen ads unless you pay $20 to remove them, and its size can make one-handed reading uncomfortable. More significantly, like all Kindles, it uses a proprietary format and doesn’t natively support EPUB, the open standard used by most other ebook stores. If you often shop from Kobo’s bookstore, Barnes &amp; Noble, or Google Play Books, you’ll need <a href="https://www.theverge.com/23842102/kindle-amazon-import-files-epub">to convert</a> and <a href="https://www.amazon.com/sendtokindle">transfer file formats</a> in order to read them on a Kindle. If you mostly stick with Amazon, though, you’ll be more than happy with the Paperwhite.</p>
+
+<h5 class="wp-block-heading" id="YXkzbE"><a href="https://www.theverge.com/24326185/amazon-kindle-paperwhite-signature-edition-2024-e-reader-review">Read our full Kindle Paperwhite review</a>.</h5>
+
+<h2 class="wp-block-heading" id="4JJ8kh">The best non-Amazon ebook reader</h2>
+<div class="product-block"><h3>Kobo Libra Colour (32GB, ad-free)</h3>
+<figure class="product-image"><img loading="lazy" width="300" height="233" src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/02/247144_best_ebook_reader_SVasani_0002.webp?w=300" class="attachment-medium size-medium" alt="" /></figure>
+<div class="product-scores"><table class="product-pros-cons"><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td><ul><li>Nice color screen with sharp, 300ppi black-and-white resolution</li><li>Physical page-turning buttons</li><li>Built-in stylus support</li><li>Compatible with Overdrive </li></ul></td><td><ul><li>Getting books from other stores onto the device can be tough</li><li>More expensive than the Kindle Paperwhite</li><li>Lacks the vibrancy of other color e-readers</li><li>No wireless charging</li></ul></td></tr></tbody></table></div>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/Kobo-Glare-Free-KaleidoTM-Audiobooks-Waterproof/dp/B0D1KTKVY3/"> $229.99 at <strong>Amazon</strong></a></li><li><a href="https://us.kobobooks.com/collections/ereaders/products/kobo-libra-colour"> $229.99 at <strong>Rakuten Kobo</strong></a></li><li><a href="https://www.target.com/p/kobo-libra-colour-ereader-7-glare-free-colour-e-ink-kaleido-3-display-dark-mode-option-audiobooks-waterproof/-/A-91830242"> $229.99 at <strong>Target</strong></a></li></ul></div>
+<p><em><em><strong>Dimensions:</strong> 5.69 x 6.34 x 0.33 inches / <strong>Weight:</strong> 199.5 grams / <strong>Screen area and resolution:</strong> 7-inch screen, 300ppi  (black-and-white), 150ppi (color) / <strong>Storage:</strong> 32GB / <strong>Other features:</strong> Physical page-turning buttons, waterproofing, Kobo Stylus 2 support, Bluetooth audio support&nbsp;</em></em></p>
+
+<p>The Kobo Libra Colour is a great alternative to Amazon’s ebook readers, particularly for readers outside the US or anyone who prefers not to buy into Amazon’s ecosystem. It offers many of the standout features found on the 12th-gen Paperwhite — including waterproofing, USB-C, and a 300ppi display — along with a few extra perks. Most notably, it uses E Ink’s latest Kaleido color technology, delivering soft, pastel-like hues that still pop in direct sunlight. Resolution drops to 150ppi when viewing color, but it still makes viewing a wider range of content more pleasant, even if images aren’t nearly as vivid as those on a traditional tablet or the <a href="https://www.theverge.com/24303322/amazon-kindle-colorsoft-e-reader-review">Kindle Colorsoft Signature Edition</a>.</p>
+
+<p>Unlike Amazon’s Kindle Colorsoft Signature Edition, the Libra Colour also works with a stylus (<a href="https://go.skimresources.com/?id=1025X1701640&amp;xs=1&amp;url=https%3A%2F%2Fus.kobobooks.com%2Fproducts%2Fkobo-stylus-2&amp;xcust=__vg0220awD__23533109____s______________google.com">sold separately</a>), letting you highlight in multiple colors, annotate books, and use Kobo’s integrated notebooks. It borrows some more advanced tools from the Kobo Elipsa 2E, too, including handwriting-to-text conversion and math-solving, allowing it to double as a small digital notebook. It also includes physical page-turn buttons, lacks lockscreen ads, supports more file formats (including EPUB), and makes borrowing from OverDrive libraries relatively straightforward. A recent update even provides support for Instapaper, letting you save articles, blog posts, and other content for offline viewing.</p>
+<img src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25532400/247144_Kobo_Libre_Colour_SVasani_0005.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" alt="A photo of a page in a book with a sentence highlighted in pink." title="A photo of a page in a book with a sentence highlighted in pink." data-has-syndication-rights="1" data-caption="&lt;em&gt;You can highlight in color, too.&lt;/em&gt; | Photo by Sheena Vasani / The Verge" data-portal-copyright="Photo by Sheena Vasani / The Verge" />
+<p>However, at $229.99, the Libra Colour costs $70 more than the entry-level Paperwhite — and that’s without Kobo’s $69.99 stylus, which is required to perform certain tasks. The gap widens further when the Paperwhite is on sale, which happens more frequently. The Libra Colour also can’t easily access Amazon’s ebook library, either, so longtime Kindle users may need third-party tools to convert their purchases. Still, if those things don’t matter or apply to you, the Libra Colour offers the most versatile and enjoyable reading experience of any e-reader on this list. It remains my personal favorite.</p>
+
+<h5 class="wp-block-heading" id="0JIBBD"><a href="https://www.theverge.com/2024/7/4/24158251/kobo-libra-clara-colour-e-reader-review">Read our full Kobo Libra Colour review.</a></h5>
+
+<h2 class="wp-block-heading" id="5hvl2N">The best cheap ebook reader</h2>
+<div class="product-block"><h3>Kindle (2024)</h3>
+<figure class="product-image"><img loading="lazy" width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/25840916/257516_best_ebook_reader_SVasani_0001.jpg?w=300" class="attachment-medium size-medium" alt="" /></figure>
+<div class="product-scores"><table class="product-pros-cons"><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td><ul><li>Excellent, high-resolution display</li><li>Easy to hold with one hand</li><li>Faster than its predecessor with improved battery life</li><li>Fun color options</li></ul></td><td><ul><li>No waterproofing</li><li>Lacks adjustable color temperature</li><li>Slightly more expensive than its predecessor</li></ul></td></tr></tbody></table></div>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.amazon.com/Amazon-Kindle/dp/B0CNV9F72P/"> $109.99 at <strong>Amazon (with ads)</strong></a></li><li><a href="https://www.bestbuy.com/site/amazon-kindle-16-gb-2024-black/6599466.p?skuId=6599466"> $109.99 at <strong>Best Buy (with ads)</strong></a></li><li><a href="https://www.amazon.com/Amazon-Kindle/dp/B0DDZT2Z1L/"> $129.99 at <strong>Amazon (without ads)</strong></a></li></ul></div>
+<p><em><em><strong>Dimensions: </strong>6.2 x 4.3 x 0.32 inches<strong> </strong>/ <strong>Weight: </strong>158 grams / <strong>Screen area and resolution</strong>: 6-inch screen, 300ppi resolution / <strong>Storage:</strong> 16GB / <strong>Other features: </strong>USB-C support, Bluetooth audio support&nbsp;</em></em></p>
+
+<p>The <a href="https://www.amazon.com/Amazon-Kindle/dp/B0CNV9F72P/">base-model Kindle</a> ($109.99 with ads) is the best cheap ebook reader. Its 300ppi resolution makes text clearer and easier to read than the lower-resolution screens on other ebook readers in its price range. Plus, it has USB-C for relatively fast charging.&nbsp;</p>
+
+<p>Reading on its six-inch screen feels a little more cramped than it does on the larger displays of the Kindle Paperwhite and Kobo Libra Colour. However, the flip side is that its small size makes it pocketable, light, and easy for small hands to hold. Combined with its relatively affordable price, the Kindle is also the best ebook reader for kids&nbsp;— especially the <a href="https://www.amazon.com/dp/B0CNVBQK38/">Amazon Kindle Kids Edition</a>, which costs $20 more. The kid-friendly version shares the same specs but is ad-free with parental controls, a two-year extended replacement guarantee, and a case. It also includes six months of <a href="https://www.amazon.com/ftu/home">Amazon Kids Plus</a>, which grants kids access to thousands of children’s books and audiobooks for free. After that, though, you’ll have to pay $79 per year (or $48 with Amazon Prime).</p>
+<img src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/02/257516_best_ebook_reader_SVasani_0004.webp?quality=90&#038;strip=all&#038;crop=0,0,100,100" alt="The 11th-generation Kindle being held." title="The 11th-generation Kindle being held." data-has-syndication-rights="1" data-caption="&lt;em&gt;Amazon’s latest Kindle is one of the most pocketable e-readers you can get.&lt;/em&gt; | Photo by Sheena Vasani / The Verge" data-portal-copyright="Photo by Sheena Vasani / The Verge" />
+<p>The base Kindle doesn’t have extra conveniences like the waterproofing, which you’ll find in <a href="https://us.kobobooks.com/collections/ereaders/products/kobo-clara-bw">the entry-level Kobo Clara BW</a> and aforementioned Kindle Paperwhite. You also don’t get the physical page-turning buttons found on entry-level e-readers like Barnes &amp; Noble’s <a href="https://www.theverge.com/23188252/barnes-noble-nook-glowlight-4e-e-reader-ebook-review">Nook GlowLight 4e</a> (though the Kindle is a lot snappier than the Nook). And because it’s an Amazon ebook reader, you’re also locked into the Amazon ecosystem and have to pay extra to remove ads. But if you can do without that, the Kindle delivers the essentials for under $110.</p>
+
+<h2 class="wp-block-heading" id="zA7FKv">The best ebook reader for taking notes</h2>
+<div class="product-block"><h3>Kobo Elipsa 2E</h3>
+<figure class="product-image"><img loading="lazy" width="300" height="200" src="https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/24745050/236710_E_reader_Kobo_Elipsa_2E_SVasani_0003.jpg?w=300" class="attachment-medium size-medium" alt="" /></figure>
+<div class="product-scores"><table class="product-pros-cons"><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td><ul><li>Intuitive note-taking features</li><li>Great e-reader</li><li>Adjustable warm light</li><li>Useful note-taking capabilities, including handwriting-to-text conversion</li></ul></td><td><ul><li>Lacks native support for Kindle books</li><li>227ppi display isn’t as sharp as the competition</li><li>No note-summarization features</li></ul></td></tr></tbody></table></div>
+<h3>Where to Buy:</h3><ul><li><a href="https://www.walmart.com/ip/Kobo-Elipsa-2E-eReader-10-3-Glare-Free-Touchscreen-ComfortLight-PRO-Includes-Stylus-2-Adjustable-Brightness-Wi-Fi-Carta-E-Ink-Technology-32GB-Storage/3560029848"> $399.99 at <strong>Walmart</strong></a></li><li><a href="https://www.target.com/p/kobo-elipsa-2e-10-3-32gb-ereader-comfortlight-pro-stylus-capability-black/-/A-91215049"> $399.99 at <strong>Target</strong></a></li><li><a href="https://www.amazon.com/Kobo-Glare-Free-Touchscreen-ComfortLight-Adjustable/dp/B0C15G7J3V/ref=asc_df_B0C15G7J3V"> $399.99 at <strong>Amazon</strong></a></li></ul></div>
+<p><em><em><strong>Dimensions: </strong>7.6 x 8.94 x 0.30 inches / <strong>Weight: </strong>390 grams / <strong>Screen area and resolution</strong>: 10.3-inches, 227ppi resolution / <strong>Storage:</strong> 32GB / <strong>Other features: </strong>Handwriting to text conversion, magnetic stylus, Bluetooth audio support&nbsp;</em></em></p>
+
+<p>Of all the large ebook readers I’ve tested, the Kobo Elipsa 2E stood out the most because it’s a good e-reader with solid note-taking abilities. You can write directly on pages just as in a physical book. The Kindle Scribe lets you annotate book pages as well, but it’s complicated, involving resizable text boxes that mess up the page formatting and prevent you from doing basic things like circling words. In contrast, taking notes on the Elipsa 2E feels far more intuitive and natural.</p>
+
+<p>The Elipsa 2E offers other helpful note-taking tools and capabilities. Like the Kobo Libra Colour, it’s capable, for example, of solving math equations for you. You can also insert diagrams and drawings, and it’ll automatically snap them into something that looks cleaner and nicer. You can also sync your notes with Dropbox or view them online and convert handwriting to typed text. The Kindle Scribe offers the latter capability, too, but again, Kobo does it faster and better within the original notebook document rather than on a separate page. The only thing missing from the Elipsa 2E is the Scribe’s note-summarization feature, but that’s a tradeoff I am okay with given how much easier it is to take notes.</p>
+<img src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/02/236710_E_reader_Kobo_Elipsa_2E_SVasani_0004.webp?quality=90&#038;strip=all&#038;crop=0,0,100,100" alt="" title="" data-has-syndication-rights="1" data-caption="&lt;em&gt;You can doodle in the Kobo Elipsa 2E using a variety of ink shades, pens, and brushes.&lt;/em&gt; | Photo by Sheena Vasani / The Verge" data-portal-copyright="Photo by Sheena Vasani / The Verge" />
+<p>Note-taking capabilities aside, the Kobo Elipsa 2E is also a good e-reader with the same strengths and weaknesses as other Kobo devices. There’s support for a wide range of file formats, but you can’t easily read Kindle books without converting them first. Its 227ppi display is also slightly less sharp than the 300ppi screen found on the Kindle Scribe and the Kobo Libra Colour. However, the 10.3-inch screen balances things out a bit and makes text easier to read, so it’s not a noticeable drawback. Plus, the Elipsa 2E comes with an adjustable warm light for nighttime reading. That’s a feature rival e-readers with more advanced note-taking capabilities — including the $409.99&nbsp;<a href="https://go.skimresources.com/?id=1025X1701640&amp;xs=1&amp;url=https%3A%2F%2Fshop.boox.com%2Fproducts%2Fgo103&amp;xcust=__vg0115awD__24092328__________________">Onyx Boox Go 10.3</a>, which lets you insert links to notes — lack.</p>
+
+<hr class="wp-block-separator has-alpha-channel-opacity" />
+
+<h2 class="wp-block-heading" id="KmWfUt">Other ebook readers we tested</h2>
+
+<p>There are some other ebook readers my colleagues and I have tested that I didn’t feature above, but are still worth highlighting. Here are the most notable:</p>
+
+<h3 class="wp-block-heading" id="b1o7uf"><a href="https://www.amazon.com/All-New-Amazon-Kindle-Colorsoft-Signature-Edition/dp/B0CN3XR57P/">Kindle Colorsoft Signature Edition</a></h3>
+
+<p>The <a href="https://www.theverge.com/24303322/amazon-kindle-colorsoft-e-reader-review">Kindle Colorsoft Signature Edition</a> is the first&nbsp;Kindle&nbsp;to feature E Ink’s color screen technology, and it stands out from other color e-paper devices with customizations. It offers improved contrast, more vibrant colors, and faster screen refreshes. With a $279.99 price tag, it’s the most expensive&nbsp;Kindle&nbsp;model currently available that doesn’t support a stylus for note-taking, and it includes premium features like wireless charging that are convenient but not really necessary for a device with months of battery life. If you want a color screen and want to stick with Amazon, the Colorsoft Signature is your best option.<em> &#8211; Andrew Liszewski, Senior Reporter&nbsp;</em></p>
+
+<h3 class="wp-block-heading" id="kindle-colorsoft"><a href="https://www.amazon.com/dp/B0CGVSKR1G">Kindle Colorsoft</a></h3>
+
+<p><a href="https://www.theverge.com/news/712765/amazon-kindle-colorsoft-16-gb-kids">Amazon recently introduced</a> a more affordable alternative to the $279.99 Kindle Colorsoft Signature Edition called the <a href="https://www.amazon.com/dp/B0CGVSKR1G">Kindle Colorsoft</a>. It’s $30 cheaper and delivers a nearly identical reading experience, but lacks wireless charging and only offers 16GB of storage. That’s plenty of space for ebooks, but it might not be enough if you own a lot of graphic novels. The entry-level Kindle Colorsoft also <a href="https://www.theverge.com/gadgets/877625/amazon-send-to-alexa-plus-kindle-scribe-hands-on">supports Amazon’s new “Send to Alexa Plus” feature</a>, which lets you send notes or documents to Amazon’s <a href="https://www.theverge.com/hands-on/705808/amazon-alexa-plus-first-look">Alexa Plus</a> assistant for summaries, to-do lists, reminders, or brainstorming. After a day of testing, I found it useful overall, though it sometimes lacked nuance.</p>
+
+<p>The biggest drawback for me, as a bedtime bookworm, is the lack of an auto-adjusting front light, which can make nighttime reading much easier (however, its brightness and color temperature can be manually adjusted). Given that the Colorsoft Signature Edition costs just $30 more, complete with a front light that adjusts when the room gets dim, 32GB of storage, and wireless charging, I’d opt for that instead if you’re in Amazon’s ecosystem. Unless the standard Colorsoft goes on sale for less, it’s not a great value at its regular price.</p>
+
+<h3 class="wp-block-heading" id="esAlmz"><a href="https://us.kobobooks.com/products/kobo-clara-colour">Kobo Clara Colour</a></h3>
+
+<p>If you’re looking for a non-Amazon alternative that’s more affordable than the Kobo Libra Colour, the <a href="https://www.theverge.com/2024/7/4/24158251/kobo-libra-clara-colour-e-reader-review">Kobo Clara Colour</a> — the successor to the <a href="https://www.theverge.com/23542918/kobo-clara-2e-ereader-review-amazon-kindle">Kobo Clara 2E</a> — is worth a look. At <a href="https://us.kobobooks.com/products/kobo-clara-colour">$159.99</a>, the ad-free e-reader costs more than the <a href="https://www.theverge.com/23542918/kobo-clara-2e-ereader-review-amazon-kindle">Kobo Clara 2E</a>, but I think it’s worth the extra $10. It continues to offer the same six-inch display and IPX8 waterproof design, but the e-reader now offers color. It’s also noticeably faster — something I was happy to see, considering the occasional lag on the Clara 2E sometimes got on my nerves. You don’t get the Clara Colour’s physical buttons or stylus support, but that’s a fair tradeoff at this price point.</p>
+
+<p>Last year, the company also <a href="https://www.theverge.com/news/775526/kobo-clara-colour-e-reader-white-color-larger-battery">announced </a>a <a href="https://us.kobobooks.com/products/kobo-clara-colour">white version</a> for the same price that touts a slightly larger 1,900mAh battery (up from 1,500mAh on the black model), which Kobo says can last over a month on a single charge.</p>
+
+<h3 class="wp-block-heading" id="nook-glowlight-4-plus"><a href="https://www.barnesandnoble.com/w/nook-glowlight-4-plus-barnes-noble/1143603294/">Nook Glowlight 4 Plus</a></h3>
+
+<p>In 2023, Barnes and Noble released the <a href="https://www.theverge.com/2023/7/21/23803227/barnes-and-nobles-forthcoming-e-reader-a-new-kindle-alternative">Nook Glowlight 4 Plus</a>. If you own a lot of digital books from Barnes and Noble, this could be a good Kindle alternative. Otherwise, I’d still recommend the Kobo Libra Colour to everybody else. The <a href="https://www.barnesandnoble.com/w/nook-glowlight-4-plus-barnes-noble/1143603294">$199.99 Nook Glowlight 4 Plus</a> is a good e-reader with a lot to offer, including a lovely 300ppi screen, waterproofing, physical page-turning buttons, and even a headphone jack. However, it’s just not as snappy, which makes setting it up, buying books from the device itself, and navigating the interface a slow ordeal. It didn’t help that the screen sometimes froze, too, which meant I had to restart the device while in the middle of a book.</p>
+
+<h3 class="wp-block-heading" id="77q0KQ"><a href="https://shop.boox.com/products/palma2">Boox&nbsp;Palma 2</a></h3>
+
+<p>Despite all the advantages of E Ink display technology, your smartphone is probably still a more convenient device for reading given how pocket-friendly it is. The&nbsp;<a href="https://www.theverge.com/2024/11/24/24301379/boox-palma-2-review-e-reader-android">Boox&nbsp;Palma 2</a> is a smartphone-sized E Ink device that’s just as easy to slip into a pocket, but with more capabilities than an&nbsp;e-reader. Its 6.3-inch E Ink display is great for reading books, but the <a href="https://shop.boox.com/products/palma2">$299.99 Palma 2</a> also runs Android 13, so you can install productivity apps like email and messaging — assuming you’ve got access to Wi-Fi, of course, because the compact&nbsp;e-reader&nbsp;lacks cellular connectivity. If you already have the original Palma, the sequel isn’t worth the upgrade. But if you’re looking for a smaller alternative to Kindles and Kobos, the Palma 2 could be worth the splurge. <em>&#8211; Andrew Liszewski, Senior Reporter&nbsp;</em></p>
+
+<h3 class="wp-block-heading" id="PZdLwP"><a href="https://www.amazon.com/BOOX-Tablet-10-3-ePaper-Front/dp/B0DT3J3SVW/">Boox Go 10.3</a></h3>
+
+<p>The <a href="https://www.amazon.com/BOOX-Tablet-10-3-ePaper-Front/dp/B0DT3J3SVW/">$409.99 Onyx Boox Go 10.3</a> is another ad-free ebook reader you can use to take notes. It’s excellent as a note-taking device, and it offers an impressively wide range of writing tools and more prebuilt notebook templates than Kobo’s Elipsa 2E. Jotting down notes using the built-in notebook felt more akin to writing on paper as well, and its slim design makes the device feel more like a traditional notebook. Like all Boox devices, it also provides quick access to the Google Play Store, so you can download multiple reading apps — including both Kindle and Kobo apps. The slate’s crisp 300ppi display is sharper than that of the Kobo Elipsa 2E, too, which is a plus.</p>
+
+<p>However, compared to the easy-to-use Elipsa 2E, the Go 10.3 lacks a front light and has a steeper learning curve. Notes you take on a Kindle or Kobo device won’t transfer over (and vice versa), and you can’t annotate books in either app using the Boox. I also felt like access to Google Play can be a double-edged sword as it grants easy access to distracting apps, including games, streaming services, and TikTok. It’s too slow to use the latter, but it’s fast and comfortable enough that I found myself playing around with the Word Search app far too often. For me personally, I need my e-reader to be devoid of such distractions — it’s one of the biggest things that distinguishes it from a tablet, after all. But if you’ve got more self-control than I do, the Go 10.3 could be worth a look.</p>
+
+<h3 class="wp-block-heading has-text-align-none" id="boox-go-color-7-gen-ii"><a href="https://shop.boox.com/products/gocolor7-gen2">Boox Go Color 7 Gen II</a></h3>
+
+<p class="has-text-align-none">In April, Boox <a href="https://www.theverge.com/news/656174/boox-go-7-series-e-ink-e-reader-stylus-color">introduced</a> the Go Color 7 Gen II, which retails for <a href="https://shop.boox.com/products/gocolor7-gen2">$279.99</a>. This water-resistant e-reader offers a 300ppi display that drops to 150ppi when displaying color content, much like its Kobo and Kindle rivals. However, similar to the Kobo Libra Colour, this ad-free model offers physical-page turning buttons and supports note-taking. A stylus isn’t included, so you’ll need to spend an extra <a href="https://shop.boox.com/products/boox-inksense?variant=45884854141158">$45.99</a> for Boox’s pressure-sensitive InkSense pen if you want to take notes. And, like other Boox devices, it runs on Android, giving you access to a wide range of apps and online bookstores through the Google Play Store.</p>
+
+<p class="has-text-align-none">While I appreciated not having to sideload my Kindle and Kobo library, along with greater flexibility to fine-tune color settings, I ultimately prefer the Kobo Libra Colour. In my testing, the Go Color 7 Gen II felt frustratingly sluggish by comparison to the Libra Colour, which is disappointing given the Boox costs $50 more. Responsiveness is a core part of the reading experience for me, so I’d only recommend Boox’s model to readers who value having Android app flexibility over performance.</p>
+
+<h3 class="wp-block-heading has-text-align-none" id="kindle-scribe-colorsoft"><a href="https://www.amazon.com/dp/B0DWRBVDN6">Kindle Scribe Colorsoft</a></h3>
+
+<p class="has-text-align-none">The <a href="https://www.amazon.com/dp/B0DWRBVDN6">$629.99 Kindle Scribe Colorsoft</a> is Amazon’s first color e-reader that’s also designed for note-taking. <a href="https://www.theverge.com/tech/844673/amazon-kindle-scribe-colorsoft-review-ereader-eink-tablet">In her review</a>, my colleague Victoria Song praised its thin, lightweight design, long battery life, and minimal ghosting effect. However, she thought the 11-inch display feels too large for reading or note-taking, and that the muted E Ink colors limit the appeal for artists who want to draw things beyond basic doodles. It’s also a shame that many of its best annotation features — including in-line writing and the AI-powered summarization and search tools — don’t extend to other document types, such as PDFs.</p>
+
+<p><em><strong>Update, February 20th:</strong> Adjusted pricing / availability and added a mention of Amazon’s new “Send to Alexa Plus” feature. Andrew Liszewski also contributed to this post.</em></p>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Stevie Bonifield</name>
+			</author>
+			
+			<title type="html"><![CDATA[Xbox shakeup: Phil Spencer and Sarah Bond are leaving Microsoft]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/games/882363/xbox-microsoft-phil-spencer-out" />
+			<id>https://www.theverge.com/?post_type=vm_stream&#038;p=882363</id>
+			<updated>2026-02-20T19:15:22-05:00</updated>
+			<published>2026-02-20T16:29:01-05:00</published>
+			<category scheme="https://www.theverge.com" term="Business" /><category scheme="https://www.theverge.com" term="Gaming" /><category scheme="https://www.theverge.com" term="Microsoft" /><category scheme="https://www.theverge.com" term="PC Gaming" /><category scheme="https://www.theverge.com" term="Tech" /><category scheme="https://www.theverge.com" term="Xbox" />
+							<summary type="html"><![CDATA[After nearly 40 years at Microsoft, Xbox chief and Microsoft Gaming CEO Phil Spencer is leaving the company, along with Xbox president Sarah Bond. Spencer’s retirement was announced in a memo from Microsoft CEO Satya Nadella on February 20th, stating, “Last year, Phil Spencer made the decision to retire from the company, and since then [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="Xbox ex boss Phil Spencer seated on a coach with new Xbox CEO Asha Sharma" data-caption="Xbox ex boss and new Xbox boss | Image: Microsoft" data-portal-copyright="Image: Microsoft" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/image-7.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+	Xbox ex boss and new Xbox boss | Image: Microsoft	</figcaption>
+</figure>
+<p class="has-text-align-none">After nearly 40 years at Microsoft, Xbox chief and Microsoft Gaming CEO Phil Spencer is leaving the company, along with Xbox president Sarah Bond. Spencer’s retirement was <a href="https://www.theverge.com/news/882241/microsoft-phil-spencer-xbox-leaving-retirement">announced in a memo</a> from Microsoft CEO Satya Nadella on February 20th, stating, “Last year, Phil Spencer made the decision to retire from the company, and since then we’ve been talking about succession planning.”&nbsp;</p>
+
+<p class="has-text-align-none">Last summer, Microsoft responded to <a href="https://www.theverge.com/news/696922/phil-spencer-xbox-microsoft-gaming-retiring">rumors of Spencer’s retirement</a>, saying at the time that he was “not retiring anytime soon.” Microsoft’s CoreAI president, Asha Sharma, <a href="https://www.theverge.com/games/882326/read-microsoft-gaming-ceo-asha-sharma-first-memo">will be moving into Spencer’s former role as Microsoft Gaming CEO</a>, while Matt Booty is being promoted to EVP and chief content officer.&nbsp;</p>
+
+<p class="has-text-align-none"><em>Follow along below for the latest updates on Microsoft’s Xbox leadership change</em>s</p>
+<ul>
+					<li>
+				<a href="https://www.theverge.com/games/882555/read-xbox-president-sarah-bonds-memo-about-leaving-microsoft">Read Xbox president Sarah Bond’s memo about leaving Microsoft.</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/games/882377/microsoft-says-todays-xbox-shakeup-doesnt-mean-game-studio-layoffs">Microsoft says today’s Xbox shake-up doesn’t mean game studio layoffs</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/games/882380/xslop">Xslop?</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/games/882326/read-microsoft-gaming-ceo-asha-sharma-first-memo">Read Microsoft gaming CEO Asha Sharma&#8217;s first memo on the future of Xbox</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/news/882340/xbox-phil-spencer-microsoft-retirement-memo">Read Xbox chief Phil Spencer’s memo about leaving Microsoft</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/news/882241/microsoft-phil-spencer-xbox-leaving-retirement">Xbox chief Phil Spencer is leaving Microsoft</a>
+			</li>
+					<li>
+				<a href="https://www.theverge.com/games/882281/xbox-sarah-bond-leaving-microsoft">Sarah Bond is leaving Xbox</a>
+			</li>
+			</ul>
+						]]>
+									</content>
+			
+					</entry>
+			<entry>
+			
+			<author>
+				<name>Sean Hollister</name>
+			</author>
+			
+			<title type="html"><![CDATA[Microsoft says today’s Xbox shake-up doesn’t mean game studio layoffs]]></title>
+			<link rel="alternate" type="text/html" href="https://www.theverge.com/games/882377/microsoft-says-todays-xbox-shakeup-doesnt-mean-game-studio-layoffs" />
+			<id>https://www.theverge.com/?p=882377</id>
+			<updated>2026-02-20T16:51:47-05:00</updated>
+			<published>2026-02-20T15:58:27-05:00</published>
+			<category scheme="https://www.theverge.com" term="Gaming" /><category scheme="https://www.theverge.com" term="Labor" /><category scheme="https://www.theverge.com" term="Microsoft" /><category scheme="https://www.theverge.com" term="News" /><category scheme="https://www.theverge.com" term="Tech" /><category scheme="https://www.theverge.com" term="Xbox" />
+							<summary type="html"><![CDATA[Xbox has new leaders today, now that Phil Spencer and Sarah Bond are out - and you'd be forgiven for assuming that means yet another round of layoffs and shuttered studios, especially one day after Sony jettisoned a beloved developer. Not yet, it seems. "To be clear, there are no organizational changes underway for our [&#8230;]]]></summary>
+			
+							<content type="html">
+											<![CDATA[
+
+						
+<figure>
+
+<img alt="Two wooden hands holding a pair of Xbox Wireless Controllers" data-caption="" data-portal-copyright="Photo: Antonio G. Di Benedetto / The Verge" data-has-syndication-rights="1" src="https://platform.theverge.com/wp-content/uploads/sites/2/2025/02/Xbox-Wireless-Controller.png?quality=90&#038;strip=all&#038;crop=0,0,100,100" />
+	<figcaption>
+		</figcaption>
+</figure>
+<p class="has-text-align-none">Xbox has new leaders today, <a href="https://www.theverge.com/games/882363/xbox-microsoft-phil-spencer-out">now that Phil Spencer and Sarah Bond are out</a> - and you'd be forgiven for assuming that means yet another round of <a href="https://www.theverge.com/news/697125/microsoft-xbox-layoffs-2025">layoffs and shuttered studios</a>, especially one day <a href="https://www.theverge.com/games/881578/sony-close-bluepoint-games-studio-remaster-remake-demons-souls-shadow-colossus-god-of-war">after Sony jettisoned a beloved developer</a>. </p>
+<p class="has-text-align-none">Not yet, it seems. "To be clear, there are no organizational changes underway for our studios," Microsoft Gaming EVP Matt Booty wrote <a href="https://www.theverge.com/games/882326/read-microsoft-gaming-ceo-asha-sharma-first-memo#:~:text=full%20memo%20from%20Matt%20Booty%2C">in his memo today</a>. It's a little buried under everything else Microsoft's outgoing and incoming gaming CEOs are saying, so figure it's worth dragging to the surface!</p>
+<p class="has-text-align-none">Booty:</p>
+<blockquote class="wp-block-quote is-layout-flow wp-block-quote-is-layout-flow">
+<p class="has-text-align-none">We have good reasons to believe in what's ahead. This organization and its franchises have navigated c …</p></blockquote>
+<p><a href="https://www.theverge.com/games/882377/microsoft-says-todays-xbox-shakeup-doesnt-mean-game-studio-layoffs">Read the full story at The Verge.</a></p>
+						]]>
+									</content>
+			
+					</entry>
+	</feed>

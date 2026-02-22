@@ -1,0 +1,19 @@
+{
+  "evaluatedStoryPairCount" : 0,
+  "evaluatedTaxonomyItemCount" : 0,
+  "fallbackRate" : 0.3292181069958848,
+  "groupPurity" : 0,
+  "macroF1" : 0,
+  "overmergeRate" : 0,
+  "p95OfflineProcessingTimeSecondsPerItem" : 4.7984395061728394e-05,
+  "p99OfflineProcessingTimeSecondsPerItem" : 4.7984395061728394e-05,
+  "perCategoryF1" : {
+
+  },
+  "pipelineCompletionRate" : 1,
+  "processedItemCount" : 243,
+  "processingDurationSeconds" : 0.011660208,
+  "schemaValidRate" : 1,
+  "splitRate" : 0,
+  "totalItemCount" : 243
+}
