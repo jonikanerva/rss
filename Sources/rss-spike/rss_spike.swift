@@ -31,6 +31,7 @@ struct RSSSpikeCLI {
         let runStartedAt = Date()
         let entries = try loadDataset(from: options.datasetPath)
         let storyPairLabels = try loadStoryPairLabels(from: options.storyLabelsPath)
+        let taxonomyLabels = try loadTaxonomyLabels(from: options.taxonomyLabelsPath)
 
         let pipeline = BaselinePipeline(
             categorizer: KeywordCategorizer(),
@@ -42,7 +43,8 @@ struct RSSSpikeCLI {
         let result = FeasibilityBenchmarkRunner.run(
             entries: entries,
             pipeline: pipeline,
-            storyPairLabels: storyPairLabels
+            storyPairLabels: storyPairLabels,
+            taxonomyLabels: taxonomyLabels
         )
         let ended = DispatchTime.now()
         let durationNs = ended.uptimeNanoseconds - started.uptimeNanoseconds
@@ -74,6 +76,9 @@ struct RSSSpikeCLI {
             splitRate: result.groupingQuality.splitRate,
             overmergeRate: result.groupingQuality.overmergeRate,
             evaluatedStoryPairCount: result.groupingQuality.evaluatedPairCount,
+            macroF1: result.categorizationQuality.macroF1,
+            evaluatedTaxonomyItemCount: result.categorizationQuality.evaluatedItemCount,
+            perCategoryF1: result.categorizationQuality.perCategoryF1,
             processingDurationSeconds: durationSeconds,
             p95OfflineProcessingTimeSecondsPerItem: perItemSeconds,
             p99OfflineProcessingTimeSecondsPerItem: perItemSeconds
@@ -145,6 +150,35 @@ struct RSSSpikeCLI {
         return labels
     }
 
+    private static func loadTaxonomyLabels(from path: String) throws -> [TaxonomyLabel] {
+        let raw = try String(contentsOfFile: path, encoding: .utf8)
+        let lines = raw
+            .split(whereSeparator: \ .isNewline)
+            .map(String.init)
+            .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+
+        guard lines.isEmpty == false else {
+            return []
+        }
+
+        let records = lines.dropFirst()
+        var labels: [TaxonomyLabel] = []
+        labels.reserveCapacity(records.count)
+
+        for record in records {
+            let parts = record.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 2 else {
+                continue
+            }
+
+            let itemID = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let category = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            labels.append(TaxonomyLabel(itemID: itemID, category: category))
+        }
+
+        return labels
+    }
+
     private static func writeJSON<T: Encodable>(_ value: T, to filePath: String) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -172,6 +206,7 @@ struct RSSSpikeCLI {
         - Group purity: \(metrics.groupPurity)
         - Split rate: \(metrics.splitRate)
         - Overmerge rate: \(metrics.overmergeRate)
+        - Macro F1: \(metrics.macroF1)
 
         ## Notes
 
@@ -321,6 +356,9 @@ private struct MetricsPayload: Encodable {
     let splitRate: Double
     let overmergeRate: Double
     let evaluatedStoryPairCount: Int
+    let macroF1: Double
+    let evaluatedTaxonomyItemCount: Int
+    let perCategoryF1: [String: Double]
     let processingDurationSeconds: Double
     let p95OfflineProcessingTimeSecondsPerItem: Double
     let p99OfflineProcessingTimeSecondsPerItem: Double
@@ -335,14 +373,24 @@ private struct ChronologyPayload: Encodable {
 private struct KeywordCategorizer: EntryCategorizer {
     func predict(for entry: FeedEntry) -> CategoryPrediction? {
         let text = "\(entry.title) \(entry.summary)".lowercased()
-        if text.contains("apple") || text.contains("mac") || text.contains("iphone") {
-            return CategoryPrediction(label: "apple", confidence: 0.9)
-        }
-        if text.contains("openai") || text.contains("ai") || text.contains("llm") {
-            return CategoryPrediction(label: "ai", confidence: 0.85)
-        }
-        if text.contains("security") || text.contains("vulnerability") {
-            return CategoryPrediction(label: "security", confidence: 0.8)
+
+        let keywordToCategory: [(String, String)] = [
+            ("apple", "apple"),
+            ("ai", "ai"),
+            ("security", "security"),
+            ("cloud", "cloud"),
+            ("mobile", "mobile"),
+            ("web", "web"),
+            ("data", "data"),
+            ("policy", "policy"),
+            ("finance", "finance"),
+            ("science", "science"),
+        ]
+
+        for (keyword, category) in keywordToCategory {
+            if text.contains(keyword) {
+                return CategoryPrediction(label: category, confidence: 0.9)
+            }
         }
 
         return CategoryPrediction(label: "general", confidence: 0.55)

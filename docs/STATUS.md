@@ -25,12 +25,12 @@ Status: Active
 1. Gate evidence linkage and owner decision log update.
    - Owner: Product owner + Engineering owner
    - Target: signoff on latest run
-2. Expand frozen evaluation dataset to feasibility minimums.
-   - Owner: Agent
-   - Target: next benchmark window
-3. Add categorization quality metrics (macro/per-category F1) to benchmark output.
-   - Owner: Agent
-   - Target: before next frozen rerun
+2. Replace synthetic dogfood correction evidence with real review sample.
+   - Owner: Product owner + Agent
+   - Target: before owner signoff
+3. Owner signoff on latest gate run.
+   - Owner: Product owner + Engineering owner
+   - Target: after item 2
 
 ## Active artifact pointers
 
@@ -50,7 +50,7 @@ Status: Active
 
 ## Last updated
 
-- 2026-02-22 by OpenCode agent (post run-003 update)
+- 2026-02-22 by OpenCode agent (post run-005 update)
 
 ## Update rule
 

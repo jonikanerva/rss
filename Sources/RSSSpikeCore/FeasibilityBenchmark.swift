@@ -8,6 +8,7 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
     public let fallbackRate: Double
     public let chronologyReport: ChronologyReport
     public let groupingQuality: GroupingQualityMetrics
+    public let categorizationQuality: CategorizationQualityMetrics
 
     public init(
         totalItemCount: Int,
@@ -16,7 +17,8 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         schemaValidRate: Double,
         fallbackRate: Double,
         chronologyReport: ChronologyReport,
-        groupingQuality: GroupingQualityMetrics
+        groupingQuality: GroupingQualityMetrics,
+        categorizationQuality: CategorizationQualityMetrics
     ) {
         self.totalItemCount = totalItemCount
         self.processedItemCount = processedItemCount
@@ -25,6 +27,7 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         self.fallbackRate = fallbackRate
         self.chronologyReport = chronologyReport
         self.groupingQuality = groupingQuality
+        self.categorizationQuality = categorizationQuality
     }
 }
 
@@ -32,7 +35,8 @@ public enum FeasibilityBenchmarkRunner {
     public static func run(
         entries: [FeedEntry],
         pipeline: BaselinePipeline,
-        storyPairLabels: [StoryPairLabel] = []
+        storyPairLabels: [StoryPairLabel] = [],
+        taxonomyLabels: [TaxonomyLabel] = []
     ) -> FeasibilityBenchmarkResult {
         let output = pipeline.process(entries: entries)
 
@@ -52,6 +56,11 @@ public enum FeasibilityBenchmarkRunner {
             labels: storyPairLabels,
             predictedGroupByItemID: predictedGroupByItemID
         )
+        let predictedCategoryByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.category) })
+        let categorizationQuality = CategorizationQualityEvaluator.evaluate(
+            truthLabels: taxonomyLabels,
+            predictedCategoryByItemID: predictedCategoryByItemID
+        )
 
         return FeasibilityBenchmarkResult(
             totalItemCount: totalItemCount,
@@ -60,7 +69,8 @@ public enum FeasibilityBenchmarkRunner {
             schemaValidRate: schemaValidRate,
             fallbackRate: fallbackRate,
             chronologyReport: output.chronologyReport,
-            groupingQuality: groupingQuality
+            groupingQuality: groupingQuality,
+            categorizationQuality: categorizationQuality
         )
     }
 

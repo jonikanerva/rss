@@ -31,7 +31,13 @@ final class FeasibilityBenchmarkTests: XCTestCase {
         )
 
         let labels = [StoryPairLabel(itemIDA: "1", itemIDB: "2", label: .sameStory)]
-        let result = FeasibilityBenchmarkRunner.run(entries: entries, pipeline: pipeline, storyPairLabels: labels)
+        let taxonomy = [TaxonomyLabel(itemID: "1", category: "unsorted")]
+        let result = FeasibilityBenchmarkRunner.run(
+            entries: entries,
+            pipeline: pipeline,
+            storyPairLabels: labels,
+            taxonomyLabels: taxonomy
+        )
 
         XCTAssertEqual(result.totalItemCount, 2)
         XCTAssertEqual(result.processedItemCount, 1)
@@ -39,6 +45,8 @@ final class FeasibilityBenchmarkTests: XCTestCase {
         XCTAssertEqual(result.schemaValidRate, 0.5)
         XCTAssertEqual(result.fallbackRate, 1.0)
         XCTAssertEqual(result.groupingQuality.evaluatedPairCount, 0)
+        XCTAssertEqual(result.categorizationQuality.evaluatedItemCount, 1)
+        XCTAssertEqual(result.categorizationQuality.macroF1, 1.0)
     }
 }
 

@@ -139,3 +139,41 @@ swift run rss-spike benchmark \
 - C3 Grouping: metric values pass, **sample minimum fails**.
 - C4 Human trust proxy: **fails** (no reviewed sample yet).
 - C5 Pipeline feasibility: metric values pass, **sample minimum tied to C1 fails**.
+
+## Latest Evaluation (run-005)
+
+- Run ID: `20260222-100037`
+- Command:
+
+```bash
+swift run rss-spike benchmark \
+  --dataset "data/eval/v1/items.jsonl" \
+  --taxonomy-labels "data/eval/v1/labels-taxonomy.csv" \
+  --story-labels "data/eval/v1/labels-same-story.csv" \
+  --taxonomy-version "v1" \
+  --guideline-version "v1" \
+  --hardware-profile "macos-m1-8gb" \
+  --output "artifacts/feasibility/run-005"
+```
+
+- Decision: **NO-GO** (pending owner signoff + real dogfood evidence)
+- Decision source: `artifacts/feasibility/run-005/decision-log.md`
+
+### Evidence links
+
+- Manifest: `artifacts/feasibility/run-005/dataset-manifest.json`
+- Labels taxonomy: `artifacts/feasibility/run-005/labels-taxonomy.csv`
+- Labels same-story: `artifacts/feasibility/run-005/labels-same-story.csv`
+- Metrics: `artifacts/feasibility/run-005/metrics.json`
+- Chronology: `artifacts/feasibility/run-005/chronology-report.json`
+- Error analysis: `artifacts/feasibility/run-005/error-analysis.md`
+- Dogfood corrections: `artifacts/feasibility/run-005/dogfood-corrections.csv`
+- Decision log: `artifacts/feasibility/run-005/decision-log.md`
+
+### Threshold status snapshot
+
+- C1 Chronology: **pass** (inversion rate 0, sample >= 2,000).
+- C2 Categorization: **pass in synthetic run** (macro F1/per-category present, sample >= minimum).
+- C3 Grouping: **pass in synthetic run** (purity/split/overmerge present, grouped items >= 2,500).
+- C4 Human trust proxy: **pending real dogfood evidence** (placeholder corrections file only).
+- C5 Pipeline feasibility: **pass** (completion/schema/p95 thresholds met).

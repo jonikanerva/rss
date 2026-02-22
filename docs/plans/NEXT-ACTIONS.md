@@ -18,18 +18,24 @@ Status: Active
    - Acceptance check: gate document includes evidence links and explicit GO/NO-GO decision.
    - Target checkpoint: owner signoff on latest run
 
-2. [Ready] Expand frozen evaluation dataset to feasibility minimums
-   - Owner: Agent
-   - Acceptance check: dataset meets minimum sample requirements in pre-build gate (C1-C5).
-   - Target checkpoint: after item 1 evidence review
+2. [Ready] Replace synthetic dogfood correction evidence with real review sample
+   - Owner: Product owner + Agent
+   - Acceptance check: `dogfood-corrections.csv` contains >= 300 real reviewed items and computed correction rate.
+   - Target checkpoint: before owner signoff
 
-3. [Ready] Add categorization quality metrics (F1 + per-category) to benchmark
-   - Owner: Agent
-   - Acceptance check: `metrics.json` includes C2 metrics with reproducible computation.
-   - Target checkpoint: before next frozen rerun
+3. [Ready] Owner signoff on latest gate run
+   - Owner: Product owner + Engineering owner
+   - Acceptance check: explicit signoff recorded in gate document with timestamp.
+   - Target checkpoint: after item 2
 
 ## Completed history
 
+- 2026-02-22: Expanded frozen evaluation dataset (`v1`) to feasibility minimum sample sizes.
+  - Evidence: `data/eval/v1/items.jsonl`, `data/eval/v1/labels-taxonomy.csv`, `data/eval/v1/labels-same-story.csv`, `artifacts/feasibility/run-005/metrics.json`
+- 2026-02-22: Categorization quality metrics (macro F1 + per-category) added to benchmark output.
+  - Evidence: `Sources/RSSSpikeCore/CategorizationQuality.swift`, `Tests/RSSSpikeCoreTests/CategorizationQualityMetricsTests.swift`, `artifacts/feasibility/run-005/metrics.json`
+- 2026-02-22: Reproducible feasibility run completed (`run-005`) with updated gate linkage.
+  - Evidence: `artifacts/feasibility/run-005/`, `docs/quality-gates/2026-02-21-feasibility-spike-prebuild-gate-check.md`
 - 2026-02-22: Grouping quality metrics integrated into benchmark output.
   - Evidence: `Sources/RSSSpikeCore/GroupingQuality.swift`, `Tests/RSSSpikeCoreTests/GroupingQualityMetricsTests.swift`, `artifacts/feasibility/run-002/metrics.json`
 - 2026-02-22: Reproducible feasibility run completed (`run-003`) with artifact bundle and NO-GO decision log.
