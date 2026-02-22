@@ -1,5 +1,7 @@
 # Project Status (Single Source of Truth)
 
+Read this file first at session start.
+
 Date: 2026-02-22
 Owner: Repository Owner + Agent
 Status: Active
@@ -32,6 +34,7 @@ Status: Active
 
 ## Active artifact pointers
 
+- Vision: `docs/vision/VISION.md`
 - Research: `docs/research/2026-02-22-multi-agent-git-isolation-options.md`
 - Plan: `docs/plans/2026-02-21-feasibility-spike-plan.md`
 - Gate: `docs/quality-gates/2026-02-21-feasibility-spike-prebuild-gate-check.md`
@@ -52,4 +55,5 @@ Status: Active
 ## Update rule
 
 - Update this file on every merge that changes phase, active objective, next actions, or active artifact pointers.
+- Update this file when vision linkage or current vision emphasis changes.
 - If no state changed, still refresh `Last updated` at least once per working day.

@@ -23,6 +23,7 @@ Allowed by default when operating in the current local repository and feature br
 ### Tier B: Approval required (explicit user confirmation)
 
 - Any write action outside local feature branch scope.
+- Any edit to `docs/vision/VISION.md` (human approval required).
 - Changes that touch secrets, credentials, auth, IAM, billing, or retention.
 - Modifying protected branch settings or repository administration.
 - External-system writes via integrations (bulk issue edits, automation that mutates remote state).

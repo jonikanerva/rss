@@ -1,7 +1,6 @@
 # Vision Artifacts
 
-Store product vision drafts and approved vision documents in this directory.
+Store the canonical product vision document in this directory.
 
-Suggested naming:
-- `YYYY-MM-DD-<initiative>-vision-draft.md`
-- `YYYY-MM-DD-<initiative>-vision-approved.md`
+Canonical vision source:
+- `docs/vision/VISION.md`
