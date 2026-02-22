@@ -7,6 +7,7 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
     public let schemaValidRate: Double
     public let fallbackRate: Double
     public let chronologyReport: ChronologyReport
+    public let groupingQuality: GroupingQualityMetrics
 
     public init(
         totalItemCount: Int,
@@ -14,7 +15,8 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         pipelineCompletionRate: Double,
         schemaValidRate: Double,
         fallbackRate: Double,
-        chronologyReport: ChronologyReport
+        chronologyReport: ChronologyReport,
+        groupingQuality: GroupingQualityMetrics
     ) {
         self.totalItemCount = totalItemCount
         self.processedItemCount = processedItemCount
@@ -22,11 +24,16 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         self.schemaValidRate = schemaValidRate
         self.fallbackRate = fallbackRate
         self.chronologyReport = chronologyReport
+        self.groupingQuality = groupingQuality
     }
 }
 
 public enum FeasibilityBenchmarkRunner {
-    public static func run(entries: [FeedEntry], pipeline: BaselinePipeline) -> FeasibilityBenchmarkResult {
+    public static func run(
+        entries: [FeedEntry],
+        pipeline: BaselinePipeline,
+        storyPairLabels: [StoryPairLabel] = []
+    ) -> FeasibilityBenchmarkResult {
         let output = pipeline.process(entries: entries)
 
         let totalItemCount = entries.count
@@ -40,6 +47,11 @@ public enum FeasibilityBenchmarkRunner {
 
         let fallbackCount = output.items.filter { $0.categorySource == .fallback }.count
         let fallbackRate = safeRatio(numerator: fallbackCount, denominator: max(1, processedItemCount))
+        let predictedGroupByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.groupID) })
+        let groupingQuality = GroupingQualityEvaluator.evaluate(
+            labels: storyPairLabels,
+            predictedGroupByItemID: predictedGroupByItemID
+        )
 
         return FeasibilityBenchmarkResult(
             totalItemCount: totalItemCount,
@@ -47,7 +59,8 @@ public enum FeasibilityBenchmarkRunner {
             pipelineCompletionRate: pipelineCompletionRate,
             schemaValidRate: schemaValidRate,
             fallbackRate: fallbackRate,
-            chronologyReport: output.chronologyReport
+            chronologyReport: output.chronologyReport,
+            groupingQuality: groupingQuality
         )
     }
 

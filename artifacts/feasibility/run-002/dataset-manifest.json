@@ -1,0 +1,11 @@
+{
+  "datasetPath" : "data\/eval\/v0\/items.jsonl",
+  "guidelineVersion" : "v1",
+  "hardwareProfile" : "macos-m1-8gb",
+  "itemCount" : 4,
+  "runID" : "20260222-062256",
+  "runStartedAt" : "2026-02-22T06:22:56Z",
+  "storyLabelsPath" : "data\/eval\/v0\/labels-same-story.csv",
+  "taxonomyLabelsPath" : "data\/eval\/v0\/labels-taxonomy.csv",
+  "taxonomyVersion" : "v1"
+}

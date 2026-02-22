@@ -30,6 +30,7 @@ struct RSSSpikeCLI {
     private static func runBenchmark(options: CLIOptions) throws {
         let runStartedAt = Date()
         let entries = try loadDataset(from: options.datasetPath)
+        let storyPairLabels = try loadStoryPairLabels(from: options.storyLabelsPath)
 
         let pipeline = BaselinePipeline(
             categorizer: KeywordCategorizer(),
@@ -38,7 +39,11 @@ struct RSSSpikeCLI {
         )
 
         let started = DispatchTime.now()
-        let result = FeasibilityBenchmarkRunner.run(entries: entries, pipeline: pipeline)
+        let result = FeasibilityBenchmarkRunner.run(
+            entries: entries,
+            pipeline: pipeline,
+            storyPairLabels: storyPairLabels
+        )
         let ended = DispatchTime.now()
         let durationNs = ended.uptimeNanoseconds - started.uptimeNanoseconds
         let durationSeconds = Double(durationNs) / 1_000_000_000
@@ -65,6 +70,10 @@ struct RSSSpikeCLI {
             pipelineCompletionRate: result.pipelineCompletionRate,
             schemaValidRate: result.schemaValidRate,
             fallbackRate: result.fallbackRate,
+            groupPurity: result.groupingQuality.groupPurity,
+            splitRate: result.groupingQuality.splitRate,
+            overmergeRate: result.groupingQuality.overmergeRate,
+            evaluatedStoryPairCount: result.groupingQuality.evaluatedPairCount,
             processingDurationSeconds: durationSeconds,
             p95OfflineProcessingTimeSecondsPerItem: perItemSeconds,
             p99OfflineProcessingTimeSecondsPerItem: perItemSeconds
@@ -105,6 +114,37 @@ struct RSSSpikeCLI {
         return entries
     }
 
+    private static func loadStoryPairLabels(from path: String) throws -> [StoryPairLabel] {
+        let raw = try String(contentsOfFile: path, encoding: .utf8)
+        let lines = raw
+            .split(whereSeparator: \ .isNewline)
+            .map(String.init)
+            .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+
+        guard lines.isEmpty == false else {
+            return []
+        }
+
+        let records = lines.dropFirst()
+        var labels: [StoryPairLabel] = []
+        labels.reserveCapacity(records.count)
+
+        for record in records {
+            let parts = record.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 3,
+                  let pairType = StoryPairType(rawValue: parts[2].trimmingCharacters(in: .whitespacesAndNewlines))
+            else {
+                continue
+            }
+
+            let itemIDA = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let itemIDB = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            labels.append(StoryPairLabel(itemIDA: itemIDA, itemIDB: itemIDB, label: pairType))
+        }
+
+        return labels
+    }
+
     private static func writeJSON<T: Encodable>(_ value: T, to filePath: String) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -129,6 +169,9 @@ struct RSSSpikeCLI {
         - Processed items: \(metrics.processedItemCount)
         - Pipeline completion rate: \(metrics.pipelineCompletionRate)
         - Fallback rate: \(metrics.fallbackRate)
+        - Group purity: \(metrics.groupPurity)
+        - Split rate: \(metrics.splitRate)
+        - Overmerge rate: \(metrics.overmergeRate)
 
         ## Notes
 
@@ -274,6 +317,10 @@ private struct MetricsPayload: Encodable {
     let pipelineCompletionRate: Double
     let schemaValidRate: Double
     let fallbackRate: Double
+    let groupPurity: Double
+    let splitRate: Double
+    let overmergeRate: Double
+    let evaluatedStoryPairCount: Int
     let processingDurationSeconds: Double
     let p95OfflineProcessingTimeSecondsPerItem: Double
     let p99OfflineProcessingTimeSecondsPerItem: Double
