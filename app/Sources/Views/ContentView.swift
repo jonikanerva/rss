@@ -26,6 +26,16 @@ enum TimelineItem: Identifiable {
             return group.earliestDate
         }
     }
+
+    /// All selectable entries from this timeline item (for keyboard nav).
+    var selectableEntries: [Entry] {
+        switch self {
+        case .standalone(let entry):
+            return [entry]
+        case .group(_, let entries):
+            return entries
+        }
+    }
 }
 
 // MARK: - Content View
@@ -65,13 +75,11 @@ struct ContentView: View {
             if groupEntries.count >= 2 {
                 items.append(.group(group, groupEntries.sorted { $0.publishedAt > $1.publishedAt }))
             } else if groupEntries.count == 1 {
-                // If filtering reduced the group to 1 entry, show as standalone
                 items.append(.standalone(groupEntries[0]))
             }
         }
 
         // Add standalone entries (not part of any multi-entry group)
-        // Entries already added as standalone from single-entry groups are tracked via groupedKeys
         let singleEntryGroupKeys = Set(
             storyGroups.map(\.storyKey).filter { key in
                 relevantEntries.filter { $0.storyKey == key }.count < 2
@@ -86,8 +94,12 @@ struct ContentView: View {
             }
         }
 
-        // Sort by date, newest first
         return items.sorted { $0.sortDate > $1.sortDate }
+    }
+
+    /// Flat list of all selectable entries in timeline order (for keyboard navigation).
+    private var selectableEntries: [Entry] {
+        timelineItems.flatMap(\.selectableEntries)
     }
 
     var body: some View {
@@ -115,7 +127,6 @@ struct ContentView: View {
                 .frame(width: 550, height: 500)
         }
         .onChange(of: syncEngine.isSyncing) { wasSyncing, isSyncing in
-            // Auto-classify after sync completes
             if wasSyncing && !isSyncing && !classificationEngine.isClassifying {
                 Task {
                     await classificationEngine.classifyUnclassified(in: modelContext)
@@ -123,11 +134,51 @@ struct ContentView: View {
             }
         }
         .onChange(of: classificationEngine.isClassifying) { wasClassifying, isClassifying in
-            // Auto-group after classification completes
             if wasClassifying && !isClassifying && !groupingEngine.isGrouping {
                 Task {
                     await groupingEngine.groupEntries(in: modelContext)
                 }
+            }
+        }
+        // Keyboard navigation
+        .onKeyPress(.downArrow) { navigateEntry(direction: .next); return .handled }
+        .onKeyPress(.upArrow) { navigateEntry(direction: .previous); return .handled }
+        .onKeyPress(.return) { handleReturn(); return .handled }
+        .onKeyPress(.escape) { selectedEntry = nil; return .handled }
+    }
+
+    // MARK: - Keyboard Navigation
+
+    private enum NavigationDirection { case next, previous }
+
+    private func navigateEntry(direction: NavigationDirection) {
+        let entries = selectableEntries
+        guard !entries.isEmpty else { return }
+
+        guard let current = selectedEntry,
+              let index = entries.firstIndex(of: current) else {
+            // Nothing selected — select first or last depending on direction
+            selectedEntry = direction == .next ? entries.first : entries.last
+            return
+        }
+
+        switch direction {
+        case .next:
+            if index + 1 < entries.count {
+                selectedEntry = entries[index + 1]
+            }
+        case .previous:
+            if index > 0 {
+                selectedEntry = entries[index - 1]
+            }
+        }
+    }
+
+    private func handleReturn() {
+        // If an entry in a group is selected, ensure the group is expanded
+        if let entry = selectedEntry, let key = entry.storyKey, !key.isEmpty {
+            if storyGroups.contains(where: { $0.storyKey == key }) {
+                expandedGroups.insert(key)
             }
         }
     }
@@ -146,17 +197,30 @@ struct ContentView: View {
                 Section("Categories") {
                     ForEach(categories) { category in
                         let count = entries.filter { $0.categoryLabels.contains(category.label) }.count
-                        Label("\(category.displayName) (\(count))", systemImage: "tag")
-                            .tag(category.label as String?)
+                        HStack {
+                            Label(category.displayName, systemImage: "tag")
+                            Spacer()
+                            Text("\(count)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .monospacedDigit()
+                        }
+                        .tag(category.label as String?)
                     }
                 }
             }
 
             if !storyGroups.isEmpty {
                 Section("Stories") {
-                    Label("\(storyGroups.count) story groups", systemImage: "rectangle.stack")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
+                    HStack {
+                        Label("Groups", systemImage: "rectangle.stack")
+                        Spacer()
+                        Text("\(storyGroups.count)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -315,24 +379,28 @@ struct StoryGroupRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Group header — always visible
+            // Group header
             Button(action: onToggle) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 12)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 10)
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(group.headline)
-                            .font(.headline)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
                             .lineLimit(2)
                             .foregroundStyle(.primary)
 
-                        HStack(spacing: 8) {
-                            Label("\(entries.count) sources", systemImage: "rectangle.stack")
+                        HStack(spacing: 6) {
+                            Text("\(entries.count) articles")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            Text("·")
+                                .foregroundStyle(.quaternary)
 
                             Text(group.earliestDate, style: .relative)
                                 .font(.caption)
@@ -342,20 +410,22 @@ struct StoryGroupRowView: View {
 
                     Spacer()
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
             // Expanded entries
             if isExpanded {
-                ForEach(entries) { entry in
-                    EntryRowView(entry: entry)
-                        .padding(.leading, 20)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedEntry = entry
-                        }
+                VStack(spacing: 0) {
+                    ForEach(entries) { entry in
+                        EntryRowView(entry: entry)
+                            .padding(.leading, 20)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedEntry = entry
+                            }
+                    }
                 }
             }
         }
