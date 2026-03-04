@@ -29,11 +29,19 @@ Status: Active
    - Evidence: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
 5. R5: Hard MVP execution plan lock
    - Outcome: Approved roadmap for full scaffold after gate pass.
-   - State: **In progress**
+   - State: **Complete** — plan approved, all 5 milestones implemented.
+   - Evidence: `docs/plans/2026-03-04-hard-mvp-execution-plan.md`
+6. MVP Implementation (M1–M5)
+   - Outcome: Working macOS app with Feedbin sync, classification, grouping, timeline, and polish.
+   - State: **Complete** — all milestones merged to main (PRs #2–#6).
+   - Evidence: `app/` source code, PRs #2–#6 on GitHub.
+7. Dogfood validation
+   - Outcome: Owner uses app daily for 1 week, confirms "clear, beautiful, and calm."
+   - State: **Ready** — awaiting owner dogfood.
 
 ## Critical path
 
-- R1 ✅ -> R2 ✅ -> R3 ✅ -> R4 ✅ -> R5 ⏳
+- R1 ✅ → R2 ✅ → R3 ✅ → R4 ✅ → R5 ✅ → MVP ✅ → Dogfood ⏳
 
 ## Dependencies
 
@@ -41,6 +49,8 @@ Status: Active
 - R3 depends on pinned local LLM runtime/model/prompt manifest contract. ✅
 - R4 depends on completed artifacts from R3 in one frozen run. ✅
 - R5 depends on R4 decision and updated risk posture. ✅
+- MVP depends on R5 plan approval. ✅
+- Dogfood depends on MVP complete. ✅
 
 ## How to use
 

@@ -13,13 +13,20 @@ Status: Active
 
 ## Active queue
 
-1. [Ready] Review and approve R5: Hard MVP execution plan
+1. [Ready] Dogfood the app for 1 week
    - Owner: Repository Owner
-   - Acceptance check: Owner confirms plan scope, milestones, and acceptance criteria are correct.
-   - Target checkpoint: plan approved before M1 implementation begins
-   - Context: Draft plan at `docs/plans/2026-03-04-hard-mvp-execution-plan.md`. 5 milestones: M1 scaffold+sync, M2 classification, M3 grouping, M4 UI, M5 polish.
+   - Acceptance check: Owner uses app daily with real Feedbin account. Subjective quality feedback: "clear, beautiful, and calm."
+   - Target checkpoint: 1 week of daily use
+   - Context: Build with `cd app && swift build`, run `.build/debug/Feeder`. All 5 milestones complete (PRs #2–#6).
 
 ## Completed history
+
+- 2026-03-04: M5 polish merged (PR #6). Status bar, tabbed settings, sync interval, accessibility.
+- 2026-03-04: M4 timeline polish merged (PR #5). Keyboard navigation, visual hierarchy, reading width.
+- 2026-03-04: M3 story grouping merged (PR #4). GroupingEngine, Jaccard clustering, timeline integration.
+- 2026-03-04: M2 classification merged (PR #3). Apple FM @Generable, user-defined categories, auto-classify.
+- 2026-03-04: M1 scaffold merged (PR #2). SwiftUI app, Feedbin API, SwiftData, background sync.
+- 2026-03-04: R5 Hard MVP plan approved by owner.
 
 - 2026-03-04: Gate thresholds adjusted and run-017 evaluated — all checks pass, GO pending signoff.
   - Evidence: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
