@@ -1,0 +1,36 @@
+version: 1
+name: local-llm-classification-v1
+multi_label: true
+main_category_rule: "first label in output is the main category"
+fallback_label: other
+
+labels:
+  - name: technology
+    description: "A broad category for all news about technology companies, products, platforms, and innovations. This includes news about Apple, Tesla, AI companies, and any other tech company. Use alongside more specific categories when applicable."
+
+  - name: apple
+    description: "All news about Apple company, its products (Mac, iPhone, iPad, Apple Watch), platforms (macOS, iOS), chips (M-series), services, and innovations. Apple news is always also technology news."
+
+  - name: tesla
+    description: "All news related to Tesla company, its vehicles, energy products, and innovations. Tesla news is always also technology news."
+
+  - name: ai
+    description: "Only for articles where AI is the central topic: AI models, ML systems, AI products, AI-focused companies like OpenAI or Anthropic, and applied generative AI. Do not apply when a product merely uses AI as a feature."
+
+  - name: home_automation
+    description: "Smart home devices, home automation platforms (Google Home, Apple HomeKit, Amazon Alexa), Matter protocol, and related IoT technologies for the home."
+
+  - name: gaming
+    description: "Game releases, game reviews, gameplay content, game announcements, and game-specific news. For business news about the gaming industry (layoffs, acquisitions, financial results), use 'gaming_industry' instead."
+
+  - name: gaming_industry
+    description: "Business and industry news about the gaming sector: studio layoffs, closures, acquisitions, insolvency, market analysis, financial results, and workforce changes. Use this instead of 'gaming' when the article is about the business side rather than games themselves."
+
+  - name: playstation_5
+    description: "All news specifically about PlayStation 5 games, hardware, and ecosystem. Exclude mobile gaming, PC gaming, and other console news, which should be categorized under 'gaming'."
+
+  - name: world
+    description: "Geopolitics, government actions, regulatory decisions, international affairs, and global developments. Only apply when government or policy is a central theme, not when a company merely operates in multiple countries."
+
+  - name: other
+    description: "Use only when no other category clearly matches. Never combine with another category."

@@ -2,58 +2,42 @@
 
 Read this file first at session start.
 
-Date: 2026-02-22
+Date: 2026-03-04
 Owner: Repository Owner + Agent
 Status: Active
 
 ## Current phase
 
-- Implement (Feasibility Spike)
+- R5: Hard MVP execution plan
 
 ## Active objective
 
-- Deliver reproducible feasibility evidence for always-on categorization and same-story grouping with chronology invariants intact.
+- Draft the Hard MVP execution plan for a macOS SwiftUI app using Apple Foundation Models + Feedbin API for RSS article classification.
 
 ## Success criteria for current objective
 
-- Feasibility artifacts are generated from one frozen run and linked in the active gate document.
-- Gate decision is explicit (GO/NO-GO) with owner signoff.
-- Handoff allows a new agent to continue without additional discovery questions.
+- `docs/plans/` contains an MVP execution plan with scope, milestones, acceptance criteria, and risks.
+- Plan is derived from feasibility evidence (run-017) and product vision (`docs/vision/VISION.md`).
+- Plan is reviewed and approved before implementation begins.
 
 ## Next actions (max 3)
 
-1. Gate evidence linkage and owner decision log update.
-   - Owner: Product owner + Engineering owner
-   - Target: signoff on latest run
-2. Replace synthetic dogfood correction evidence with real review sample.
-   - Owner: Product owner + Agent
-   - Target: before owner signoff
-3. Owner signoff on latest gate run.
-   - Owner: Product owner + Engineering owner
-   - Target: after item 2
+1. [Ready] Draft R5 Hard MVP execution plan.
+   - Owner: Repository Owner + Agent
+   - Context: R4 gate signed off. Feasibility validated with Apple FM. Now need a concrete build plan.
 
 ## Active artifact pointers
 
 - Vision: `docs/vision/VISION.md`
-- Research: `docs/research/2026-02-22-multi-agent-git-isolation-options.md`
-- Plan: `docs/plans/2026-02-21-feasibility-spike-plan.md`
-- Gate: `docs/quality-gates/2026-02-21-feasibility-spike-prebuild-gate-check.md`
-- Working model: `docs/operating-model/README.md`
-- Live priorities: `docs/plans/NEXT-ACTIONS.md`
-- Milestone view: `docs/plans/ROADMAP.md`
-
-## Ownership
-
-- Product DRI: Repository Owner
-- Engineering DRI: Repository Owner
-- Delivery agent DRI: RPI Orchestrator
+- Research: `docs/research/2026-03-02-local-llm-classification-reset.md`
+- Research: `docs/research/2026-03-03-apple-foundation-models-comparison.md`
+- Plan: `docs/plans/2026-03-02-local-llm-classification-reset-plan.md`
+- Gate: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
+- Category definitions: `config/categories-v1.yaml` (improved descriptions for LLM)
+- Apple FM candidate run: `artifacts/feasibility/run-017-apple-fm-tighter-descriptions/`
+- Ollama baseline: `artifacts/feasibility/run-010-llama3.2-3b-full-content/`
+- Swift test harness: `tools/apple-fm-categorizer/`
 
 ## Last updated
 
-- 2026-02-22 by OpenCode agent (post run-005 update)
-
-## Update rule
-
-- Update this file on every merge that changes phase, active objective, next actions, or active artifact pointers.
-- Update this file when vision linkage or current vision emphasis changes.
-- If no state changed, still refresh `Last updated` at least once per working day.
+- 2026-03-04 by OpenCode agent (R4 gate GO signed off. Advancing to R5: Hard MVP execution plan.)

@@ -46,7 +46,10 @@ final class FeasibilityBenchmarkTests: XCTestCase {
         XCTAssertEqual(result.fallbackRate, 1.0)
         XCTAssertEqual(result.groupingQuality.evaluatedPairCount, 0)
         XCTAssertEqual(result.categorizationQuality.evaluatedItemCount, 1)
+        XCTAssertEqual(result.categorizationQuality.microF1, 1.0)
         XCTAssertEqual(result.categorizationQuality.macroF1, 1.0)
+        XCTAssertEqual(result.categorizationQuality.jaccardScore, 1.0)
+        XCTAssertEqual(result.hierarchyQuality.ancestorConsistencyRate, 1.0)
     }
 }
 

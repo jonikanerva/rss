@@ -23,5 +23,34 @@ final class GroupingQualityMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.splitRate, 1.0)
         XCTAssertEqual(metrics.overmergeRate, 0.5)
         XCTAssertEqual(metrics.groupPurity, 0)
+        XCTAssertEqual(metrics.crossCategoryContradictionMergeRate, 0)
+    }
+
+    func testEvaluateComputesCrossCategoryContradictionMergeRate() {
+        let labels: [StoryPairLabel] = [
+            StoryPairLabel(itemIDA: "1", itemIDB: "2", label: .differentStory),
+            StoryPairLabel(itemIDA: "1", itemIDB: "3", label: .differentStory),
+        ]
+
+        let groups: [String: String] = [
+            "1": "g-a",
+            "2": "g-a",
+            "3": "g-b",
+        ]
+
+        let categories: [String: [String]] = [
+            "1": ["technology"],
+            "2": ["finance"],
+            "3": ["technology"],
+        ]
+
+        let metrics = GroupingQualityEvaluator.evaluate(
+            labels: labels,
+            predictedGroupByItemID: groups,
+            predictedCategoriesByItemID: categories
+        )
+
+        XCTAssertEqual(metrics.overmergeRate, 0.5)
+        XCTAssertEqual(metrics.crossCategoryContradictionMergeRate, 0.5)
     }
 }

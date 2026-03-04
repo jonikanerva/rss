@@ -1,0 +1,22 @@
+{
+  "run_started_at": "2026-03-03T16:32:02.872719+00:00",
+  "dataset_path": "data/review/current/items.jsonl",
+  "categories_path": "config/categories-v1.yaml",
+  "taxonomy_version": "v1-reset",
+  "total_items": 106,
+  "categorized_items": 106,
+  "fallback_label": "other",
+  "fallback_count": 26,
+  "fallback_rate": 0.24528301886792453,
+  "label_counts": {
+    "ai": 18,
+    "apple": 18,
+    "gaming": 15,
+    "home_automation": 4,
+    "other": 40,
+    "playstation_5": 2,
+    "technology": 62,
+    "tesla": 1,
+    "world": 19
+  }
+}

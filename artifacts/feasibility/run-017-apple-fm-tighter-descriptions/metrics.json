@@ -1,0 +1,22 @@
+{
+  "categorized_items" : 106,
+  "dataset_path" : "data\/review\/current\/items.jsonl",
+  "error_count" : 0,
+  "fallback_count" : 31,
+  "fallback_rate" : 0.29245283018867924,
+  "greedy" : true,
+  "label_counts" : {
+    "ai" : 13,
+    "apple" : 16,
+    "gaming" : 16,
+    "gaming_industry" : 4,
+    "home_automation" : 2,
+    "other" : 36,
+    "technology" : 58,
+    "tesla" : 1,
+    "world" : 14
+  },
+  "model" : "apple-fm-default",
+  "run_started_at" : "2026-03-04T08:12:44Z",
+  "total_items" : 106
+}

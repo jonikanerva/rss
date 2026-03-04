@@ -25,6 +25,7 @@ public struct GroupingQualityMetrics: Equatable, Sendable {
     public let groupPurity: Double
     public let splitRate: Double
     public let overmergeRate: Double
+    public let crossCategoryContradictionMergeRate: Double
 
     public init(
         evaluatedPairCount: Int,
@@ -32,7 +33,8 @@ public struct GroupingQualityMetrics: Equatable, Sendable {
         differentStoryPairCount: Int,
         groupPurity: Double,
         splitRate: Double,
-        overmergeRate: Double
+        overmergeRate: Double,
+        crossCategoryContradictionMergeRate: Double
     ) {
         self.evaluatedPairCount = evaluatedPairCount
         self.sameStoryPairCount = sameStoryPairCount
@@ -40,13 +42,15 @@ public struct GroupingQualityMetrics: Equatable, Sendable {
         self.groupPurity = groupPurity
         self.splitRate = splitRate
         self.overmergeRate = overmergeRate
+        self.crossCategoryContradictionMergeRate = crossCategoryContradictionMergeRate
     }
 }
 
 public enum GroupingQualityEvaluator {
     public static func evaluate(
         labels: [StoryPairLabel],
-        predictedGroupByItemID: [String: String]
+        predictedGroupByItemID: [String: String],
+        predictedCategoriesByItemID: [String: [String]] = [:]
     ) -> GroupingQualityMetrics {
         var truePositive = 0
         var falsePositive = 0
@@ -54,6 +58,7 @@ public enum GroupingQualityEvaluator {
 
         var sameStoryPairCount = 0
         var differentStoryPairCount = 0
+        var contradictionMergeCount = 0
 
         for pair in labels {
             guard pair.label != .uncertain else {
@@ -78,6 +83,14 @@ public enum GroupingQualityEvaluator {
                 differentStoryPairCount += 1
                 if predictedSame {
                     falsePositive += 1
+
+                    let categoriesA = Set(predictedCategoriesByItemID[pair.itemIDA] ?? [])
+                    let categoriesB = Set(predictedCategoriesByItemID[pair.itemIDB] ?? [])
+                    if categoriesA.isEmpty == false,
+                       categoriesB.isEmpty == false,
+                       categoriesA.intersection(categoriesB).isEmpty {
+                        contradictionMergeCount += 1
+                    }
                 }
             case .uncertain:
                 break
@@ -88,6 +101,7 @@ public enum GroupingQualityEvaluator {
         let groupPurity = ratio(numerator: truePositive, denominator: truePositive + falsePositive)
         let splitRate = ratio(numerator: falseNegative, denominator: sameStoryPairCount)
         let overmergeRate = ratio(numerator: falsePositive, denominator: differentStoryPairCount)
+        let contradictionMergeRate = ratio(numerator: contradictionMergeCount, denominator: differentStoryPairCount)
 
         return GroupingQualityMetrics(
             evaluatedPairCount: evaluatedPairCount,
@@ -95,7 +109,8 @@ public enum GroupingQualityEvaluator {
             differentStoryPairCount: differentStoryPairCount,
             groupPurity: groupPurity,
             splitRate: splitRate,
-            overmergeRate: overmergeRate
+            overmergeRate: overmergeRate,
+            crossCategoryContradictionMergeRate: contradictionMergeRate
         )
     }
 

@@ -1,0 +1,16 @@
+{
+  "dataset_path": "data/review/current/items.jsonl",
+  "total_items": 106,
+  "item_id_hash": "62d7e56da63bd0a201b156b864b9d8587a5d4f7503a7ff815d524edea24566c7",
+  "body_stats": {
+    "min_chars": 239,
+    "max_chars": 16272,
+    "median_chars": 1473,
+    "mean_chars": 2366
+  },
+  "content_sources": {
+    "feed": 52,
+    "feedbin_extract": 54
+  },
+  "generated_at": "2026-03-03T16:33:34.695746+00:00"
+}

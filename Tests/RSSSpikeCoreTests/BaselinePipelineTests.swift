@@ -91,6 +91,76 @@ final class BaselinePipelineTests: XCTestCase {
         XCTAssertEqual(output.items.map(\.id), ["new", "old"])
         XCTAssertEqual(output.chronologyReport.inversionRate, 0)
     }
+
+    func testProcessPropagatesHierarchyForMultiLabelPrediction() {
+        let entry = FeedEntry(
+            id: "ps5-1",
+            sourceID: "feed-games",
+            title: "PlayStation 5 gets a major update",
+            summary: "Sony details improvements",
+            publishedAt: Date(timeIntervalSince1970: 3_000),
+            updatedAt: nil,
+            fetchedAt: Date(timeIntervalSince1970: 3_100)
+        )
+
+        let hierarchy = TaxonomyHierarchy(
+            ancestorsByCategory: [
+                "playstation 5": ["technology", "video games"],
+            ]
+        )
+
+        let pipeline = BaselinePipeline(
+            categorizer: StubMultiLabelCategorizer(
+                prediction: CategoryPrediction(
+                    scores: [
+                        CategoryScore(label: "playstation 5", confidence: 0.95),
+                    ]
+                )
+            ),
+            fallbackCategory: "unsorted",
+            confidenceThreshold: 0.6,
+            hierarchy: hierarchy
+        )
+
+        let output = pipeline.process(entries: [entry])
+
+        XCTAssertEqual(output.items.count, 1)
+        XCTAssertEqual(output.items[0].categories, ["technology", "video games", "playstation 5"])
+        XCTAssertEqual(output.items[0].category, "technology")
+        XCTAssertEqual(output.items[0].categorySource, .model)
+    }
+
+    func testProcessUsesModelStoryKeyForGroupingAcrossDifferentTitles() {
+        let first = FeedEntry(
+            id: "1",
+            sourceID: "feed-a",
+            title: "Sony reveals PS5 update details",
+            summary: "",
+            publishedAt: Date(timeIntervalSince1970: 4_000),
+            updatedAt: nil,
+            fetchedAt: Date(timeIntervalSince1970: 4_100)
+        )
+
+        let second = FeedEntry(
+            id: "2",
+            sourceID: "feed-b",
+            title: "PlayStation 5 patch notes now live",
+            summary: "",
+            publishedAt: Date(timeIntervalSince1970: 4_050),
+            updatedAt: nil,
+            fetchedAt: Date(timeIntervalSince1970: 4_120)
+        )
+
+        let pipeline = BaselinePipeline(
+            categorizer: StoryKeyCategorizer(),
+            fallbackCategory: "unsorted",
+            confidenceThreshold: 0.6
+        )
+
+        let output = pipeline.process(entries: [first, second])
+        XCTAssertEqual(output.items.count, 2)
+        XCTAssertEqual(output.items[0].groupID, output.items[1].groupID)
+    }
 }
 
 private struct StubCategorizer: EntryCategorizer {
@@ -98,5 +168,22 @@ private struct StubCategorizer: EntryCategorizer {
 
     func predict(for entry: FeedEntry) -> CategoryPrediction? {
         result
+    }
+}
+
+private struct StubMultiLabelCategorizer: EntryCategorizer {
+    let prediction: CategoryPrediction?
+
+    func predict(for entry: FeedEntry) -> CategoryPrediction? {
+        prediction
+    }
+}
+
+private struct StoryKeyCategorizer: EntryCategorizer {
+    func predict(for entry: FeedEntry) -> CategoryPrediction? {
+        CategoryPrediction(
+            scores: [CategoryScore(label: "playstation 5", confidence: 0.95)],
+            storyKey: "sony-ps5-update"
+        )
     }
 }
