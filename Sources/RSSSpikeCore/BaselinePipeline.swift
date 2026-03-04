@@ -5,6 +5,7 @@ public struct FeedEntry: Equatable, Sendable {
     public let sourceID: String
     public let title: String
     public let summary: String
+    public let body: String?
     public let publishedAt: Date?
     public let updatedAt: Date?
     public let fetchedAt: Date?
@@ -14,6 +15,7 @@ public struct FeedEntry: Equatable, Sendable {
         sourceID: String,
         title: String,
         summary: String,
+        body: String? = nil,
         publishedAt: Date?,
         updatedAt: Date?,
         fetchedAt: Date?
@@ -22,19 +24,35 @@ public struct FeedEntry: Equatable, Sendable {
         self.sourceID = sourceID
         self.title = title
         self.summary = summary
+        self.body = body
         self.publishedAt = publishedAt
         self.updatedAt = updatedAt
         self.fetchedAt = fetchedAt
     }
 }
 
-public struct CategoryPrediction: Equatable, Sendable {
+public struct CategoryScore: Equatable, Sendable {
     public let label: String
     public let confidence: Double
 
     public init(label: String, confidence: Double) {
         self.label = label
         self.confidence = confidence
+    }
+}
+
+public struct CategoryPrediction: Equatable, Sendable {
+    public let scores: [CategoryScore]
+    public let storyKey: String?
+
+    public init(scores: [CategoryScore], storyKey: String? = nil) {
+        self.scores = scores
+        self.storyKey = storyKey
+    }
+
+    public init(label: String, confidence: Double) {
+        self.scores = [CategoryScore(label: label, confidence: confidence)]
+        self.storyKey = nil
     }
 }
 
@@ -52,6 +70,7 @@ public struct ProcessedItem: Equatable, Sendable {
     public let sourceID: String
     public let title: String
     public let canonicalTimestamp: Date
+    public let categories: [String]
     public let category: String
     public let categorySource: CategorySource
     public let groupID: String
@@ -61,7 +80,7 @@ public struct ProcessedItem: Equatable, Sendable {
         sourceID: String,
         title: String,
         canonicalTimestamp: Date,
-        category: String,
+        categories: [String],
         categorySource: CategorySource,
         groupID: String
     ) {
@@ -69,9 +88,54 @@ public struct ProcessedItem: Equatable, Sendable {
         self.sourceID = sourceID
         self.title = title
         self.canonicalTimestamp = canonicalTimestamp
-        self.category = category
+        self.categories = categories
+        self.category = categories.first ?? ""
         self.categorySource = categorySource
         self.groupID = groupID
+    }
+}
+
+public struct TaxonomyHierarchy: Equatable, Sendable {
+    public let ancestorsByCategory: [String: [String]]
+
+    public init(ancestorsByCategory: [String: [String]]) {
+        var cleaned: [String: [String]] = [:]
+        cleaned.reserveCapacity(ancestorsByCategory.count)
+
+        for (category, ancestors) in ancestorsByCategory {
+            let normalizedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalizedCategory.isEmpty == false else {
+                continue
+            }
+
+            cleaned[normalizedCategory] = uniquePreservingOrder(
+                ancestors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { $0.isEmpty == false }
+            )
+        }
+
+        self.ancestorsByCategory = cleaned
+    }
+
+    public static let empty = TaxonomyHierarchy(ancestorsByCategory: [:])
+
+    public func propagate(labels: [String]) -> [String] {
+        var propagated: [String] = []
+        propagated.reserveCapacity(labels.count * 2)
+
+        for label in labels {
+            if let ancestors = ancestorsByCategory[label] {
+                for ancestor in ancestors where propagated.contains(ancestor) == false {
+                    propagated.append(ancestor)
+                }
+            }
+
+            if propagated.contains(label) == false {
+                propagated.append(label)
+            }
+        }
+
+        return propagated
     }
 }
 
@@ -89,15 +153,18 @@ public struct BaselinePipeline: Sendable {
     public let categorizer: any EntryCategorizer
     public let fallbackCategory: String
     public let confidenceThreshold: Double
+    public let hierarchy: TaxonomyHierarchy
 
     public init(
         categorizer: any EntryCategorizer,
         fallbackCategory: String,
-        confidenceThreshold: Double
+        confidenceThreshold: Double,
+        hierarchy: TaxonomyHierarchy = .empty
     ) {
         self.categorizer = categorizer
         self.fallbackCategory = fallbackCategory
         self.confidenceThreshold = confidenceThreshold
+        self.hierarchy = hierarchy
     }
 
     public func process(entries: [FeedEntry]) -> PipelineOutput {
@@ -113,15 +180,15 @@ public struct BaselinePipeline: Sendable {
                 continue
             }
 
-            let categoryAssignment = assignCategory(for: entry)
-            let groupID = GroupingPolicy.groupID(for: entry.title)
+            let categoryAssignment = assignCategories(for: entry)
+            let groupID = GroupingPolicy.groupID(for: categoryAssignment.storyKey ?? entry.title)
 
             let processed = ProcessedItem(
                 id: entry.id,
                 sourceID: entry.sourceID,
                 title: entry.title,
                 canonicalTimestamp: canonicalTimestamp,
-                category: categoryAssignment.label,
+                categories: categoryAssignment.labels,
                 categorySource: categoryAssignment.source,
                 groupID: groupID
             )
@@ -141,16 +208,45 @@ public struct BaselinePipeline: Sendable {
         return PipelineOutput(items: sortedItems, chronologyReport: chronologyReport)
     }
 
-    private func assignCategory(for entry: FeedEntry) -> (label: String, source: CategorySource) {
-        guard let prediction = categorizer.predict(for: entry),
-              prediction.confidence >= confidenceThreshold,
-              prediction.label.isEmpty == false
-        else {
-            return (label: fallbackCategory, source: .fallback)
+    private func assignCategories(for entry: FeedEntry) -> (labels: [String], source: CategorySource, storyKey: String?) {
+        guard let prediction = categorizer.predict(for: entry) else {
+            return ([fallbackCategory], .fallback, nil)
         }
 
-        return (label: prediction.label, source: .model)
+        let acceptedLabels = prediction.scores.compactMap { score -> String? in
+            let label = score.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard label.isEmpty == false else {
+                return nil
+            }
+
+            guard score.confidence.isFinite, score.confidence >= confidenceThreshold else {
+                return nil
+            }
+
+            return label
+        }
+
+        let uniqueAcceptedLabels = uniquePreservingOrder(acceptedLabels)
+        let propagatedLabels = hierarchy.propagate(labels: uniqueAcceptedLabels)
+        if propagatedLabels.isEmpty {
+            return ([fallbackCategory], .fallback, nil)
+        }
+
+        return (propagatedLabels, .model, prediction.storyKey)
     }
+}
+
+private func uniquePreservingOrder(_ labels: [String]) -> [String] {
+    var seen: Set<String> = []
+    var result: [String] = []
+    result.reserveCapacity(labels.count)
+
+    for label in labels where seen.contains(label) == false {
+        seen.insert(label)
+        result.append(label)
+    }
+
+    return result
 }
 
 private enum GroupingPolicy {

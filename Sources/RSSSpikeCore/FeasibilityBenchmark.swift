@@ -6,8 +6,10 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
     public let pipelineCompletionRate: Double
     public let schemaValidRate: Double
     public let fallbackRate: Double
+    public let processedItems: [ProcessedItem]
     public let chronologyReport: ChronologyReport
     public let groupingQuality: GroupingQualityMetrics
+    public let hierarchyQuality: HierarchyQualityMetrics
     public let categorizationQuality: CategorizationQualityMetrics
 
     public init(
@@ -16,8 +18,10 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         pipelineCompletionRate: Double,
         schemaValidRate: Double,
         fallbackRate: Double,
+        processedItems: [ProcessedItem] = [],
         chronologyReport: ChronologyReport,
         groupingQuality: GroupingQualityMetrics,
+        hierarchyQuality: HierarchyQualityMetrics,
         categorizationQuality: CategorizationQualityMetrics
     ) {
         self.totalItemCount = totalItemCount
@@ -25,8 +29,10 @@ public struct FeasibilityBenchmarkResult: Equatable, Sendable {
         self.pipelineCompletionRate = pipelineCompletionRate
         self.schemaValidRate = schemaValidRate
         self.fallbackRate = fallbackRate
+        self.processedItems = processedItems
         self.chronologyReport = chronologyReport
         self.groupingQuality = groupingQuality
+        self.hierarchyQuality = hierarchyQuality
         self.categorizationQuality = categorizationQuality
     }
 }
@@ -45,21 +51,30 @@ public enum FeasibilityBenchmarkRunner {
         let pipelineCompletionRate = safeRatio(numerator: processedItemCount, denominator: totalItemCount)
 
         let schemaValidCount = output.items.filter {
-            $0.category.isEmpty == false && $0.groupID.isEmpty == false
+            $0.categories.isEmpty == false && $0.groupID.isEmpty == false
         }.count
         let schemaValidRate = safeRatio(numerator: schemaValidCount, denominator: totalItemCount)
 
         let fallbackCount = output.items.filter { $0.categorySource == .fallback }.count
         let fallbackRate = safeRatio(numerator: fallbackCount, denominator: max(1, processedItemCount))
         let predictedGroupByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.groupID) })
+        let predictedCategoriesByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.categories) })
         let groupingQuality = GroupingQualityEvaluator.evaluate(
             labels: storyPairLabels,
-            predictedGroupByItemID: predictedGroupByItemID
+            predictedGroupByItemID: predictedGroupByItemID,
+            predictedCategoriesByItemID: predictedCategoriesByItemID
         )
-        let predictedCategoryByItemID = Dictionary(uniqueKeysWithValues: output.items.map { ($0.id, $0.category) })
         let categorizationQuality = CategorizationQualityEvaluator.evaluate(
             truthLabels: taxonomyLabels,
-            predictedCategoryByItemID: predictedCategoryByItemID
+            predictedCategoriesByItemID: predictedCategoriesByItemID
+        )
+        let knownCategories = Set(taxonomyLabels.map { $0.category }).union(
+            pipeline.hierarchy.ancestorsByCategory.values.flatMap { $0 }
+        )
+        let hierarchyQuality = HierarchyQualityEvaluator.evaluate(
+            predictedCategoriesByItemID: predictedCategoriesByItemID,
+            hierarchy: pipeline.hierarchy,
+            knownCategories: knownCategories
         )
 
         return FeasibilityBenchmarkResult(
@@ -68,8 +83,10 @@ public enum FeasibilityBenchmarkRunner {
             pipelineCompletionRate: pipelineCompletionRate,
             schemaValidRate: schemaValidRate,
             fallbackRate: fallbackRate,
+            processedItems: output.items,
             chronologyReport: output.chronologyReport,
             groupingQuality: groupingQuality,
+            hierarchyQuality: hierarchyQuality,
             categorizationQuality: categorizationQuality
         )
     }

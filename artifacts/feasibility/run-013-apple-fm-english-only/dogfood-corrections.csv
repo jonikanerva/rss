@@ -1,0 +1,107 @@
+item_id,reviewed,corrected,predicted_categories,corrected_categories,reason,reviewed_at,title
+5138544462,true,false,gaming|world,,,2026-03-04T07:52:00.987895+00:00,Scott Pilgrim creator Bryan Lee O’Malley on taking ‘another run’ with new game
+5138544461,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"We played Pokémon Pokopia, ask us anything"
+5138533661,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,Scott Pilgrim creator Bryan Lee O’Malley on taking ‘another run’ with new game
+5138524556,true,true,other,gaming_industry,gaming studio layoffs should be gaming_industry,2026-03-04T07:52:00.987895+00:00,"Halfbrick cuts 41 jobs as it navigates ""challenging period for the games industry"""
+5138542237,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Ylen tiedot: Vantaan epäilty murhapolttaja on 71-vuotias mies, jolla on rikostaustaa"
+5138528030,true,true,technology,technology|apple,Apple product article should have apple label,2026-03-04T07:52:00.987895+00:00,Apple announces a pair of new Studio Displays
+5138523944,true,true,technology,technology|apple,Apple product article should have apple label,2026-03-04T07:52:00.987895+00:00,Apple announces a pair of new Studio Displays
+5138519596,true,true,world,technology|ai,venture funding article about AI boom is technology+ai,2026-03-04T07:52:00.987895+00:00,"Global venture investment hit a record $189B in February, up 780% YoY, amid the AI boom; 83% of the month's total went to OpenAI, Waymo, and Anthropic (Gené Teare/Crunchbase News)"
+5138542239,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Lapin turistit löysivät Korouoman rotkolaakson ja nyt alueelle visioidaan erähotellia
+5138544315,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,Apple’s new Studio displays come with Thunderbolt 5
+5138526784,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,Resident Evil Requiem tease sparks debate as fans ponder if Leon S. Kennedy really has put a ring on it - and if so who?
+5138526785,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"March on Xbox Game Pass is a whopper, boasting Kingdom Come: Deliverance 2, Cyberpunk 2077, Planet of Lana 2 and more"
+5138537015,true,true,ai,gaming,"Clair Obscur is a game; article about game writing, not AI",2026-03-04T07:52:00.987895+00:00,Clair Obscur writer shares production advice that could improve your game's story
+5138544317,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,Apple unveils M5 Pro and M5 Max chips with new ‘Fusion Architecture’
+5138526786,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"Our 2025 Game of the Year, Blue Prince, shadow drops on Nintendo Switch 2 today"
+5138510400,true,false,technology|other,,,2026-03-04T07:52:00.987895+00:00,"The 6G, modular, robot phones of the future"
+5138537016,true,true,other,gaming_industry,gaming studio layoffs should be gaming_industry,2026-03-04T07:52:00.987895+00:00,Embracer subsidiary Tripwire Interactive has laid off 23 employees
+5138510401,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Xiaomi, unlike Google and Samsung, thinks camera hardware comes first"
+5138510466,true,false,gaming|world,,,2026-03-04T07:52:00.987895+00:00,Blue Prince headlines Nintendo’s lineup of Switch 2 indie games
+5138509759,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,Blue Prince headlines Nintendo’s lineup of Switch 2 indie games
+5138518448,true,true,other,technology|world,SpaceX IPO is technology + world news,2026-03-04T07:52:00.987895+00:00,Why is SpaceX going public?
+5138486146,true,true,other,technology|world,SpaceX IPO is technology + world news,2026-03-04T07:52:00.987895+00:00,Why is SpaceX going public?
+5138498839,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,"Apple debuts MacBook Pros with M5 Pro, M5 Max chips"
+5138498749,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,"Apple debuts MacBook Pros with M5 Pro, M5 Max chips"
+5138486147,true,true,technology,technology|apple,Apple product article should have apple label,2026-03-04T07:52:00.987895+00:00,Apple’s new Studio Display XDR adds a Mini LED upgrade
+5138478564,true,true,technology,technology|apple,Apple product pricing article should have apple label,2026-03-04T07:52:00.987895+00:00,"Apple says the M5 MacBook Pro starts at $1,699 for the 14"" model, up $100, and the M5 Pro and Max models start at $2,199 and $2,699, respectively, both up $200 (Engadget)"
+5138486148,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,Apple launches M5 Pro and M5 Max chips
+5138487728,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"Bungie stands firm on Marathon aesthetic, while the 'fontslop' debate rages on"
+5138516493,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Varasto­kirjaston palvelut muuttuvat maksullisiksi – opiskelija Piritta Pennanen pelkää joutuvansa tinkimään ruoasta
+5138542238,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Omat puolue­toveritkin jo haukkuvat esitystä helpottaa määräaikaisia työsopimuksia – näin vastaa ministeri Marttinen
+5138471639,true,true,apple,technology|apple,Apple product should have both technology and apple,2026-03-04T07:52:00.987895+00:00,"Apple unveils the M5 MacBook Air in 13"" and 15"" sizes, boosting its starting price by $100 to $1,099 and doubling base storage to 512GB, shipping from March 11 (Zac Hall/9to5Mac)"
+5138486112,true,true,other,gaming_industry,gaming studio layoffs should be gaming_industry,2026-03-04T07:52:00.987895+00:00,Killing Floor dev Tripwire Interactive lays off 23 employees
+5138471640,true,true,apple,technology|apple,Apple product should have both technology and apple,2026-03-04T07:52:00.987895+00:00,"Apple updates the $1,599+ Studio Display and unveils a $3,299+ 27"" 5K Studio Display XDR, with a 120Hz refresh rate, a mini-LED backlight, and up to 2,000 nits (Apple)"
+5138516492,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Poliisi: vain anestesia­lääkäriä epäillään kuoleman­tuottamuksesta – mies kuoli magneetti­kuvauksen jälkeen Kuopiossa
+5138486149,true,true,apple,technology|apple,Apple product should have both technology and apple,2026-03-04T07:52:00.987895+00:00,Apple announces M5 MacBook Air and updated MacBook Pro
+5138471641,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,"Apple unveils the M5 Pro and M5 Max, offering a new Apple-designed Fusion Architecture, a next-generation up-to-40-core GPU with Neural Accelerators, and more (Apple)"
+5138477223,true,false,other,,,2026-03-04T07:52:00.987895+00:00,NRK: Norja voi olla reikä Euroopan droonimuurissa – puolustuksella ei valmiuksia droonien torjuntaan
+5138460386,true,false,gaming,,,2026-03-04T07:52:00.987895+00:00,"Next entry in acclaimed co-op puzzle series We Were Here announced, coming this year"
+5138471644,true,false,technology|apple,,,2026-03-04T07:52:00.987895+00:00,"Apple refreshes the 14"" and 16"" MacBook Pro with M5 Pro and M5 Max: up to 4x faster LLM prompt processing, up to 2x faster SSD speeds, and 1TB/2TB base storage (Apple)"
+5138502444,true,true,ai,technology|ai,security startup is technology; AI-powered so ai label also fits,2026-03-04T07:52:00.987895+00:00,Fig Security emerges from stealth with $38M to help security teams deal with change
+5138454171,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,GoPro’s next cameras are coming soon with a brand-new chip
+5138454170,true,false,technology|home_automation,,,2026-03-04T07:52:00.987895+00:00,"Elgato’s Stream Deck Plus XL has more buttons, more dials, and a larger touchscreen"
+5138447690,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,Elgato’s new Wave:3 MK.2 microphone has a built in EQ and voice tune effects.
+5138455128,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Vanhukset odottavat hoivapaikkaa luvattoman pitkään – katso oman alueesi jonotustilanne
+5138471260,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Mobile studio Vento Games nets $4 million to expand puzzle portfolio
+5138436717,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Jämsässä nuoriso-ohjaajana työskennellyt mies sai yli neljä vuotta vankeutta kolmesta lapsenraiskauksesta
+5138386073,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Suomen Ekonomien hallituksen puheenjohtaja erosi, käyttäytyi epäasiallisesti opiskelijatapahtumassa"
+5138354043,true,false,ai,,,2026-03-04T07:52:00.987895+00:00,"A UK trial by the National Grid, Nvidia, and others finds AI data centers can operate without using peak power continuously, adjusting consumption when asked (Eamon Farhat/Bloomberg)"
+5138331973,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Elliott injects $1B into Pinterest to fund stock buybacks, buying convertible senior notes with an initial conversion price of $22.72 per share, a 30% premium (Nicholas G. Miller/Wall Street Journal)"
+5138312742,true,true,world,world|ai,Anthropic government action is world + ai,2026-03-04T07:52:00.987895+00:00,"US Defense Secretary Pete Hegseth's and Trump's actions against Anthropic have serious legal issues, and its designation exceeds what the statute authorizes (Lawfare)"
+5138325790,true,true,other,technology|world,Silicon Valley politics article is technology + world,2026-03-04T07:52:00.987895+00:00,The candidate that Silicon Valley built is now the one they want to tear down
+5138326590,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,Cities Skylines 1 is getting its first new expansion in two years as resurrection efforts seemingly continue amid sequel's struggles
+5138302192,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Grow Therapy, which connects patients with therapists covered by their insurance, raised a $150M Series D at a $3B valuation and hits $1B+ in annual revenue (Rebecca Torrence/Bloomberg)"
+5138302362,true,true,world,gaming_industry,game publisher insolvency is gaming_industry,2026-03-04T07:52:00.987895+00:00,Nacon postpones game showcase after filing for insolvency
+5138296817,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"Metacritic's highest-rated Pokémon game is now the Animal Crossing-like spin-off, Pokopia"
+5138296820,true,false,gaming,,,2026-03-04T07:52:00.987895+00:00,"In a climate thirsty for a Fallout: New Vegas remaster, the studio behind Tony Hawk's Pro Skater 3 + 4 seems to tease exactly that"
+5138272988,true,true,tesla|other,tesla,Tesla inventory clearance is tesla category,2026-03-04T07:52:00.987895+00:00,Tesla Clears Out Model 3 Inventory in Canada Ahead of Chinese EV Imports
+5138263764,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Kaverukset saivat päähänpiston, ja nyt he omistavat Turun tuomiokirkon kuoriurut"
+5138263765,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Keva on valmis myymään Vanhan ylioppilas­talon, mutta neuvottelut ovat polkeneet paikallaan jo kaksi kuukautta"
+5138252241,true,false,world,,,2026-03-04T07:52:00.987895+00:00,"Iranian cryptoasset outflows reached ~$10.3M between February 28 and March 2 amid US and Israeli airstrikes; in 2025, Iran's crypto ecosystem was worth $7.78B+ (Chainalysis)"
+5138243637,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Valtonen: Suomella ei ole kiire keskustella Ranskan ydinasealoitteesta
+5138245970,true,true,technology,technology|gaming_industry,Unity Asset Store policy affects gaming industry,2026-03-04T07:52:00.987895+00:00,"The Unity Asset Store is ditching publishers based in China, Hong Kong, and Macau"
+5138233605,true,false,world,,,2026-03-04T07:52:00.987895+00:00,"Sources: in the EU, US criticism over censorship has been met with disbelief and anger, and some Big Tech lobbyists acknowledge US accusations are overstated (Financial Times)"
+5138221274,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Supo rekrytoi kielitaitoisia taviksia vakoojiksi
+5138196509,true,false,ai|home_automation,,,2026-03-04T07:52:00.987895+00:00,"Google unveils Home updates to fix a long list of annoyances and idiosyncrasies, and debuts Live Search to let Gemini analyze and describe live camera feeds (Thomas Ricker/The Verge)"
+5138190847,true,false,gaming|world,,,2026-03-04T07:52:00.987895+00:00,"For better or worse, Pokemon FireRed and LeafGreen's Switch ports aren't exactly as we remember them - but is that a problem?"
+5138176602,true,false,technology|other,,,2026-03-04T07:52:00.987895+00:00,Xiaomi’s EV hypercar sure is shiny.
+5138176848,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Sources: Samsung Foundry has frequently delayed the timeline for its plant in Taylor, Texas, with its mass production plans moving from early 2026 to early 2027 (Lee Jae-Lim/Korea Joongang Daily)"
+5138190848,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"The next God of War game stars a new protagonist rather than Kratos, insider claims, and will be revealed this year"
+5138221275,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Vastasyntynyt vauva kuoli Lohjalla – äidille murhasyyte
+5138150211,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,"Capcom Spotlight announced for this week, with Pragmata and more to feature"
+5138147775,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Investigation: Sama data annotators in Nairobi say they view private videos from Ray-Ban Meta glasses, like bathroom visits; ex-Meta staff say faces are blurred (SvD)"
+5138147787,true,true,world,world|ai,Senator action about Anthropic is world + ai,2026-03-04T07:52:00.987895+00:00,"Senator Ron Wyden, the Senate Finance Committee's top Democrat, vows to ""pull out all the stops"" to fight back after Trump barred Anthropic from government work (Steven T. Dennis/Bloomberg)"
+5138221273,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Palopäällikkö: Perhe olisi voinut pelastua – seitsemänkymppistä epäillään murhasta Vantaalla, viisi kuoli, vauva jäi henkiin"
+5138114514,true,true,home_automation|other,home_automation|ai,Google Home with Gemini camera feeds is home_automation + ai,2026-03-04T07:52:00.987895+00:00,Big Google Home update lets Gemini describe live camera feeds
+5138112336,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Moottorikelkka­safari ajoi talvi­sulaan Nellimissä: kolme henkilöä kastui
+5138108910,true,false,world,,,2026-03-04T07:52:00.987895+00:00,"Amazon's God of War casting adds several of Thor's children, as well as Odin's ""fanatical"" Valkyrie commander"
+5138112335,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Silminnäkijän 12 sekunnin video näyttää, miten rajusti vantaalainen kerrostalo paloi aamulla"
+5138040915,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Koiranomistajille on tulossa 300 euron maksu, jos ei rekisteröi koiraa valtion koirarekisteriin"
+5138007896,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Wärtsilä aloittaa muutosneuvottelut: 205 työpaikkaa vähenee, 130 uutta syntyy"
+5137992283,true,false,ai,,,2026-03-04T07:52:00.987895+00:00,Meta’s also got an AI shopping tool.
+5137950073,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,Oppo is going Ultra in Europe too.
+5137895396,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Viisi kuollut palossa Vantaalla, poliisi epäilee rikosta – Ylen tiedot: Uhrien joukossa somaliperheen jäseniä"
+5137875060,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Kerro Ylelle: Veikö tekoäly työsi?
+5137858268,true,true,ai,ai|world,OpenAI DOD contract is ai + world,2026-03-04T07:52:00.987895+00:00,"Sam Altman says the DOD affirmed that OpenAI's tools wouldn't be used by agencies like the NSA, and services to them would need a further contract modification (Dylan Butts/CNBC)"
+5137837688,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Parkanolaisen Hannele Kortesojan koti voi pian olla tuuli­voimaloiden ympäröimä – kunnat kiirehtivät nyt hankkeita
+5137837689,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Luksusveneitä valmistava Saxdor Yachts on myyty Yhdysvaltoihin huimalla summalla
+5137786880,true,false,other,,,2026-03-04T07:52:00.987895+00:00,STTK: Palkansaaja ansaitsee toimitusjohtajan päiväpalkan puolessatoista kuukaudessa
+5137786879,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Drooneista tuli tärkeä työkalu yllättävälle alalle: iso rakennusyhtiö lentää työmaillaan vuosittain jo satoja kertoja
+5137767219,true,true,world,world|technology,chip smuggling is world + technology,2026-03-04T07:52:00.987895+00:00,A look at the US DOJ's December 2025 lawsuit that alleged a smuggling ring illegally exported or tried to export $160M+ in advanced Nvidia AI chips to China (Eliot Chen/The Wire China)
+5137745499,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Lue tästä, mitä kaikkea Lähi-idässä tapahtui yön aikana"
+5137745500,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Trumpilla ei ollut oikeutta määrätä ajatollah Khamenein kuoliniskua, sanoo suomalainen emeritus­professori"
+5137741886,true,false,ai,,,2026-03-04T07:52:00.987895+00:00,"Sam Altman says that ""the democratic process must stay in control, and we must democratize AI"" and that no private company should decide the fate of the world (Sam Altman/@sama)"
+5137722742,true,true,ai,ai|world,OpenAI DOD contract amendment is ai + world,2026-03-04T07:52:00.987895+00:00,"Sam Altman says OpenAI amended its DOD contract to ensure ""the AI system shall not be intentionally used for domestic surveillance of US persons and nationals"" (George Hammond/Financial Times)"
+5137716908,true,true,world,world|ai,OpenAI DOD deal is world + ai,2026-03-04T07:52:00.987895+00:00,"Sam Altman says rushing the DOD deal on Friday ""looked opportunistic and sloppy"" but OpenAI was ""trying to de-escalate things and avoid a much worse outcome"" (Katherine Li/Business Insider)"
+5137722974,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"Virolahti myi koulun ja rivitalon venäläistaustaiselle – ”Älytöntä touhua”, sanoo reservin majuri Erkki Rikkola"
+5137677632,true,false,other,,,2026-03-04T07:52:00.987895+00:00,Boliviassa etsitään turmalentokoneesta varastettuja seteleitä
+5137677631,true,false,other,,,2026-03-04T07:52:00.987895+00:00,"”Siinä on runsaasti toiveajattelua” – professori selittää, miksi USA:n ja Israelin iskut epäonnistuvat tavoitteessaan"
+5137637665,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Ayar Labs, which aims to replace the copper wiring in semiconductors with fiber optics, raised a $500M Series E led by Neuberger Berman at a $3.8B valuation (Robbie Whelan/Wall Street Journal)"
+5137623677,true,false,ai,,,2026-03-04T07:52:00.987895+00:00,"Meta is testing a shopping research feature in its Meta AI web browser for select US users, positioning it against e-commerce tools in ChatGPT and Gemini (Natalie Lung/Bloomberg)"
+5137603634,true,false,world,,,2026-03-04T07:52:00.987895+00:00,"AWS says its facilities in the Middle East are facing power and connectivity issues after drones ""directly struck"" its infrastructure in the UAE and Bahrain (Annie Palmer/CNBC)"
+5137603638,true,false,technology,,,2026-03-04T07:52:00.987895+00:00,"Bengaluru-based Pronto, which offers on-demand home-help services like cooking and cleaning, raised a $25M Series B led by Epiq Capital at a $100M valuation (Sankalp Phartiyal/Bloomberg)"
+5137581524,true,true,ai,ai|technology,Cursor is an AI coding tool; revenue news is ai + technology,2026-03-04T07:52:00.987895+00:00,Cursor has reportedly surpassed $2B in annualized revenue
+5137563585,true,true,ai,ai|world,OpenAI Pentagon agreement is ai + world,2026-03-04T07:52:00.987895+00:00,Sam Altman said he planned to add two sentences to OpenAI’s agreement with the Pentagon.
+5137531308,true,true,ai,ai|world,OpenAI DOD deal is ai + world,2026-03-04T07:52:00.987895+00:00,OpenAI and the DOD agree to add more surveillance protections to the recent AI deal; sources say Sam Altman approached the DOD's Emil Michael to rework the deal (Maria Curi/Axios)
+5137531630,true,false,gaming|other,,,2026-03-04T07:52:00.987895+00:00,Wondering what was popular during Steam Next Fest?
