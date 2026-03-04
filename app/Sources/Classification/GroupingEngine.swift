@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Grouping")
 /// Grouping logic:
 /// - Entries with the same storyKey are grouped together.
 /// - Similar storyKeys (sharing a significant overlap of tokens) are merged.
-/// - Each group gets a headline derived from the most common title tokens.
+/// - Each group gets a headline derived from the longest (most descriptive) title.
 /// - Group timestamp is the earliest article date (per VISION.md).
 /// - Entries with unique storyKeys remain ungrouped (standalone in timeline).
 @MainActor
@@ -142,21 +142,12 @@ final class GroupingEngine {
     // MARK: - Headline generation
 
     /// Generates a human-readable headline from a group of entries.
-    /// Uses the title of the entry with the most detail (longest title) as the base,
-    /// then simplifies it.
+    /// Uses the longest (most descriptive) title from the group.
     private func generateHeadline(from entries: [Entry]) -> String {
-        // Pick the most descriptive title (longest non-nil title)
         let titles = entries.compactMap(\.title).filter { !$0.isEmpty }
         guard let bestTitle = titles.max(by: { $0.count < $1.count }) else {
             return "Story Group"
         }
-
-        // If there are multiple sources, prefix with source count
-        let sources = Set(entries.compactMap { $0.feed?.title })
-        if sources.count > 1 {
-            return bestTitle
-        }
-
         return bestTitle
     }
 }

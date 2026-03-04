@@ -70,17 +70,19 @@ struct ContentView: View {
             }
         }
 
-        // Add standalone entries (not part of any group)
+        // Add standalone entries (not part of any multi-entry group)
+        // Entries already added as standalone from single-entry groups are tracked via groupedKeys
+        let singleEntryGroupKeys = Set(
+            storyGroups.map(\.storyKey).filter { key in
+                relevantEntries.filter { $0.storyKey == key }.count < 2
+            }
+        )
         for entry in relevantEntries {
             let key = entry.storyKey ?? ""
-            if !groupedKeys.contains(key) || key.isEmpty {
+            let isInMultiEntryGroup = groupedKeys.contains(key) && !key.isEmpty && !singleEntryGroupKeys.contains(key)
+            let alreadyAddedAsSingle = singleEntryGroupKeys.contains(key)
+            if !isInMultiEntryGroup && !alreadyAddedAsSingle {
                 items.append(.standalone(entry))
-            } else {
-                // Check if this entry is already covered by a group item above
-                let groupHasMultiple = relevantEntries.filter { $0.storyKey == key }.count >= 2
-                if !groupHasMultiple {
-                    // Already added as standalone above when group had only 1 entry
-                }
             }
         }
 
