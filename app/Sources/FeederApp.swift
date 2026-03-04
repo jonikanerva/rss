@@ -6,6 +6,7 @@ struct FeederApp: App {
     let modelContainer: ModelContainer
 
     @State private var syncEngine = SyncEngine()
+    @State private var classificationEngine = ClassificationEngine()
 
     init() {
         do {
@@ -26,12 +27,14 @@ struct FeederApp: App {
         WindowGroup {
             ContentView()
                 .environment(syncEngine)
+                .environment(classificationEngine)
         }
         .modelContainer(modelContainer)
 
         Settings {
             SettingsView()
                 .environment(syncEngine)
+                .environment(classificationEngine)
                 .modelContainer(modelContainer)
         }
     }
