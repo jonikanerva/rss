@@ -56,6 +56,8 @@ struct EntryDetailView: View {
             .frame(maxWidth: 720, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
         .toolbar {
             ToolbarItem {
                 if let url = URL(string: entry.url) {
@@ -63,6 +65,7 @@ struct EntryDetailView: View {
                         Image(systemName: "safari")
                     }
                     .help("Open in browser")
+                    .accessibilityLabel("Open in Safari")
                 }
             }
         }

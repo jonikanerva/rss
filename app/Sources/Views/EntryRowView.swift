@@ -58,5 +58,17 @@ struct EntryRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        var parts: [String] = []
+        parts.append(entry.title ?? "Untitled")
+        if let feed = entry.feed?.title { parts.append("from \(feed)") }
+        if !entry.categoryLabels.isEmpty {
+            parts.append("categories: \(entry.categoryLabels.joined(separator: ", "))")
+        }
+        return parts.joined(separator: ", ")
     }
 }

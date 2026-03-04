@@ -102,14 +102,51 @@ struct ContentView: View {
         timelineItems.flatMap(\.selectableEntries)
     }
 
+    /// Whether any background operation is in progress.
+    private var isWorking: Bool {
+        syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping
+    }
+
+    /// Current status message for the status bar.
+    private var statusText: String? {
+        if syncEngine.isSyncing { return syncEngine.syncProgress }
+        if classificationEngine.isClassifying { return classificationEngine.progress }
+        if groupingEngine.isGrouping { return groupingEngine.progress }
+        if let error = syncEngine.lastError { return error }
+        return nil
+    }
+
     var body: some View {
-        NavigationSplitView {
-            sidebarView
-        } content: {
-            entryListView
-        } detail: {
-            detailView
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                sidebarView
+            } content: {
+                entryListView
+            } detail: {
+                detailView
+            }
+
+            // Status bar
+            if let status = statusText {
+                HStack(spacing: 8) {
+                    if isWorking {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 12, height: 12)
+                    }
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.bar)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: statusText != nil)
         .frame(minWidth: 900, minHeight: 600)
         .onAppear {
             checkCredentials()
@@ -429,5 +466,8 @@ struct StoryGroupRowView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Story group: \(group.headline), \(entries.count) articles")
+        .accessibilityHint(isExpanded ? "Double-tap to collapse" : "Double-tap to expand")
     }
 }
