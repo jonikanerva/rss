@@ -8,13 +8,15 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 private let maxArticleAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
 
 /// Coordinates Feedbin API sync with local SwiftData persistence.
-/// Sync is phased: unread articles first (fast), then recent history (background).
+/// Sync is phased: unread articles first (fast, streaming), then recent history (background).
+/// Extracted content and classification run as parallel background tasks.
 /// Hard limit: never fetches or persists articles older than 7 days.
 @MainActor
 @Observable
 final class SyncEngine {
     private(set) var isSyncing = false
     private(set) var isBackfilling = false
+    private(set) var isFetchingContent = false
     private(set) var lastError: String?
     private(set) var syncProgress: String = ""
 
@@ -28,6 +30,7 @@ final class SyncEngine {
     private var modelContext: ModelContext?
     private var periodicSyncTask: Task<Void, Never>?
     private var backfillTask: Task<Void, Never>?
+    private var extractedContentTask: Task<Void, Never>?
 
     /// Configure the sync engine with credentials and model context.
     func configure(username: String, password: String, modelContext: ModelContext) {
@@ -68,10 +71,12 @@ final class SyncEngine {
         periodicSyncTask = nil
         backfillTask?.cancel()
         backfillTask = nil
+        extractedContentTask?.cancel()
+        extractedContentTask = nil
     }
 
     /// Perform a phased sync.
-    /// - First sync (no lastSyncDate): Phase 1 (unread) then Phase 2 (recent history).
+    /// - First sync (no lastSyncDate): Phase 1 (unread, streaming) then background tasks.
     /// - Subsequent syncs: incremental via `since` parameter.
     func sync() async {
         guard let client, let modelContext, !isSyncing else { return }
@@ -88,22 +93,22 @@ final class SyncEngine {
             try syncFeeds(subscriptions, in: modelContext)
 
             if lastSyncDate != nil {
-                // Incremental sync — fetch new entries since last sync
                 try await syncIncremental(using: client, in: modelContext)
             } else {
-                // First sync — Phase 1: unread articles only
                 try await syncUnread(using: client, in: modelContext)
             }
 
             try modelContext.save()
-            isSyncing = false
 
-            // Start Phase 2 backfill in background (first sync only, or if no history yet)
-            if lastSyncDate == nil {
-                lastSyncDate = Date()
+            let isFirstSync = lastSyncDate == nil
+            lastSyncDate = Date()
+            isSyncing = false
+            // → onChange triggers classification immediately (uses content field)
+
+            // Start background tasks in parallel
+            startExtractedContentFetch()
+            if isFirstSync {
                 startBackfill()
-            } else {
-                lastSyncDate = Date()
             }
 
             logger.info("Primary sync complete")
@@ -115,7 +120,7 @@ final class SyncEngine {
         }
     }
 
-    // MARK: - Phase 1: Unread articles (fast path)
+    // MARK: - Phase 1: Unread articles (streaming, newest first)
 
     private func syncUnread(using client: FeedbinClient, in context: ModelContext) async throws {
         syncProgress = "Fetching unread articles..."
@@ -127,19 +132,37 @@ final class SyncEngine {
             return
         }
 
-        syncProgress = "Fetching \(unreadIDs.count) unread articles..."
-        let allEntries = try await client.fetchEntriesByIDs(unreadIDs)
+        // Sort descending — higher Feedbin IDs are newer entries
+        let sortedIDs = unreadIDs.sorted(by: >)
         let cutoff = Date().addingTimeInterval(-maxArticleAge)
-        let entries = allEntries.filter { $0.createdAt >= cutoff }
-        logger.info("Fetched \(allEntries.count) unread entries, \(entries.count) within 7-day window")
 
-        let newCount = try persistEntries(entries, markAsRead: false, in: context)
-        syncProgress = "Fetching article content..."
-        try await fetchExtractedContentParallel(in: context, using: client)
+        var totalNew = 0
+        let batchSize = 100
 
-        try context.save()
-        syncProgress = "Synced \(newCount) unread articles"
-        logger.info("Phase 1 complete: \(newCount) unread entries persisted")
+        for batchStart in stride(from: 0, to: sortedIDs.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, sortedIDs.count)
+            let batchIDs = Array(sortedIDs[batchStart..<batchEnd])
+
+            let entries = try await client.fetchEntriesByIDs(batchIDs)
+            let recent = entries.filter { $0.createdAt >= cutoff }
+
+            // If no recent entries in this batch, we've passed the 7-day window — stop
+            if recent.isEmpty && !entries.isEmpty {
+                logger.info("Reached entries older than 7 days at batch \(batchStart / batchSize + 1), stopping")
+                break
+            }
+
+            if !recent.isEmpty {
+                let newCount = try persistEntries(recent, markAsRead: false, in: context)
+                totalNew += newCount
+                try context.save()
+                syncProgress = "Loaded \(totalNew) unread articles..."
+                logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
+            }
+        }
+
+        syncProgress = "Synced \(totalNew) unread articles"
+        logger.info("Phase 1 complete: \(totalNew) unread entries persisted")
     }
 
     // MARK: - Incremental sync (subsequent syncs)
@@ -160,8 +183,6 @@ final class SyncEngine {
 
         if !entries.isEmpty {
             let newCount = try persistEntries(entries, unreadIDs: unreadIDSet, in: context)
-            syncProgress = "Fetching article content..."
-            try await fetchExtractedContentParallel(in: context, using: client)
             syncProgress = "Synced \(newCount) new entries"
             logger.info("Incremental sync: \(newCount) new entries")
         }
@@ -170,7 +191,28 @@ final class SyncEngine {
         try updateReadState(unreadIDs: unreadIDSet, in: context)
     }
 
-    // MARK: - Phase 2: Recent history backfill (background)
+    // MARK: - Background: Extracted content fetching
+
+    private func startExtractedContentFetch() {
+        extractedContentTask?.cancel()
+        extractedContentTask = Task {
+            guard let client, let modelContext else { return }
+
+            isFetchingContent = true
+            logger.info("Starting background extracted content fetch")
+
+            do {
+                try await fetchExtractedContentParallel(in: modelContext, using: client)
+                try modelContext.save()
+            } catch {
+                logger.error("Extracted content fetch failed: \(error.localizedDescription)")
+            }
+
+            isFetchingContent = false
+        }
+    }
+
+    // MARK: - Background: Recent history backfill
 
     private func startBackfill() {
         backfillTask?.cancel()
@@ -193,13 +235,15 @@ final class SyncEngine {
                     syncProgress = "History: page \(page) (\(newCount) new)"
                     logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
 
-                    // Fetch extracted content for new entries from this page
-                    try await fetchExtractedContentParallel(in: modelContext, using: client)
                     try modelContext.save()
 
                     if !result.hasNextPage { break }
                     page += 1
                 }
+
+                // Fetch extracted content for backfilled entries
+                try await fetchExtractedContentParallel(in: modelContext, using: client)
+                try modelContext.save()
 
                 syncProgress = ""
                 logger.info("Phase 2 backfill complete (\(page) pages)")
@@ -218,7 +262,6 @@ final class SyncEngine {
         in context: ModelContext,
         using client: FeedbinClient
     ) async throws {
-        // Find entries that need extracted content
         let descriptor = FetchDescriptor<Entry>(
             predicate: #Predicate<Entry> { entry in
                 entry.extractedContentURL != nil && entry.extractedContent == nil

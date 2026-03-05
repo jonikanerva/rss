@@ -104,7 +104,7 @@ struct ContentView: View {
 
     /// Whether any background operation is in progress.
     private var isWorking: Bool {
-        syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping
+        syncEngine.isSyncing || syncEngine.isBackfilling || syncEngine.isFetchingContent || classificationEngine.isClassifying || groupingEngine.isGrouping
     }
 
     /// Current status message for the status bar.
@@ -112,6 +112,7 @@ struct ContentView: View {
         if syncEngine.isSyncing { return syncEngine.syncProgress }
         if classificationEngine.isClassifying { return classificationEngine.progress }
         if groupingEngine.isGrouping { return groupingEngine.progress }
+        if syncEngine.isFetchingContent { return "Fetching full article content..." }
         if syncEngine.isBackfilling { return syncEngine.syncProgress }
         if let error = syncEngine.lastError { return error }
         return nil
@@ -173,6 +174,13 @@ struct ContentView: View {
         }
         .onChange(of: syncEngine.isBackfilling) { wasBackfilling, isBackfilling in
             if wasBackfilling && !isBackfilling && !classificationEngine.isClassifying {
+                Task {
+                    await classificationEngine.classifyUnclassified(in: modelContext)
+                }
+            }
+        }
+        .onChange(of: syncEngine.isFetchingContent) { wasFetching, isFetching in
+            if wasFetching && !isFetching && !classificationEngine.isClassifying {
                 Task {
                     await classificationEngine.classifyUnclassified(in: modelContext)
                 }
