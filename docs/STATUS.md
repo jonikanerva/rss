@@ -13,6 +13,7 @@ Status: Active
 ## Active objective
 
 - Owner dogfoods the app daily for 1 week with real Feedbin account. Subjective quality feedback: "clear, beautiful, and calm."
+- Open `Feeder.xcodeproj` in Xcode to build and run.
 
 ## Success criteria for current objective
 
@@ -35,14 +36,14 @@ Status: Active
 
 1. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
-   - Context: Open `Package.swift` in Xcode or `swift build` from root. Run and authenticate with Feedbin, use daily.
+   - Context: Open `Feeder.xcodeproj` in Xcode, build and run. Authenticate with Feedbin, use daily.
    - Acceptance: Subjective quality feedback after 1 week.
 
 ## Active artifact pointers
 
 - Vision: `docs/vision/VISION.md`
 - Execution plan: `docs/plans/2026-03-04-hard-mvp-execution-plan.md`
-- App source: `Feeder/` (Swift Package at root, open `Package.swift` in Xcode)
+- App source: `Feeder/` (native Xcode project, open `Feeder.xcodeproj` in Xcode)
 - Research: `docs/research/2026-03-02-local-llm-classification-reset.md`
 - Research: `docs/research/2026-03-03-apple-foundation-models-comparison.md`
 - Gate: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
@@ -51,4 +52,4 @@ Status: Active
 
 ## Last updated
 
-- 2026-03-05 by OpenCode agent (Repo restructured: app source at root as Xcode-compatible Swift Package, pre-planning artifacts moved to pre_planning/. Ready for dogfood.)
+- 2026-03-05 by OpenCode agent (Replaced SPM Package.swift with native Feeder.xcodeproj. Proper .app bundle, code signing, entitlements, asset catalog. Ready for dogfood.)

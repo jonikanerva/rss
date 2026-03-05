@@ -5,12 +5,16 @@
 xcuserdata/
 DerivedData/
 *.xcscmblueprint
+*.xccheckout
+
+# Xcode project workspace settings (user-specific)
+Feeder.xcodeproj/project.xcworkspace/xcuserdata/
+Feeder.xcodeproj/xcuserdata/
 
 # Swift Package Manager
 .build/
 **/.build/
-.swiftpm/configuration/registries.json
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.swiftpm/
 /Packages
 
 # Environment
