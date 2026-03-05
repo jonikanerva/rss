@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import OSLog
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
+private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
 /// Coordinates Feedbin API sync with local SwiftData persistence.
 @MainActor
@@ -15,7 +15,7 @@ final class SyncEngine {
 
     private var client: FeedbinClient?
     private var modelContext: ModelContext?
-    private var syncTimer: Timer?
+    private var periodicSyncTask: Task<Void, Never>?
 
     /// Configure the sync engine with credentials and model context.
     func configure(username: String, password: String, modelContext: ModelContext) {
@@ -34,24 +34,25 @@ final class SyncEngine {
         }
     }
 
-    /// Start periodic background sync.
-    func startPeriodicSync(interval: TimeInterval = 300) { // 5 minutes default
+    /// Start periodic background sync using structured concurrency.
+    func startPeriodicSync(interval: TimeInterval = 300) {
         stopPeriodicSync()
-        // Initial sync
-        Task { await sync() }
-        // Periodic timer
-        syncTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                await self.sync()
+        periodicSyncTask = Task {
+            // Initial sync
+            await sync()
+            // Periodic loop
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(interval))
+                if Task.isCancelled { break }
+                await sync()
             }
         }
     }
 
-    /// Stop periodic sync.
+    /// Stop periodic sync by cancelling the task.
     func stopPeriodicSync() {
-        syncTimer?.invalidate()
-        syncTimer = nil
+        periodicSyncTask?.cancel()
+        periodicSyncTask = nil
     }
 
     /// Perform a full sync: subscriptions + entries + extracted content.
@@ -75,7 +76,6 @@ final class SyncEngine {
             logger.info("Fetching entries (since: \(self.lastSyncDate?.description ?? "full sync"))")
             let entries = try await client.fetchAllEntries(since: lastSyncDate)
             syncProgress = "Fetched \(entries.count) entries, processing..."
-            syncProgress = "Processing \(entries.count) entries..."
             logger.info("Fetched \(entries.count) total entries")
             let newEntryCount = try await syncEntries(entries, using: client, in: modelContext)
 

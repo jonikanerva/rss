@@ -4,7 +4,7 @@ import NaturalLanguage
 import SwiftData
 import OSLog
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
+private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
 
 // MARK: - Generable output type
 
