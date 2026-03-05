@@ -48,7 +48,7 @@ if [[ ! -f "${GH_APP_PRIVATE_KEY_PATH}" ]]; then
 fi
 
 if [[ -z "${GH_APP_TOKEN:-}" ]]; then
-  GH_APP_TOKEN="$("${repo_root}/scripts/github-app-token.sh")"
+  GH_APP_TOKEN="$("${repo_root}/.opencode/scripts/github-app-token.sh")"
 fi
 
 git config --local user.name "donut"

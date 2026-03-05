@@ -1,31 +1,27 @@
 // swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
-    name: "rss-spike",
-    products: [
-        .library(
-            name: "RSSSpikeCore",
-            targets: ["RSSSpikeCore"]
-        ),
-        .executable(
-            name: "rss-spike",
-            targets: ["rss-spike"]
-        ),
+    name: "Feeder",
+    platforms: [
+        .macOS(.v26)
     ],
     targets: [
-        .target(
-            name: "RSSSpikeCore"
-        ),
         .executableTarget(
-            name: "rss-spike",
-            dependencies: ["RSSSpikeCore"]
+            name: "Feeder",
+            path: "Feeder",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
         ),
         .testTarget(
-            name: "RSSSpikeCoreTests",
-            dependencies: ["RSSSpikeCore"]
-        ),
+            name: "FeederTests",
+            dependencies: ["Feeder"],
+            path: "FeederTests",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        )
     ]
 )

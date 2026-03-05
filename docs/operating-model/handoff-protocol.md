@@ -24,7 +24,7 @@ Allowed exceptions (must be documented in PR or handoff note):
 
 1. Start from updated base and create a session worktree + task branch.
    - Naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`.
-2. Ensure GitHub App auth + bot identity are configured in the active worktree (`./scripts/use-github-app-auth.sh`).
+2. Ensure GitHub App auth + bot identity are configured in the active worktree (`./.opencode/scripts/use-github-app-auth.sh`).
 3. Implement one logical change at a time.
 4. Run local verification for changed scope.
 5. Create single-purpose commit with clear message.
