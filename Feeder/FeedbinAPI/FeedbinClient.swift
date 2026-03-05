@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
 
 /// Feedbin API v2 client using HTTP Basic auth and async/await.
 /// Reference: https://github.com/feedbin/feedbin-api
@@ -96,6 +99,7 @@ actor FeedbinClient {
         while true {
             let result = try await fetchEntries(since: since, page: page)
             allEntries.append(contentsOf: result.entries)
+            logger.info("Fetched page \(page): \(result.entries.count) entries (\(allEntries.count) total so far)")
 
             if !result.hasNextPage || result.entries.isEmpty {
                 break
@@ -103,6 +107,7 @@ actor FeedbinClient {
             page += 1
         }
 
+        logger.info("Fetched all entries: \(allEntries.count) total across \(page) pages")
         return allEntries
     }
 

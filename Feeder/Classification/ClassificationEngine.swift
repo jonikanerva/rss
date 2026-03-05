@@ -79,10 +79,14 @@ final class ClassificationEngine {
             let validLabels = Set(categories.map { $0.label })
 
             // Classify each entry
+            var skippedNonEnglish = 0
+            var classifiedOK = 0
+            var classificationErrors = 0
+
             for entry in entries {
                 classifiedCount += 1
                 let title = entry.title ?? "Untitled"
-                progress = "[\(classifiedCount)/\(totalToClassify)] \(title.prefix(40))..."
+                progress = "Classifying [\(classifiedCount)/\(totalToClassify)] \(title.prefix(40))..."
 
                 // Language detection: skip non-English
                 let textForDetection = "\(title) \(entry.bestBody.prefix(500))"
@@ -92,6 +96,7 @@ final class ClassificationEngine {
                 if detectedLang != "en" {
                     entry.categoryLabels = ["other"]
                     entry.storyKey = normalizeStoryKey(title)
+                    skippedNonEnglish += 1
                     logger.debug("Skipped non-English (\(detectedLang)): \(title.prefix(60))")
                     continue
                 }
@@ -106,18 +111,25 @@ final class ClassificationEngine {
                     )
                     entry.categoryLabels = result.categories
                     entry.storyKey = result.storyKey
+                    classifiedOK += 1
                     logger.debug("Classified: \(title.prefix(60)) → \(result.categories)")
                 } catch {
                     entry.categoryLabels = ["other"]
                     entry.storyKey = normalizeStoryKey(title)
+                    classificationErrors += 1
                     logger.error("Classification error for \(title.prefix(60)): \(error.localizedDescription)")
+                }
+
+                // Log batch summary every 25 entries
+                if classifiedCount % 25 == 0 {
+                    logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify) (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
                 }
             }
 
             // Save
             try context.save()
-            progress = "Classified \(entries.count) entries"
-            logger.info("Classification complete: \(entries.count) entries")
+            progress = "Classified \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)"
+            logger.info("Classification complete: \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
         } catch {
             progress = "Error: \(error.localizedDescription)"
             logger.error("Classification failed: \(error.localizedDescription)")

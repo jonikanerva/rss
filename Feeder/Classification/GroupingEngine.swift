@@ -37,18 +37,26 @@ final class GroupingEngine {
                 return
             }
 
+            logger.info("Grouping \(classifiedEntries.count) classified entries")
+            progress = "Grouping \(classifiedEntries.count) entries..."
+
             // Delete existing groups (full rebuild — simple and correct)
             let groupDescriptor = FetchDescriptor<StoryGroup>()
             let existingGroups = try context.fetch(groupDescriptor)
             for group in existingGroups {
                 context.delete(group)
             }
+            logger.info("Cleared \(existingGroups.count) previous groups")
 
             // Cluster entries by storyKey similarity
+            progress = "Clustering by story similarity..."
             let clusters = clusterByStoryKey(classifiedEntries)
+            let uniqueKeys = clusters.count
+            logger.info("Found \(uniqueKeys) unique story clusters")
 
             // Create StoryGroup for clusters with 2+ entries
             var groupCount = 0
+            var groupedEntryCount = 0
             for (canonicalKey, clusterEntries) in clusters {
                 guard clusterEntries.count >= 2 else { continue }
 
@@ -69,11 +77,14 @@ final class GroupingEngine {
                 }
 
                 groupCount += 1
+                groupedEntryCount += clusterEntries.count
+                logger.debug("Group '\(canonicalKey)': \(clusterEntries.count) entries → \"\(headline.prefix(50))\"")
             }
 
             try context.save()
-            progress = "Created \(groupCount) story groups"
-            logger.info("Grouping complete: \(groupCount) groups from \(classifiedEntries.count) entries")
+            let standaloneCount = classifiedEntries.count - groupedEntryCount
+            progress = "Grouped: \(groupCount) stories (\(groupedEntryCount) entries), \(standaloneCount) standalone"
+            logger.info("Grouping complete: \(groupCount) groups (\(groupedEntryCount) entries grouped), \(standaloneCount) standalone")
         } catch {
             progress = "Grouping error: \(error.localizedDescription)"
             logger.error("Grouping failed: \(error.localizedDescription)")

@@ -72,9 +72,11 @@ final class SyncEngine {
 
             // 2. Sync entries (incremental using lastSyncDate)
             syncProgress = "Fetching entries..."
+            logger.info("Fetching entries (since: \(self.lastSyncDate?.description ?? "full sync"))")
             let entries = try await client.fetchAllEntries(since: lastSyncDate)
+            syncProgress = "Fetched \(entries.count) entries, processing..."
             syncProgress = "Processing \(entries.count) entries..."
-            logger.info("Fetched \(entries.count) entries (since: \(self.lastSyncDate?.description ?? "nil"))")
+            logger.info("Fetched \(entries.count) total entries")
             let newEntryCount = try await syncEntries(entries, using: client, in: modelContext)
 
             // 3. Save and update timestamp
@@ -143,10 +145,19 @@ final class SyncEngine {
         let feedsByFeedbinID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.feedbinFeedID, $0) })
 
         var newCount = 0
+        let totalEntries = entries.count
+        var processed = 0
+        var skippedDuplicates = 0
+        var extractedCount = 0
 
         for feedbinEntry in entries {
+            processed += 1
+
             // Skip duplicates
-            if existingIDs.contains(feedbinEntry.id) { continue }
+            if existingIDs.contains(feedbinEntry.id) {
+                skippedDuplicates += 1
+                continue
+            }
 
             let entry = Entry(
                 feedbinEntryID: feedbinEntry.id,
@@ -165,16 +176,23 @@ final class SyncEngine {
 
             // Fetch extracted content if available
             if let extractedURL = feedbinEntry.extractedContentUrl {
-                syncProgress = "Extracting content: \(feedbinEntry.title ?? "untitled")..."
                 if let extracted = try? await client.fetchExtractedContent(from: extractedURL) {
                     entry.extractedContent = extracted.content
+                    extractedCount += 1
                 }
             }
 
             context.insert(entry)
             newCount += 1
+
+            // Update progress every 25 entries or on the last entry
+            if processed % 25 == 0 || processed == totalEntries {
+                syncProgress = "Processing entries \(processed)/\(totalEntries) (\(newCount) new, \(skippedDuplicates) skipped)"
+                logger.info("Processing entries \(processed)/\(totalEntries): \(newCount) new, \(skippedDuplicates) duplicates, \(extractedCount) extracted")
+            }
         }
 
+        logger.info("Entry sync done: \(newCount) new, \(skippedDuplicates) duplicates, \(extractedCount) content extractions")
         return newCount
     }
 }
