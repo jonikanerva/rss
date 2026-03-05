@@ -17,7 +17,7 @@ Status: Active
    - Owner: Repository Owner
    - Acceptance check: Owner uses app daily with real Feedbin account. Subjective quality feedback: "clear, beautiful, and calm."
    - Target checkpoint: 1 week of daily use
-   - Context: Build with `swift build`, run `.build/debug/Feeder`, or open `Package.swift` in Xcode. All 5 milestones complete (PRs #2–#6).
+   - Context: Open `Feeder.xcodeproj` in Xcode, build and run. All 5 milestones complete (PRs #2–#6), project restructured to native Xcode project (PR #8).
 
 ## Completed history
 

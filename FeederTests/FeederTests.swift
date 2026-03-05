@@ -1,11 +1,15 @@
+//
+//  FeederTests.swift
+//  FeederTests
+//
+
 import Testing
 @testable import Feeder
 
-@Suite("Feeder Tests")
 struct FeederTests {
-    @Test("App target compiles")
-    func appTargetCompiles() {
-        // Placeholder — confirms the test target can import and link against Feeder.
-        #expect(true)
+
+    @Test func example() async throws {
+        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
     }
+
 }
