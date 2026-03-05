@@ -48,9 +48,9 @@ final class ClassificationEngine {
                 return
             }
 
-            // Fetch unclassified entries (those with empty categoryLabels)
+            // Fetch unclassified entries (those with no storyKey — storyKey is set during classification)
             let entryDescriptor = FetchDescriptor<Entry>(
-                predicate: #Predicate<Entry> { $0.categoryLabels.isEmpty },
+                predicate: #Predicate<Entry> { $0.storyKey == nil },
                 sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
             )
             let entries = try context.fetch(entryDescriptor)
@@ -84,12 +84,15 @@ final class ClassificationEngine {
             var classificationErrors = 0
 
             for entry in entries {
+                // Yield to let UI stay responsive
+                await Task.yield()
+
                 classifiedCount += 1
                 let title = entry.title ?? "Untitled"
                 progress = "Classifying [\(classifiedCount)/\(totalToClassify)] \(title.prefix(40))..."
 
                 // Language detection: skip non-English
-                let textForDetection = "\(title) \(entry.bestBody.prefix(500))"
+                let textForDetection = "\(title) \(stripHTML(entry.bestBody).prefix(500))"
                 let detectedLang = detectLanguage(textForDetection)
                 entry.detectedLanguage = detectedLang
 
@@ -120,13 +123,14 @@ final class ClassificationEngine {
                     logger.error("Classification error for \(title.prefix(60)): \(error.localizedDescription)")
                 }
 
-                // Log batch summary every 25 entries
+                // Save and log every 25 entries
                 if classifiedCount % 25 == 0 {
+                    try context.save()
                     logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify) (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
                 }
             }
 
-            // Save
+            // Final save
             try context.save()
             progress = "Classified \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)"
             logger.info("Classification complete: \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
@@ -202,11 +206,11 @@ final class ClassificationEngine {
     }
 
     private func buildPrompt(for entry: Entry) -> String {
-        var body = entry.bestBody
-        // Truncate to 8K chars to fit context window (proven in feasibility)
-        let maxBodyChars = 8000
+        var body = stripHTML(entry.bestBody)
+        // Apple Foundation Models have a small context window — keep prompt compact
+        let maxBodyChars = 2000
         if body.count > maxBodyChars {
-            body = String(body.prefix(maxBodyChars)) + "... (truncated)"
+            body = String(body.prefix(maxBodyChars)) + "..."
         }
 
         return """
@@ -214,6 +218,22 @@ final class ClassificationEngine {
             summary: \(entry.summary ?? "")
             body: \(body)
             """
+    }
+
+    private func stripHTML(_ html: String) -> String {
+        guard !html.isEmpty else { return "" }
+        // Remove HTML tags
+        var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        // Decode common HTML entities
+        text = text.replacingOccurrences(of: "&amp;", with: "&")
+        text = text.replacingOccurrences(of: "&lt;", with: "<")
+        text = text.replacingOccurrences(of: "&gt;", with: ">")
+        text = text.replacingOccurrences(of: "&quot;", with: "\"")
+        text = text.replacingOccurrences(of: "&#39;", with: "'")
+        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+        // Collapse whitespace
+        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func detectLanguage(_ text: String) -> String {

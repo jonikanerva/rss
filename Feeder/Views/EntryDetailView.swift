@@ -1,74 +1,114 @@
 import SwiftUI
+import SwiftData
 import WebKit
 
+// MARK: - Source pill colors
+
+private let activePillColor = Color(hex: 0xE8866A)
+private let inactivePillColor = Color(hex: 0x3A3A3C)
+
 struct EntryDetailView: View {
-    let entry: Entry
+    @Binding var selectedEntry: Entry?
+    @Query(sort: \Entry.publishedAt, order: .reverse) private var allEntries: [Entry]
+
+    /// The entry currently being displayed (may differ from selectedEntry when switching sources).
+    @State private var displayedEntry: Entry?
+
+    /// Sibling entries sharing the same storyKey (from different sources).
+    private var siblingEntries: [Entry] {
+        guard let entry = displayedEntry ?? selectedEntry,
+              let key = entry.storyKey, !key.isEmpty else { return [] }
+        return allEntries.filter { $0.storyKey == key }
+    }
+
+    private var entry: Entry? {
+        displayedEntry ?? selectedEntry
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header
-                VStack(alignment: .leading, spacing: 10) {
+        if let entry {
+            VStack(alignment: .leading, spacing: 0) {
+                // Fixed header
+                VStack(alignment: .leading, spacing: 12) {
+                    // Title
                     Text(entry.title ?? "Untitled")
-                        .font(.title)
-                        .fontWeight(.bold)
+                        .font(.system(size: 24, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 16) {
+                    // Byline
+                    HStack(spacing: 12) {
                         if let feedTitle = entry.feed?.title {
-                            Label(feedTitle, systemImage: "dot.radiowaves.up.forward")
-                                .font(.subheadline)
+                            Text(feedTitle)
+                                .font(.system(size: 13))
                                 .foregroundStyle(.secondary)
                         }
 
                         if let author = entry.author, !author.isEmpty {
-                            Label(author, systemImage: "person")
-                                .font(.subheadline)
+                            Text(author)
+                                .font(.system(size: 13))
                                 .foregroundStyle(.secondary)
                         }
 
                         Text(entry.publishedAt, format: .dateTime.month(.wide).day().year().hour().minute())
-                            .font(.subheadline)
+                            .font(.system(size: 13))
                             .foregroundStyle(.tertiary)
                     }
 
-                    if !entry.categoryLabels.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(entry.categoryLabels, id: \.self) { label in
-                                Text(label)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(.fill.tertiary, in: Capsule())
+                    Divider()
+
+                    // Source pills (sibling entries from same story)
+                    if siblingEntries.count > 1 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(siblingEntries) { sibling in
+                                    let isActive = sibling.id == entry.id
+                                    Button {
+                                        displayedEntry = sibling
+                                    } label: {
+                                        Text(domainName(for: sibling))
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                isActive ? activePillColor : inactivePillColor,
+                                                in: RoundedRectangle(cornerRadius: 4)
+                                            )
+                                            .lineLimit(1)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
                 }
+                .padding(.horizontal, 32)
+                .padding(.top, 24)
+                .padding(.bottom, 16)
 
-                Divider()
-
-                // Body content
+                // Scrollable body content — fills remaining space
                 HTMLContentView(html: entry.bestBody)
-                    .frame(minHeight: 400)
             }
-            .padding(32)
-            .frame(maxWidth: 720, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
-        .toolbar {
-            ToolbarItem {
-                if let url = URL(string: entry.url) {
-                    Link(destination: url) {
-                        Image(systemName: "safari")
-                    }
-                    .help("Open in browser")
-                    .accessibilityLabel("Open in Safari")
-                }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
+            .onChange(of: selectedEntry) {
+                displayedEntry = nil
             }
         }
+    }
+
+    /// Extract domain from entry's URL or feed's siteURL, e.g. "theverge.com"
+    private func domainName(for entry: Entry) -> String {
+        let urlString = entry.feed?.siteURL ?? entry.url
+        guard let url = URL(string: urlString), let host = url.host() else {
+            return entry.feed?.title ?? "unknown"
+        }
+        // Strip "www." prefix
+        if host.hasPrefix("www.") {
+            return String(host.dropFirst(4))
+        }
+        return host
     }
 }
 
@@ -99,7 +139,7 @@ struct HTMLContentView: NSViewRepresentable {
                 color: #1d1d1f;
                 max-width: 660px;
                 margin: 0;
-                padding: 0;
+                padding: 0 32px 32px 32px;
                 -webkit-font-smoothing: antialiased;
             }
             @media (prefers-color-scheme: dark) {
@@ -173,4 +213,55 @@ struct HTMLContentView: NSViewRepresentable {
         """
         webView.loadHTMLString(styledHTML, baseURL: nil)
     }
+}
+
+// MARK: - Preview
+
+#Preview("Article Detail with Sources") {
+    @Previewable @State var selected: Entry?
+
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
+    let context = container.mainContext
+
+    let feed1 = Feed(
+        feedbinSubscriptionID: 1, feedbinFeedID: 1,
+        title: "The Verge", feedURL: "https://theverge.com/rss",
+        siteURL: "https://theverge.com", createdAt: .now
+    )
+    let feed2 = Feed(
+        feedbinSubscriptionID: 2, feedbinFeedID: 2,
+        title: "Ars Technica", feedURL: "https://arstechnica.com/rss",
+        siteURL: "https://arstechnica.com", createdAt: .now
+    )
+    context.insert(feed1)
+    context.insert(feed2)
+
+    let entry1 = Entry(
+        feedbinEntryID: 1, title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
+        author: "Tom Warren", url: "https://example.com/1",
+        content: "<p>Apple today announced the M5 Ultra, its most powerful chip ever.</p>",
+        summary: nil, extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
+    )
+    entry1.feed = feed1
+    entry1.storyKey = "apple-m5-ultra"
+    context.insert(entry1)
+
+    let entry2 = Entry(
+        feedbinEntryID: 2, title: "Apple's M5 Ultra: everything you need to know",
+        author: nil, url: "https://example.com/2",
+        content: "<p>Ars Technica's take on the new M5 Ultra chip.</p>",
+        summary: nil, extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-1800), createdAt: .now
+    )
+    entry2.feed = feed2
+    entry2.storyKey = "apple-m5-ultra"
+    context.insert(entry2)
+
+    selected = entry1
+
+    return EntryDetailView(selectedEntry: $selected)
+        .modelContainer(container)
+        .frame(width: 600, height: 500)
 }
