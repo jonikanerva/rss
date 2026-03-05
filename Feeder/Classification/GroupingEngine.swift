@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import OSLog
 
-private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "Grouping")
+private let logger = Logger(subsystem: "com.feeder.app", category: "Grouping")
 
 /// Groups classified entries by storyKey into StoryGroup records.
 ///

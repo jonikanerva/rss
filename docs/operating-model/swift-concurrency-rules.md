@@ -50,11 +50,17 @@ These settings are configured in `Feeder.xcodeproj` and must not be weakened:
 
 ### Logger constants
 ```swift
-private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "MyModule")
+private let logger = Logger(subsystem: "com.feeder.app", category: "MyModule")
 ```
-- `Logger` is Sendable, but `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` makes top-level `let` constants MainActor-isolated.
-- `nonisolated(unsafe)` opts out of isolation for these known-safe constants.
-- Every module-level Logger must use this pattern.
+- With `SWIFT_APPROACHABLE_CONCURRENCY = YES`, the compiler recognizes that `Logger` is `Sendable` and does not require `nonisolated(unsafe)` for module-level constants **when used from `@MainActor` context** (the default isolation).
+- Simply use `private let` — no special annotation needed for most files.
+- **Exception**: If the logger is used inside a non-MainActor `actor` (e.g., `actor FeedbinClient`), a top-level `let` defaults to `@MainActor` isolation and cannot be accessed from the other actor. Use a `private static let` inside the actor instead:
+```swift
+actor FeedbinClient {
+    private static let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
+    // Access as: FeedbinClient.logger.info(...)
+}
+```
 
 ### Periodic tasks
 ```swift
