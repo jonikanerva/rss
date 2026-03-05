@@ -13,7 +13,13 @@ Status: Active
 
 ## Active queue
 
-1. [Ready] Dogfood the app for 1 week
+1. [In progress] Incremental sync: unread-first phased sync
+   - Owner: Agent
+   - Acceptance check: First sync shows categorized unread articles within ~10 seconds. Recent history backfills in background.
+   - Target checkpoint: PR merged
+   - Context: Branch `feat/incremental-sync`. Research: `docs/research/2026-03-05-incremental-sync-strategy.md`. Plan: `docs/plans/2026-03-05-incremental-sync-plan.md`.
+
+2. [Ready] Dogfood the app for 1 week
    - Owner: Repository Owner
    - Acceptance check: Owner uses app daily with real Feedbin account. Subjective quality feedback: "clear, beautiful, and calm."
    - Target checkpoint: 1 week of daily use
