@@ -2,16 +2,21 @@ import Foundation
 import SwiftData
 import OSLog
 
-private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
+private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
 /// Coordinates Feedbin API sync with local SwiftData persistence.
 @MainActor
 @Observable
 final class SyncEngine {
     private(set) var isSyncing = false
-    private(set) var lastSyncDate: Date?
     private(set) var lastError: String?
     private(set) var syncProgress: String = ""
+
+    /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
+    private(set) var lastSyncDate: Date? {
+        get { UserDefaults.standard.object(forKey: "lastSyncDate") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "lastSyncDate") }
+    }
 
     private var client: FeedbinClient?
     private var modelContext: ModelContext?
@@ -21,6 +26,7 @@ final class SyncEngine {
     func configure(username: String, password: String, modelContext: ModelContext) {
         self.client = FeedbinClient(username: username, password: password)
         self.modelContext = modelContext
+        logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never"). Will do incremental sync if previous data exists.")
     }
 
     /// Verify that the configured credentials are valid.
