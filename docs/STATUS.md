@@ -34,7 +34,12 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [Ready] Owner dogfood for 1 week.
+1. [In progress] Incremental sync strategy — unread-first, recent history backfill.
+   - Owner: Agent
+   - Context: Branch `feat/incremental-sync`. Research + plan + implementation complete.
+   - Acceptance: Build passes, first sync completes in seconds not minutes.
+
+2. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
    - Context: Open `Feeder.xcodeproj` in Xcode, build and run. Authenticate with Feedbin, use daily.
    - Acceptance: Subjective quality feedback after 1 week.
@@ -52,4 +57,4 @@ Status: Active
 
 ## Last updated
 
-- 2026-03-05 by OpenCode agent (Replaced SPM Package.swift with native Feeder.xcodeproj. Proper .app bundle, code signing, entitlements, asset catalog. Ready for dogfood.)
+- 2026-03-05 by Claude agent (Incremental sync: unread-first phased sync, parallel extracted content, read-state sync from Feedbin.)

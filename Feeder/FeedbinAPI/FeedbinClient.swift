@@ -65,7 +65,45 @@ actor FeedbinClient {
         return try decoder.decode([FeedbinSubscription].self, from: data)
     }
 
+    // MARK: - Unread Entry IDs
+
+    /// Fetch all unread entry IDs. Returns a lightweight array of Ints.
+    /// GET /v2/unread_entries.json
+    func fetchUnreadEntryIDs() async throws -> [Int] {
+        let url = baseURL.appending(path: "unread_entries.json")
+        let (data, response) = try await session.data(from: url)
+        try checkResponse(response)
+        let ids = try decoder.decode([Int].self, from: data)
+        FeedbinClient.logger.info("Fetched \(ids.count) unread entry IDs")
+        return ids
+    }
+
     // MARK: - Entries
+
+    /// Fetch entries by specific IDs, in batches of 100.
+    /// GET /v2/entries.json?ids=1,2,3
+    func fetchEntriesByIDs(_ ids: [Int]) async throws -> [FeedbinEntry] {
+        guard !ids.isEmpty else { return [] }
+        var allEntries: [FeedbinEntry] = []
+
+        let batches = stride(from: 0, to: ids.count, by: 100).map {
+            Array(ids[$0..<min($0 + 100, ids.count)])
+        }
+
+        for batch in batches {
+            let idString = batch.map(String.init).joined(separator: ",")
+            var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "ids", value: idString)]
+
+            let (data, response) = try await session.data(from: components.url!)
+            try checkResponse(response)
+            let entries = try decoder.decode([FeedbinEntry].self, from: data)
+            allEntries.append(contentsOf: entries)
+            FeedbinClient.logger.info("Fetched batch of \(entries.count) entries by ID (\(allEntries.count) total)")
+        }
+
+        return allEntries
+    }
 
     /// Fetch entries with optional `since` date for incremental sync.
     /// Returns entries and whether there are more pages.

@@ -104,7 +104,7 @@ struct ContentView: View {
 
     /// Whether any background operation is in progress.
     private var isWorking: Bool {
-        syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping
+        syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping
     }
 
     /// Current status message for the status bar.
@@ -112,6 +112,7 @@ struct ContentView: View {
         if syncEngine.isSyncing { return syncEngine.syncProgress }
         if classificationEngine.isClassifying { return classificationEngine.progress }
         if groupingEngine.isGrouping { return groupingEngine.progress }
+        if syncEngine.isBackfilling { return syncEngine.syncProgress }
         if let error = syncEngine.lastError { return error }
         return nil
     }
@@ -165,6 +166,13 @@ struct ContentView: View {
         }
         .onChange(of: syncEngine.isSyncing) { wasSyncing, isSyncing in
             if wasSyncing && !isSyncing && !classificationEngine.isClassifying {
+                Task {
+                    await classificationEngine.classifyUnclassified(in: modelContext)
+                }
+            }
+        }
+        .onChange(of: syncEngine.isBackfilling) { wasBackfilling, isBackfilling in
+            if wasBackfilling && !isBackfilling && !classificationEngine.isClassifying {
                 Task {
                     await classificationEngine.classifyUnclassified(in: modelContext)
                 }
@@ -287,14 +295,14 @@ struct ContentView: View {
                 Button {
                     Task { await syncAndClassify() }
                 } label: {
-                    if syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping {
+                    if syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping {
                         ProgressView()
                             .scaleEffect(0.7)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping)
+                .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping)
                 .help("Sync, classify, and group")
             }
         }
