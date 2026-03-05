@@ -2,7 +2,8 @@ import Foundation
 import Security
 
 /// Simple Keychain wrapper for storing Feedbin credentials.
-enum KeychainHelper {
+/// All methods are nonisolated since Keychain APIs are thread-safe.
+nonisolated enum KeychainHelper {
     private static let service = "com.feeder.app"
 
     static func save(key: String, value: String) {

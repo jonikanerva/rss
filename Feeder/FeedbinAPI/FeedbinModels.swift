@@ -1,7 +1,7 @@
 import Foundation
 
 /// A Feedbin subscription (feed the user subscribes to).
-struct FeedbinSubscription: Decodable, Sendable {
+nonisolated struct FeedbinSubscription: Decodable, Sendable {
     let id: Int
     let feedId: Int
     let title: String
@@ -11,7 +11,7 @@ struct FeedbinSubscription: Decodable, Sendable {
 }
 
 /// A Feedbin entry (article).
-struct FeedbinEntry: Decodable, Sendable {
+nonisolated struct FeedbinEntry: Decodable, Sendable {
     let id: Int
     let feedId: Int
     let title: String?
@@ -25,13 +25,13 @@ struct FeedbinEntry: Decodable, Sendable {
 }
 
 /// Result of a paginated entries fetch.
-struct FeedbinEntriesPage: Sendable {
+nonisolated struct FeedbinEntriesPage: Sendable {
     let entries: [FeedbinEntry]
     let hasNextPage: Bool
 }
 
 /// Extracted full content from Feedbin's Mercury Parser service.
-struct FeedbinExtractedContent: Decodable, Sendable {
+nonisolated struct FeedbinExtractedContent: Decodable, Sendable {
     let title: String?
     let content: String?
     let author: String?

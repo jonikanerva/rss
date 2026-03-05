@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
+private nonisolated(unsafe) let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
 
 /// Feedbin API v2 client using HTTP Basic auth and async/await.
 /// Reference: https://github.com/feedbin/feedbin-api
@@ -164,7 +164,7 @@ actor FeedbinClient {
 
 // MARK: - Errors
 
-enum FeedbinError: Error, LocalizedError {
+nonisolated enum FeedbinError: Error, LocalizedError {
     case invalidResponse
     case unauthorized
     case forbidden
