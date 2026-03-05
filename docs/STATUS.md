@@ -35,20 +35,20 @@ Status: Active
 
 1. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
-   - Context: Build app (`cd app && swift build`), run, authenticate with Feedbin, use daily.
+   - Context: Open `Package.swift` in Xcode or `swift build` from root. Run and authenticate with Feedbin, use daily.
    - Acceptance: Subjective quality feedback after 1 week.
 
 ## Active artifact pointers
 
 - Vision: `docs/vision/VISION.md`
 - Execution plan: `docs/plans/2026-03-04-hard-mvp-execution-plan.md`
-- App source: `app/` (Swift Package, `swift build` to compile)
+- App source: `Feeder/` (Swift Package at root, open `Package.swift` in Xcode)
 - Research: `docs/research/2026-03-02-local-llm-classification-reset.md`
 - Research: `docs/research/2026-03-03-apple-foundation-models-comparison.md`
 - Gate: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
-- Category definitions: `config/categories-v1.yaml`
-- Feasibility evidence: `artifacts/feasibility/run-017-apple-fm-tighter-descriptions/`
+- Category definitions: `pre_planning/config/categories-v1.yaml`
+- Feasibility evidence: `pre_planning/artifacts/feasibility/run-017-apple-fm-tighter-descriptions/`
 
 ## Last updated
 
-- 2026-03-04 by OpenCode agent (All 5 milestones complete: M1 scaffold, M2 classification, M3 grouping, M4 timeline, M5 polish. PRs #2-#6 merged. Ready for dogfood.)
+- 2026-03-05 by OpenCode agent (Repo restructured: app source at root as Xcode-compatible Swift Package, pre-planning artifacts moved to pre_planning/. Ready for dogfood.)

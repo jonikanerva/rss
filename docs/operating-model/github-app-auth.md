@@ -36,7 +36,7 @@ Optional:
 Run:
 
 ```bash
-./scripts/use-github-app-auth.sh
+./.opencode/scripts/use-github-app-auth.sh
 ```
 
 This command will:
@@ -50,7 +50,7 @@ This command will:
 Note:
 
 - GitHub App installation tokens expire (typically about 1 hour).
-- Rerun `./scripts/use-github-app-auth.sh` when token expires.
+- Rerun `./.opencode/scripts/use-github-app-auth.sh` when token expires.
 
 ## Verification
 
