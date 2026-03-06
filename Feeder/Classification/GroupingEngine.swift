@@ -4,14 +4,26 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "Grouping")
 
+// MARK: - Sendable DTOs for crossing actor boundaries
+
+/// Lightweight input for grouping — extracted from SwiftData on main, processed on background.
+private nonisolated struct GroupingInput: Sendable {
+    let entryID: Int
+    let storyKey: String
+    let title: String
+    let publishedAt: Date
+}
+
+/// Result of background clustering — applied to SwiftData on main.
+private nonisolated struct ClusterResult: Sendable {
+    let canonicalKey: String
+    let headline: String
+    let earliestDate: Date
+    let entryCount: Int
+    let entryIDs: [Int]
+}
+
 /// Groups classified entries by storyKey into StoryGroup records.
-///
-/// Grouping logic:
-/// - Entries with the same storyKey are grouped together.
-/// - Similar storyKeys (sharing a significant overlap of tokens) are merged.
-/// - Each group gets a headline derived from the longest (most descriptive) title.
-/// - Group timestamp is the earliest article date (per VISION.md).
-/// - Entries with unique storyKeys remain ungrouped (standalone in timeline).
 @MainActor
 @Observable
 final class GroupingEngine {
@@ -25,7 +37,7 @@ final class GroupingEngine {
         progress = "Grouping stories..."
 
         do {
-            // Fetch all entries with storyKeys
+            // Fetch all entries with storyKeys (fast, on main)
             var entryDescriptor = FetchDescriptor<Entry>()
             entryDescriptor.sortBy = [SortDescriptor(\Entry.publishedAt, order: .reverse)]
             let entries = try context.fetch(entryDescriptor)
@@ -40,7 +52,7 @@ final class GroupingEngine {
             logger.info("Grouping \(classifiedEntries.count) classified entries")
             progress = "Grouping \(classifiedEntries.count) entries..."
 
-            // Delete existing groups (full rebuild — simple and correct)
+            // Delete existing groups (full rebuild)
             let groupDescriptor = FetchDescriptor<StoryGroup>()
             let existingGroups = try context.fetch(groupDescriptor)
             for group in existingGroups {
@@ -48,37 +60,44 @@ final class GroupingEngine {
             }
             logger.info("Cleared \(existingGroups.count) previous groups")
 
-            // Cluster entries by storyKey similarity
-            progress = "Clustering by story similarity..."
-            let clusters = clusterByStoryKey(classifiedEntries)
-            let uniqueKeys = clusters.count
-            logger.info("Found \(uniqueKeys) unique story clusters")
+            // Extract lightweight data for background processing
+            let inputs: [GroupingInput] = classifiedEntries.map { entry in
+                GroupingInput(
+                    entryID: entry.feedbinEntryID,
+                    storyKey: entry.storyKey ?? "",
+                    title: entry.title ?? "",
+                    publishedAt: entry.publishedAt
+                )
+            }
 
-            // Create StoryGroup for clusters with 2+ entries
+            // Heavy O(n²) clustering on background thread
+            progress = "Clustering by story similarity..."
+            let clusterResults = await Task.detached(priority: .utility) {
+                Self.clusterByStoryKey(inputs)
+            }.value
+
+            logger.info("Found \(clusterResults.count) story clusters with 2+ entries")
+
+            // Apply results back to SwiftData on main
+            let entriesByID = Dictionary(uniqueKeysWithValues: classifiedEntries.map { ($0.feedbinEntryID, $0) })
+
             var groupCount = 0
             var groupedEntryCount = 0
-            for (canonicalKey, clusterEntries) in clusters {
-                guard clusterEntries.count >= 2 else { continue }
-
-                let headline = generateHeadline(from: clusterEntries)
-                let earliestDate = clusterEntries.map(\.publishedAt).min() ?? Date()
-
+            for cluster in clusterResults {
                 let group = StoryGroup(
-                    storyKey: canonicalKey,
-                    headline: headline,
-                    earliestDate: earliestDate
+                    storyKey: cluster.canonicalKey,
+                    headline: cluster.headline,
+                    earliestDate: cluster.earliestDate
                 )
-                group.entryCount = clusterEntries.count
+                group.entryCount = cluster.entryCount
                 context.insert(group)
 
-                // Update entries with the canonical storyKey
-                for entry in clusterEntries {
-                    entry.storyKey = canonicalKey
+                for entryID in cluster.entryIDs {
+                    entriesByID[entryID]?.storyKey = cluster.canonicalKey
                 }
 
                 groupCount += 1
-                groupedEntryCount += clusterEntries.count
-                logger.debug("Group '\(canonicalKey)': \(clusterEntries.count) entries → \"\(headline.prefix(50))\"")
+                groupedEntryCount += cluster.entryCount
             }
 
             try context.save()
@@ -93,31 +112,28 @@ final class GroupingEngine {
         isGrouping = false
     }
 
-    // MARK: - Clustering
+    // MARK: - Clustering (nonisolated, runs on background thread)
 
-    /// Clusters entries by storyKey similarity.
-    /// Entries with identical keys are grouped first, then similar keys are merged.
-    private func clusterByStoryKey(_ entries: [Entry]) -> [(String, [Entry])] {
+    /// Clusters entries by storyKey similarity. Returns only clusters with 2+ entries.
+    private nonisolated static func clusterByStoryKey(_ inputs: [GroupingInput]) -> [ClusterResult] {
         // First pass: exact storyKey grouping
-        var keyToEntries: [String: [Entry]] = [:]
-        for entry in entries {
-            let key = entry.storyKey ?? "ungrouped"
-            keyToEntries[key, default: []].append(entry)
+        var keyToInputs: [String: [GroupingInput]] = [:]
+        for input in inputs {
+            keyToInputs[input.storyKey, default: []].append(input)
         }
 
         // Second pass: merge similar keys using token overlap
-        let keys = Array(keyToEntries.keys).sorted()
-        var mergedClusters: [(String, [Entry])] = []
+        let keys = Array(keyToInputs.keys).sorted()
+        var mergedClusters: [(String, [GroupingInput])] = []
         var consumed = Set<String>()
 
         for key in keys {
             if consumed.contains(key) { continue }
 
-            var cluster = keyToEntries[key] ?? []
+            var cluster = keyToInputs[key] ?? []
             var canonicalKey = key
             consumed.insert(key)
 
-            // Find similar keys to merge
             let keyTokens = Set(key.split(separator: "-").map(String.init))
             guard keyTokens.count >= 2 else {
                 mergedClusters.append((canonicalKey, cluster))
@@ -133,11 +149,9 @@ final class GroupingEngine {
                 let union = keyTokens.union(otherTokens)
                 let jaccard = Double(intersection.count) / Double(union.count)
 
-                // Merge if significant token overlap (>= 50% Jaccard similarity)
                 if jaccard >= 0.5 {
-                    cluster.append(contentsOf: keyToEntries[otherKey] ?? [])
+                    cluster.append(contentsOf: keyToInputs[otherKey] ?? [])
                     consumed.insert(otherKey)
-                    // Use shorter key as canonical
                     if otherKey.count < canonicalKey.count {
                         canonicalKey = otherKey
                     }
@@ -147,18 +161,21 @@ final class GroupingEngine {
             mergedClusters.append((canonicalKey, cluster))
         }
 
-        return mergedClusters
-    }
+        // Only return clusters with 2+ entries
+        return mergedClusters.compactMap { canonicalKey, clusterInputs in
+            guard clusterInputs.count >= 2 else { return nil }
 
-    // MARK: - Headline generation
+            let titles = clusterInputs.compactMap { $0.title.isEmpty ? nil : $0.title }
+            let headline = titles.max(by: { $0.count < $1.count }) ?? "Story Group"
+            let earliestDate = clusterInputs.map(\.publishedAt).min() ?? Date()
 
-    /// Generates a human-readable headline from a group of entries.
-    /// Uses the longest (most descriptive) title from the group.
-    private func generateHeadline(from entries: [Entry]) -> String {
-        let titles = entries.compactMap(\.title).filter { !$0.isEmpty }
-        guard let bestTitle = titles.max(by: { $0.count < $1.count }) else {
-            return "Story Group"
+            return ClusterResult(
+                canonicalKey: canonicalKey,
+                headline: headline,
+                earliestDate: earliestDate,
+                entryCount: clusterInputs.count,
+                entryIDs: clusterInputs.map(\.entryID)
+            )
         }
-        return bestTitle
     }
 }

@@ -60,7 +60,7 @@ struct ContentView: View {
     @Environment(GroupingEngine.self) private var groupingEngine
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Entry.publishedAt, order: .reverse) private var entries: [Entry]
-@Query(sort: \Category.sortOrder) private var categories: [Category]
+    @Query(sort: \Category.sortOrder) private var categories: [Category]
     @Query(sort: \StoryGroup.earliestDate, order: .reverse) private var storyGroups: [StoryGroup]
     @State private var selectedEntry: Entry?
     @State private var selectedCategory: String? // nil = all
@@ -79,13 +79,24 @@ struct ContentView: View {
     private var timelineItems: [TimelineItem] {
         let relevantEntries = filteredEntries
 
-        // Collect storyKeys that have groups
+        // Index entries by storyKey for O(1) lookup instead of O(n) filtering per group
+        var entriesByKey: [String: [Entry]] = [:]
+        var ungroupedEntries: [Entry] = []
         let groupedKeys = Set(storyGroups.map(\.storyKey))
 
-        // Build group items — only include groups that have entries matching the current filter
+        for entry in relevantEntries {
+            if let key = entry.storyKey, !key.isEmpty, groupedKeys.contains(key) {
+                entriesByKey[key, default: []].append(entry)
+            } else {
+                ungroupedEntries.append(entry)
+            }
+        }
+
         var items: [TimelineItem] = []
+
+        // Build group items
         for group in storyGroups {
-            let groupEntries = relevantEntries.filter { $0.storyKey == group.storyKey }
+            guard let groupEntries = entriesByKey[group.storyKey] else { continue }
             if groupEntries.count >= 2 {
                 items.append(.group(group, groupEntries.sorted { $0.publishedAt > $1.publishedAt }))
             } else if groupEntries.count == 1 {
@@ -93,19 +104,9 @@ struct ContentView: View {
             }
         }
 
-        // Add standalone entries (not part of any multi-entry group)
-        let singleEntryGroupKeys = Set(
-            storyGroups.map(\.storyKey).filter { key in
-                relevantEntries.filter { $0.storyKey == key }.count < 2
-            }
-        )
-        for entry in relevantEntries {
-            let key = entry.storyKey ?? ""
-            let isInMultiEntryGroup = groupedKeys.contains(key) && !key.isEmpty && !singleEntryGroupKeys.contains(key)
-            let alreadyAddedAsSingle = singleEntryGroupKeys.contains(key)
-            if !isInMultiEntryGroup && !alreadyAddedAsSingle {
-                items.append(.standalone(entry))
-            }
+        // Add standalone entries (not part of any story group)
+        for entry in ungroupedEntries {
+            items.append(.standalone(entry))
         }
 
         return items.sorted { $0.sortDate > $1.sortDate }
@@ -135,18 +136,23 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            NavigationSplitView {
-                sidebarView
-            } content: {
-                entryListView
-            } detail: {
-                detailView
-            }
-
+    private var statusText: String {
+        if isFetching { return "Fetching..." }
+        if classificationEngine.isClassifying {
+            return "Classifying (\(classificationEngine.classifiedCount)/\(classificationEngine.totalToClassify))"
         }
-        .frame(minWidth: 900, minHeight: 600)
+        if groupingEngine.isGrouping { return "Grouping..." }
+        return lastSyncText ?? ""
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidebarView
+        } content: {
+            entryListView
+        } detail: {
+            detailView
+        }
         .onAppear {
             checkCredentials()
         }
@@ -265,65 +271,28 @@ struct ContentView: View {
 
     @ViewBuilder
     private var sidebarView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("News")
-                .font(.system(size: 22, weight: .bold))
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 4)
-
-            // Status lines
-            VStack(alignment: .leading, spacing: 2) {
-                if isFetching {
-                    Text("Fetching...")
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                if classificationEngine.isClassifying {
-                    let current = String(classificationEngine.classifiedCount)
-                    let total = String(classificationEngine.totalToClassify)
-                    Text("Classifying (\(current)/\(total))")
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                if groupingEngine.isGrouping {
-                    Text("Grouping...")
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                if !isFetching && !classificationEngine.isClassifying && !groupingEngine.isGrouping {
-                    if let syncText = lastSyncText {
-                        Text(syncText)
-                            .transition(.opacity)
-                    }
-                }
-            }
-            .font(.system(size: 11))
-            .foregroundStyle(.tertiary)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-            .animation(.easeInOut(duration: 0.3), value: isFetching)
-            .animation(.easeInOut(duration: 0.3), value: classificationEngine.isClassifying)
-            .animation(.easeInOut(duration: 0.3), value: groupingEngine.isGrouping)
-
-            List {
+        List(selection: $selectedCategory) {
+            Section {
                 ForEach(categories) { category in
-                    Button {
-                        selectedCategory = category.label
-                    } label: {
-                        Text(category.displayName)
-                            .font(.system(size: 14))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        selectedCategory == category.label
-                            ? Color.accentColor.opacity(0.2)
-                            : Color.clear
-                    )
+                    Text(category.displayName)
+                        .tag(category.label)
                 }
+            } header: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("News")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .textCase(nil)
+
+                    Text(statusText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .textCase(nil)
+                }
+                .padding(.bottom, 4)
             }
-            .listStyle(.sidebar)
         }
-        .navigationTitle("")
+        .listStyle(.sidebar)
         .toolbar {
             ToolbarItem {
                 Button {
@@ -347,7 +316,35 @@ struct ContentView: View {
     @ViewBuilder
     private var entryListView: some View {
         let items = timelineItems
-        Group {
+        List(selection: $selectedEntry) {
+            ForEach(items) { item in
+                switch item {
+                case .standalone(let entry):
+                    EntryRowView(entry: entry)
+                        .tag(entry)
+
+                case .group(let group, let groupEntries):
+                    StoryGroupRowView(
+                        group: group,
+                        entries: groupEntries,
+                        isExpanded: expandedGroups.contains(group.storyKey),
+                        selectedEntry: $selectedEntry,
+                        onToggle: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if expandedGroups.contains(group.storyKey) {
+                                    expandedGroups.remove(group.storyKey)
+                                } else {
+                                    expandedGroups.insert(group.storyKey)
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        .listStyle(.plain)
+        .navigationTitle(navigationTitle)
+        .overlay {
             if items.isEmpty {
                 ContentUnavailableView {
                     Label("No Articles", systemImage: "newspaper")
@@ -358,37 +355,8 @@ struct ContentView: View {
                         Text("No classified articles in this category yet.")
                     }
                 }
-            } else {
-                List(selection: $selectedEntry) {
-                    ForEach(items) { item in
-                        switch item {
-                        case .standalone(let entry):
-                            EntryRowView(entry: entry)
-                                .tag(entry)
-
-                        case .group(let group, let groupEntries):
-                            StoryGroupRowView(
-                                group: group,
-                                entries: groupEntries,
-                                isExpanded: expandedGroups.contains(group.storyKey),
-                                selectedEntry: $selectedEntry,
-                                onToggle: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        if expandedGroups.contains(group.storyKey) {
-                                            expandedGroups.remove(group.storyKey)
-                                        } else {
-                                            expandedGroups.insert(group.storyKey)
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                .listStyle(.plain)
             }
         }
-        .navigationTitle(navigationTitle)
     }
 
     private var navigationTitle: String {
@@ -401,10 +369,17 @@ struct ContentView: View {
 
     // MARK: - Detail
 
+    /// Sibling entries for the selected entry (same storyKey, different sources).
+    private var siblingEntries: [Entry] {
+        guard let entry = selectedEntry,
+              let key = entry.storyKey, !key.isEmpty else { return [] }
+        return entries.filter { $0.storyKey == key }
+    }
+
     @ViewBuilder
     private var detailView: some View {
-        if selectedEntry != nil {
-            EntryDetailView(selectedEntry: $selectedEntry)
+        if let selectedEntry {
+            EntryDetailView(entry: selectedEntry, siblings: siblingEntries)
         } else {
             ContentUnavailableView {
                 Label("Select an Article", systemImage: "doc.text")
