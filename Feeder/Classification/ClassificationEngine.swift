@@ -19,6 +19,52 @@ struct ArticleClassification {
     var storyKey: String
 }
 
+// MARK: - Sendable DTO for crossing actor boundaries
+
+/// Lightweight struct carrying classification input data across actor boundaries.
+private nonisolated struct ClassificationInput: Sendable {
+    let entryID: Int
+    let title: String
+    let summary: String
+    let body: String
+}
+
+/// Lightweight struct carrying classification results back to the main actor.
+private nonisolated struct ClassificationResult: Sendable {
+    let entryID: Int
+    let categoryLabels: [String]
+    let storyKey: String
+    let detectedLanguage: String
+}
+
+// MARK: - Pure helper functions (nonisolated, safe to call from any context)
+
+private nonisolated func stripHTML(_ html: String) -> String {
+    guard !html.isEmpty else { return "" }
+    var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+    text = text.replacingOccurrences(of: "&amp;", with: "&")
+    text = text.replacingOccurrences(of: "&lt;", with: "<")
+    text = text.replacingOccurrences(of: "&gt;", with: ">")
+    text = text.replacingOccurrences(of: "&quot;", with: "\"")
+    text = text.replacingOccurrences(of: "&#39;", with: "'")
+    text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private nonisolated func detectLanguage(_ text: String) -> String {
+    let recognizer = NLLanguageRecognizer()
+    recognizer.processString(text)
+    return recognizer.dominantLanguage?.rawValue ?? "unknown"
+}
+
+private nonisolated func normalizeStoryKey(_ value: String) -> String {
+    let lowered = value.lowercased()
+    let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+    let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
+}
+
 // MARK: - Classification Engine
 
 /// Classifies articles using Apple Foundation Models with user-defined categories.
@@ -37,7 +83,7 @@ final class ClassificationEngine {
         progress = "Preparing..."
 
         do {
-            // Fetch user-defined categories
+            // Fetch user-defined categories (fast, on main)
             var categoryDescriptor = FetchDescriptor<Category>()
             categoryDescriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
             let categories = try context.fetch(categoryDescriptor)
@@ -48,7 +94,7 @@ final class ClassificationEngine {
                 return
             }
 
-            // Fetch unclassified entries (those with no storyKey — storyKey is set during classification)
+            // Fetch unclassified entries (fast, on main)
             let entryDescriptor = FetchDescriptor<Entry>(
                 predicate: #Predicate<Entry> { $0.storyKey == nil },
                 sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
@@ -74,40 +120,56 @@ final class ClassificationEngine {
                 return
             }
 
-            // Build classification instructions from user's categories
+            // Prepare lightweight inputs (extract data from SwiftData objects on main)
+            let inputs: [ClassificationInput] = entries.map { entry in
+                ClassificationInput(
+                    entryID: entry.feedbinEntryID,
+                    title: entry.title ?? "Untitled",
+                    summary: entry.summary ?? "",
+                    body: entry.bestBody
+                )
+            }
+
+            // Build lookup for applying results back
+            let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.feedbinEntryID, $0) })
+
             let instructions = buildInstructions(from: categories)
             let validLabels = Set(categories.map { $0.label })
 
-            // Classify each entry
+            // Process entries one at a time — FM inference is async and must happen
+            // on main actor (SystemLanguageModel requires it), but we do the CPU-heavy
+            // pre-processing (HTML strip, language detection) on a background thread.
             var skippedNonEnglish = 0
             var classifiedOK = 0
             var classificationErrors = 0
 
-            for entry in entries {
-                // Yield to let UI stay responsive
-                await Task.yield()
+            for input in inputs {
+                // CPU-heavy pre-processing on background thread
+                let preprocessed = await Task.detached(priority: .utility) {
+                    let textForDetection = "\(input.title) \(stripHTML(input.body).prefix(500))"
+                    let lang = detectLanguage(textForDetection)
+                    let strippedBody = stripHTML(input.body)
+                    return (lang: lang, strippedBody: strippedBody, textForDetection: textForDetection)
+                }.value
 
                 classifiedCount += 1
-                let title = entry.title ?? "Untitled"
-                progress = "Classifying [\(classifiedCount)/\(totalToClassify)] \(title.prefix(40))..."
+                progress = "Classifying [\(classifiedCount)/\(totalToClassify)] \(input.title.prefix(40))..."
 
-                // Language detection: skip non-English
-                let textForDetection = "\(title) \(stripHTML(entry.bestBody).prefix(500))"
-                let detectedLang = detectLanguage(textForDetection)
-                entry.detectedLanguage = detectedLang
+                guard let entry = entriesByID[input.entryID] else { continue }
+                entry.detectedLanguage = preprocessed.lang
 
-                if detectedLang != "en" {
+                if preprocessed.lang != "en" {
                     entry.categoryLabels = ["other"]
-                    entry.storyKey = normalizeStoryKey(title)
+                    entry.storyKey = normalizeStoryKey(input.title)
                     skippedNonEnglish += 1
-                    logger.debug("Skipped non-English (\(detectedLang)): \(title.prefix(60))")
                     continue
                 }
 
-                // Classify with Apple FM
+                // FM inference (async, Apple requires main actor for LanguageModelSession)
                 do {
                     let result = try await classifyEntry(
-                        entry,
+                        input: input,
+                        strippedBody: preprocessed.strippedBody,
                         model: model,
                         instructions: instructions,
                         validLabels: validLabels
@@ -115,22 +177,23 @@ final class ClassificationEngine {
                     entry.categoryLabels = result.categories
                     entry.storyKey = result.storyKey
                     classifiedOK += 1
-                    logger.debug("Classified: \(title.prefix(60)) → \(result.categories)")
+                    logger.debug("Classified: \(input.title.prefix(60)) → \(result.categories)")
                 } catch {
                     entry.categoryLabels = ["other"]
-                    entry.storyKey = normalizeStoryKey(title)
+                    entry.storyKey = normalizeStoryKey(input.title)
                     classificationErrors += 1
-                    logger.error("Classification error for \(title.prefix(60)): \(error.localizedDescription)")
+                    logger.error("Classification error for \(input.title.prefix(60)): \(error.localizedDescription)")
                 }
 
-                // Save and log every 25 entries
+                // Save every 25 entries
                 if classifiedCount % 25 == 0 {
                     try context.save()
-                    logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify) (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
+                    logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify)")
+                    // Yield to let UI process events
+                    await Task.yield()
                 }
             }
 
-            // Final save
             try context.save()
             progress = "Classified \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)"
             logger.info("Classification complete: \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
@@ -144,7 +207,6 @@ final class ClassificationEngine {
 
     /// Reclassify all entries (e.g., after category changes).
     func reclassifyAll(in context: ModelContext) async {
-        // Clear all classification data
         let descriptor = FetchDescriptor<Entry>()
         if let entries = try? context.fetch(descriptor) {
             for entry in entries {
@@ -154,20 +216,20 @@ final class ClassificationEngine {
             }
             try? context.save()
         }
-        // Re-run classification
         await classifyUnclassified(in: context)
     }
 
     // MARK: - Private
 
     private func classifyEntry(
-        _ entry: Entry,
+        input: ClassificationInput,
+        strippedBody: String,
         model: SystemLanguageModel,
         instructions: String,
         validLabels: Set<String>
     ) async throws -> (categories: [String], storyKey: String) {
         let session = LanguageModelSession(model: model, instructions: instructions)
-        let prompt = buildPrompt(for: entry)
+        let prompt = buildPrompt(title: input.title, summary: input.summary, strippedBody: strippedBody)
         let options = GenerationOptions(sampling: .greedy)
 
         let response = try await session.respond(
@@ -178,14 +240,12 @@ final class ClassificationEngine {
 
         let classification = response.content
 
-        // Validate labels against user-defined categories
         var validatedLabels = classification.categories.filter { validLabels.contains($0) }
         if validatedLabels.isEmpty {
             validatedLabels = ["other"]
         }
 
         let storyKey = normalizeStoryKey(classification.storyKey)
-
         return (categories: validatedLabels, storyKey: storyKey)
     }
 
@@ -205,47 +265,17 @@ final class ClassificationEngine {
             """
     }
 
-    private func buildPrompt(for entry: Entry) -> String {
-        var body = stripHTML(entry.bestBody)
-        // Apple Foundation Models have a small context window — keep prompt compact
+    private func buildPrompt(title: String, summary: String, strippedBody: String) -> String {
+        var body = strippedBody
         let maxBodyChars = 2000
         if body.count > maxBodyChars {
             body = String(body.prefix(maxBodyChars)) + "..."
         }
 
         return """
-            title: \(entry.title ?? "Untitled")
-            summary: \(entry.summary ?? "")
+            title: \(title)
+            summary: \(summary)
             body: \(body)
             """
-    }
-
-    private func stripHTML(_ html: String) -> String {
-        guard !html.isEmpty else { return "" }
-        // Remove HTML tags
-        var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        // Decode common HTML entities
-        text = text.replacingOccurrences(of: "&amp;", with: "&")
-        text = text.replacingOccurrences(of: "&lt;", with: "<")
-        text = text.replacingOccurrences(of: "&gt;", with: ">")
-        text = text.replacingOccurrences(of: "&quot;", with: "\"")
-        text = text.replacingOccurrences(of: "&#39;", with: "'")
-        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-        // Collapse whitespace
-        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func detectLanguage(_ text: String) -> String {
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(text)
-        return recognizer.dominantLanguage?.rawValue ?? "unknown"
-    }
-
-    private func normalizeStoryKey(_ value: String) -> String {
-        let lowered = value.lowercased()
-        let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-        let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
     }
 }

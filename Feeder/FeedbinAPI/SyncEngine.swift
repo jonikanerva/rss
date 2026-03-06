@@ -195,7 +195,7 @@ final class SyncEngine {
 
     private func startExtractedContentFetch() {
         extractedContentTask?.cancel()
-        extractedContentTask = Task {
+        extractedContentTask = Task(priority: .utility) {
             guard let client, let modelContext else { return }
 
             isFetchingContent = true
@@ -216,7 +216,7 @@ final class SyncEngine {
 
     private func startBackfill() {
         backfillTask?.cancel()
-        backfillTask = Task {
+        backfillTask = Task(priority: .utility) {
             guard let client, let modelContext else { return }
 
             isBackfilling = true
@@ -279,7 +279,7 @@ final class SyncEngine {
         }
 
         // Fetch in parallel with concurrency limit of 8
-        nonisolated(unsafe) let unsafeClient = client
+        let unsafeClient = client
         let results = await withTaskGroup(
             of: (Int, String?).self,
             returning: [(Int, String?)].self
