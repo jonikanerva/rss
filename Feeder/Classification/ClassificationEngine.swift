@@ -178,56 +178,76 @@ final class ClassificationEngine {
 
         var skippedNonEnglish = 0
         var classifiedOK = 0
-        var classificationErrors = 0
 
         for input in inputs {
             if Task.isCancelled { break }
 
-            // CPU-heavy pre-processing on background thread
-            let preprocessed = await Task.detached(priority: .utility) {
+            // All heavy work (preprocessing + FM inference) on background thread
+            let classificationResult = await Task.detached(priority: .utility) {
                 let textForDetection = "\(input.title) \(stripHTML(input.body).prefix(500))"
                 let lang = detectLanguage(textForDetection)
                 let strippedBody = stripHTML(input.body)
-                return (lang: lang, strippedBody: strippedBody, textForDetection: textForDetection)
+
+                if lang != "en" {
+                    return ClassificationResult(
+                        entryID: input.entryID,
+                        categoryLabels: ["other"],
+                        storyKey: normalizeStoryKey(input.title),
+                        detectedLanguage: lang
+                    )
+                }
+
+                // FM inference — LanguageModelSession is not MainActor-bound
+                do {
+                    let session = LanguageModelSession(model: model, instructions: instructions)
+                    var body = strippedBody
+                    if body.count > 2000 { body = String(body.prefix(2000)) + "..." }
+                    let prompt = """
+                        title: \(input.title)
+                        summary: \(input.summary)
+                        body: \(body)
+                        """
+                    let options = GenerationOptions(sampling: .greedy)
+                    let response = try await session.respond(
+                        to: prompt,
+                        generating: ArticleClassification.self,
+                        options: options
+                    )
+                    let classification = response.content
+                    var labels = classification.categories.filter { validLabels.contains($0) }
+                    if labels.isEmpty { labels = ["other"] }
+                    let storyKey = normalizeStoryKey(classification.storyKey)
+                    return ClassificationResult(
+                        entryID: input.entryID,
+                        categoryLabels: labels,
+                        storyKey: storyKey,
+                        detectedLanguage: lang
+                    )
+                } catch {
+                    return ClassificationResult(
+                        entryID: input.entryID,
+                        categoryLabels: ["other"],
+                        storyKey: normalizeStoryKey(input.title),
+                        detectedLanguage: lang
+                    )
+                }
             }.value
+
+            // Apply result back to SwiftData on MainActor (fast, just property writes)
+            guard let entry = entriesByID[classificationResult.entryID] else { continue }
+            entry.detectedLanguage = classificationResult.detectedLanguage
+            entry.categoryLabels = classificationResult.categoryLabels
+            entry.storyKey = classificationResult.storyKey
+            entry.isClassified = true
 
             classifiedCount += 1
             progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
 
-            guard let entry = entriesByID[input.entryID] else { continue }
-            entry.detectedLanguage = preprocessed.lang
-
-            if preprocessed.lang != "en" {
-                entry.categoryLabels = ["other"]
-                entry.storyKey = normalizeStoryKey(input.title)
-                entry.isClassified = true
+            if classificationResult.categoryLabels == ["other"] && classificationResult.detectedLanguage != "en" {
                 skippedNonEnglish += 1
-            } else {
-                // FM inference (async, Apple requires main actor for LanguageModelSession)
-                do {
-                    let result = try await classifyEntry(
-                        input: input,
-                        strippedBody: preprocessed.strippedBody,
-                        model: model,
-                        instructions: instructions,
-                        validLabels: validLabels
-                    )
-                    entry.categoryLabels = result.categories
-                    entry.storyKey = result.storyKey
-                    entry.isClassified = true
-                    classifiedOK += 1
-                    logger.debug("Classified: \(input.title.prefix(60)) → \(result.categories)")
-                } catch {
-                    entry.categoryLabels = ["other"]
-                    entry.storyKey = normalizeStoryKey(input.title)
-                    entry.isClassified = true
-                    classificationErrors += 1
-                    logger.error("Classification error for \(input.title.prefix(60)): \(error.localizedDescription)")
-                }
+            } else if classificationResult.detectedLanguage == "en" {
+                classifiedOK += 1
             }
-
-            // Yield after every entry to keep UI responsive
-            await Task.yield()
 
             // Save every 25 entries
             if classifiedCount % 25 == 0 {
@@ -237,41 +257,13 @@ final class ClassificationEngine {
         }
 
         try? context.save()
-        logger.info("Classification batch complete: \(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors")
+        logger.info("Classification batch complete: \(classifiedOK) OK, \(skippedNonEnglish) non-English")
 
         isClassifying = false
         progress = ""
     }
 
     // MARK: - Private
-
-    private func classifyEntry(
-        input: ClassificationInput,
-        strippedBody: String,
-        model: SystemLanguageModel,
-        instructions: String,
-        validLabels: Set<String>
-    ) async throws -> (categories: [String], storyKey: String) {
-        let session = LanguageModelSession(model: model, instructions: instructions)
-        let prompt = buildPrompt(title: input.title, summary: input.summary, strippedBody: strippedBody)
-        let options = GenerationOptions(sampling: .greedy)
-
-        let response = try await session.respond(
-            to: prompt,
-            generating: ArticleClassification.self,
-            options: options
-        )
-
-        let classification = response.content
-
-        var validatedLabels = classification.categories.filter { validLabels.contains($0) }
-        if validatedLabels.isEmpty {
-            validatedLabels = ["other"]
-        }
-
-        let storyKey = normalizeStoryKey(classification.storyKey)
-        return (categories: validatedLabels, storyKey: storyKey)
-    }
 
     private func buildInstructions(from categories: [Category]) -> String {
         let categoryDescriptions = categories.map { cat in
@@ -289,17 +281,4 @@ final class ClassificationEngine {
             """
     }
 
-    private func buildPrompt(title: String, summary: String, strippedBody: String) -> String {
-        var body = strippedBody
-        let maxBodyChars = 2000
-        if body.count > maxBodyChars {
-            body = String(body.prefix(maxBodyChars)) + "..."
-        }
-
-        return """
-            title: \(title)
-            summary: \(summary)
-            body: \(body)
-            """
-    }
 }
