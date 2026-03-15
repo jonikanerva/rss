@@ -11,6 +11,7 @@ struct EntryDetailView: View {
     let siblings: [Entry]
 
     @State private var displayedEntry: Entry?
+    @State private var strippedBody: String = ""
 
     private var current: Entry {
         displayedEntry ?? entry
@@ -48,6 +49,7 @@ struct EntryDetailView: View {
                             let isActive = sibling.id == current.id
                             Button {
                                 displayedEntry = sibling
+                                prepareBody(for: sibling)
                             } label: {
                                 Text(domainName(for: sibling))
                                     .font(.system(size: 12, weight: .medium))
@@ -67,8 +69,8 @@ struct EntryDetailView: View {
 
                 Divider()
 
-                // Article body as plain text (HTML stripped)
-                Text(stripHTML(current.bestBody))
+                // Article body as plain text (pre-stripped on background thread)
+                Text(strippedBody)
                     .font(.system(size: 16))
                     .lineSpacing(6)
                     .textSelection(.enabled)
@@ -82,8 +84,19 @@ struct EntryDetailView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Article: \(current.title ?? "Untitled")")
         .accessibilityIdentifier("entry.detail")
-        .onChange(of: entry) {
+        .task(id: entry.feedbinEntryID) {
             displayedEntry = nil
+            prepareBody(for: entry)
+        }
+    }
+
+    private func prepareBody(for entry: Entry) {
+        let html = entry.bestBody
+        Task.detached(priority: .userInitiated) {
+            let stripped = stripHTML(html)
+            await MainActor.run {
+                strippedBody = stripped
+            }
         }
     }
 
@@ -98,7 +111,7 @@ struct EntryDetailView: View {
         return host
     }
 
-    private func stripHTML(_ html: String) -> String {
+    private nonisolated func stripHTML(_ html: String) -> String {
         guard !html.isEmpty else { return "" }
         var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
         text = text.replacingOccurrences(of: "&amp;", with: "&")
