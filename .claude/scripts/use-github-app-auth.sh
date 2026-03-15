@@ -30,9 +30,9 @@ require_env() {
   fi
 }
 
-GH_APP_ID="$(read_setting GH_APP_ID opencode.githubAppId)"
-GH_APP_INSTALLATION_ID="$(read_setting GH_APP_INSTALLATION_ID opencode.githubAppInstallationId)"
-GH_APP_PRIVATE_KEY_PATH="$(read_setting GH_APP_PRIVATE_KEY_PATH opencode.githubAppPrivateKeyPath)"
+GH_APP_ID="$(read_setting GH_APP_ID claude.githubAppId)"
+GH_APP_INSTALLATION_ID="$(read_setting GH_APP_INSTALLATION_ID claude.githubAppInstallationId)"
+GH_APP_PRIVATE_KEY_PATH="$(read_setting GH_APP_PRIVATE_KEY_PATH claude.githubAppPrivateKeyPath)"
 
 export GH_APP_ID
 export GH_APP_INSTALLATION_ID
@@ -48,7 +48,7 @@ if [[ ! -f "${GH_APP_PRIVATE_KEY_PATH}" ]]; then
 fi
 
 if [[ -z "${GH_APP_TOKEN:-}" ]]; then
-  GH_APP_TOKEN="$("${repo_root}/.opencode/scripts/github-app-token.sh")"
+  GH_APP_TOKEN="$("${repo_root}/.claude/scripts/github-app-token.sh")"
 fi
 
 git config --local user.name "donut"

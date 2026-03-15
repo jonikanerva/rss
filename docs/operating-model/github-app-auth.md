@@ -19,9 +19,9 @@ Set these environment variables before setup:
 Recommended (persistent per repository): store these in local git config so you do not need to export them every session.
 
 ```bash
-git config --local opencode.githubAppId "2922027"
-git config --local opencode.githubAppInstallationId "111703951"
-git config --local opencode.githubAppPrivateKeyPath "$HOME/.config/opencode/github-app.pem"
+git config --local claude.githubAppId "2922027"
+git config --local claude.githubAppInstallationId "111703951"
+git config --local claude.githubAppPrivateKeyPath "$HOME/.config/claude/github-app.pem"
 ```
 
 These values are stored in `.git/config` (local only, not committed).
@@ -36,7 +36,7 @@ Optional:
 Run:
 
 ```bash
-./.opencode/scripts/use-github-app-auth.sh
+./.claude/scripts/use-github-app-auth.sh
 ```
 
 This command will:
@@ -50,7 +50,7 @@ This command will:
 Note:
 
 - GitHub App installation tokens expire (typically about 1 hour).
-- Rerun `./.opencode/scripts/use-github-app-auth.sh` when token expires.
+- Rerun `./.claude/scripts/use-github-app-auth.sh` when token expires.
 
 ## Verification
 
