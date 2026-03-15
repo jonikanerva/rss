@@ -21,6 +21,7 @@ struct CategoryManagementView: View {
                     Image(systemName: "plus")
                 }
                 .help("Add category")
+                .accessibilityIdentifier("categories.add")
             }
             .padding()
 
@@ -36,6 +37,7 @@ struct CategoryManagementView: View {
                         seedDefaultCategories()
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("categories.seedDefaults")
                 }
                 .frame(maxHeight: .infinity)
             } else {
@@ -68,6 +70,7 @@ struct CategoryManagementView: View {
                     }
                     .disabled(categories.isEmpty)
                     .help("Re-run classification on all articles with current categories")
+                    .accessibilityIdentifier("categories.reclassify")
                 }
                 Spacer()
             }
@@ -233,4 +236,62 @@ struct CategoryEditorView: View {
         if case .edit = mode { return true }
         return false
     }
+}
+
+// MARK: - Preview
+
+#Preview("Category Management - With Data") {
+    categoryManagementPreviewWithData()
+}
+
+#Preview("Category Management - Empty") {
+    categoryManagementPreviewEmpty()
+}
+
+@MainActor
+private func categoryManagementPreviewWithData() -> some View {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: Entry.self,
+        Feed.self,
+        Category.self,
+        StoryGroup.self,
+        configurations: config
+    )
+    let context = container.mainContext
+    context.insert(Category(
+        label: "technology",
+        displayName: "Technology",
+        categoryDescription: "News about technology companies and products.",
+        sortOrder: 0
+    ))
+    context.insert(Category(
+        label: "world",
+        displayName: "World",
+        categoryDescription: "Global policy and geopolitical developments.",
+        sortOrder: 1
+    ))
+    try? context.save()
+
+    return CategoryManagementView()
+        .environment(ClassificationEngine())
+        .modelContainer(container)
+        .frame(width: 550, height: 500)
+}
+
+@MainActor
+private func categoryManagementPreviewEmpty() -> some View {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: Entry.self,
+        Feed.self,
+        Category.self,
+        StoryGroup.self,
+        configurations: config
+    )
+
+    return CategoryManagementView()
+        .environment(ClassificationEngine())
+        .modelContainer(container)
+        .frame(width: 550, height: 500)
 }

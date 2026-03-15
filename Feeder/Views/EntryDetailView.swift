@@ -81,6 +81,7 @@ struct EntryDetailView: View {
         .id(entry.feedbinEntryID)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Article: \(current.title ?? "Untitled")")
+        .accessibilityIdentifier("entry.detail")
         .onChange(of: entry) {
             displayedEntry = nil
         }
@@ -114,8 +115,11 @@ struct EntryDetailView: View {
 // MARK: - Preview
 
 #Preview("Article Detail with Sources") {
-    @Previewable @State var selected: Entry?
+    articleDetailPreview()
+}
 
+@MainActor
+private func articleDetailPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
     let context = container.mainContext
