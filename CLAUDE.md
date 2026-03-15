@@ -95,6 +95,10 @@ xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2
 - No pushing directly to `main` or `master`.
 - No weakening Xcode concurrency settings.
 
+## SwiftData Schema Versioning
+
+The app uses a versioned schema with auto-reset instead of migrations (`FeederApp.swift`). When the schema changes (adding/removing/renaming fields on `@Model` classes), bump `currentSchemaVersion` in `FeederApp.swift`. On startup, if the stored version differs, the database is deleted and a fresh 7-day sync runs automatically. Never write migration code — this app is not published.
+
 ## Quality Expectations
 
 - All claims must include evidence or source links.
