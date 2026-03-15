@@ -434,18 +434,6 @@ struct ContentView: View {
         let entryPredicate = #Predicate<Entry> { $0.publishedAt < cutoff }
         try? modelContext.delete(model: Entry.self, where: entryPredicate)
         try? modelContext.save()
-
-        // Backfill plainText for existing entries that don't have it yet
-        let emptyPlainText = FetchDescriptor<Entry>(
-            predicate: #Predicate<Entry> { $0.plainText == "" }
-        )
-        if let entriesNeedingPlainText = try? modelContext.fetch(emptyPlainText),
-           !entriesNeedingPlainText.isEmpty {
-            for entry in entriesNeedingPlainText {
-                entry.plainText = stripHTMLToPlainText(entry.bestHTML)
-            }
-            try? modelContext.save()
-        }
     }
 
     private func syncAndClassify() async {
