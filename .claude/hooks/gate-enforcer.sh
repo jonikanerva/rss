@@ -34,20 +34,20 @@ if [[ "$TOOL_NAME" == "Bash" && -n "$COMMAND" ]]; then
       ;;
   esac
 
-  # Block force push
-  if echo "$COMMAND" | grep -qE 'git push.*--(force|force-with-lease)(\s|$)'; then
-    echo "Blocked: force push is not allowed" >&2
-    exit 2
+  # Block force push — only when git is the actual command
+  if [[ "$FIRST_WORD" == "git" ]]; then
+    if echo "$COMMAND" | grep -qE '^git push.*--(force|force-with-lease)(\s|$)'; then
+      echo "Blocked: force push is not allowed" >&2
+      exit 2
+    fi
+    if echo "$COMMAND" | grep -qE '^git push.*\borigin\s+(main|master)(\s|$)'; then
+      echo "Blocked: pushing directly to protected branch is not allowed" >&2
+      exit 2
+    fi
   fi
 
-  # Block push to main/master
-  if echo "$COMMAND" | grep -qE 'git push.*\borigin\s+(main|master)(\s|$)'; then
-    echo "Blocked: pushing directly to protected branch is not allowed" >&2
-    exit 2
-  fi
-
-  # Block rm -rf
-  if echo "$COMMAND" | grep -qF 'rm -rf'; then
+  # Block rm -rf — only when rm is the actual command
+  if [[ "$FIRST_WORD" == "rm" ]] && echo "$COMMAND" | grep -qF 'rm -rf'; then
     echo "Blocked: destructive rm -rf command is not allowed" >&2
     exit 2
   fi
