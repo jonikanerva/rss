@@ -174,7 +174,15 @@ final class SyncEngine {
             }
 
             if !recent.isEmpty {
-                let newCount = try persistEntries(recent, markAsRead: false, in: context)
+                // Pre-compute plain text on background thread before persisting on MainActor
+                let plainTexts = await Task.detached(priority: .utility) {
+                    Dictionary(uniqueKeysWithValues: recent.map { entry in
+                        let html = entry.content ?? entry.summary ?? ""
+                        return (entry.id, stripHTMLToPlainText(html))
+                    })
+                }.value
+
+                let newCount = try persistEntries(recent, markAsRead: false, plainTexts: plainTexts, in: context)
                 totalNew += newCount
                 fetchedCount += newCount
                 try context.save()
@@ -205,7 +213,14 @@ final class SyncEngine {
         totalToFetch = entries.count
 
         if !entries.isEmpty {
-            let newCount = try persistEntries(entries, unreadIDs: unreadIDSet, in: context)
+            let plainTexts = await Task.detached(priority: .utility) {
+                Dictionary(uniqueKeysWithValues: entries.map { entry in
+                    let html = entry.content ?? entry.summary ?? ""
+                    return (entry.id, stripHTMLToPlainText(html))
+                })
+            }.value
+
+            let newCount = try persistEntries(entries, unreadIDs: unreadIDSet, plainTexts: plainTexts, in: context)
             fetchedCount = newCount
             syncProgress = "Synced \(newCount) new entries"
             logger.info("Incremental sync: \(newCount) new entries")
@@ -255,7 +270,14 @@ final class SyncEngine {
                     let result = try await client.fetchEntries(since: sevenDaysAgo, page: page)
                     if result.entries.isEmpty { break }
 
-                    let newCount = try persistEntries(result.entries, markAsRead: true, in: modelContext)
+                    let batchPlainTexts = await Task.detached(priority: .utility) {
+                        Dictionary(uniqueKeysWithValues: result.entries.map { entry in
+                            let html = entry.content ?? entry.summary ?? ""
+                            return (entry.id, stripHTMLToPlainText(html))
+                        })
+                    }.value
+
+                    let newCount = try persistEntries(result.entries, markAsRead: true, plainTexts: batchPlainTexts, in: modelContext)
                     syncProgress = "History: page \(page) (\(newCount) new)"
                     logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
 
@@ -380,6 +402,7 @@ final class SyncEngine {
     private func persistEntries(
         _ entries: [FeedbinEntry],
         markAsRead: Bool,
+        plainTexts: [Int: String],
         in context: ModelContext
     ) throws -> Int {
         guard !entries.isEmpty else { return 0 }
@@ -414,7 +437,7 @@ final class SyncEngine {
             )
             entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
             entry.isRead = markAsRead
-            entry.plainText = stripHTMLToPlainText(entry.bestHTML)
+            entry.plainText = plainTexts[feedbinEntry.id] ?? ""
             context.insert(entry)
             newCount += 1
         }
@@ -426,6 +449,7 @@ final class SyncEngine {
     private func persistEntries(
         _ entries: [FeedbinEntry],
         unreadIDs: Set<Int>,
+        plainTexts: [Int: String],
         in context: ModelContext
     ) throws -> Int {
         guard !entries.isEmpty else { return 0 }
@@ -460,7 +484,7 @@ final class SyncEngine {
             )
             entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
             entry.isRead = !unreadIDs.contains(feedbinEntry.id)
-            entry.plainText = stripHTMLToPlainText(entry.bestHTML)
+            entry.plainText = plainTexts[feedbinEntry.id] ?? ""
             context.insert(entry)
             newCount += 1
         }
