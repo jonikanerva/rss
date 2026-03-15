@@ -10,7 +10,6 @@ struct FeederApp: App {
 
     @State private var syncEngine = SyncEngine()
     @State private var classificationEngine = ClassificationEngine()
-    @State private var groupingEngine = GroupingEngine()
 
     init() {
         do {
@@ -22,8 +21,7 @@ struct FeederApp: App {
             let schema = Schema([
                 Feed.self,
                 Entry.self,
-                Category.self,
-                StoryGroup.self
+                Category.self
             ])
             let config = ModelConfiguration("Feeder", isStoredInMemoryOnly: useInMemoryStore)
             modelContainer = try ModelContainer(for: schema, configurations: [config])
@@ -45,7 +43,6 @@ struct FeederApp: App {
             ContentView()
                 .environment(syncEngine)
                 .environment(classificationEngine)
-                .environment(groupingEngine)
         }
         .modelContainer(modelContainer)
 
@@ -53,7 +50,6 @@ struct FeederApp: App {
             SettingsView()
                 .environment(syncEngine)
                 .environment(classificationEngine)
-                .environment(groupingEngine)
                 .modelContainer(modelContainer)
         }
     }

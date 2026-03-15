@@ -121,7 +121,7 @@ struct EntryDetailView: View {
 @MainActor
 private func articleDetailPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
     let feed1 = Feed(

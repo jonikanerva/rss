@@ -255,7 +255,6 @@ private func categoryManagementPreviewWithData() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
     let context = container.mainContext
@@ -286,7 +285,6 @@ private func categoryManagementPreviewEmpty() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
 

@@ -4,11 +4,9 @@ import SwiftData
 struct SettingsView: View {
     @Environment(SyncEngine.self) private var syncEngine
     @Environment(ClassificationEngine.self) private var classificationEngine
-    @Environment(GroupingEngine.self) private var groupingEngine
     @Environment(\.modelContext) private var modelContext
     @Query private var entries: [Entry]
     @Query private var categories: [Category]
-    @Query private var storyGroups: [StoryGroup]
     @State private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
     @State private var password = KeychainHelper.load(key: "feedbin_password") ?? ""
     @State private var isSaving = false
@@ -83,10 +81,6 @@ struct SettingsView: View {
                     Text("\(categories.count)")
                         .monospacedDigit()
                 }
-                LabeledContent("Story groups") {
-                    Text("\(storyGroups.count)")
-                        .monospacedDigit()
-                }
             }
         }
         .formStyle(.grouped)
@@ -132,13 +126,6 @@ struct SettingsView: View {
                     }
                 }
 
-                if groupingEngine.isGrouping {
-                    LabeledContent("Grouping") {
-                        Text(groupingEngine.progress)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
                 if let error = syncEngine.lastError {
                     LabeledContent("Error") {
                         Text(error)
@@ -153,10 +140,9 @@ struct SettingsView: View {
                     Task {
                         await syncEngine.sync()
                         await classificationEngine.classifyUnclassified(in: modelContext)
-                        await groupingEngine.groupEntries(in: modelContext)
                     }
                 }
-                .disabled(syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping)
+                .disabled(syncEngine.isSyncing || classificationEngine.isClassifying)
                 .accessibilityIdentifier("settings.sync.now")
             }
         }
@@ -177,7 +163,6 @@ struct SettingsView: View {
                 Button("Reclassify All Articles") {
                     Task {
                         await classificationEngine.reclassifyAll(in: modelContext)
-                        await groupingEngine.groupEntries(in: modelContext)
                     }
                 }
                 .disabled(categories.isEmpty || classificationEngine.isClassifying)
@@ -258,7 +243,6 @@ private func settingsSeededPreview() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
     let context = container.mainContext
@@ -303,19 +287,10 @@ private func settingsSeededPreview() -> some View {
     entry.categoryLabels = ["technology"]
     entry.storyKey = "apple-m5-ultra"
     context.insert(entry)
-
-    let group = StoryGroup(
-        storyKey: "apple-m5-ultra",
-        headline: "Apple unveils M5 Ultra chip",
-        earliestDate: entry.publishedAt
-    )
-    group.entryCount = 1
-    context.insert(group)
     try? context.save()
 
     return SettingsView()
         .environment(SyncEngine())
         .environment(ClassificationEngine())
-        .environment(GroupingEngine())
         .modelContainer(container)
 }

@@ -16,58 +16,18 @@ extension Color {
     }
 }
 
-// MARK: - Timeline item model
-
-/// Represents either a standalone entry or a story group in the timeline.
-enum TimelineItem: Identifiable {
-    case standalone(Entry)
-    case group(StoryGroup, [Entry])
-
-    var id: String {
-        switch self {
-        case .standalone(let entry):
-            return "entry-\(entry.feedbinEntryID)"
-        case .group(let group, _):
-            return "group-\(group.storyKey)"
-        }
-    }
-
-    /// Sort date: entry publishedAt or group earliestDate.
-    var sortDate: Date {
-        switch self {
-        case .standalone(let entry):
-            return entry.publishedAt
-        case .group(let group, _):
-            return group.earliestDate
-        }
-    }
-
-    /// All selectable entries from this timeline item (for keyboard nav).
-    var selectableEntries: [Entry] {
-        switch self {
-        case .standalone(let entry):
-            return [entry]
-        case .group(_, let entries):
-            return entries
-        }
-    }
-}
-
 // MARK: - Content View
 
 struct ContentView: View {
     @Environment(SyncEngine.self) private var syncEngine
     @Environment(ClassificationEngine.self) private var classificationEngine
-    @Environment(GroupingEngine.self) private var groupingEngine
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Entry.publishedAt, order: .reverse) private var entries: [Entry]
     @Query(sort: \Category.sortOrder) private var categories: [Category]
-    @Query(sort: \StoryGroup.earliestDate, order: .reverse) private var storyGroups: [StoryGroup]
     @State private var selectedEntry: Entry?
     @State private var selectedCategory: String? // nil = all
     @State private var needsSetup = false
     @State private var showCategoryManagement = false
-    @State private var expandedGroups: Set<String> = []
     @State private var markReadTask: Task<Void, Never>?
     private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
     private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
@@ -78,48 +38,6 @@ struct ContentView: View {
     private var filteredEntries: [Entry] {
         guard let category = selectedCategory else { return [] }
         return entries.filter { $0.isClassified && $0.categoryLabels.contains(category) }
-    }
-
-    /// Build timeline items: merge story groups and standalone entries, sorted newest-first.
-    private var timelineItems: [TimelineItem] {
-        let relevantEntries = filteredEntries
-
-        // Index entries by storyKey for O(1) lookup instead of O(n) filtering per group
-        var entriesByKey: [String: [Entry]] = [:]
-        var ungroupedEntries: [Entry] = []
-        let groupedKeys = Set(storyGroups.map(\.storyKey))
-
-        for entry in relevantEntries {
-            if let key = entry.storyKey, !key.isEmpty, groupedKeys.contains(key) {
-                entriesByKey[key, default: []].append(entry)
-            } else {
-                ungroupedEntries.append(entry)
-            }
-        }
-
-        var items: [TimelineItem] = []
-
-        // Build group items
-        for group in storyGroups {
-            guard let groupEntries = entriesByKey[group.storyKey] else { continue }
-            if groupEntries.count >= 2 {
-                items.append(.group(group, groupEntries.sorted { $0.publishedAt > $1.publishedAt }))
-            } else if groupEntries.count == 1 {
-                items.append(.standalone(groupEntries[0]))
-            }
-        }
-
-        // Add standalone entries (not part of any story group)
-        for entry in ungroupedEntries {
-            items.append(.standalone(entry))
-        }
-
-        return items.sorted { $0.sortDate > $1.sortDate }
-    }
-
-    /// Flat list of all selectable entries in timeline order (for keyboard navigation).
-    private var selectableEntries: [Entry] {
-        timelineItems.flatMap(\.selectableEntries)
     }
 
     /// Whether fetching is in progress (sync, backfill, or content fetch).
@@ -180,16 +98,6 @@ struct ContentView: View {
                 .environment(classificationEngine)
                 .frame(width: 550, height: 500)
         }
-        .onChange(of: classificationEngine.classifiedCount) { oldCount, newCount in
-            if newCount > 0 && newCount % 25 == 0 && !groupingEngine.isGrouping {
-                Task { await groupingEngine.groupEntries(in: modelContext) }
-            }
-        }
-        .onChange(of: classificationEngine.isClassifying) { wasClassifying, isClassifying in
-            if wasClassifying && !isClassifying && !groupingEngine.isGrouping {
-                Task { await groupingEngine.groupEntries(in: modelContext) }
-            }
-        }
         .onChange(of: selectedEntry) { _, newEntry in
             markReadTask?.cancel()
             if let entry = newEntry, !entry.isRead {
@@ -209,7 +117,6 @@ struct ContentView: View {
         // Keyboard navigation
         .onKeyPress(.downArrow) { navigateEntry(direction: .next); return .handled }
         .onKeyPress(.upArrow) { navigateEntry(direction: .previous); return .handled }
-        .onKeyPress(.return) { handleReturn(); return .handled }
         .onKeyPress(.escape) { selectedEntry = nil; return .handled }
         .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in openInBackground(); return .handled }
     }
@@ -219,7 +126,7 @@ struct ContentView: View {
     private enum NavigationDirection { case next, previous }
 
     private func navigateEntry(direction: NavigationDirection) {
-        let entries = selectableEntries
+        let entries = filteredEntries
         guard !entries.isEmpty else { return }
 
         guard let current = selectedEntry,
@@ -236,14 +143,6 @@ struct ContentView: View {
         case .previous:
             if index > 0 {
                 selectedEntry = entries[index - 1]
-            }
-        }
-    }
-
-    private func handleReturn() {
-        if let entry = selectedEntry, let key = entry.storyKey, !key.isEmpty {
-            if storyGroups.contains(where: { $0.storyKey == key }) {
-                expandedGroups.insert(key)
             }
         }
     }
@@ -291,14 +190,6 @@ struct ContentView: View {
                             .foregroundStyle(.tertiary)
                             .textCase(nil)
                     }
-                    if fetchStatusText == nil {
-                        if groupingEngine.isGrouping {
-                            Text("Grouping...")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                                .textCase(nil)
-                        }
-                    }
                 }
                 .padding(.bottom, 4)
             }
@@ -310,15 +201,15 @@ struct ContentView: View {
                 Button {
                     Task { await syncAndClassify() }
                 } label: {
-                    if syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping {
+                    if syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying {
                         ProgressView()
                             .scaleEffect(0.7)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping)
-                .help("Sync, classify, and group")
+                .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying)
+                .help("Sync and classify")
                 .accessibilityIdentifier("toolbar.sync")
             }
         }
@@ -328,31 +219,11 @@ struct ContentView: View {
 
     @ViewBuilder
     private var entryListView: some View {
-        let items = timelineItems
+        let items = filteredEntries
         List(selection: $selectedEntry) {
-            ForEach(items) { item in
-                switch item {
-                case .standalone(let entry):
-                    EntryRowView(entry: entry)
-                        .tag(entry)
-
-                case .group(let group, let groupEntries):
-                    StoryGroupRowView(
-                        group: group,
-                        entries: groupEntries,
-                        isExpanded: expandedGroups.contains(group.storyKey),
-                        selectedEntry: $selectedEntry,
-                        onToggle: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                if expandedGroups.contains(group.storyKey) {
-                                    expandedGroups.remove(group.storyKey)
-                                } else {
-                                    expandedGroups.insert(group.storyKey)
-                                }
-                            }
-                        }
-                    )
-                }
+            ForEach(items) { entry in
+                EntryRowView(entry: entry)
+                    .tag(entry)
             }
         }
         .listStyle(.plain)
@@ -540,14 +411,6 @@ struct ContentView: View {
         worldEntry.isRead = false
         modelContext.insert(worldEntry)
 
-        let group = StoryGroup(
-            storyKey: "apple-m5-ultra",
-            headline: "Apple unveils M5 Ultra chip",
-            earliestDate: min(story1.publishedAt, story2.publishedAt)
-        )
-        group.entryCount = 2
-        modelContext.insert(group)
-
         try? modelContext.save()
         selectedCategory = technology.label
         selectedEntry = story1
@@ -571,95 +434,11 @@ struct ContentView: View {
         let entryPredicate = #Predicate<Entry> { $0.publishedAt < cutoff }
         try? modelContext.delete(model: Entry.self, where: entryPredicate)
         try? modelContext.save()
-
-        // Clean up orphaned StoryGroups (groups with no remaining entries)
-        let groupDescriptor = FetchDescriptor<StoryGroup>()
-        if let groups = try? modelContext.fetch(groupDescriptor) {
-            for group in groups {
-                let key = group.storyKey
-                let entryDescriptor = FetchDescriptor<Entry>(
-                    predicate: #Predicate<Entry> { $0.storyKey == key }
-                )
-                let count = (try? modelContext.fetchCount(entryDescriptor)) ?? 0
-                if count == 0 {
-                    modelContext.delete(group)
-                }
-            }
-            try? modelContext.save()
-        }
     }
 
     private func syncAndClassify() async {
         await syncEngine.sync()
         await classificationEngine.classifyUnclassified(in: modelContext)
-        await groupingEngine.groupEntries(in: modelContext)
-    }
-}
-
-// MARK: - Story Group Row View
-
-struct StoryGroupRowView: View {
-    let group: StoryGroup
-    let entries: [Entry]
-    let isExpanded: Bool
-    @Binding var selectedEntry: Entry?
-    let onToggle: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Group header
-            Button(action: onToggle) {
-                HStack(spacing: 10) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 10)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(group.headline)
-                            .font(.system(size: 15, weight: .semibold))
-                            .lineLimit(2)
-                            .foregroundStyle(.primary)
-
-                        HStack(spacing: 6) {
-                            Text("\(entries.count) articles")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-
-                            Text("·")
-                                .foregroundStyle(.quaternary)
-
-                            Text(group.earliestDate, style: .relative)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("story-group.toggle.\(group.storyKey)")
-
-            // Expanded entries
-            if isExpanded {
-                VStack(spacing: 0) {
-                    ForEach(entries) { entry in
-                        EntryRowView(entry: entry)
-                            .padding(.leading, 20)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedEntry = entry
-                            }
-                    }
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Story group: \(group.headline), \(entries.count) articles")
-        .accessibilityHint(isExpanded ? "Double-tap to collapse" : "Double-tap to expand")
     }
 }
 
@@ -676,7 +455,6 @@ private func timelineSeededDemoPreview() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
     let context = container.mainContext
@@ -749,73 +527,24 @@ private func timelineSeededDemoPreview() -> some View {
     story2.isClassified = true
     context.insert(story2)
 
-    let sample3 = Entry(
-        feedbinEntryID: 3,
-        title: "Sample Tech Story 3",
-        author: "Feeder Bot",
-        url: "https://example.com/3",
-        content: "<p>Sample article 3 for preview and scroll behavior.</p>",
-        summary: "Sample article 3",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-2700),
-        createdAt: .now.addingTimeInterval(-2600)
-    )
-    sample3.feed = feed1
-    sample3.categoryLabels = ["technology"]
-    sample3.storyKey = "sample-tech-story-3"
-    sample3.isClassified = true
-    context.insert(sample3)
-
-    let sample4 = Entry(
-        feedbinEntryID: 4,
-        title: "Sample Tech Story 4",
-        author: "Feeder Bot",
-        url: "https://example.com/4",
-        content: "<p>Sample article 4 for preview and scroll behavior.</p>",
-        summary: "Sample article 4",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-3600),
-        createdAt: .now.addingTimeInterval(-3500)
-    )
-    sample4.feed = feed2
-    sample4.categoryLabels = ["technology"]
-    sample4.storyKey = "sample-tech-story-4"
-    sample4.isClassified = true
-    context.insert(sample4)
-
-    let sample5 = Entry(
-        feedbinEntryID: 5,
-        title: "Sample Tech Story 5",
-        author: "Feeder Bot",
-        url: "https://example.com/5",
-        content: "<p>Sample article 5 for preview and scroll behavior.</p>",
-        summary: "Sample article 5",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-4500),
-        createdAt: .now.addingTimeInterval(-4400)
-    )
-    sample5.feed = feed1
-    sample5.categoryLabels = ["technology"]
-    sample5.storyKey = "sample-tech-story-5"
-    sample5.isClassified = true
-    context.insert(sample5)
-
-    let sample6 = Entry(
-        feedbinEntryID: 6,
-        title: "Sample Tech Story 6",
-        author: "Feeder Bot",
-        url: "https://example.com/6",
-        content: "<p>Sample article 6 for preview and scroll behavior.</p>",
-        summary: "Sample article 6",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-5400),
-        createdAt: .now.addingTimeInterval(-5300)
-    )
-    sample6.feed = feed2
-    sample6.categoryLabels = ["technology"]
-    sample6.storyKey = "sample-tech-story-6"
-    sample6.isClassified = true
-    context.insert(sample6)
+    for i in 3...6 {
+        let sample = Entry(
+            feedbinEntryID: i,
+            title: "Sample Tech Story \(i)",
+            author: "Feeder Bot",
+            url: "https://example.com/\(i)",
+            content: "<p>Sample article \(i) for preview and scroll behavior.</p>",
+            summary: "Sample article \(i)",
+            extractedContentURL: nil,
+            publishedAt: .now.addingTimeInterval(-Double(i) * 900),
+            createdAt: .now.addingTimeInterval(-Double(i) * 850)
+        )
+        sample.feed = i.isMultiple(of: 2) ? feed1 : feed2
+        sample.categoryLabels = ["technology"]
+        sample.storyKey = "sample-tech-story-\(i)"
+        sample.isClassified = true
+        context.insert(sample)
+    }
 
     let worldEntry = Entry(
         feedbinEntryID: 30,
@@ -834,19 +563,11 @@ private func timelineSeededDemoPreview() -> some View {
     worldEntry.isClassified = true
     context.insert(worldEntry)
 
-    let group = StoryGroup(
-        storyKey: "apple-m5-ultra",
-        headline: "Apple unveils M5 Ultra chip",
-        earliestDate: min(story1.publishedAt, story2.publishedAt)
-    )
-    group.entryCount = 2
-    context.insert(group)
     try? context.save()
 
     return ContentView()
         .environment(SyncEngine())
         .environment(ClassificationEngine())
-        .environment(GroupingEngine())
         .modelContainer(container)
         .frame(minWidth: 1200, minHeight: 760)
 }

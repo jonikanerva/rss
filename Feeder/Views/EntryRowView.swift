@@ -87,7 +87,7 @@ struct EntryRowView: View {
 @MainActor
 private func unreadEntryRowPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
     let entry = Entry(
@@ -109,7 +109,7 @@ private func unreadEntryRowPreview() -> some View {
 @MainActor
 private func readEntryRowPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
     let entry = Entry(
