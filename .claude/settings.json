@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/gate-enforcer.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
