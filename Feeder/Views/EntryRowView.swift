@@ -1,39 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Date formatting
-
-/// Formats date as "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar, 9:23" / "Monday, 2nd Mar, 13:42"
-private func formatEntryDate(_ date: Date) -> String {
-    let calendar = Calendar.current
-    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    let day = calendar.component(.day, from: date)
-    let ordinal = ordinalSuffix(for: day)
-    let month = date.formatted(.dateTime.month(.abbreviated))
-
-    if calendar.isDateInToday(date) {
-        return "Today, \(day)\(ordinal) \(month), \(time)"
-    } else if calendar.isDateInYesterday(date) {
-        return "Yesterday, \(day)\(ordinal) \(month), \(time)"
-    } else {
-        let weekday = date.formatted(.dateTime.weekday(.wide))
-        return "\(weekday), \(day)\(ordinal) \(month), \(time)"
-    }
-}
-
-private func ordinalSuffix(for day: Int) -> String {
-    switch day {
-    case 11, 12, 13: return "th"
-    default:
-        switch day % 10 {
-        case 1: return "st"
-        case 2: return "nd"
-        case 3: return "rd"
-        default: return "th"
-        }
-    }
-}
-
 // MARK: - Entry Row View
 
 struct EntryRowView: View {
@@ -54,23 +21,16 @@ struct EntryRowView: View {
                     .lineLimit(2)
                     .foregroundStyle(entry.isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
-                // Date
-                Text(formatEntryDate(entry.publishedAt))
+                // Date — pre-computed, zero Calendar ops
+                Text(entry.formattedDate)
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityDescription)
+        .accessibilityLabel(entry.isRead ? (entry.title ?? "Untitled") : "Unread, \(entry.title ?? "Untitled")")
         .accessibilityIdentifier("entry.row.\(entry.feedbinEntryID)")
-    }
-
-    private var accessibilityDescription: String {
-        var parts: [String] = []
-        if !entry.isRead { parts.append("Unread") }
-        parts.append(entry.title ?? "Untitled")
-        return parts.joined(separator: ", ")
     }
 }
 
@@ -98,6 +58,7 @@ private func unreadEntryRowPreview() -> some View {
         extractedContentURL: nil, publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
     )
     entry.isRead = false
+    entry.formattedDate = "Today, 15th Mar, 09:30"
     context.insert(entry)
 
     return EntryRowView(entry: entry)
@@ -120,6 +81,7 @@ private func readEntryRowPreview() -> some View {
         extractedContentURL: nil, publishedAt: .now.addingTimeInterval(-90000), createdAt: .now
     )
     entry.isRead = true
+    entry.formattedDate = "Yesterday, 14th Mar, 08:30"
     context.insert(entry)
 
     return EntryRowView(entry: entry)

@@ -8,8 +8,6 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Classificati
 
 // MARK: - Generable output type
 
-/// Output structure for Apple Foundation Models classification.
-/// Uses string arrays since categories are user-defined at runtime.
 @Generable
 struct ArticleClassification {
     @Guide(description: "All category labels that match this article. Most articles match 1-3 categories. Include broad categories alongside specific ones. Use 'other' alone only if nothing else fits.", .count(1...4))
@@ -19,26 +17,7 @@ struct ArticleClassification {
     var storyKey: String
 }
 
-// MARK: - Sendable DTO for crossing actor boundaries
-
-/// Lightweight struct carrying classification input data across actor boundaries.
-private nonisolated struct ClassificationInput: Sendable {
-    let entryID: Int
-    let title: String
-    let summary: String
-    let body: String
-}
-
-/// Lightweight struct carrying classification results back to the main actor.
-private nonisolated struct ClassificationResult: Sendable {
-    let entryID: Int
-    let categoryLabels: [String]
-    let storyKey: String
-    let detectedLanguage: String
-}
-
-// MARK: - Pure helper functions (nonisolated, safe to call from any context)
-
+// MARK: - Pure helper functions (nonisolated)
 
 private nonisolated func detectLanguage(_ text: String) -> String {
     let recognizer = NLLanguageRecognizer()
@@ -55,8 +34,8 @@ private nonisolated func normalizeStoryKey(_ value: String) -> String {
 
 // MARK: - Classification Engine
 
-/// Classifies articles using Apple Foundation Models with user-defined categories.
-/// Runs as a continuous polling loop alongside fetch, or as a one-shot call.
+/// Classifies articles using Apple Foundation Models.
+/// Stays @MainActor @Observable for progress UI only — all SwiftData operations via DataWriter.
 @MainActor
 @Observable
 final class ClassificationEngine {
@@ -69,13 +48,11 @@ final class ClassificationEngine {
 
     // MARK: - Continuous classification (polling loop)
 
-    /// Start a long-lived classification loop that polls for unclassified entries.
-    /// Runs alongside fetch — as articles arrive, they get classified automatically.
-    func startContinuousClassification(in context: ModelContext) {
+    func startContinuousClassification(writer: DataWriter) {
         classificationTask?.cancel()
         classificationTask = Task {
             while !Task.isCancelled {
-                await classifyNextBatch(in: context)
+                await classifyNextBatch(writer: writer)
                 if Task.isCancelled { break }
                 try? await Task.sleep(for: .seconds(2))
             }
@@ -84,54 +61,31 @@ final class ClassificationEngine {
         }
     }
 
-    /// Stop the continuous classification loop.
     func stopContinuousClassification() {
         classificationTask?.cancel()
         classificationTask = nil
     }
 
-    // MARK: - One-shot classification (manual sync button)
+    // MARK: - One-shot classification
 
-    /// Classify all unclassified entries as a one-shot operation.
-    func classifyUnclassified(in context: ModelContext) async {
-        await classifyNextBatch(in: context)
+    func classifyUnclassified(writer: DataWriter) async {
+        await classifyNextBatch(writer: writer)
     }
 
-    /// Reclassify all entries (e.g., after category changes).
-    func reclassifyAll(in context: ModelContext) async {
-        let descriptor = FetchDescriptor<Entry>()
-        if let entries = try? context.fetch(descriptor) {
-            for entry in entries {
-                entry.categoryLabels = []
-                entry.storyKey = nil
-                entry.detectedLanguage = nil
-                entry.isClassified = false
-            }
-            try? context.save()
-        }
-        await classifyNextBatch(in: context)
+    func reclassifyAll(writer: DataWriter) async {
+        try? await writer.resetClassification()
+        await classifyNextBatch(writer: writer)
     }
 
     // MARK: - Core classification logic
 
-    /// Fetch and classify one batch of unclassified entries.
-    /// Returns when all currently unclassified entries are processed or on error.
-    private func classifyNextBatch(in context: ModelContext) async {
-        // Fetch user-defined categories
-        var categoryDescriptor = FetchDescriptor<Category>()
-        categoryDescriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
-        guard let categories = try? context.fetch(categoryDescriptor),
-              !categories.isEmpty else {
-            return
-        }
+    private func classifyNextBatch(writer: DataWriter) async {
+        // Fetch data from background actor — zero MainActor SwiftData work
+        guard let categories = try? await writer.fetchCategoryDefinitions(),
+              !categories.isEmpty else { return }
 
-        // Fetch unclassified entries
-        let entryDescriptor = FetchDescriptor<Entry>(
-            predicate: #Predicate<Entry> { !$0.isClassified },
-            sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
-        )
-        guard let entries = try? context.fetch(entryDescriptor),
-              !entries.isEmpty else {
+        guard let inputs = try? await writer.fetchUnclassifiedInputs(),
+              !inputs.isEmpty else {
             if isClassifying {
                 isClassifying = false
                 progress = ""
@@ -139,7 +93,6 @@ final class ClassificationEngine {
             return
         }
 
-        // Check model availability
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
             logger.error("Apple Foundation Model not available")
@@ -147,31 +100,18 @@ final class ClassificationEngine {
         }
 
         isClassifying = true
-        totalToClassify = entries.count
+        totalToClassify = inputs.count
         classifiedCount = 0
-        logger.info("Classifying \(entries.count) entries with \(categories.count) categories")
+        logger.info("Classifying \(inputs.count) entries with \(categories.count) categories")
 
-        let inputs: [ClassificationInput] = entries.map { entry in
-            ClassificationInput(
-                entryID: entry.feedbinEntryID,
-                title: entry.title ?? "Untitled",
-                summary: entry.summary ?? "",
-                body: entry.plainText
-            )
-        }
-
-        let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.feedbinEntryID, $0) })
         let instructions = buildInstructions(from: categories)
-        let validLabels = Set(categories.map { $0.label })
-
-        var skippedNonEnglish = 0
-        var classifiedOK = 0
+        let validLabels = Set(categories.map(\.label))
 
         for input in inputs {
             if Task.isCancelled { break }
 
-            // All heavy work (preprocessing + FM inference) on background thread
-            let classificationResult = await Task.detached(priority: .utility) {
+            // All heavy work on background thread
+            let result = await Task.detached(priority: .utility) {
                 let textForDetection = "\(input.title) \(input.body.prefix(500))"
                 let lang = detectLanguage(textForDetection)
 
@@ -184,7 +124,6 @@ final class ClassificationEngine {
                     )
                 }
 
-                // FM inference — LanguageModelSession is not MainActor-bound
                 do {
                     let session = LanguageModelSession(model: model, instructions: instructions)
                     var body = input.body
@@ -203,11 +142,10 @@ final class ClassificationEngine {
                     let classification = response.content
                     var labels = classification.categories.filter { validLabels.contains($0) }
                     if labels.isEmpty { labels = ["other"] }
-                    let storyKey = normalizeStoryKey(classification.storyKey)
                     return ClassificationResult(
                         entryID: input.entryID,
                         categoryLabels: labels,
-                        storyKey: storyKey,
+                        storyKey: normalizeStoryKey(classification.storyKey),
                         detectedLanguage: lang
                     )
                 } catch {
@@ -220,41 +158,25 @@ final class ClassificationEngine {
                 }
             }.value
 
-            // Apply result back to SwiftData on MainActor (fast, just property writes)
-            guard let entry = entriesByID[classificationResult.entryID] else { continue }
-            entry.detectedLanguage = classificationResult.detectedLanguage
-            entry.categoryLabels = classificationResult.categoryLabels
-            entry.storyKey = classificationResult.storyKey
-            entry.isClassified = true
+            // Write result via background actor — zero MainActor SwiftData work
+            try? await writer.applyClassification(entryID: result.entryID, result: result)
 
+            // Only progress UI state on MainActor (microseconds)
             classifiedCount += 1
             progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
-
-            if classificationResult.categoryLabels == ["other"] && classificationResult.detectedLanguage != "en" {
-                skippedNonEnglish += 1
-            } else if classificationResult.detectedLanguage == "en" {
-                classifiedOK += 1
-            }
-
-            // Save every 25 entries
-            if classifiedCount % 25 == 0 {
-                try? context.save()
-                logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify)")
-            }
         }
 
-        try? context.save()
-        logger.info("Classification batch complete: \(classifiedOK) OK, \(skippedNonEnglish) non-English")
-
+        let finalCount = classifiedCount
+        logger.info("Classification batch complete: \(finalCount) entries")
         isClassifying = false
         progress = ""
     }
 
     // MARK: - Private
 
-    private func buildInstructions(from categories: [Category]) -> String {
+    private nonisolated func buildInstructions(from categories: [CategoryDefinition]) -> String {
         let categoryDescriptions = categories.map { cat in
-            "- \(cat.label): \(cat.categoryDescription)"
+            "- \(cat.label): \(cat.description)"
         }.joined(separator: "\n")
 
         return """
@@ -267,5 +189,4 @@ final class ClassificationEngine {
             \(categoryDescriptions)
             """
     }
-
 }

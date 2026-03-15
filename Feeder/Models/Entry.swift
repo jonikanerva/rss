@@ -29,6 +29,10 @@ final class Entry {
     var isClassified: Bool = false
     /// Pre-stripped plain text body (computed once at persist/extract time, used by UI and classification)
     var plainText: String = ""
+    /// Pre-formatted date string for display (e.g., "Today, 5th Mar, 21:24")
+    var formattedDate: String = ""
+    /// First assigned category label — denormalized for @Query predicate filtering
+    var primaryCategory: String = ""
 
     // MARK: - Relationships
 

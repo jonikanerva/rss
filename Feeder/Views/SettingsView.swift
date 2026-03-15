@@ -4,7 +4,6 @@ import SwiftData
 struct SettingsView: View {
     @Environment(SyncEngine.self) private var syncEngine
     @Environment(ClassificationEngine.self) private var classificationEngine
-    @Environment(\.modelContext) private var modelContext
     @Query private var entries: [Entry]
     @Query private var categories: [Category]
     @State private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
@@ -139,7 +138,9 @@ struct SettingsView: View {
                 Button("Sync Now") {
                     Task {
                         await syncEngine.sync()
-                        await classificationEngine.classifyUnclassified(in: modelContext)
+                        if let writer = syncEngine.writer {
+                            await classificationEngine.classifyUnclassified(writer: writer)
+                        }
                     }
                 }
                 .disabled(syncEngine.isSyncing || classificationEngine.isClassifying)
@@ -162,7 +163,9 @@ struct SettingsView: View {
 
                 Button("Reclassify All Articles") {
                     Task {
-                        await classificationEngine.reclassifyAll(in: modelContext)
+                        if let writer = syncEngine.writer {
+                            await classificationEngine.reclassifyAll(writer: writer)
+                        }
                     }
                 }
                 .disabled(categories.isEmpty || classificationEngine.isClassifying)

@@ -7,24 +7,8 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 /// Maximum age for articles. Anything older than this is never fetched or persisted.
 private let maxArticleAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
 
-/// Strip HTML tags and decode entities to produce plain text.
-nonisolated func stripHTMLToPlainText(_ html: String) -> String {
-    guard !html.isEmpty else { return "" }
-    var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-    text = text.replacingOccurrences(of: "&amp;", with: "&")
-    text = text.replacingOccurrences(of: "&lt;", with: "<")
-    text = text.replacingOccurrences(of: "&gt;", with: ">")
-    text = text.replacingOccurrences(of: "&quot;", with: "\"")
-    text = text.replacingOccurrences(of: "&#39;", with: "'")
-    text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-    return text.trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
-/// Coordinates Feedbin API sync with local SwiftData persistence.
-/// Sync is phased: unread articles first (fast, streaming), then recent history (background).
-/// Extracted content and classification run as parallel background tasks.
-/// Hard limit: never fetches or persists articles older than 7 days.
+/// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
+/// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
 @MainActor
 @Observable
 final class SyncEngine {
@@ -43,15 +27,16 @@ final class SyncEngine {
     }
 
     private var client: FeedbinClient?
-    private var modelContext: ModelContext?
+    private(set) var writer: DataWriter?
     private var periodicSyncTask: Task<Void, Never>?
     private var backfillTask: Task<Void, Never>?
     private var extractedContentTask: Task<Void, Never>?
 
-    /// Configure the sync engine with credentials and model context.
-    func configure(username: String, password: String, modelContext: ModelContext) {
+    /// Configure the sync engine with credentials and model container.
+    /// DataWriter is created on a background thread to ensure it runs off MainActor.
+    func configure(username: String, password: String, modelContainer: ModelContainer) {
         self.client = FeedbinClient(username: username, password: password)
-        self.modelContext = modelContext
+        self.writer = DataWriter(modelContainer: modelContainer)
         logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
     }
 
@@ -70,9 +55,7 @@ final class SyncEngine {
     func startPeriodicSync(interval: TimeInterval = 300) {
         stopPeriodicSync()
         periodicSyncTask = Task {
-            // Initial sync
             await sync()
-            // Periodic loop
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(interval))
                 if Task.isCancelled { break }
@@ -92,10 +75,8 @@ final class SyncEngine {
     }
 
     /// Perform a phased sync.
-    /// - First sync (no lastSyncDate): Phase 1 (unread, streaming) then background tasks.
-    /// - Subsequent syncs: incremental via `since` parameter.
     func sync() async {
-        guard let client, let modelContext, !isSyncing else { return }
+        guard let client, let writer, !isSyncing else { return }
 
         isSyncing = true
         lastError = nil
@@ -104,19 +85,17 @@ final class SyncEngine {
         logger.info("Starting sync")
 
         do {
-            // Always sync subscriptions first
+            // Sync subscriptions
             syncProgress = "Syncing feeds..."
             let subscriptions = try await client.fetchSubscriptions()
             logger.info("Fetched \(subscriptions.count) subscriptions")
-            try syncFeeds(subscriptions, in: modelContext)
+            try await writer.syncFeeds(subscriptions)
 
             if lastSyncDate != nil {
-                try await syncIncremental(using: client, in: modelContext)
+                try await syncIncremental(using: client, writer: writer)
             } else {
-                try await syncUnread(using: client, in: modelContext)
+                try await syncUnread(using: client, writer: writer)
             }
-
-            try modelContext.save()
 
             let isFirstSync = lastSyncDate == nil
             lastSyncDate = Date()
@@ -124,7 +103,6 @@ final class SyncEngine {
             totalToFetch = 0
             isSyncing = false
 
-            // Start background tasks in parallel
             startExtractedContentFetch()
             if isFirstSync {
                 startBackfill()
@@ -141,7 +119,7 @@ final class SyncEngine {
 
     // MARK: - Phase 1: Unread articles (streaming, newest first)
 
-    private func syncUnread(using client: FeedbinClient, in context: ModelContext) async throws {
+    private func syncUnread(using client: FeedbinClient, writer: DataWriter) async throws {
         syncProgress = "Fetching unread articles..."
         let unreadIDs = try await client.fetchUnreadEntryIDs()
         logger.info("Found \(unreadIDs.count) unread entries")
@@ -151,7 +129,6 @@ final class SyncEngine {
             return
         }
 
-        // Sort descending — higher Feedbin IDs are newer entries
         let sortedIDs = unreadIDs.sorted(by: >)
         let cutoff = Date().addingTimeInterval(-maxArticleAge)
 
@@ -167,25 +144,15 @@ final class SyncEngine {
             let entries = try await client.fetchEntriesByIDs(batchIDs)
             let recent = entries.filter { $0.createdAt >= cutoff }
 
-            // If no recent entries in this batch, we've passed the 7-day window — stop
             if recent.isEmpty && !entries.isEmpty {
                 logger.info("Reached entries older than 7 days at batch \(batchStart / batchSize + 1), stopping")
                 break
             }
 
             if !recent.isEmpty {
-                // Pre-compute plain text on background thread before persisting on MainActor
-                let plainTexts = await Task.detached(priority: .utility) {
-                    Dictionary(uniqueKeysWithValues: recent.map { entry in
-                        let html = entry.content ?? entry.summary ?? ""
-                        return (entry.id, stripHTMLToPlainText(html))
-                    })
-                }.value
-
-                let newCount = try persistEntries(recent, markAsRead: false, plainTexts: plainTexts, in: context)
+                let newCount = try await writer.persistEntries(recent, markAsRead: false)
                 totalNew += newCount
                 fetchedCount += newCount
-                try context.save()
                 syncProgress = "Loaded \(totalNew) unread articles..."
                 logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
             }
@@ -195,15 +162,13 @@ final class SyncEngine {
         logger.info("Phase 1 complete: \(totalNew) unread entries persisted")
     }
 
-    // MARK: - Incremental sync (subsequent syncs)
+    // MARK: - Incremental sync
 
-    private func syncIncremental(using client: FeedbinClient, in context: ModelContext) async throws {
-        // Fetch unread IDs to update read state
+    private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws {
         syncProgress = "Checking unread state..."
         let unreadIDs = try await client.fetchUnreadEntryIDs()
         let unreadIDSet = Set(unreadIDs)
 
-        // Fetch new entries since last sync, but never older than 7 days
         let cutoff = Date().addingTimeInterval(-maxArticleAge)
         let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
         syncProgress = "Fetching new entries..."
@@ -213,21 +178,13 @@ final class SyncEngine {
         totalToFetch = entries.count
 
         if !entries.isEmpty {
-            let plainTexts = await Task.detached(priority: .utility) {
-                Dictionary(uniqueKeysWithValues: entries.map { entry in
-                    let html = entry.content ?? entry.summary ?? ""
-                    return (entry.id, stripHTMLToPlainText(html))
-                })
-            }.value
-
-            let newCount = try persistEntries(entries, unreadIDs: unreadIDSet, plainTexts: plainTexts, in: context)
+            let newCount = try await writer.persistEntries(entries, unreadIDs: unreadIDSet)
             fetchedCount = newCount
             syncProgress = "Synced \(newCount) new entries"
             logger.info("Incremental sync: \(newCount) new entries")
         }
 
-        // Update read state for existing entries
-        try updateReadState(unreadIDs: unreadIDSet, in: context)
+        try await writer.updateReadState(unreadIDs: unreadIDSet)
     }
 
     // MARK: - Background: Extracted content fetching
@@ -235,14 +192,58 @@ final class SyncEngine {
     private func startExtractedContentFetch() {
         extractedContentTask?.cancel()
         extractedContentTask = Task(priority: .utility) {
-            guard let client, let modelContext else { return }
+            guard let client, let writer else { return }
 
             isFetchingContent = true
             logger.info("Starting background extracted content fetch")
 
             do {
-                try await fetchExtractedContentParallel(in: modelContext, using: client)
-                try modelContext.save()
+                let requests = try await writer.fetchExtractedContentRequests()
+                guard !requests.isEmpty else {
+                    isFetchingContent = false
+                    return
+                }
+
+                logger.info("Fetching extracted content for \(requests.count) entries")
+
+                // Fetch in parallel with concurrency limit of 8
+                let results = await withTaskGroup(
+                    of: (Int, String?).self,
+                    returning: [(entryID: Int, content: String)].self
+                ) { group in
+                    var active = 0
+                    var collected: [(entryID: Int, content: String)] = []
+
+                    for request in requests {
+                        if active >= 8 {
+                            if let result = await group.next(),
+                               let content = result.1 {
+                                collected.append((entryID: result.0, content: content))
+                            }
+                            active -= 1
+                        }
+                        let reqClient = client
+                        group.addTask {
+                            let content = try? await reqClient.fetchExtractedContent(from: request.url)
+                            return (request.entryID, content?.content)
+                        }
+                        active += 1
+                    }
+
+                    for await result in group {
+                        if let content = result.1 {
+                            collected.append((entryID: result.0, content: content))
+                        }
+                    }
+
+                    return collected
+                }
+
+                if !results.isEmpty {
+                    try await writer.applyExtractedContent(results: results)
+                }
+
+                logger.info("Extracted content: \(results.count) fetched")
             } catch {
                 logger.error("Extracted content fetch failed: \(error.localizedDescription)")
             }
@@ -256,7 +257,7 @@ final class SyncEngine {
     private func startBackfill() {
         backfillTask?.cancel()
         backfillTask = Task(priority: .utility) {
-            guard let client, let modelContext else { return }
+            guard let client, let writer else { return }
 
             isBackfilling = true
             syncProgress = "Loading recent history..."
@@ -270,26 +271,40 @@ final class SyncEngine {
                     let result = try await client.fetchEntries(since: sevenDaysAgo, page: page)
                     if result.entries.isEmpty { break }
 
-                    let batchPlainTexts = await Task.detached(priority: .utility) {
-                        Dictionary(uniqueKeysWithValues: result.entries.map { entry in
-                            let html = entry.content ?? entry.summary ?? ""
-                            return (entry.id, stripHTMLToPlainText(html))
-                        })
-                    }.value
-
-                    let newCount = try persistEntries(result.entries, markAsRead: true, plainTexts: batchPlainTexts, in: modelContext)
+                    let newCount = try await writer.persistEntries(result.entries, markAsRead: true)
                     syncProgress = "History: page \(page) (\(newCount) new)"
                     logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
-
-                    try modelContext.save()
 
                     if !result.hasNextPage { break }
                     page += 1
                 }
 
                 // Fetch extracted content for backfilled entries
-                try await fetchExtractedContentParallel(in: modelContext, using: client)
-                try modelContext.save()
+                let requests = try await writer.fetchExtractedContentRequests()
+                if !requests.isEmpty {
+                    let results = await withTaskGroup(
+                        of: (Int, String?).self,
+                        returning: [(entryID: Int, content: String)].self
+                    ) { group in
+                        var collected: [(entryID: Int, content: String)] = []
+                        for request in requests {
+                            let reqClient = client
+                            group.addTask {
+                                let content = try? await reqClient.fetchExtractedContent(from: request.url)
+                                return (request.entryID, content?.content)
+                            }
+                        }
+                        for await result in group {
+                            if let content = result.1 {
+                                collected.append((entryID: result.0, content: content))
+                            }
+                        }
+                        return collected
+                    }
+                    if !results.isEmpty {
+                        try await writer.applyExtractedContent(results: results)
+                    }
+                }
 
                 syncProgress = ""
                 logger.info("Phase 2 backfill complete (\(page) pages)")
@@ -299,215 +314,6 @@ final class SyncEngine {
             }
 
             isBackfilling = false
-        }
-    }
-
-    // MARK: - Parallel extracted content fetching
-
-    private func fetchExtractedContentParallel(
-        in context: ModelContext,
-        using client: FeedbinClient
-    ) async throws {
-        let descriptor = FetchDescriptor<Entry>(
-            predicate: #Predicate<Entry> { entry in
-                entry.extractedContentURL != nil && entry.extractedContent == nil
-            }
-        )
-        let entriesNeedingContent = try context.fetch(descriptor)
-        guard !entriesNeedingContent.isEmpty else { return }
-
-        logger.info("Fetching extracted content for \(entriesNeedingContent.count) entries (parallel)")
-
-        // Collect URLs before entering TaskGroup (Entry is not Sendable)
-        let contentRequests: [(entryID: Int, url: String)] = entriesNeedingContent.compactMap { entry in
-            guard let url = entry.extractedContentURL else { return nil }
-            return (entryID: entry.feedbinEntryID, url: url)
-        }
-
-        // Fetch in parallel with concurrency limit of 8
-        let unsafeClient = client
-        let results = await withTaskGroup(
-            of: (Int, String?).self,
-            returning: [(Int, String?)].self
-        ) { group in
-            var active = 0
-            var collected: [(Int, String?)] = []
-
-            for request in contentRequests {
-                if active >= 8 {
-                    if let result = await group.next() {
-                        collected.append(result)
-                        active -= 1
-                    }
-                }
-                group.addTask {
-                    let content = try? await unsafeClient.fetchExtractedContent(from: request.url)
-                    return (request.entryID, content?.content)
-                }
-                active += 1
-            }
-
-            for await result in group {
-                collected.append(result)
-            }
-
-            return collected
-        }
-
-        // Apply results back to entries on MainActor
-        let resultsByID = Dictionary(uniqueKeysWithValues: results.compactMap { id, content -> (Int, String)? in
-            guard let content else { return nil }
-            return (id, content)
-        })
-
-        var extractedCount = 0
-        for entry in entriesNeedingContent {
-            if let content = resultsByID[entry.feedbinEntryID] {
-                entry.extractedContent = content
-                entry.plainText = stripHTMLToPlainText(content)
-                extractedCount += 1
-            }
-        }
-
-        logger.info("Extracted content fetched: \(extractedCount)/\(entriesNeedingContent.count)")
-    }
-
-    // MARK: - Persistence helpers
-
-    private func syncFeeds(_ subscriptions: [FeedbinSubscription], in context: ModelContext) throws {
-        let descriptor = FetchDescriptor<Feed>()
-        let existingFeeds = try context.fetch(descriptor)
-        let existingByID = Dictionary(uniqueKeysWithValues: existingFeeds.map { ($0.feedbinSubscriptionID, $0) })
-
-        for sub in subscriptions {
-            if let existing = existingByID[sub.id] {
-                existing.title = sub.title
-                existing.feedURL = sub.feedUrl
-                existing.siteURL = sub.siteUrl
-            } else {
-                let feed = Feed(
-                    feedbinSubscriptionID: sub.id,
-                    feedbinFeedID: sub.feedId,
-                    title: sub.title,
-                    feedURL: sub.feedUrl,
-                    siteURL: sub.siteUrl,
-                    createdAt: sub.createdAt
-                )
-                context.insert(feed)
-            }
-        }
-    }
-
-    /// Persist entries with explicit read state. Returns count of new entries inserted.
-    private func persistEntries(
-        _ entries: [FeedbinEntry],
-        markAsRead: Bool,
-        plainTexts: [Int: String],
-        in context: ModelContext
-    ) throws -> Int {
-        guard !entries.isEmpty else { return 0 }
-
-        let entryIDs = entries.map(\.id)
-        let existingDescriptor = FetchDescriptor<Entry>(
-            predicate: #Predicate<Entry> { entry in
-                entryIDs.contains(entry.feedbinEntryID)
-            }
-        )
-        let existingEntries = try context.fetch(existingDescriptor)
-        let existingIDs = Set(existingEntries.map(\.feedbinEntryID))
-
-        let feedDescriptor = FetchDescriptor<Feed>()
-        let feeds = try context.fetch(feedDescriptor)
-        let feedsByFeedbinID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.feedbinFeedID, $0) })
-
-        var newCount = 0
-        for feedbinEntry in entries {
-            if existingIDs.contains(feedbinEntry.id) { continue }
-
-            let entry = Entry(
-                feedbinEntryID: feedbinEntry.id,
-                title: feedbinEntry.title,
-                author: feedbinEntry.author,
-                url: feedbinEntry.url,
-                content: feedbinEntry.content,
-                summary: feedbinEntry.summary,
-                extractedContentURL: feedbinEntry.extractedContentUrl,
-                publishedAt: feedbinEntry.published,
-                createdAt: feedbinEntry.createdAt
-            )
-            entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
-            entry.isRead = markAsRead
-            entry.plainText = plainTexts[feedbinEntry.id] ?? ""
-            context.insert(entry)
-            newCount += 1
-        }
-
-        return newCount
-    }
-
-    /// Persist entries with read state determined by unread ID set.
-    private func persistEntries(
-        _ entries: [FeedbinEntry],
-        unreadIDs: Set<Int>,
-        plainTexts: [Int: String],
-        in context: ModelContext
-    ) throws -> Int {
-        guard !entries.isEmpty else { return 0 }
-
-        let entryIDs = entries.map(\.id)
-        let existingDescriptor = FetchDescriptor<Entry>(
-            predicate: #Predicate<Entry> { entry in
-                entryIDs.contains(entry.feedbinEntryID)
-            }
-        )
-        let existingEntries = try context.fetch(existingDescriptor)
-        let existingIDs = Set(existingEntries.map(\.feedbinEntryID))
-
-        let feedDescriptor = FetchDescriptor<Feed>()
-        let feeds = try context.fetch(feedDescriptor)
-        let feedsByFeedbinID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.feedbinFeedID, $0) })
-
-        var newCount = 0
-        for feedbinEntry in entries {
-            if existingIDs.contains(feedbinEntry.id) { continue }
-
-            let entry = Entry(
-                feedbinEntryID: feedbinEntry.id,
-                title: feedbinEntry.title,
-                author: feedbinEntry.author,
-                url: feedbinEntry.url,
-                content: feedbinEntry.content,
-                summary: feedbinEntry.summary,
-                extractedContentURL: feedbinEntry.extractedContentUrl,
-                publishedAt: feedbinEntry.published,
-                createdAt: feedbinEntry.createdAt
-            )
-            entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
-            entry.isRead = !unreadIDs.contains(feedbinEntry.id)
-            entry.plainText = plainTexts[feedbinEntry.id] ?? ""
-            context.insert(entry)
-            newCount += 1
-        }
-
-        return newCount
-    }
-
-    /// Update read state for existing entries based on Feedbin unread IDs.
-    private func updateReadState(unreadIDs: Set<Int>, in context: ModelContext) throws {
-        let descriptor = FetchDescriptor<Entry>()
-        let allEntries = try context.fetch(descriptor)
-
-        var updatedCount = 0
-        for entry in allEntries {
-            let shouldBeRead = !unreadIDs.contains(entry.feedbinEntryID)
-            if entry.isRead != shouldBeRead {
-                entry.isRead = shouldBeRead
-                updatedCount += 1
-            }
-        }
-
-        if updatedCount > 0 {
-            logger.info("Updated read state for \(updatedCount) entries")
         }
     }
 }

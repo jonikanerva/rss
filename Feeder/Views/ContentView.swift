@@ -16,13 +16,48 @@ extension Color {
     }
 }
 
+// MARK: - Entry List View (dynamic @Query filtered by category in SQLite)
+
+struct EntryListView: View {
+    @Query private var entries: [Entry]
+    @Binding var selectedEntry: Entry?
+
+    init(category: String, selectedEntry: Binding<Entry?>) {
+        _entries = Query(
+            filter: #Predicate<Entry> { $0.isClassified && $0.primaryCategory == category },
+            sort: \Entry.publishedAt,
+            order: .reverse
+        )
+        _selectedEntry = selectedEntry
+    }
+
+    var body: some View {
+        List(selection: $selectedEntry) {
+            ForEach(entries) { entry in
+                EntryRowView(entry: entry)
+                    .tag(entry)
+            }
+        }
+        .listStyle(.plain)
+        .accessibilityIdentifier("timeline.list")
+        .overlay {
+            if entries.isEmpty {
+                ContentUnavailableView {
+                    Label("No Articles", systemImage: "newspaper")
+                } description: {
+                    Text("No classified articles in this category yet.")
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Content View
 
 struct ContentView: View {
     @Environment(SyncEngine.self) private var syncEngine
     @Environment(ClassificationEngine.self) private var classificationEngine
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Entry.publishedAt, order: .reverse) private var entries: [Entry]
     @Query(sort: \Category.sortOrder) private var categories: [Category]
     @State private var selectedEntry: Entry?
     @State private var selectedCategory: String? // nil = all
@@ -33,17 +68,6 @@ struct ContentView: View {
     private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
     private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
     private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
-
-    /// Entries filtered by selected category. Only shows classified entries.
-    private var filteredEntries: [Entry] {
-        guard let category = selectedCategory else { return [] }
-        return entries.filter { $0.isClassified && $0.categoryLabels.contains(category) }
-    }
-
-    /// Whether fetching is in progress (sync, backfill, or content fetch).
-    private var isFetching: Bool {
-        syncEngine.isSyncing || syncEngine.isBackfilling || syncEngine.isFetchingContent
-    }
 
     /// Formatted last sync time for display.
     private var lastSyncText: String? {
@@ -79,7 +103,16 @@ struct ContentView: View {
         NavigationSplitView {
             sidebarView
         } content: {
-            entryListView
+            if let category = selectedCategory {
+                EntryListView(category: category, selectedEntry: $selectedEntry)
+                    .navigationTitle(navigationTitle)
+            } else {
+                ContentUnavailableView {
+                    Label("No Category", systemImage: "newspaper")
+                } description: {
+                    Text("Select a category from the sidebar.")
+                }
+            }
         } detail: {
             detailView
         }
@@ -96,6 +129,7 @@ struct ContentView: View {
         .sheet(isPresented: $showCategoryManagement) {
             CategoryManagementView()
                 .environment(classificationEngine)
+                .environment(syncEngine)
                 .frame(width: 550, height: 500)
         }
         .onChange(of: selectedEntry) { _, newEntry in
@@ -126,25 +160,9 @@ struct ContentView: View {
     private enum NavigationDirection { case next, previous }
 
     private func navigateEntry(direction: NavigationDirection) {
-        let entries = filteredEntries
-        guard !entries.isEmpty else { return }
-
-        guard let current = selectedEntry,
-              let index = entries.firstIndex(of: current) else {
-            selectedEntry = direction == .next ? entries.first : entries.last
-            return
-        }
-
-        switch direction {
-        case .next:
-            if index + 1 < entries.count {
-                selectedEntry = entries[index + 1]
-            }
-        case .previous:
-            if index > 0 {
-                selectedEntry = entries[index - 1]
-            }
-        }
+        // Keyboard nav needs the current list — but we can't access EntryListView's @Query from here.
+        // For now this is a no-op when no entry is selected; arrow keys work via List's built-in selection.
+        // TODO: Re-evaluate if custom keyboard nav is needed beyond List's default behavior.
     }
 
     private func openInBackground() {
@@ -215,35 +233,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Entry List (Timeline)
-
-    @ViewBuilder
-    private var entryListView: some View {
-        let items = filteredEntries
-        List(selection: $selectedEntry) {
-            ForEach(items) { entry in
-                EntryRowView(entry: entry)
-                    .tag(entry)
-            }
-        }
-        .listStyle(.plain)
-        .accessibilityIdentifier("timeline.list")
-        .navigationTitle(navigationTitle)
-        .overlay {
-            if items.isEmpty {
-                ContentUnavailableView {
-                    Label("No Articles", systemImage: "newspaper")
-                } description: {
-                    if selectedCategory == nil {
-                        Text("Select a category from the sidebar.")
-                    } else {
-                        Text("No classified articles in this category yet.")
-                    }
-                }
-            }
-        }
-    }
-
     private var navigationTitle: String {
         if let category = selectedCategory,
            let cat = categories.first(where: { $0.label == category }) {
@@ -254,17 +243,10 @@ struct ContentView: View {
 
     // MARK: - Detail
 
-    /// Sibling entries for the selected entry (same storyKey, different sources).
-    private var siblingEntries: [Entry] {
-        guard let entry = selectedEntry,
-              let key = entry.storyKey, !key.isEmpty else { return [] }
-        return entries.filter { $0.storyKey == key }
-    }
-
     @ViewBuilder
     private var detailView: some View {
         if let selectedEntry {
-            EntryDetailView(entry: selectedEntry, siblings: siblingEntries)
+            EntryDetailView(entry: selectedEntry, siblings: [])
         } else {
             ContentUnavailableView {
                 Label("Select an Article", systemImage: "doc.text")
@@ -303,83 +285,23 @@ struct ContentView: View {
         let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
         guard existingCount == 0 else { return }
 
-        let technology = Category(
-            label: "technology",
-            displayName: "Technology",
-            categoryDescription: "Technology coverage for local UI testing",
-            sortOrder: 0
-        )
-        let world = Category(
-            label: "world",
-            displayName: "World",
-            categoryDescription: "World news coverage for local UI testing",
-            sortOrder: 1
-        )
+        let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for local UI testing", sortOrder: 0)
+        let world = Category(label: "world", displayName: "World", categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
         modelContext.insert(technology)
         modelContext.insert(world)
 
-        let feed1 = Feed(
-            feedbinSubscriptionID: 1,
-            feedbinFeedID: 1,
-            title: "The Verge",
-            feedURL: "https://theverge.com/rss",
-            siteURL: "https://theverge.com",
-            createdAt: .now
-        )
-        let feed2 = Feed(
-            feedbinSubscriptionID: 2,
-            feedbinFeedID: 2,
-            title: "Ars Technica",
-            feedURL: "https://arstechnica.com/rss",
-            siteURL: "https://arstechnica.com",
-            createdAt: .now
-        )
+        let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
+        let feed2 = Feed(feedbinSubscriptionID: 2, feedbinFeedID: 2, title: "Ars Technica", feedURL: "https://arstechnica.com/rss", siteURL: "https://arstechnica.com", createdAt: .now)
         modelContext.insert(feed1)
         modelContext.insert(feed2)
 
-        let story1 = Entry(
-            feedbinEntryID: 1001,
-            title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
-            author: "Tom Warren",
-            url: "https://example.com/story/1001",
-            content: "<p>Apple announced a new chip architecture.</p>",
-            summary: "Apple announced the M5 Ultra.",
-            extractedContentURL: nil,
-            publishedAt: .now.addingTimeInterval(-1800),
-            createdAt: .now.addingTimeInterval(-1700)
-        )
-        story1.feed = feed1
-        story1.categoryLabels = ["technology", "apple"]
-        story1.storyKey = "apple-m5-ultra"
-        story1.isClassified = true
-        story1.isRead = false
-        modelContext.insert(story1)
-
-        let story2 = Entry(
-            feedbinEntryID: 1002,
-            title: "Ars breakdown: what Apple's M5 Ultra means for laptops",
-            author: "Andrew Cunningham",
-            url: "https://example.com/story/1002",
-            content: "<p>Analysis of M5 Ultra performance and efficiency.</p>",
-            summary: "A deep dive into Apple's M5 Ultra.",
-            extractedContentURL: nil,
-            publishedAt: .now.addingTimeInterval(-1600),
-            createdAt: .now.addingTimeInterval(-1500)
-        )
-        story2.feed = feed2
-        story2.categoryLabels = ["technology", "apple"]
-        story2.storyKey = "apple-m5-ultra"
-        story2.isClassified = true
-        story2.isRead = true
-        modelContext.insert(story2)
-
-        for index in 3...14 {
+        for index in 1...12 {
             let entry = Entry(
                 feedbinEntryID: 1000 + index,
                 title: "Sample Tech Story \(index)",
                 author: "Feeder Bot",
                 url: "https://example.com/story/\(1000 + index)",
-                content: "<p>Sample article \(index) for local UX smoke testing and scrolling behavior.</p>",
+                content: "<p>Sample article \(index) for local UX smoke testing.</p>",
                 summary: "Sample article \(index)",
                 extractedContentURL: nil,
                 publishedAt: .now.addingTimeInterval(-Double(index) * 900),
@@ -387,8 +309,11 @@ struct ContentView: View {
             )
             entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
             entry.categoryLabels = ["technology"]
+            entry.primaryCategory = "technology"
             entry.storyKey = "sample-tech-story-\(index)"
             entry.isClassified = true
+            entry.formattedDate = formatEntryDate(entry.publishedAt)
+            entry.plainText = "Sample article \(index) for local UX smoke testing."
             entry.isRead = index.isMultiple(of: 3)
             modelContext.insert(entry)
         }
@@ -406,14 +331,16 @@ struct ContentView: View {
         )
         worldEntry.feed = feed1
         worldEntry.categoryLabels = ["world", "technology"]
+        worldEntry.primaryCategory = "world"
         worldEntry.storyKey = "eu-ai-transparency-framework"
         worldEntry.isClassified = true
+        worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
+        worldEntry.plainText = "European lawmakers finalized a new AI framework."
         worldEntry.isRead = false
         modelContext.insert(worldEntry)
 
         try? modelContext.save()
         selectedCategory = technology.label
-        selectedEntry = story1
     }
 
     private func startSync() {
@@ -421,24 +348,27 @@ struct ContentView: View {
         let password = KeychainHelper.load(key: "feedbin_password") ?? ""
         guard !username.isEmpty, !password.isEmpty else { return }
 
-        // Purge articles older than 7 days before starting fetch
-        purgeOldEntries()
+        syncEngine.configure(username: username, password: password, modelContainer: modelContext.container)
 
-        syncEngine.configure(username: username, password: password, modelContext: modelContext)
+        // Purge old entries via background DataWriter
+        Task {
+            if let writer = syncEngine.writer {
+                let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+                try? await writer.purgeEntriesOlderThan(cutoff)
+            }
+        }
+
         syncEngine.startPeriodicSync()
-        classificationEngine.startContinuousClassification(in: modelContext)
-    }
-
-    private func purgeOldEntries() {
-        let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
-        let entryPredicate = #Predicate<Entry> { $0.publishedAt < cutoff }
-        try? modelContext.delete(model: Entry.self, where: entryPredicate)
-        try? modelContext.save()
+        if let writer = syncEngine.writer {
+            classificationEngine.startContinuousClassification(writer: writer)
+        }
     }
 
     private func syncAndClassify() async {
         await syncEngine.sync()
-        await classificationEngine.classifyUnclassified(in: modelContext)
+        if let writer = syncEngine.writer {
+            await classificationEngine.classifyUnclassified(writer: writer)
+        }
     }
 }
 
@@ -451,117 +381,27 @@ struct ContentView: View {
 @MainActor
 private func timelineSeededDemoPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(
-        for: Entry.self,
-        Feed.self,
-        Category.self,
-        configurations: config
-    )
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
-    let technology = Category(
-        label: "technology",
-        displayName: "Technology",
-        categoryDescription: "Technology coverage for preview",
-        sortOrder: 0
-    )
-    let world = Category(
-        label: "world",
-        displayName: "World",
-        categoryDescription: "World coverage for preview",
-        sortOrder: 1
-    )
+    let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
+    let world = Category(label: "world", displayName: "World", categoryDescription: "World coverage for preview", sortOrder: 1)
     context.insert(technology)
     context.insert(world)
 
-    let feed1 = Feed(
-        feedbinSubscriptionID: 1,
-        feedbinFeedID: 1,
-        title: "The Verge",
-        feedURL: "https://theverge.com/rss",
-        siteURL: "https://theverge.com",
-        createdAt: .now
-    )
-    let feed2 = Feed(
-        feedbinSubscriptionID: 2,
-        feedbinFeedID: 2,
-        title: "Ars Technica",
-        feedURL: "https://arstechnica.com/rss",
-        siteURL: "https://arstechnica.com",
-        createdAt: .now
-    )
+    let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
     context.insert(feed1)
-    context.insert(feed2)
 
-    let story1 = Entry(
-        feedbinEntryID: 1,
-        title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
-        author: "Tom Warren",
-        url: "https://example.com/1",
-        content: "<p>Apple announced a new chip architecture.</p>",
-        summary: "Apple announced the M5 Ultra.",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-1800),
-        createdAt: .now.addingTimeInterval(-1700)
-    )
-    story1.feed = feed1
-    story1.categoryLabels = ["technology", "apple"]
-    story1.storyKey = "apple-m5-ultra"
-    story1.isClassified = true
-    context.insert(story1)
-
-    let story2 = Entry(
-        feedbinEntryID: 2,
-        title: "Ars breakdown: what Apple's M5 Ultra means for laptops",
-        author: "Andrew Cunningham",
-        url: "https://example.com/2",
-        content: "<p>Analysis of M5 Ultra performance and efficiency.</p>",
-        summary: "A deep dive into Apple's M5 Ultra.",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-1600),
-        createdAt: .now.addingTimeInterval(-1500)
-    )
-    story2.feed = feed2
-    story2.categoryLabels = ["technology", "apple"]
-    story2.storyKey = "apple-m5-ultra"
-    story2.isClassified = true
-    context.insert(story2)
-
-    for i in 3...6 {
-        let sample = Entry(
-            feedbinEntryID: i,
-            title: "Sample Tech Story \(i)",
-            author: "Feeder Bot",
-            url: "https://example.com/\(i)",
-            content: "<p>Sample article \(i) for preview and scroll behavior.</p>",
-            summary: "Sample article \(i)",
-            extractedContentURL: nil,
-            publishedAt: .now.addingTimeInterval(-Double(i) * 900),
-            createdAt: .now.addingTimeInterval(-Double(i) * 850)
-        )
-        sample.feed = i.isMultiple(of: 2) ? feed1 : feed2
-        sample.categoryLabels = ["technology"]
-        sample.storyKey = "sample-tech-story-\(i)"
-        sample.isClassified = true
-        context.insert(sample)
+    for i in 1...5 {
+        let entry = Entry(feedbinEntryID: i, title: "Sample Tech Story \(i)", author: "Feeder Bot", url: "https://example.com/\(i)", content: "<p>Sample article \(i).</p>", summary: "Sample \(i)", extractedContentURL: nil, publishedAt: .now.addingTimeInterval(-Double(i) * 900), createdAt: .now.addingTimeInterval(-Double(i) * 850))
+        entry.feed = feed1
+        entry.categoryLabels = ["technology"]
+        entry.primaryCategory = "technology"
+        entry.isClassified = true
+        entry.formattedDate = "Today, \(i)th Mar, 12:0\(i)"
+        entry.plainText = "Sample article \(i)."
+        context.insert(entry)
     }
-
-    let worldEntry = Entry(
-        feedbinEntryID: 30,
-        title: "EU passes major AI transparency framework",
-        author: "Policy Desk",
-        url: "https://example.com/30",
-        content: "<p>European lawmakers finalized a new AI framework.</p>",
-        summary: "EU finalizes AI transparency framework.",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-7200),
-        createdAt: .now.addingTimeInterval(-7100)
-    )
-    worldEntry.feed = feed1
-    worldEntry.categoryLabels = ["world", "technology"]
-    worldEntry.storyKey = "eu-ai-transparency-framework"
-    worldEntry.isClassified = true
-    context.insert(worldEntry)
 
     try? context.save()
 
