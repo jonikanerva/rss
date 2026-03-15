@@ -23,3 +23,9 @@ Feeder.xcodeproj/xcuserdata/
 
 # Python
 __pycache__/
+
+# Local build/test artifacts
+artifacts/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
