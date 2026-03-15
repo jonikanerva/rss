@@ -22,11 +22,17 @@ fi
 
 # Check Bash commands
 if [[ "$TOOL_NAME" == "Bash" && -n "$COMMAND" ]]; then
-  # Block .env content reads via shell
-  if echo "$COMMAND" | grep -qE '\b(cat|grep|rg|find|head|tail)\b.*\.env(\.|$|\b)'; then
-    echo "Blocked: reading .env content is not allowed" >&2
-    exit 2
-  fi
+  # Block .env content reads via shell — extract first word (the actual command)
+  # to avoid false positives from .env appearing in arguments like PR bodies
+  FIRST_WORD=$(echo "$COMMAND" | awk '{print $1}')
+  case "$FIRST_WORD" in
+    cat|grep|rg|find|head|tail|less|more|sed|awk)
+      if echo "$COMMAND" | grep -qE '\.env(\.|$|\b)'; then
+        echo "Blocked: reading .env content is not allowed" >&2
+        exit 2
+      fi
+      ;;
+  esac
 
   # Block force push
   if echo "$COMMAND" | grep -qE 'git push.*--(force|force-with-lease)(\s|$)'; then
