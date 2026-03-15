@@ -25,6 +25,8 @@ final class Entry {
     var createdAt: Date
     /// Whether this entry has been read
     var isRead: Bool = false
+    /// Whether this entry has been classified (controls UI visibility)
+    var isClassified: Bool = false
 
     // MARK: - Relationships
 

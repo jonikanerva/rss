@@ -77,7 +77,7 @@ struct ContentView: View {
     /// Entries filtered by selected category. Only shows classified entries.
     private var filteredEntries: [Entry] {
         guard let category = selectedCategory else { return [] }
-        return entries.filter { $0.storyKey != nil && $0.categoryLabels.contains(category) }
+        return entries.filter { $0.isClassified && $0.categoryLabels.contains(category) }
     }
 
     /// Build timeline items: merge story groups and standalone entries, sorted newest-first.
@@ -141,13 +141,18 @@ struct ContentView: View {
         }
     }
 
-    private var statusText: String {
-        if isFetching { return "Fetching..." }
-        if classificationEngine.isClassifying {
-            return "Classifying (\(classificationEngine.classifiedCount)/\(classificationEngine.totalToClassify))"
-        }
-        if groupingEngine.isGrouping { return "Grouping..." }
-        return lastSyncText ?? ""
+    private var fetchStatusText: String? {
+        guard syncEngine.isSyncing else { return nil }
+        let n = syncEngine.fetchedCount
+        let x = syncEngine.totalToFetch
+        return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
+    }
+
+    private var classifyStatusText: String? {
+        guard classificationEngine.isClassifying else { return nil }
+        let n = classificationEngine.classifiedCount
+        let x = classificationEngine.totalToClassify
+        return x > 0 ? "Categorizing \(n)/\(x)" : nil
     }
 
     var body: some View {
@@ -173,32 +178,14 @@ struct ContentView: View {
                 .environment(classificationEngine)
                 .frame(width: 550, height: 500)
         }
-        .onChange(of: syncEngine.isSyncing) { wasSyncing, isSyncing in
-            if wasSyncing && !isSyncing && !classificationEngine.isClassifying {
-                Task {
-                    await classificationEngine.classifyUnclassified(in: modelContext)
-                }
-            }
-        }
-        .onChange(of: syncEngine.isBackfilling) { wasBackfilling, isBackfilling in
-            if wasBackfilling && !isBackfilling && !classificationEngine.isClassifying {
-                Task {
-                    await classificationEngine.classifyUnclassified(in: modelContext)
-                }
-            }
-        }
-        .onChange(of: syncEngine.isFetchingContent) { wasFetching, isFetching in
-            if wasFetching && !isFetching && !classificationEngine.isClassifying {
-                Task {
-                    await classificationEngine.classifyUnclassified(in: modelContext)
-                }
+        .onChange(of: classificationEngine.classifiedCount) { oldCount, newCount in
+            if newCount > 0 && newCount % 25 == 0 && !groupingEngine.isGrouping {
+                Task { await groupingEngine.groupEntries(in: modelContext) }
             }
         }
         .onChange(of: classificationEngine.isClassifying) { wasClassifying, isClassifying in
             if wasClassifying && !isClassifying && !groupingEngine.isGrouping {
-                Task {
-                    await groupingEngine.groupEntries(in: modelContext)
-                }
+                Task { await groupingEngine.groupEntries(in: modelContext) }
             }
         }
         .onChange(of: selectedEntry) { _, newEntry in
@@ -284,16 +271,37 @@ struct ContentView: View {
                         .accessibilityIdentifier("sidebar.category.\(category.label)")
                 }
             } header: {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("News")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.primary)
                         .textCase(nil)
 
-                    Text(statusText)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                        .textCase(nil)
+                    if let fetchStatus = fetchStatusText {
+                        Text(fetchStatus)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .textCase(nil)
+                    }
+                    if let classifyStatus = classifyStatusText {
+                        Text(classifyStatus)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .textCase(nil)
+                    }
+                    if fetchStatusText == nil && classifyStatusText == nil {
+                        if groupingEngine.isGrouping {
+                            Text("Grouping...")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                                .textCase(nil)
+                        } else if let syncText = lastSyncText {
+                            Text(syncText)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                                .textCase(nil)
+                        }
+                    }
                 }
                 .padding(.bottom, 4)
             }
@@ -475,6 +483,7 @@ struct ContentView: View {
         story1.feed = feed1
         story1.categoryLabels = ["technology", "apple"]
         story1.storyKey = "apple-m5-ultra"
+        story1.isClassified = true
         story1.isRead = false
         modelContext.insert(story1)
 
@@ -492,6 +501,7 @@ struct ContentView: View {
         story2.feed = feed2
         story2.categoryLabels = ["technology", "apple"]
         story2.storyKey = "apple-m5-ultra"
+        story2.isClassified = true
         story2.isRead = true
         modelContext.insert(story2)
 
@@ -510,6 +520,7 @@ struct ContentView: View {
             entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
             entry.categoryLabels = ["technology"]
             entry.storyKey = "sample-tech-story-\(index)"
+            entry.isClassified = true
             entry.isRead = index.isMultiple(of: 3)
             modelContext.insert(entry)
         }
@@ -528,6 +539,7 @@ struct ContentView: View {
         worldEntry.feed = feed1
         worldEntry.categoryLabels = ["world", "technology"]
         worldEntry.storyKey = "eu-ai-transparency-framework"
+        worldEntry.isClassified = true
         worldEntry.isRead = false
         modelContext.insert(worldEntry)
 
@@ -548,8 +560,36 @@ struct ContentView: View {
         let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
         let password = KeychainHelper.load(key: "feedbin_password") ?? ""
         guard !username.isEmpty, !password.isEmpty else { return }
+
+        // Purge articles older than 7 days before starting fetch
+        purgeOldEntries()
+
         syncEngine.configure(username: username, password: password, modelContext: modelContext)
         syncEngine.startPeriodicSync()
+        classificationEngine.startContinuousClassification(in: modelContext)
+    }
+
+    private func purgeOldEntries() {
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        let entryPredicate = #Predicate<Entry> { $0.publishedAt < cutoff }
+        try? modelContext.delete(model: Entry.self, where: entryPredicate)
+        try? modelContext.save()
+
+        // Clean up orphaned StoryGroups (groups with no remaining entries)
+        let groupDescriptor = FetchDescriptor<StoryGroup>()
+        if let groups = try? modelContext.fetch(groupDescriptor) {
+            for group in groups {
+                let key = group.storyKey
+                let entryDescriptor = FetchDescriptor<Entry>(
+                    predicate: #Predicate<Entry> { $0.storyKey == key }
+                )
+                let count = (try? modelContext.fetchCount(entryDescriptor)) ?? 0
+                if count == 0 {
+                    modelContext.delete(group)
+                }
+            }
+            try? modelContext.save()
+        }
     }
 
     private func syncAndClassify() async {
@@ -692,6 +732,7 @@ private func timelineSeededDemoPreview() -> some View {
     story1.feed = feed1
     story1.categoryLabels = ["technology", "apple"]
     story1.storyKey = "apple-m5-ultra"
+    story1.isClassified = true
     context.insert(story1)
 
     let story2 = Entry(
@@ -708,6 +749,7 @@ private func timelineSeededDemoPreview() -> some View {
     story2.feed = feed2
     story2.categoryLabels = ["technology", "apple"]
     story2.storyKey = "apple-m5-ultra"
+    story2.isClassified = true
     context.insert(story2)
 
     let sample3 = Entry(
@@ -724,6 +766,7 @@ private func timelineSeededDemoPreview() -> some View {
     sample3.feed = feed1
     sample3.categoryLabels = ["technology"]
     sample3.storyKey = "sample-tech-story-3"
+    sample3.isClassified = true
     context.insert(sample3)
 
     let sample4 = Entry(
@@ -740,6 +783,7 @@ private func timelineSeededDemoPreview() -> some View {
     sample4.feed = feed2
     sample4.categoryLabels = ["technology"]
     sample4.storyKey = "sample-tech-story-4"
+    sample4.isClassified = true
     context.insert(sample4)
 
     let sample5 = Entry(
@@ -756,6 +800,7 @@ private func timelineSeededDemoPreview() -> some View {
     sample5.feed = feed1
     sample5.categoryLabels = ["technology"]
     sample5.storyKey = "sample-tech-story-5"
+    sample5.isClassified = true
     context.insert(sample5)
 
     let sample6 = Entry(
@@ -772,6 +817,7 @@ private func timelineSeededDemoPreview() -> some View {
     sample6.feed = feed2
     sample6.categoryLabels = ["technology"]
     sample6.storyKey = "sample-tech-story-6"
+    sample6.isClassified = true
     context.insert(sample6)
 
     let worldEntry = Entry(
@@ -788,6 +834,7 @@ private func timelineSeededDemoPreview() -> some View {
     worldEntry.feed = feed1
     worldEntry.categoryLabels = ["world", "technology"]
     worldEntry.storyKey = "eu-ai-transparency-framework"
+    worldEntry.isClassified = true
     context.insert(worldEntry)
 
     let group = StoryGroup(

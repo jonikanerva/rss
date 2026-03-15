@@ -19,6 +19,8 @@ final class SyncEngine {
     private(set) var isFetchingContent = false
     private(set) var lastError: String?
     private(set) var syncProgress: String = ""
+    private(set) var fetchedCount: Int = 0
+    private(set) var totalToFetch: Int = 0
 
     /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
     private(set) var lastSyncDate: Date? {
@@ -83,6 +85,8 @@ final class SyncEngine {
 
         isSyncing = true
         lastError = nil
+        fetchedCount = 0
+        totalToFetch = 0
         logger.info("Starting sync")
 
         do {
@@ -102,8 +106,9 @@ final class SyncEngine {
 
             let isFirstSync = lastSyncDate == nil
             lastSyncDate = Date()
+            fetchedCount = 0
+            totalToFetch = 0
             isSyncing = false
-            // → onChange triggers classification immediately (uses content field)
 
             // Start background tasks in parallel
             startExtractedContentFetch()
@@ -136,6 +141,8 @@ final class SyncEngine {
         let sortedIDs = unreadIDs.sorted(by: >)
         let cutoff = Date().addingTimeInterval(-maxArticleAge)
 
+        totalToFetch = sortedIDs.count
+        fetchedCount = 0
         var totalNew = 0
         let batchSize = 100
 
@@ -155,6 +162,7 @@ final class SyncEngine {
             if !recent.isEmpty {
                 let newCount = try persistEntries(recent, markAsRead: false, in: context)
                 totalNew += newCount
+                fetchedCount += newCount
                 try context.save()
                 syncProgress = "Loaded \(totalNew) unread articles..."
                 logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
@@ -180,9 +188,11 @@ final class SyncEngine {
         logger.info("Fetching entries since \(sinceClamped.description)")
         let entries = try await client.fetchAllEntries(since: sinceClamped)
         logger.info("Fetched \(entries.count) new entries")
+        totalToFetch = entries.count
 
         if !entries.isEmpty {
             let newCount = try persistEntries(entries, unreadIDs: unreadIDSet, in: context)
+            fetchedCount = newCount
             syncProgress = "Synced \(newCount) new entries"
             logger.info("Incremental sync: \(newCount) new entries")
         }

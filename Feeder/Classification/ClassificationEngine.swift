@@ -68,6 +68,7 @@ private nonisolated func normalizeStoryKey(_ value: String) -> String {
 // MARK: - Classification Engine
 
 /// Classifies articles using Apple Foundation Models with user-defined categories.
+/// Runs as a continuous polling loop alongside fetch, or as a one-shot call.
 @MainActor
 @Observable
 final class ClassificationEngine {
@@ -76,95 +77,132 @@ final class ClassificationEngine {
     private(set) var classifiedCount = 0
     private(set) var totalToClassify = 0
 
-    /// Classify all unclassified entries in the database.
+    private var classificationTask: Task<Void, Never>?
+
+    // MARK: - Continuous classification (polling loop)
+
+    /// Start a long-lived classification loop that polls for unclassified entries.
+    /// Runs alongside fetch — as articles arrive, they get classified automatically.
+    func startContinuousClassification(in context: ModelContext) {
+        classificationTask?.cancel()
+        classificationTask = Task {
+            while !Task.isCancelled {
+                await classifyNextBatch(in: context)
+                if Task.isCancelled { break }
+                try? await Task.sleep(for: .seconds(2))
+            }
+            isClassifying = false
+            progress = ""
+        }
+    }
+
+    /// Stop the continuous classification loop.
+    func stopContinuousClassification() {
+        classificationTask?.cancel()
+        classificationTask = nil
+    }
+
+    // MARK: - One-shot classification (manual sync button)
+
+    /// Classify all unclassified entries as a one-shot operation.
     func classifyUnclassified(in context: ModelContext) async {
-        guard !isClassifying else { return }
+        await classifyNextBatch(in: context)
+    }
+
+    /// Reclassify all entries (e.g., after category changes).
+    func reclassifyAll(in context: ModelContext) async {
+        let descriptor = FetchDescriptor<Entry>()
+        if let entries = try? context.fetch(descriptor) {
+            for entry in entries {
+                entry.categoryLabels = []
+                entry.storyKey = nil
+                entry.detectedLanguage = nil
+                entry.isClassified = false
+            }
+            try? context.save()
+        }
+        await classifyNextBatch(in: context)
+    }
+
+    // MARK: - Core classification logic
+
+    /// Fetch and classify one batch of unclassified entries.
+    /// Returns when all currently unclassified entries are processed or on error.
+    private func classifyNextBatch(in context: ModelContext) async {
+        // Fetch user-defined categories
+        var categoryDescriptor = FetchDescriptor<Category>()
+        categoryDescriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
+        guard let categories = try? context.fetch(categoryDescriptor),
+              !categories.isEmpty else {
+            return
+        }
+
+        // Fetch unclassified entries
+        let entryDescriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { !$0.isClassified },
+            sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
+        )
+        guard let entries = try? context.fetch(entryDescriptor),
+              !entries.isEmpty else {
+            if isClassifying {
+                isClassifying = false
+                progress = ""
+            }
+            return
+        }
+
+        // Check model availability
+        let model = SystemLanguageModel.default
+        guard case .available = model.availability else {
+            logger.error("Apple Foundation Model not available")
+            return
+        }
+
         isClassifying = true
-        progress = "Preparing..."
+        totalToClassify = entries.count
+        classifiedCount = 0
+        logger.info("Classifying \(entries.count) entries with \(categories.count) categories")
 
-        do {
-            // Fetch user-defined categories (fast, on main)
-            var categoryDescriptor = FetchDescriptor<Category>()
-            categoryDescriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
-            let categories = try context.fetch(categoryDescriptor)
-
-            guard !categories.isEmpty else {
-                progress = "No categories defined"
-                isClassifying = false
-                return
-            }
-
-            // Fetch unclassified entries (fast, on main)
-            let entryDescriptor = FetchDescriptor<Entry>(
-                predicate: #Predicate<Entry> { $0.storyKey == nil },
-                sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
+        let inputs: [ClassificationInput] = entries.map { entry in
+            ClassificationInput(
+                entryID: entry.feedbinEntryID,
+                title: entry.title ?? "Untitled",
+                summary: entry.summary ?? "",
+                body: entry.bestBody
             )
-            let entries = try context.fetch(entryDescriptor)
+        }
 
-            guard !entries.isEmpty else {
-                progress = "All entries classified"
-                isClassifying = false
-                return
-            }
+        let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.feedbinEntryID, $0) })
+        let instructions = buildInstructions(from: categories)
+        let validLabels = Set(categories.map { $0.label })
 
-            totalToClassify = entries.count
-            classifiedCount = 0
-            logger.info("Classifying \(entries.count) entries with \(categories.count) categories")
+        var skippedNonEnglish = 0
+        var classifiedOK = 0
+        var classificationErrors = 0
 
-            // Check model availability
-            let model = SystemLanguageModel.default
-            guard case .available = model.availability else {
-                progress = "Apple Intelligence not available"
-                logger.error("Apple Foundation Model not available")
-                isClassifying = false
-                return
-            }
+        for input in inputs {
+            if Task.isCancelled { break }
 
-            // Prepare lightweight inputs (extract data from SwiftData objects on main)
-            let inputs: [ClassificationInput] = entries.map { entry in
-                ClassificationInput(
-                    entryID: entry.feedbinEntryID,
-                    title: entry.title ?? "Untitled",
-                    summary: entry.summary ?? "",
-                    body: entry.bestBody
-                )
-            }
+            // CPU-heavy pre-processing on background thread
+            let preprocessed = await Task.detached(priority: .utility) {
+                let textForDetection = "\(input.title) \(stripHTML(input.body).prefix(500))"
+                let lang = detectLanguage(textForDetection)
+                let strippedBody = stripHTML(input.body)
+                return (lang: lang, strippedBody: strippedBody, textForDetection: textForDetection)
+            }.value
 
-            // Build lookup for applying results back
-            let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.feedbinEntryID, $0) })
+            classifiedCount += 1
+            progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
 
-            let instructions = buildInstructions(from: categories)
-            let validLabels = Set(categories.map { $0.label })
+            guard let entry = entriesByID[input.entryID] else { continue }
+            entry.detectedLanguage = preprocessed.lang
 
-            // Process entries one at a time — FM inference is async and must happen
-            // on main actor (SystemLanguageModel requires it), but we do the CPU-heavy
-            // pre-processing (HTML strip, language detection) on a background thread.
-            var skippedNonEnglish = 0
-            var classifiedOK = 0
-            var classificationErrors = 0
-
-            for input in inputs {
-                // CPU-heavy pre-processing on background thread
-                let preprocessed = await Task.detached(priority: .utility) {
-                    let textForDetection = "\(input.title) \(stripHTML(input.body).prefix(500))"
-                    let lang = detectLanguage(textForDetection)
-                    let strippedBody = stripHTML(input.body)
-                    return (lang: lang, strippedBody: strippedBody, textForDetection: textForDetection)
-                }.value
-
-                classifiedCount += 1
-                progress = "Classifying [\(classifiedCount)/\(totalToClassify)] \(input.title.prefix(40))..."
-
-                guard let entry = entriesByID[input.entryID] else { continue }
-                entry.detectedLanguage = preprocessed.lang
-
-                if preprocessed.lang != "en" {
-                    entry.categoryLabels = ["other"]
-                    entry.storyKey = normalizeStoryKey(input.title)
-                    skippedNonEnglish += 1
-                    continue
-                }
-
+            if preprocessed.lang != "en" {
+                entry.categoryLabels = ["other"]
+                entry.storyKey = normalizeStoryKey(input.title)
+                entry.isClassified = true
+                skippedNonEnglish += 1
+            } else {
                 // FM inference (async, Apple requires main actor for LanguageModelSession)
                 do {
                     let result = try await classifyEntry(
@@ -176,47 +214,31 @@ final class ClassificationEngine {
                     )
                     entry.categoryLabels = result.categories
                     entry.storyKey = result.storyKey
+                    entry.isClassified = true
                     classifiedOK += 1
                     logger.debug("Classified: \(input.title.prefix(60)) → \(result.categories)")
                 } catch {
                     entry.categoryLabels = ["other"]
                     entry.storyKey = normalizeStoryKey(input.title)
+                    entry.isClassified = true
                     classificationErrors += 1
                     logger.error("Classification error for \(input.title.prefix(60)): \(error.localizedDescription)")
                 }
-
-                // Save every 25 entries
-                if classifiedCount % 25 == 0 {
-                    try context.save()
-                    logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify)")
-                    // Yield to let UI process events
-                    await Task.yield()
-                }
             }
 
-            try context.save()
-            progress = "Classified \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)"
-            logger.info("Classification complete: \(entries.count) entries (\(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors)")
-        } catch {
-            progress = "Error: \(error.localizedDescription)"
-            logger.error("Classification failed: \(error.localizedDescription)")
+            // Save every 25 entries and yield to let UI process events
+            if classifiedCount % 25 == 0 {
+                try? context.save()
+                logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify)")
+                await Task.yield()
+            }
         }
+
+        try? context.save()
+        logger.info("Classification batch complete: \(classifiedOK) OK, \(skippedNonEnglish) non-English, \(classificationErrors) errors")
 
         isClassifying = false
-    }
-
-    /// Reclassify all entries (e.g., after category changes).
-    func reclassifyAll(in context: ModelContext) async {
-        let descriptor = FetchDescriptor<Entry>()
-        if let entries = try? context.fetch(descriptor) {
-            for entry in entries {
-                entry.categoryLabels = []
-                entry.storyKey = nil
-                entry.detectedLanguage = nil
-            }
-            try? context.save()
-        }
-        await classifyUnclassified(in: context)
+        progress = ""
     }
 
     // MARK: - Private
