@@ -34,10 +34,10 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [In progress] Incremental sync strategy — unread-first, recent history backfill.
+1. [In progress] Startup pipeline: concurrent fetch + classification with live progress.
    - Owner: Agent
-   - Context: Branch `feat/incremental-sync`. Research + plan + implementation complete.
-   - Acceptance: Build passes, first sync completes in seconds not minutes.
+   - Context: Branch `feat/startup-pipeline`. Research + plan + implementation complete. Awaiting PR + manual testing.
+   - Acceptance: Build passes. Fetch and classify run concurrently with live "Fetching n/x" + "Categorizing n/x" status. UI stays responsive. Old articles purged on launch.
 
 2. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
@@ -57,4 +57,4 @@ Status: Active
 
 ## Last updated
 
-- 2026-03-05 by Claude agent (Incremental sync: unread-first phased sync, parallel extracted content, read-state sync from Feedbin.)
+- 2026-03-15 by Claude agent (Startup pipeline: concurrent fetch + classification, 7-day purge, live progress UI.)

@@ -13,11 +13,11 @@ Status: Active
 
 ## Active queue
 
-1. [In progress] Incremental sync: unread-first phased sync
+1. [In progress] Startup pipeline: concurrent fetch + classification with live progress
    - Owner: Agent
-   - Acceptance check: First sync shows categorized unread articles within ~10 seconds. Recent history backfills in background.
+   - Acceptance check: Fetch and classify run concurrently. Status shows "Fetching n/x" + "Categorizing n/x". Old articles purged. UI responsive.
    - Target checkpoint: PR merged
-   - Context: Branch `feat/incremental-sync`. Research: `docs/research/2026-03-05-incremental-sync-strategy.md`. Plan: `docs/plans/2026-03-05-incremental-sync-plan.md`.
+   - Context: Branch `feat/startup-pipeline`. Research: `docs/research/2026-03-15-startup-pipeline-concurrent-fetch-classify.md`. Plan: `docs/plans/2026-03-15-startup-pipeline-plan.md`.
 
 2. [Ready] Dogfood the app for 1 week
    - Owner: Repository Owner
