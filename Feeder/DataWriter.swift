@@ -1,0 +1,302 @@
+import Foundation
+import SwiftData
+import OSLog
+
+
+// MARK: - Sendable DTOs for crossing actor boundaries
+
+/// Input data for classification — extracted from Entry on background actor, consumed by FM inference.
+nonisolated struct ClassificationInput: Sendable {
+    let entryID: Int
+    let title: String
+    let summary: String
+    let body: String
+}
+
+/// Classification result — produced by FM inference, applied to Entry on background actor.
+nonisolated struct ClassificationResult: Sendable {
+    let entryID: Int
+    let categoryLabels: [String]
+    let storyKey: String
+    let detectedLanguage: String
+}
+
+/// Category definition — read from SwiftData, passed to classification as Sendable.
+nonisolated struct CategoryDefinition: Sendable {
+    let label: String
+    let description: String
+}
+
+// MARK: - Pure helper functions
+
+/// Strip HTML tags and decode entities to produce plain text.
+nonisolated func stripHTMLToPlainText(_ html: String) -> String {
+    guard !html.isEmpty else { return "" }
+    var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+    text = text.replacingOccurrences(of: "&amp;", with: "&")
+    text = text.replacingOccurrences(of: "&lt;", with: "<")
+    text = text.replacingOccurrences(of: "&gt;", with: ">")
+    text = text.replacingOccurrences(of: "&quot;", with: "\"")
+    text = text.replacingOccurrences(of: "&#39;", with: "'")
+    text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Format a date for display: "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar" / "Monday, 2nd Mar"
+nonisolated func formatEntryDate(_ date: Date) -> String {
+    let calendar = Calendar.current
+    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    let day = calendar.component(.day, from: date)
+    let suffix: String = switch day {
+    case 11, 12, 13: "th"
+    default: switch day % 10 {
+        case 1: "st"
+        case 2: "nd"
+        case 3: "rd"
+        default: "th"
+        }
+    }
+    let month = date.formatted(.dateTime.month(.abbreviated))
+
+    if calendar.isDateInToday(date) {
+        return "Today, \(day)\(suffix) \(month), \(time)"
+    } else if calendar.isDateInYesterday(date) {
+        return "Yesterday, \(day)\(suffix) \(month), \(time)"
+    } else {
+        let weekday = date.formatted(.dateTime.weekday(.wide))
+        return "\(weekday), \(day)\(suffix) \(month), \(time)"
+    }
+}
+
+// MARK: - DataWriter Actor
+
+/// Background actor that owns all SwiftData write operations.
+/// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
+@ModelActor
+actor DataWriter {
+    private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
+
+    // MARK: - Feed persistence
+
+    func syncFeeds(_ subscriptions: [FeedbinSubscription]) throws {
+        let descriptor = FetchDescriptor<Feed>()
+        let existingFeeds = try modelContext.fetch(descriptor)
+        let existingByID = Dictionary(uniqueKeysWithValues: existingFeeds.map { ($0.feedbinSubscriptionID, $0) })
+
+        for sub in subscriptions {
+            if let existing = existingByID[sub.id] {
+                existing.title = sub.title
+                existing.feedURL = sub.feedUrl
+                existing.siteURL = sub.siteUrl
+            } else {
+                let feed = Feed(
+                    feedbinSubscriptionID: sub.id,
+                    feedbinFeedID: sub.feedId,
+                    title: sub.title,
+                    feedURL: sub.feedUrl,
+                    siteURL: sub.siteUrl,
+                    createdAt: sub.createdAt
+                )
+                modelContext.insert(feed)
+            }
+        }
+        try modelContext.save()
+    }
+
+    // MARK: - Entry persistence
+
+    func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {
+        guard !entries.isEmpty else { return 0 }
+
+        let entryIDs = entries.map(\.id)
+        let existingDescriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { entry in entryIDs.contains(entry.feedbinEntryID) }
+        )
+        let existingIDs = Set(try modelContext.fetch(existingDescriptor).map(\.feedbinEntryID))
+
+        let feedDescriptor = FetchDescriptor<Feed>()
+        let feedsByFeedbinID = Dictionary(
+            uniqueKeysWithValues: try modelContext.fetch(feedDescriptor).map { ($0.feedbinFeedID, $0) }
+        )
+
+        var newCount = 0
+        for dto in entries {
+            if existingIDs.contains(dto.id) { continue }
+
+            let entry = Entry(
+                feedbinEntryID: dto.id,
+                title: dto.title,
+                author: dto.author,
+                url: dto.url,
+                content: dto.content,
+                summary: dto.summary,
+                extractedContentURL: dto.extractedContentUrl,
+                publishedAt: dto.published,
+                createdAt: dto.createdAt
+            )
+            entry.feed = feedsByFeedbinID[dto.feedId]
+            entry.isRead = markAsRead
+            entry.plainText = stripHTMLToPlainText(dto.content ?? dto.summary ?? "")
+            entry.formattedDate = formatEntryDate(dto.published)
+            modelContext.insert(entry)
+            newCount += 1
+        }
+
+        try modelContext.save()
+        return newCount
+    }
+
+    func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
+        guard !entries.isEmpty else { return 0 }
+
+        let entryIDs = entries.map(\.id)
+        let existingDescriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { entry in entryIDs.contains(entry.feedbinEntryID) }
+        )
+        let existingIDs = Set(try modelContext.fetch(existingDescriptor).map(\.feedbinEntryID))
+
+        let feedDescriptor = FetchDescriptor<Feed>()
+        let feedsByFeedbinID = Dictionary(
+            uniqueKeysWithValues: try modelContext.fetch(feedDescriptor).map { ($0.feedbinFeedID, $0) }
+        )
+
+        var newCount = 0
+        for dto in entries {
+            if existingIDs.contains(dto.id) { continue }
+
+            let entry = Entry(
+                feedbinEntryID: dto.id,
+                title: dto.title,
+                author: dto.author,
+                url: dto.url,
+                content: dto.content,
+                summary: dto.summary,
+                extractedContentURL: dto.extractedContentUrl,
+                publishedAt: dto.published,
+                createdAt: dto.createdAt
+            )
+            entry.feed = feedsByFeedbinID[dto.feedId]
+            entry.isRead = !unreadIDs.contains(dto.id)
+            entry.plainText = stripHTMLToPlainText(dto.content ?? dto.summary ?? "")
+            entry.formattedDate = formatEntryDate(dto.published)
+            modelContext.insert(entry)
+            newCount += 1
+        }
+
+        try modelContext.save()
+        return newCount
+    }
+
+    // MARK: - Read state
+
+    func updateReadState(unreadIDs: Set<Int>) throws {
+        let descriptor = FetchDescriptor<Entry>()
+        let allEntries = try modelContext.fetch(descriptor)
+
+        var updatedCount = 0
+        for entry in allEntries {
+            let shouldBeRead = !unreadIDs.contains(entry.feedbinEntryID)
+            if entry.isRead != shouldBeRead {
+                entry.isRead = shouldBeRead
+                updatedCount += 1
+            }
+        }
+
+        if updatedCount > 0 {
+            try modelContext.save()
+            Self.logger.info("Updated read state for \(updatedCount) entries")
+        }
+    }
+
+    // MARK: - Extracted content
+
+    func fetchExtractedContentRequests() throws -> [(entryID: Int, url: String)] {
+        let descriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { $0.extractedContentURL != nil && $0.extractedContent == nil }
+        )
+        return try modelContext.fetch(descriptor).compactMap { entry in
+            guard let url = entry.extractedContentURL else { return nil }
+            return (entryID: entry.feedbinEntryID, url: url)
+        }
+    }
+
+    func applyExtractedContent(results: [(entryID: Int, content: String)]) throws {
+        guard !results.isEmpty else { return }
+        let resultsByID = Dictionary(uniqueKeysWithValues: results.map { ($0.entryID, $0.content) })
+        let ids = results.map(\.entryID)
+
+        let descriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { entry in ids.contains(entry.feedbinEntryID) }
+        )
+        let entries = try modelContext.fetch(descriptor)
+
+        for entry in entries {
+            if let content = resultsByID[entry.feedbinEntryID] {
+                entry.extractedContent = content
+                entry.plainText = stripHTMLToPlainText(content)
+            }
+        }
+        try modelContext.save()
+    }
+
+    // MARK: - Classification
+
+    func fetchUnclassifiedInputs() throws -> [ClassificationInput] {
+        let descriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { !$0.isClassified },
+            sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
+        )
+        return try modelContext.fetch(descriptor).map { entry in
+            ClassificationInput(
+                entryID: entry.feedbinEntryID,
+                title: entry.title ?? "Untitled",
+                summary: entry.summary ?? "",
+                body: entry.plainText
+            )
+        }
+    }
+
+    func fetchCategoryDefinitions() throws -> [CategoryDefinition] {
+        var descriptor = FetchDescriptor<Category>()
+        descriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
+        return try modelContext.fetch(descriptor).map { cat in
+            CategoryDefinition(label: cat.label, description: cat.categoryDescription)
+        }
+    }
+
+    func applyClassification(entryID: Int, result: ClassificationResult) throws {
+        let descriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { entry in entry.feedbinEntryID == entryID }
+        )
+        guard let entry = try modelContext.fetch(descriptor).first else { return }
+
+        entry.detectedLanguage = result.detectedLanguage
+        entry.categoryLabels = result.categoryLabels
+        entry.storyKey = result.storyKey
+        entry.isClassified = true
+        entry.primaryCategory = result.categoryLabels.first ?? "other"
+        try modelContext.save()
+    }
+
+    func resetClassification() throws {
+        let descriptor = FetchDescriptor<Entry>()
+        let entries = try modelContext.fetch(descriptor)
+        for entry in entries {
+            entry.categoryLabels = []
+            entry.storyKey = nil
+            entry.detectedLanguage = nil
+            entry.isClassified = false
+            entry.primaryCategory = ""
+        }
+        try modelContext.save()
+    }
+
+    // MARK: - Purge
+
+    func purgeEntriesOlderThan(_ cutoff: Date) throws {
+        let predicate = #Predicate<Entry> { $0.publishedAt < cutoff }
+        try modelContext.delete(model: Entry.self, where: predicate)
+        try modelContext.save()
+    }
+}

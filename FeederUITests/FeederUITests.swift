@@ -46,10 +46,10 @@ final class FeederUITests: XCTestCase {
         XCTAssertTrue(technologyCategory.waitForExistence(timeout: 10))
         technologyCategory.click()
 
-        // Wait for a known demo article title to appear in the timeline
-        let articleTitle = app.staticTexts["Apple unveils M5 Ultra chip with record-breaking AI performance"]
-        XCTAssertTrue(articleTitle.waitForExistence(timeout: 10))
-        articleTitle.click()
+        // Wait for a known demo article to appear in the timeline (via accessibility identifier)
+        let articleRow = app.descendants(matching: .any)["entry.row.1001"]
+        XCTAssertTrue(articleRow.waitForExistence(timeout: 10))
+        articleRow.click()
 
         // Keyboard navigation
         app.typeKey(.downArrow, modifierFlags: [])

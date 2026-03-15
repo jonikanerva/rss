@@ -67,8 +67,8 @@ struct EntryDetailView: View {
 
                 Divider()
 
-                // Article body as plain text (HTML stripped)
-                Text(stripHTML(current.bestBody))
+                // Article body — pre-stripped plain text from database
+                Text(current.plainText)
                     .font(.system(size: 16))
                     .lineSpacing(6)
                     .textSelection(.enabled)
@@ -98,18 +98,6 @@ struct EntryDetailView: View {
         return host
     }
 
-    private func stripHTML(_ html: String) -> String {
-        guard !html.isEmpty else { return "" }
-        var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "&amp;", with: "&")
-        text = text.replacingOccurrences(of: "&lt;", with: "<")
-        text = text.replacingOccurrences(of: "&gt;", with: ">")
-        text = text.replacingOccurrences(of: "&quot;", with: "\"")
-        text = text.replacingOccurrences(of: "&#39;", with: "'")
-        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 // MARK: - Preview
@@ -121,7 +109,7 @@ struct EntryDetailView: View {
 @MainActor
 private func articleDetailPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
+    let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
     let feed1 = Feed(

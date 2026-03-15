@@ -4,6 +4,7 @@ import SwiftData
 struct CategoryManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ClassificationEngine.self) private var classificationEngine
+    @Environment(SyncEngine.self) private var syncEngine
     @Query(sort: \Category.sortOrder) private var categories: [Category]
     @State private var isAddingNew = false
     @State private var editingCategory: Category?
@@ -65,7 +66,9 @@ struct CategoryManagementView: View {
                 } else {
                     Button("Reclassify All") {
                         Task {
-                            await classificationEngine.reclassifyAll(in: modelContext)
+                            if let writer = syncEngine.writer {
+                                await classificationEngine.reclassifyAll(writer: writer)
+                            }
                         }
                     }
                     .disabled(categories.isEmpty)
@@ -255,7 +258,6 @@ private func categoryManagementPreviewWithData() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
     let context = container.mainContext
@@ -275,6 +277,7 @@ private func categoryManagementPreviewWithData() -> some View {
 
     return CategoryManagementView()
         .environment(ClassificationEngine())
+        .environment(SyncEngine())
         .modelContainer(container)
         .frame(width: 550, height: 500)
 }
@@ -286,12 +289,12 @@ private func categoryManagementPreviewEmpty() -> some View {
         for: Entry.self,
         Feed.self,
         Category.self,
-        StoryGroup.self,
         configurations: config
     )
 
     return CategoryManagementView()
         .environment(ClassificationEngine())
+        .environment(SyncEngine())
         .modelContainer(container)
         .frame(width: 550, height: 500)
 }

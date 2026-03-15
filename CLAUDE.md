@@ -49,13 +49,33 @@ This project uses **Swift 6 language mode** with **strict concurrency checking: 
 
 Full specification: `docs/operating-model/swift-concurrency-rules.md`. Key rules:
 
-### Architecture boundaries
+### Two-Layer Architecture (Non-Negotiable)
 
-- **UI layer**: `@MainActor` (default) — all SwiftUI views, `@Observable` classes, ViewModels.
-- **API layer**: `actor` or `nonisolated` — networking code must NOT be `@MainActor`.
-- **Shared utilities**: `nonisolated` — pure functions, Keychain helpers, error types.
-- **DTOs crossing actors**: `nonisolated struct` + `Sendable`.
-- **SwiftData @Model**: MainActor (default), never cross actor boundaries.
+The app is split into two strict layers. Violating this separation causes UI lag.
+
+**Data layer** (background — NEVER on MainActor):
+- **`DataWriter`** (`@ModelActor` actor) — owns its own `ModelContext`. ALL SwiftData writes (persist, classify, extract, purge) happen here. Pre-computes display fields (`plainText`, `formattedDate`, `primaryCategory`) at write time so UI does zero computation.
+- **`FeedbinClient`** (`actor`) — all network requests.
+- **Pure helpers** (`nonisolated`) — `stripHTMLToPlainText`, `formatEntryDate`, `detectLanguage`.
+
+**UI layer** (MainActor — read-only, zero computation):
+- **SwiftUI views** read pre-computed data via `@Query` with SQLite-level predicates (e.g., `primaryCategory == category`). Never filter in Swift.
+- **`SyncEngine`** / **`ClassificationEngine`** stay `@MainActor @Observable` but ONLY for progress display (integers, booleans). They delegate all data operations to `DataWriter` via `await`. Zero `ModelContext` usage.
+- **`EntryRowView`** reads `entry.formattedDate` directly. No `Calendar` operations at render time.
+- **`EntryDetailView`** reads `entry.plainText` directly. No HTML stripping at render time.
+
+### Strict rules
+
+- NO `ModelContext` on MainActor for writes — all writes go through `DataWriter`.
+- NO computed properties that filter/transform `@Query` results in Swift — push predicates to `@Query`.
+- NO expensive computation (regex, Calendar, loops over entries) during view rendering.
+- Pre-compute ALL display data at persist time inside `DataWriter`.
+
+### Actor boundaries
+
+- **DTOs crossing actors**: `nonisolated struct` + `Sendable` (e.g., `ClassificationInput`, `ClassificationResult`, `CategoryDefinition`).
+- **`@Model` objects** never cross actor boundaries. Pass `PersistentIdentifier` or Sendable DTOs instead.
+- **`DataWriter`** must be created from a background context (not from MainActor) to ensure its executor runs off the main queue.
 
 ### Mandatory patterns
 
@@ -94,6 +114,10 @@ xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2
 - No reading `.env` files.
 - No pushing directly to `main` or `master`.
 - No weakening Xcode concurrency settings.
+
+## SwiftData Schema Versioning
+
+The app uses a versioned schema with auto-reset instead of migrations (`FeederApp.swift`). When the schema changes (adding/removing/renaming fields on `@Model` classes), bump `currentSchemaVersion` in `FeederApp.swift`. On startup, if the stored version differs, the database is deleted and a fresh 7-day sync runs automatically. Never write migration code — this app is not published.
 
 ## Quality Expectations
 
