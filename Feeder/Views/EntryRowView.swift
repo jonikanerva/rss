@@ -63,6 +63,7 @@ struct EntryRowView: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
+        .accessibilityIdentifier("entry.row.\(entry.feedbinEntryID)")
     }
 
     private var accessibilityDescription: String {
@@ -76,6 +77,15 @@ struct EntryRowView: View {
 // MARK: - Preview
 
 #Preview("Unread Entry") {
+    unreadEntryRowPreview()
+}
+
+#Preview("Read Entry") {
+    readEntryRowPreview()
+}
+
+@MainActor
+private func unreadEntryRowPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
     let context = container.mainContext
@@ -96,7 +106,8 @@ struct EntryRowView: View {
         .padding()
 }
 
-#Preview("Read Entry") {
+@MainActor
+private func readEntryRowPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, StoryGroup.self, configurations: config)
     let context = container.mainContext

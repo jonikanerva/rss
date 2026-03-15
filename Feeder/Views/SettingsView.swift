@@ -59,6 +59,7 @@ struct SettingsView: View {
                         Task { await save() }
                     }
                     .disabled(username.isEmpty || password.isEmpty || isSaving)
+                    .accessibilityIdentifier("settings.account.save")
 
                     if isSaving {
                         ProgressView()
@@ -156,6 +157,7 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(syncEngine.isSyncing || classificationEngine.isClassifying || groupingEngine.isGrouping)
+                .accessibilityIdentifier("settings.sync.now")
             }
         }
         .formStyle(.grouped)
@@ -170,6 +172,7 @@ struct SettingsView: View {
                     showCategoryManagement = true
                 }
                 .accessibilityLabel("Open category management window")
+                .accessibilityIdentifier("settings.categories.openEditor")
 
                 Button("Reclassify All Articles") {
                     Task {
@@ -178,6 +181,7 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(categories.isEmpty || classificationEngine.isClassifying)
+                .accessibilityIdentifier("settings.categories.reclassify")
             }
 
             if classificationEngine.isClassifying {
@@ -239,4 +243,79 @@ private extension Double {
         if self == 0 { return defaultValue }
         return min(max(self, range.lowerBound), range.upperBound)
     }
+}
+
+// MARK: - Preview
+
+#Preview("Settings - Seeded Data") {
+    settingsSeededPreview()
+}
+
+@MainActor
+private func settingsSeededPreview() -> some View {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: Entry.self,
+        Feed.self,
+        Category.self,
+        StoryGroup.self,
+        configurations: config
+    )
+    let context = container.mainContext
+
+    let feed = Feed(
+        feedbinSubscriptionID: 1,
+        feedbinFeedID: 1,
+        title: "The Verge",
+        feedURL: "https://theverge.com/rss",
+        siteURL: "https://theverge.com",
+        createdAt: .now
+    )
+    context.insert(feed)
+
+    let technology = Category(
+        label: "technology",
+        displayName: "Technology",
+        categoryDescription: "Technology news",
+        sortOrder: 0
+    )
+    let world = Category(
+        label: "world",
+        displayName: "World",
+        categoryDescription: "World policy news",
+        sortOrder: 1
+    )
+    context.insert(technology)
+    context.insert(world)
+
+    let entry = Entry(
+        feedbinEntryID: 1,
+        title: "Apple unveils M5 Ultra chip",
+        author: "Tom Warren",
+        url: "https://example.com/1",
+        content: "<p>Apple announced a new chip architecture.</p>",
+        summary: "Apple announced the M5 Ultra.",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-3600),
+        createdAt: .now
+    )
+    entry.feed = feed
+    entry.categoryLabels = ["technology"]
+    entry.storyKey = "apple-m5-ultra"
+    context.insert(entry)
+
+    let group = StoryGroup(
+        storyKey: "apple-m5-ultra",
+        headline: "Apple unveils M5 Ultra chip",
+        earliestDate: entry.publishedAt
+    )
+    group.entryCount = 1
+    context.insert(group)
+    try? context.save()
+
+    return SettingsView()
+        .environment(SyncEngine())
+        .environment(ClassificationEngine())
+        .environment(GroupingEngine())
+        .modelContainer(container)
 }

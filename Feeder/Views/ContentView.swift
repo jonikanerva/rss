@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftData
 
@@ -68,6 +69,10 @@ struct ContentView: View {
     @State private var showCategoryManagement = false
     @State private var expandedGroups: Set<String> = []
     @State private var markReadTask: Task<Void, Never>?
+    private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
+    private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
+    private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
+    private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
 
     /// Entries filtered by selected category. Only shows classified entries.
     private var filteredEntries: [Entry] {
@@ -276,6 +281,7 @@ struct ContentView: View {
                 ForEach(categories) { category in
                     Text(category.displayName)
                         .tag(category.label)
+                        .accessibilityIdentifier("sidebar.category.\(category.label)")
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 4) {
@@ -293,6 +299,7 @@ struct ContentView: View {
             }
         }
         .listStyle(.sidebar)
+        .accessibilityIdentifier("sidebar.list")
         .toolbar {
             ToolbarItem {
                 Button {
@@ -307,6 +314,7 @@ struct ContentView: View {
                 }
                 .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying || groupingEngine.isGrouping)
                 .help("Sync, classify, and group")
+                .accessibilityIdentifier("toolbar.sync")
             }
         }
     }
@@ -343,6 +351,7 @@ struct ContentView: View {
             }
         }
         .listStyle(.plain)
+        .accessibilityIdentifier("timeline.list")
         .navigationTitle(navigationTitle)
         .overlay {
             if items.isEmpty {
@@ -392,6 +401,19 @@ struct ContentView: View {
     // MARK: - Helpers
 
     private func checkCredentials() {
+        if isPreviewMode { return }
+        if isUITestForceOnboarding {
+            needsSetup = true
+            return
+        }
+        if isUITestDemoMode {
+            seedUITestDataIfNeeded()
+            if selectedCategory == nil {
+                selectedCategory = categories.first?.label
+            }
+            return
+        }
+
         let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
         let password = KeychainHelper.load(key: "feedbin_password") ?? ""
         if username.isEmpty || password.isEmpty {
@@ -399,6 +421,127 @@ struct ContentView: View {
         } else {
             startSync()
         }
+    }
+
+    private func seedUITestDataIfNeeded() {
+        let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
+        guard existingCount == 0 else { return }
+
+        let technology = Category(
+            label: "technology",
+            displayName: "Technology",
+            categoryDescription: "Technology coverage for local UI testing",
+            sortOrder: 0
+        )
+        let world = Category(
+            label: "world",
+            displayName: "World",
+            categoryDescription: "World news coverage for local UI testing",
+            sortOrder: 1
+        )
+        modelContext.insert(technology)
+        modelContext.insert(world)
+
+        let feed1 = Feed(
+            feedbinSubscriptionID: 1,
+            feedbinFeedID: 1,
+            title: "The Verge",
+            feedURL: "https://theverge.com/rss",
+            siteURL: "https://theverge.com",
+            createdAt: .now
+        )
+        let feed2 = Feed(
+            feedbinSubscriptionID: 2,
+            feedbinFeedID: 2,
+            title: "Ars Technica",
+            feedURL: "https://arstechnica.com/rss",
+            siteURL: "https://arstechnica.com",
+            createdAt: .now
+        )
+        modelContext.insert(feed1)
+        modelContext.insert(feed2)
+
+        let story1 = Entry(
+            feedbinEntryID: 1001,
+            title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
+            author: "Tom Warren",
+            url: "https://example.com/story/1001",
+            content: "<p>Apple announced a new chip architecture.</p>",
+            summary: "Apple announced the M5 Ultra.",
+            extractedContentURL: nil,
+            publishedAt: .now.addingTimeInterval(-1800),
+            createdAt: .now.addingTimeInterval(-1700)
+        )
+        story1.feed = feed1
+        story1.categoryLabels = ["technology", "apple"]
+        story1.storyKey = "apple-m5-ultra"
+        story1.isRead = false
+        modelContext.insert(story1)
+
+        let story2 = Entry(
+            feedbinEntryID: 1002,
+            title: "Ars breakdown: what Apple's M5 Ultra means for laptops",
+            author: "Andrew Cunningham",
+            url: "https://example.com/story/1002",
+            content: "<p>Analysis of M5 Ultra performance and efficiency.</p>",
+            summary: "A deep dive into Apple's M5 Ultra.",
+            extractedContentURL: nil,
+            publishedAt: .now.addingTimeInterval(-1600),
+            createdAt: .now.addingTimeInterval(-1500)
+        )
+        story2.feed = feed2
+        story2.categoryLabels = ["technology", "apple"]
+        story2.storyKey = "apple-m5-ultra"
+        story2.isRead = true
+        modelContext.insert(story2)
+
+        for index in 3...14 {
+            let entry = Entry(
+                feedbinEntryID: 1000 + index,
+                title: "Sample Tech Story \(index)",
+                author: "Feeder Bot",
+                url: "https://example.com/story/\(1000 + index)",
+                content: "<p>Sample article \(index) for local UX smoke testing and scrolling behavior.</p>",
+                summary: "Sample article \(index)",
+                extractedContentURL: nil,
+                publishedAt: .now.addingTimeInterval(-Double(index) * 900),
+                createdAt: .now.addingTimeInterval(-Double(index) * 850)
+            )
+            entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
+            entry.categoryLabels = ["technology"]
+            entry.storyKey = "sample-tech-story-\(index)"
+            entry.isRead = index.isMultiple(of: 3)
+            modelContext.insert(entry)
+        }
+
+        let worldEntry = Entry(
+            feedbinEntryID: 2001,
+            title: "EU passes major AI transparency framework",
+            author: "Policy Desk",
+            url: "https://example.com/story/2001",
+            content: "<p>European lawmakers finalized a new AI framework.</p>",
+            summary: "EU finalizes AI transparency framework.",
+            extractedContentURL: nil,
+            publishedAt: .now.addingTimeInterval(-7200),
+            createdAt: .now.addingTimeInterval(-7100)
+        )
+        worldEntry.feed = feed1
+        worldEntry.categoryLabels = ["world", "technology"]
+        worldEntry.storyKey = "eu-ai-transparency-framework"
+        worldEntry.isRead = false
+        modelContext.insert(worldEntry)
+
+        let group = StoryGroup(
+            storyKey: "apple-m5-ultra",
+            headline: "Apple unveils M5 Ultra chip",
+            earliestDate: min(story1.publishedAt, story2.publishedAt)
+        )
+        group.entryCount = 2
+        modelContext.insert(group)
+
+        try? modelContext.save()
+        selectedCategory = technology.label
+        selectedEntry = story1
     }
 
     private func startSync() {
@@ -461,6 +604,7 @@ struct StoryGroupRowView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("story-group.toggle.\(group.storyKey)")
 
             // Expanded entries
             if isExpanded {
@@ -480,4 +624,185 @@ struct StoryGroupRowView: View {
         .accessibilityLabel("Story group: \(group.headline), \(entries.count) articles")
         .accessibilityHint(isExpanded ? "Double-tap to collapse" : "Double-tap to expand")
     }
+}
+
+// MARK: - Preview
+
+#Preview("Timeline - Seeded Demo") {
+    timelineSeededDemoPreview()
+}
+
+@MainActor
+private func timelineSeededDemoPreview() -> some View {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: Entry.self,
+        Feed.self,
+        Category.self,
+        StoryGroup.self,
+        configurations: config
+    )
+    let context = container.mainContext
+
+    let technology = Category(
+        label: "technology",
+        displayName: "Technology",
+        categoryDescription: "Technology coverage for preview",
+        sortOrder: 0
+    )
+    let world = Category(
+        label: "world",
+        displayName: "World",
+        categoryDescription: "World coverage for preview",
+        sortOrder: 1
+    )
+    context.insert(technology)
+    context.insert(world)
+
+    let feed1 = Feed(
+        feedbinSubscriptionID: 1,
+        feedbinFeedID: 1,
+        title: "The Verge",
+        feedURL: "https://theverge.com/rss",
+        siteURL: "https://theverge.com",
+        createdAt: .now
+    )
+    let feed2 = Feed(
+        feedbinSubscriptionID: 2,
+        feedbinFeedID: 2,
+        title: "Ars Technica",
+        feedURL: "https://arstechnica.com/rss",
+        siteURL: "https://arstechnica.com",
+        createdAt: .now
+    )
+    context.insert(feed1)
+    context.insert(feed2)
+
+    let story1 = Entry(
+        feedbinEntryID: 1,
+        title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
+        author: "Tom Warren",
+        url: "https://example.com/1",
+        content: "<p>Apple announced a new chip architecture.</p>",
+        summary: "Apple announced the M5 Ultra.",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-1800),
+        createdAt: .now.addingTimeInterval(-1700)
+    )
+    story1.feed = feed1
+    story1.categoryLabels = ["technology", "apple"]
+    story1.storyKey = "apple-m5-ultra"
+    context.insert(story1)
+
+    let story2 = Entry(
+        feedbinEntryID: 2,
+        title: "Ars breakdown: what Apple's M5 Ultra means for laptops",
+        author: "Andrew Cunningham",
+        url: "https://example.com/2",
+        content: "<p>Analysis of M5 Ultra performance and efficiency.</p>",
+        summary: "A deep dive into Apple's M5 Ultra.",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-1600),
+        createdAt: .now.addingTimeInterval(-1500)
+    )
+    story2.feed = feed2
+    story2.categoryLabels = ["technology", "apple"]
+    story2.storyKey = "apple-m5-ultra"
+    context.insert(story2)
+
+    let sample3 = Entry(
+        feedbinEntryID: 3,
+        title: "Sample Tech Story 3",
+        author: "Feeder Bot",
+        url: "https://example.com/3",
+        content: "<p>Sample article 3 for preview and scroll behavior.</p>",
+        summary: "Sample article 3",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-2700),
+        createdAt: .now.addingTimeInterval(-2600)
+    )
+    sample3.feed = feed1
+    sample3.categoryLabels = ["technology"]
+    sample3.storyKey = "sample-tech-story-3"
+    context.insert(sample3)
+
+    let sample4 = Entry(
+        feedbinEntryID: 4,
+        title: "Sample Tech Story 4",
+        author: "Feeder Bot",
+        url: "https://example.com/4",
+        content: "<p>Sample article 4 for preview and scroll behavior.</p>",
+        summary: "Sample article 4",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-3600),
+        createdAt: .now.addingTimeInterval(-3500)
+    )
+    sample4.feed = feed2
+    sample4.categoryLabels = ["technology"]
+    sample4.storyKey = "sample-tech-story-4"
+    context.insert(sample4)
+
+    let sample5 = Entry(
+        feedbinEntryID: 5,
+        title: "Sample Tech Story 5",
+        author: "Feeder Bot",
+        url: "https://example.com/5",
+        content: "<p>Sample article 5 for preview and scroll behavior.</p>",
+        summary: "Sample article 5",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-4500),
+        createdAt: .now.addingTimeInterval(-4400)
+    )
+    sample5.feed = feed1
+    sample5.categoryLabels = ["technology"]
+    sample5.storyKey = "sample-tech-story-5"
+    context.insert(sample5)
+
+    let sample6 = Entry(
+        feedbinEntryID: 6,
+        title: "Sample Tech Story 6",
+        author: "Feeder Bot",
+        url: "https://example.com/6",
+        content: "<p>Sample article 6 for preview and scroll behavior.</p>",
+        summary: "Sample article 6",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-5400),
+        createdAt: .now.addingTimeInterval(-5300)
+    )
+    sample6.feed = feed2
+    sample6.categoryLabels = ["technology"]
+    sample6.storyKey = "sample-tech-story-6"
+    context.insert(sample6)
+
+    let worldEntry = Entry(
+        feedbinEntryID: 30,
+        title: "EU passes major AI transparency framework",
+        author: "Policy Desk",
+        url: "https://example.com/30",
+        content: "<p>European lawmakers finalized a new AI framework.</p>",
+        summary: "EU finalizes AI transparency framework.",
+        extractedContentURL: nil,
+        publishedAt: .now.addingTimeInterval(-7200),
+        createdAt: .now.addingTimeInterval(-7100)
+    )
+    worldEntry.feed = feed1
+    worldEntry.categoryLabels = ["world", "technology"]
+    worldEntry.storyKey = "eu-ai-transparency-framework"
+    context.insert(worldEntry)
+
+    let group = StoryGroup(
+        storyKey: "apple-m5-ultra",
+        headline: "Apple unveils M5 Ultra chip",
+        earliestDate: min(story1.publishedAt, story2.publishedAt)
+    )
+    group.entryCount = 2
+    context.insert(group)
+    try? context.save()
+
+    return ContentView()
+        .environment(SyncEngine())
+        .environment(ClassificationEngine())
+        .environment(GroupingEngine())
+        .modelContainer(container)
+        .frame(minWidth: 1200, minHeight: 760)
 }

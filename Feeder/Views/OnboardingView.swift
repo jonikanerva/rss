@@ -25,10 +25,12 @@ struct OnboardingView: View {
                 TextField("Email", text: $username)
                     .textFieldStyle(.roundedBorder)
                     .textContentType(.emailAddress)
+                    .accessibilityIdentifier("onboarding.email")
 
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)
                     .textContentType(.password)
+                    .accessibilityIdentifier("onboarding.password")
             }
             .frame(maxWidth: 300)
 
@@ -51,6 +53,7 @@ struct OnboardingView: View {
             .buttonStyle(.borderedProminent)
             .disabled(username.isEmpty || password.isEmpty || isVerifying)
             .keyboardShortcut(.defaultAction)
+            .accessibilityIdentifier("onboarding.connect")
         }
         .padding(40)
         .frame(width: 400, height: 380)
@@ -76,4 +79,11 @@ struct OnboardingView: View {
 
         isVerifying = false
     }
+}
+
+// MARK: - Preview
+
+#Preview("Onboarding - Default") {
+    OnboardingView(onComplete: {})
+        .environment(SyncEngine())
 }
