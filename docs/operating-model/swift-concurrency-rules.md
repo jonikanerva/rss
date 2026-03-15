@@ -19,32 +19,41 @@ These settings are configured in `Feeder.xcodeproj` and must not be weakened:
 | `SWIFT_DEFAULT_ACTOR_ISOLATION` | `MainActor` | All types default to @MainActor unless explicitly opted out |
 | `SWIFT_APPROACHABLE_CONCURRENCY` | `YES` | Enables approachable concurrency features |
 
-## Architecture boundaries
+## Two-layer architecture (non-negotiable)
 
-### UI layer: `@MainActor` (default)
-- All SwiftUI views, `@Observable` classes, and UI-facing state are `@MainActor`.
-- With `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, this is the default — no annotation needed for most types.
-- ViewModels and engine classes that hold UI state (`SyncEngine`, `ClassificationEngine`, `GroupingEngine`) are explicitly `@MainActor @Observable`.
+The app is split into a **data layer** (background) and a **UI layer** (MainActor, read-only). This separation guarantees UI responsiveness. Never violate it.
 
-### API layer: `actor` or `nonisolated`
-- Networking code must NOT run on MainActor.
-- Use `actor` for stateful API clients (e.g., `FeedbinClient`).
-- All REST calls use `URLSession` native async APIs (`data(from:)`, `data(for:)`).
-- No `@MainActor` on API types.
+### Data layer: background actors
+
+- **`DataWriter`** (`@ModelActor` actor in `Feeder/DataWriter.swift`) — owns its own `ModelContext` on a background serial queue. ALL SwiftData writes happen here: persist entries, apply classification, update extracted content, purge old data. Pre-computes all display fields (`plainText`, `formattedDate`, `primaryCategory`) at write time.
+- **`FeedbinClient`** (`actor`) — all HTTP requests via `URLSession` async APIs.
+- **Pure helpers** (`nonisolated` functions) — `stripHTMLToPlainText`, `formatEntryDate`, `detectLanguage`, `normalizeStoryKey`. Called from background actors, never from views.
+
+### UI layer: `@MainActor` (read-only)
+
+- **SwiftUI views** read pre-computed data via `@Query` with SQLite-level predicates. Never filter `@Query` results in Swift — push predicates to the `@Query` initializer.
+- **`SyncEngine`** / **`ClassificationEngine`** are `@MainActor @Observable` for progress display ONLY (integers, booleans, strings). They hold zero `ModelContext` references and delegate all data work to `DataWriter` via `await`.
+- **`EntryRowView`** renders `entry.formattedDate` (pre-computed String). Zero `Calendar` operations.
+- **`EntryDetailView`** renders `entry.plainText` (pre-computed String). Zero HTML stripping.
+
+### Rules that protect responsiveness
+
+| Rule | Why |
+|------|-----|
+| No `ModelContext` on MainActor for writes | Every `save()` on the view context triggers `@Query` re-evaluation and list re-render |
+| No computed filters on `@Query` results | O(n) Swift filter on every `@Query` update defeats lazy rendering |
+| No expensive computation during rendering | Calendar, regex, loops over entries block MainActor and cause visible lag |
+| Pre-compute display fields in `DataWriter` | Data is display-ready when `@Query` reads it — zero transformation needed |
+
+### Actor boundary rules
+
+- **DTOs crossing actors**: `nonisolated struct` + `Sendable` (e.g., `ClassificationInput`, `ClassificationResult`, `CategoryDefinition`, `FeedbinEntry`).
+- **`@Model` objects** never cross actor boundaries. Pass `PersistentIdentifier` or Sendable DTOs.
+- **`DataWriter`** init must happen on a background thread. If created from `@MainActor` context, its executor will run on the main queue, defeating the purpose.
 
 ### Shared utilities: `nonisolated`
-- Pure functions, Keychain helpers, error types, and stateless utilities use `nonisolated`.
+- Pure functions, Keychain helpers, error types use `nonisolated`.
 - Example: `nonisolated enum KeychainHelper`, `nonisolated enum FeedbinError`.
-
-### DTOs crossing actor boundaries: `nonisolated struct` + `Sendable`
-- All Decodable model types that are decoded inside an `actor` must be `nonisolated struct`.
-- Without `nonisolated`, the default MainActor isolation makes their Decodable conformance MainActor-isolated, which cannot be used from inside another actor.
-- Example: `nonisolated struct FeedbinEntry: Decodable, Sendable`.
-
-### SwiftData `@Model` classes
-- `@Model` classes (Feed, Entry, Category, StoryGroup) live on MainActor (the default).
-- They are manipulated only via `ModelContext` on the MainActor.
-- They do NOT cross actor boundaries — API data comes in as Sendable DTOs, then gets mapped to @Model objects on MainActor.
 
 ## Mandatory patterns
 
