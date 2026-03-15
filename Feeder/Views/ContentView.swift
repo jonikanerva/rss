@@ -142,10 +142,12 @@ struct ContentView: View {
     }
 
     private var fetchStatusText: String? {
-        guard syncEngine.isSyncing else { return nil }
-        let n = syncEngine.fetchedCount
-        let x = syncEngine.totalToFetch
-        return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
+        if syncEngine.isSyncing {
+            let n = syncEngine.fetchedCount
+            let x = syncEngine.totalToFetch
+            return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
+        }
+        return lastSyncText
     }
 
     private var classifyStatusText: String? {
@@ -289,14 +291,9 @@ struct ContentView: View {
                             .foregroundStyle(.tertiary)
                             .textCase(nil)
                     }
-                    if fetchStatusText == nil && classifyStatusText == nil {
+                    if fetchStatusText == nil {
                         if groupingEngine.isGrouping {
                             Text("Grouping...")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                                .textCase(nil)
-                        } else if let syncText = lastSyncText {
-                            Text(syncText)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.tertiary)
                                 .textCase(nil)

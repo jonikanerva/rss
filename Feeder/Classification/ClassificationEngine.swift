@@ -226,11 +226,13 @@ final class ClassificationEngine {
                 }
             }
 
-            // Save every 25 entries and yield to let UI process events
+            // Yield after every entry to keep UI responsive
+            await Task.yield()
+
+            // Save every 25 entries
             if classifiedCount % 25 == 0 {
                 try? context.save()
                 logger.info("Classification progress: \(self.classifiedCount)/\(self.totalToClassify)")
-                await Task.yield()
             }
         }
 
