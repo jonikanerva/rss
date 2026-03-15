@@ -11,7 +11,6 @@ struct EntryDetailView: View {
     let siblings: [Entry]
 
     @State private var displayedEntry: Entry?
-    @State private var strippedBody: String = ""
 
     private var current: Entry {
         displayedEntry ?? entry
@@ -49,7 +48,6 @@ struct EntryDetailView: View {
                             let isActive = sibling.id == current.id
                             Button {
                                 displayedEntry = sibling
-                                prepareBody(for: sibling)
                             } label: {
                                 Text(domainName(for: sibling))
                                     .font(.system(size: 12, weight: .medium))
@@ -69,8 +67,8 @@ struct EntryDetailView: View {
 
                 Divider()
 
-                // Article body as plain text (pre-stripped on background thread)
-                Text(strippedBody)
+                // Article body — pre-stripped plain text from database
+                Text(current.plainText)
                     .font(.system(size: 16))
                     .lineSpacing(6)
                     .textSelection(.enabled)
@@ -84,19 +82,8 @@ struct EntryDetailView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Article: \(current.title ?? "Untitled")")
         .accessibilityIdentifier("entry.detail")
-        .task(id: entry.feedbinEntryID) {
+        .onChange(of: entry) {
             displayedEntry = nil
-            prepareBody(for: entry)
-        }
-    }
-
-    private func prepareBody(for entry: Entry) {
-        let html = entry.bestBody
-        Task.detached(priority: .userInitiated) {
-            let stripped = stripHTML(html)
-            await MainActor.run {
-                strippedBody = stripped
-            }
         }
     }
 
@@ -111,18 +98,6 @@ struct EntryDetailView: View {
         return host
     }
 
-    private nonisolated func stripHTML(_ html: String) -> String {
-        guard !html.isEmpty else { return "" }
-        var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "&amp;", with: "&")
-        text = text.replacingOccurrences(of: "&lt;", with: "<")
-        text = text.replacingOccurrences(of: "&gt;", with: ">")
-        text = text.replacingOccurrences(of: "&quot;", with: "\"")
-        text = text.replacingOccurrences(of: "&#39;", with: "'")
-        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 // MARK: - Preview

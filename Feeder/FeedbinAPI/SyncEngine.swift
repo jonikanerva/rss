@@ -7,6 +7,20 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 /// Maximum age for articles. Anything older than this is never fetched or persisted.
 private let maxArticleAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
 
+/// Strip HTML tags and decode entities to produce plain text.
+nonisolated func stripHTMLToPlainText(_ html: String) -> String {
+    guard !html.isEmpty else { return "" }
+    var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+    text = text.replacingOccurrences(of: "&amp;", with: "&")
+    text = text.replacingOccurrences(of: "&lt;", with: "<")
+    text = text.replacingOccurrences(of: "&gt;", with: ">")
+    text = text.replacingOccurrences(of: "&quot;", with: "\"")
+    text = text.replacingOccurrences(of: "&#39;", with: "'")
+    text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 /// Coordinates Feedbin API sync with local SwiftData persistence.
 /// Sync is phased: unread articles first (fast, streaming), then recent history (background).
 /// Extracted content and classification run as parallel background tasks.
@@ -328,6 +342,7 @@ final class SyncEngine {
         for entry in entriesNeedingContent {
             if let content = resultsByID[entry.feedbinEntryID] {
                 entry.extractedContent = content
+                entry.plainText = stripHTMLToPlainText(content)
                 extractedCount += 1
             }
         }
@@ -399,6 +414,7 @@ final class SyncEngine {
             )
             entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
             entry.isRead = markAsRead
+            entry.plainText = stripHTMLToPlainText(entry.bestHTML)
             context.insert(entry)
             newCount += 1
         }
@@ -444,6 +460,7 @@ final class SyncEngine {
             )
             entry.feed = feedsByFeedbinID[feedbinEntry.feedId]
             entry.isRead = !unreadIDs.contains(feedbinEntry.id)
+            entry.plainText = stripHTMLToPlainText(entry.bestHTML)
             context.insert(entry)
             newCount += 1
         }

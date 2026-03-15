@@ -27,6 +27,8 @@ final class Entry {
     var isRead: Bool = false
     /// Whether this entry has been classified (controls UI visibility)
     var isClassified: Bool = false
+    /// Pre-stripped plain text body (computed once at persist/extract time, used by UI and classification)
+    var plainText: String = ""
 
     // MARK: - Relationships
 
@@ -41,8 +43,8 @@ final class Entry {
     /// Detected language code (e.g., "en", "fi")
     var detectedLanguage: String?
 
-    /// Best available body text for classification: extracted > content > summary
-    var bestBody: String {
+    /// Best available HTML body: extracted > content > summary
+    var bestHTML: String {
         if let extracted = extractedContent, !extracted.isEmpty {
             return extracted
         }

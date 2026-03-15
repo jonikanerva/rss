@@ -39,18 +39,6 @@ private nonisolated struct ClassificationResult: Sendable {
 
 // MARK: - Pure helper functions (nonisolated, safe to call from any context)
 
-private nonisolated func stripHTML(_ html: String) -> String {
-    guard !html.isEmpty else { return "" }
-    var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-    text = text.replacingOccurrences(of: "&amp;", with: "&")
-    text = text.replacingOccurrences(of: "&lt;", with: "<")
-    text = text.replacingOccurrences(of: "&gt;", with: ">")
-    text = text.replacingOccurrences(of: "&quot;", with: "\"")
-    text = text.replacingOccurrences(of: "&#39;", with: "'")
-    text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-    return text.trimmingCharacters(in: .whitespacesAndNewlines)
-}
 
 private nonisolated func detectLanguage(_ text: String) -> String {
     let recognizer = NLLanguageRecognizer()
@@ -168,7 +156,7 @@ final class ClassificationEngine {
                 entryID: entry.feedbinEntryID,
                 title: entry.title ?? "Untitled",
                 summary: entry.summary ?? "",
-                body: entry.bestBody
+                body: entry.plainText
             )
         }
 
@@ -184,9 +172,8 @@ final class ClassificationEngine {
 
             // All heavy work (preprocessing + FM inference) on background thread
             let classificationResult = await Task.detached(priority: .utility) {
-                let textForDetection = "\(input.title) \(stripHTML(input.body).prefix(500))"
+                let textForDetection = "\(input.title) \(input.body.prefix(500))"
                 let lang = detectLanguage(textForDetection)
-                let strippedBody = stripHTML(input.body)
 
                 if lang != "en" {
                     return ClassificationResult(
@@ -200,7 +187,7 @@ final class ClassificationEngine {
                 // FM inference — LanguageModelSession is not MainActor-bound
                 do {
                     let session = LanguageModelSession(model: model, instructions: instructions)
-                    var body = strippedBody
+                    var body = input.body
                     if body.count > 2000 { body = String(body.prefix(2000)) + "..." }
                     let prompt = """
                         title: \(input.title)
