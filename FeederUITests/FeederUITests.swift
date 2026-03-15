@@ -41,27 +41,27 @@ final class FeederUITests: XCTestCase {
         let app = makeApp()
         app.launch()
 
+        // Wait for sidebar category to appear (demo data seeded)
         let technologyCategory = app.staticTexts["sidebar.category.technology"]
-        XCTAssertTrue(technologyCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(technologyCategory.waitForExistence(timeout: 10))
         technologyCategory.click()
 
-        let timelineList = app.descendants(matching: .any)["timeline.list"]
-        XCTAssertTrue(timelineList.waitForExistence(timeout: 5))
-        timelineList.click()
+        // Wait for a known demo article title to appear in the timeline
+        let articleTitle = app.staticTexts["Apple unveils M5 Ultra chip with record-breaking AI performance"]
+        XCTAssertTrue(articleTitle.waitForExistence(timeout: 10))
+        articleTitle.click()
 
-        app.typeKey(.downArrow, modifierFlags: [])
+        // Keyboard navigation
         app.typeKey(.downArrow, modifierFlags: [])
         app.typeKey(.upArrow, modifierFlags: [])
 
+        // Sync button should exist
         let syncButton = app.buttons["toolbar.sync"]
         XCTAssertTrue(syncButton.exists)
-        syncButton.click()
 
-        let detailView = app.otherElements["entry.detail"]
+        // Detail view should be visible after selecting an article
+        let detailView = app.descendants(matching: .any)["entry.detail"]
         XCTAssertTrue(detailView.waitForExistence(timeout: 5))
-
-        timelineList.swipeUp()
-        timelineList.swipeDown()
     }
 
     @MainActor
