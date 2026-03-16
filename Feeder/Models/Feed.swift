@@ -16,7 +16,7 @@ final class Feed {
     /// Date subscription was created in Feedbin
     var createdAt: Date
 
-    @Relationship(deleteRule: .cascade, inverse: \Entry.feed)
+    @Relationship(deleteRule: .cascade)
     var entries: [Entry] = []
 
     init(
