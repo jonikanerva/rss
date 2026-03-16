@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var statusMessage: String?
     @State private var syncInterval: Double = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
+    @State private var keepDays: Int = {
+        let stored = UserDefaults.standard.integer(forKey: "article_keep_days")
+        return stored > 0 ? stored : 7
+    }()
 
     var body: some View {
         TabView {
@@ -94,6 +98,17 @@ struct SettingsView: View {
                 }
                 .onChange(of: syncInterval) { _, newValue in
                     UserDefaults.standard.set(newValue, forKey: "sync_interval")
+                }
+
+                Picker("Keep articles", selection: $keepDays) {
+                    Text("1 day").tag(1)
+                    Text("3 days").tag(3)
+                    Text("7 days").tag(7)
+                    Text("14 days").tag(14)
+                    Text("30 days").tag(30)
+                }
+                .onChange(of: keepDays) { _, newValue in
+                    UserDefaults.standard.set(newValue, forKey: "article_keep_days")
                 }
             }
 

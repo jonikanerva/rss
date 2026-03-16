@@ -376,7 +376,7 @@ struct ContentView: View {
         // Purge old entries via background DataWriter
         Task {
             if let writer = syncEngine.writer {
-                let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+                let cutoff = Date().addingTimeInterval(-maxArticleAge)
                 try? await writer.purgeEntriesOlderThan(cutoff)
             }
         }

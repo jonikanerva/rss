@@ -4,8 +4,16 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
-/// Maximum age for articles. Anything older than this is never fetched or persisted.
-private let maxArticleAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
+/// Maximum age for articles in days. Configurable via Settings → Sync.
+/// Anything older than this is never fetched or persisted, and existing older articles are purged.
+nonisolated var articleKeepDays: Int {
+    let stored = UserDefaults.standard.integer(forKey: "article_keep_days")
+    return stored > 0 ? stored : 7
+}
+
+nonisolated var maxArticleAge: TimeInterval {
+    TimeInterval(articleKeepDays) * 24 * 60 * 60
+}
 
 /// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
 /// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
