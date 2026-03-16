@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
 /// Bump this when the SwiftData schema changes. On mismatch, articles
 /// and feeds are deleted (categories preserved) and a fresh sync runs.
-private let currentSchemaVersion = 3
+private let currentSchemaVersion = 6
 
 @main
 struct FeederApp: App {
@@ -69,6 +69,7 @@ struct FeederApp: App {
                 .environment(classificationEngine)
                 .modelContainer(modelContainer)
         }
+        .windowResizability(.contentSize)
     }
 
     // MARK: - Schema versioning
@@ -81,8 +82,15 @@ struct FeederApp: App {
         logger.info("Schema version changed (\(stored) → \(currentSchemaVersion)). Clearing articles.")
 
         let context = ModelContext(modelContainer)
-        try? context.delete(model: Entry.self)
-        try? context.delete(model: Feed.self)
+        let feeds = (try? context.fetch(FetchDescriptor<Feed>())) ?? []
+        for feed in feeds {
+            context.delete(feed) // cascade deletes feed's entries
+        }
+        // Delete any orphaned entries (no feed)
+        let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
+        for entry in entries {
+            context.delete(entry)
+        }
         try? context.save()
 
         UserDefaults.standard.removeObject(forKey: "lastSyncDate")

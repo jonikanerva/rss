@@ -11,7 +11,10 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var statusMessage: String?
     @State private var syncInterval: Double = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
-    @State private var showCategoryManagement = false
+    @State private var keepDays: Int = {
+        let stored = UserDefaults.standard.integer(forKey: "article_keep_days")
+        return stored > 0 ? stored : 7
+    }()
 
     var body: some View {
         TabView {
@@ -30,12 +33,8 @@ struct SettingsView: View {
                     Label("Categories", systemImage: "tag")
                 }
         }
-        .frame(width: 500, height: 380)
-        .sheet(isPresented: $showCategoryManagement) {
-            CategoryManagementView()
-                .environment(classificationEngine)
-                .frame(width: 550, height: 500)
-        }
+        .frame(minWidth: 550, idealWidth: 650, maxWidth: 900,
+               minHeight: 500, idealHeight: 600, maxHeight: 800)
     }
 
     // MARK: - Account Tab
@@ -100,6 +99,17 @@ struct SettingsView: View {
                 .onChange(of: syncInterval) { _, newValue in
                     UserDefaults.standard.set(newValue, forKey: "sync_interval")
                 }
+
+                Picker("Keep articles", selection: $keepDays) {
+                    Text("1 day").tag(1)
+                    Text("3 days").tag(3)
+                    Text("7 days").tag(7)
+                    Text("14 days").tag(14)
+                    Text("30 days").tag(30)
+                }
+                .onChange(of: keepDays) { _, newValue in
+                    UserDefaults.standard.set(newValue, forKey: "article_keep_days")
+                }
             }
 
             Section("Status") {
@@ -150,54 +160,12 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    // MARK: - Categories Tab
+    // MARK: - Categories Tab (inline editor)
 
     private var categoriesTab: some View {
-        Form {
-            Section("Category Management") {
-                Button("Open Category Editor") {
-                    showCategoryManagement = true
-                }
-                .accessibilityLabel("Open category management window")
-                .accessibilityIdentifier("settings.categories.openEditor")
-
-                Button("Reclassify All Articles") {
-                    Task {
-                        if let writer = syncEngine.writer {
-                            await classificationEngine.reclassifyAll(writer: writer)
-                        }
-                    }
-                }
-                .disabled(categories.isEmpty || classificationEngine.isClassifying)
-                .accessibilityIdentifier("settings.categories.reclassify")
-            }
-
-            if classificationEngine.isClassifying {
-                Section("Progress") {
-                    ProgressView(value: Double(classificationEngine.classifiedCount), total: Double(classificationEngine.totalToClassify))
-                    Text(classificationEngine.progress)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Current Categories") {
-                if categories.isEmpty {
-                    Text("No categories defined. Open the category editor to add some.")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                } else {
-                    ForEach(categories) { category in
-                        LabeledContent(category.displayName) {
-                            Text(category.label)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
+        CategoryManagementView()
+            .environment(classificationEngine)
+            .environment(syncEngine)
     }
 
     // MARK: - Helpers
@@ -243,9 +211,7 @@ private extension Double {
 private func settingsSeededPreview() -> some View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(
-        for: Entry.self,
-        Feed.self,
-        Category.self,
+        for: Entry.self, Feed.self, Category.self,
         configurations: config
     )
     let context = container.mainContext
@@ -260,19 +226,11 @@ private func settingsSeededPreview() -> some View {
     )
     context.insert(feed)
 
-    let technology = Category(
-        label: "technology",
-        displayName: "Technology",
-        categoryDescription: "Technology news",
-        sortOrder: 0
-    )
-    let world = Category(
-        label: "world",
-        displayName: "World",
-        categoryDescription: "World policy news",
-        sortOrder: 1
-    )
+    let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology news", sortOrder: 0)
+    let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news", sortOrder: 0, parentLabel: "technology")
+    let world = Category(label: "world", displayName: "World", categoryDescription: "World policy news", sortOrder: 1)
     context.insert(technology)
+    context.insert(apple)
     context.insert(world)
 
     let entry = Entry(
@@ -287,7 +245,8 @@ private func settingsSeededPreview() -> some View {
         createdAt: .now
     )
     entry.feed = feed
-    entry.categoryLabels = ["technology"]
+    entry.categoryLabels = ["apple"]
+    entry.primaryCategory = "apple"
     entry.storyKey = "apple-m5-ultra"
     context.insert(entry)
     try? context.save()

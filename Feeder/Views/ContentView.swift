@@ -58,11 +58,13 @@ struct ContentView: View {
     @Environment(SyncEngine.self) private var syncEngine
     @Environment(ClassificationEngine.self) private var classificationEngine
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Category.sortOrder) private var categories: [Category]
+    @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
+    private var topLevelCategories: [Category]
+    @Query(filter: #Predicate<Category> { $0.isTopLevel == false }, sort: \Category.sortOrder)
+    private var childCategories: [Category]
     @State private var selectedEntry: Entry?
-    @State private var selectedCategory: String? // nil = all
+    @State private var selectedCategory: String?
     @State private var needsSetup = false
-    @State private var showCategoryManagement = false
     @State private var markReadTask: Task<Void, Never>?
     private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
     private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
@@ -126,12 +128,6 @@ struct ContentView: View {
             }
             .environment(syncEngine)
         }
-        .sheet(isPresented: $showCategoryManagement) {
-            CategoryManagementView()
-                .environment(classificationEngine)
-                .environment(syncEngine)
-                .frame(width: 550, height: 500)
-        }
         .onChange(of: selectedEntry) { _, newEntry in
             markReadTask?.cancel()
             if let entry = newEntry, !entry.isRead {
@@ -143,8 +139,8 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: categories.count) {
-            if selectedCategory == nil, let first = categories.first {
+        .onChange(of: topLevelCategories.count) {
+            if selectedCategory == nil, let first = topLevelCategories.first {
                 selectedCategory = first.label
             }
         }
@@ -184,10 +180,25 @@ struct ContentView: View {
     private var sidebarView: some View {
         List(selection: $selectedCategory) {
             Section {
-                ForEach(categories) { category in
-                    Text(category.displayName)
-                        .tag(category.label)
-                        .accessibilityIdentifier("sidebar.category.\(category.label)")
+                ForEach(topLevelCategories) { parent in
+                    let kids = children(of: parent)
+                    if kids.isEmpty {
+                        Text(parent.displayName)
+                            .tag(parent.label)
+                            .accessibilityIdentifier("sidebar.category.\(parent.label)")
+                    } else {
+                        DisclosureGroup {
+                            ForEach(kids) { child in
+                                Text(child.displayName)
+                                    .tag(child.label)
+                                    .accessibilityIdentifier("sidebar.category.\(child.label)")
+                            }
+                        } label: {
+                            Text(parent.displayName)
+                                .tag(parent.label)
+                                .accessibilityIdentifier("sidebar.category.\(parent.label)")
+                        }
+                    }
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -233,9 +244,19 @@ struct ContentView: View {
         }
     }
 
+    private var allCategories: [Category] {
+        topLevelCategories + childCategories
+    }
+
+    private func children(of parent: Category) -> [Category] {
+        childCategories
+            .filter { $0.parentLabel == parent.label }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     private var navigationTitle: String {
         if let category = selectedCategory,
-           let cat = categories.first(where: { $0.label == category }) {
+           let cat = allCategories.first(where: { $0.label == category }) {
             return cat.displayName
         }
         return "Articles"
@@ -267,7 +288,7 @@ struct ContentView: View {
         if isUITestDemoMode {
             seedUITestDataIfNeeded()
             if selectedCategory == nil {
-                selectedCategory = categories.first?.label
+                selectedCategory = topLevelCategories.first?.label
             }
             return
         }
@@ -286,8 +307,10 @@ struct ContentView: View {
         guard existingCount == 0 else { return }
 
         let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for local UI testing", sortOrder: 0)
+        let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news for local UI testing", sortOrder: 0, parentLabel: "technology")
         let world = Category(label: "world", displayName: "World", categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
         modelContext.insert(technology)
+        modelContext.insert(apple)
         modelContext.insert(world)
 
         let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
@@ -353,7 +376,7 @@ struct ContentView: View {
         // Purge old entries via background DataWriter
         Task {
             if let writer = syncEngine.writer {
-                let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+                let cutoff = Date().addingTimeInterval(-maxArticleAge)
                 try? await writer.purgeEntriesOlderThan(cutoff)
             }
         }
@@ -385,8 +408,10 @@ private func timelineSeededDemoPreview() -> some View {
     let context = container.mainContext
 
     let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
+    let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, parentLabel: "technology")
     let world = Category(label: "world", displayName: "World", categoryDescription: "World coverage for preview", sortOrder: 1)
     context.insert(technology)
+    context.insert(apple)
     context.insert(world)
 
     let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)

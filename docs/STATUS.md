@@ -34,10 +34,10 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [In progress] Startup pipeline: concurrent fetch + classification with live progress.
+1. [In progress] Hierarchical categories + category management UX.
    - Owner: Agent
-   - Context: Branch `feat/startup-pipeline`. Research + plan + implementation complete. Awaiting PR + manual testing.
-   - Acceptance: Build passes. Fetch and classify run concurrently with live "Fetching n/x" + "Categorizing n/x" status. UI stays responsive. Old articles purged on launch.
+   - Context: Branch `feat/hierarchical-categories`. Implementation complete. Awaiting PR + manual testing.
+   - Acceptance: Build passes. 2-level hierarchy in sidebar and settings. Inline editing. Drag reorder. Deepest-match classification.
 
 2. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
@@ -45,6 +45,10 @@ Status: Active
    - Acceptance: Subjective quality feedback after 1 week.
 
 ## Active artifact pointers
+
+- Research: `docs/research/2026-03-16-hierarchical-categories.md`
+- Plan: `docs/plans/2026-03-16-hierarchical-categories-plan.md`
+- Execution log: `docs/plans/2026-03-16-hierarchical-categories-execution-log.md`
 
 - Vision: `docs/vision/VISION.md`
 - Execution plan: `docs/plans/2026-03-04-hard-mvp-execution-plan.md`
@@ -57,4 +61,4 @@ Status: Active
 
 ## Last updated
 
-- 2026-03-15 by Claude agent (Startup pipeline: concurrent fetch + classification, 7-day purge, live progress UI.)
+- 2026-03-16 by Claude agent (Hierarchical categories: 2-level hierarchy, inline editor, drag reorder, deepest-match classification.)
