@@ -11,11 +11,21 @@ final class Category {
     var categoryDescription: String
     /// Sort order for sidebar display
     var sortOrder: Int
+    /// Parent category label. nil = top-level.
+    var parentLabel: String?
+    /// Hierarchy depth: 0 = top-level, 1 = child.
+    var depth: Int
+    /// Whether this is a top-level category (pre-computed for @Query).
+    var isTopLevel: Bool
 
-    init(label: String, displayName: String, categoryDescription: String, sortOrder: Int = 0) {
+    init(label: String, displayName: String, categoryDescription: String,
+         sortOrder: Int = 0, parentLabel: String? = nil) {
         self.label = label
         self.displayName = displayName
         self.categoryDescription = categoryDescription
         self.sortOrder = sortOrder
+        self.parentLabel = parentLabel
+        self.depth = parentLabel == nil ? 0 : 1
+        self.isTopLevel = parentLabel == nil
     }
 }

@@ -25,6 +25,8 @@ nonisolated struct ClassificationResult: Sendable {
 nonisolated struct CategoryDefinition: Sendable {
     let label: String
     let description: String
+    let parentLabel: String?
+    let isTopLevel: Bool
 }
 
 // MARK: - Pure helper functions
@@ -261,7 +263,12 @@ actor DataWriter {
         var descriptor = FetchDescriptor<Category>()
         descriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
         return try modelContext.fetch(descriptor).map { cat in
-            CategoryDefinition(label: cat.label, description: cat.categoryDescription)
+            CategoryDefinition(
+                label: cat.label,
+                description: cat.categoryDescription,
+                parentLabel: cat.parentLabel,
+                isTopLevel: cat.isTopLevel
+            )
         }
     }
 
@@ -271,11 +278,26 @@ actor DataWriter {
         )
         guard let entry = try modelContext.fetch(descriptor).first else { return }
 
+        // Safety net: strip parent labels when a child label is also present (deepest-match rule)
+        let categories = try fetchCategoryDefinitions()
+        let childrenByParent = Dictionary(
+            grouping: categories.filter { !$0.isTopLevel },
+            by: { $0.parentLabel ?? "" }
+        )
+        var labels = result.categoryLabels
+        for (parentLabel, children) in childrenByParent {
+            let childLabels = Set(children.map(\.label))
+            if labels.contains(parentLabel), labels.contains(where: { childLabels.contains($0) }) {
+                labels.removeAll { $0 == parentLabel }
+            }
+        }
+        if labels.isEmpty { labels = ["other"] }
+
         entry.detectedLanguage = result.detectedLanguage
-        entry.categoryLabels = result.categoryLabels
+        entry.categoryLabels = labels
         entry.storyKey = result.storyKey
         entry.isClassified = true
-        entry.primaryCategory = result.categoryLabels.first ?? "other"
+        entry.primaryCategory = labels.first ?? "other"
         try modelContext.save()
     }
 
