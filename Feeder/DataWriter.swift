@@ -317,8 +317,15 @@ actor DataWriter {
     // MARK: - Purge
 
     func purgeEntriesOlderThan(_ cutoff: Date) throws {
-        let predicate = #Predicate<Entry> { $0.publishedAt < cutoff }
-        try modelContext.delete(model: Entry.self, where: predicate)
+        let descriptor = FetchDescriptor<Entry>(
+            predicate: #Predicate<Entry> { $0.publishedAt < cutoff }
+        )
+        let old = try modelContext.fetch(descriptor)
+        guard !old.isEmpty else { return }
+        for entry in old {
+            modelContext.delete(entry)
+        }
         try modelContext.save()
+        Self.logger.info("Purged \(old.count) entries older than cutoff")
     }
 }
