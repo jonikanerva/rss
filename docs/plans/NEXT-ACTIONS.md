@@ -13,17 +13,7 @@ Status: Active
 
 ## Active queue
 
-1. [In progress] Startup pipeline: concurrent fetch + classification with live progress
-   - Owner: Agent
-   - Acceptance check: Fetch and classify run concurrently. Status shows "Fetching n/x" + "Categorizing n/x". Old articles purged. UI responsive.
-   - Target checkpoint: PR merged
-   - Context: Branch `feat/startup-pipeline`. Research: `docs/research/2026-03-15-startup-pipeline-concurrent-fetch-classify.md`. Plan: `docs/plans/2026-03-15-startup-pipeline-plan.md`.
-
-2. [Ready] Dogfood the app for 1 week
-   - Owner: Repository Owner
-   - Acceptance check: Owner uses app daily with real Feedbin account. Subjective quality feedback: "clear, beautiful, and calm."
-   - Target checkpoint: 1 week of daily use
-   - Context: Open `Feeder.xcodeproj` in Xcode, build and run. All 5 milestones complete (PRs #2–#6), project restructured to native Xcode project (PR #8).
+N/A
 
 ## Completed history
 
