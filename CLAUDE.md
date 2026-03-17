@@ -38,6 +38,8 @@ After implementation is complete, spawn a code review subagent that performs a t
 4. **Swift best practices** — modern Swift 6 patterns, proper actor isolation, correct Sendable conformance.
 5. **Architecture compliance** — two-layer rule, no computation in views, predicates pushed to @Query.
 
+After each review round, post the full review summary and findings as a comment on the PR (`gh pr comment`) so there is a permanent audit trail in GitHub — including failed reviews with the issues that need fixing.
+
 If the review finds issues: fix them, commit, and run the review again. Repeat until the review passes clean. Only then push and open the PR.
 
 ### Artifacts

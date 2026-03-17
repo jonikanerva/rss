@@ -181,41 +181,34 @@ struct ContentView: View {
         List(selection: $selectedCategory) {
             Section {
                 ForEach(topLevelCategories) { parent in
-                    let kids = children(of: parent)
-                    if kids.isEmpty {
-                        Text(parent.displayName)
-                            .tag(parent.label)
-                            .accessibilityIdentifier("sidebar.category.\(parent.label)")
-                    } else {
-                        DisclosureGroup {
-                            ForEach(kids) { child in
-                                Text(child.displayName)
-                                    .tag(child.label)
-                                    .accessibilityIdentifier("sidebar.category.\(child.label)")
-                            }
-                        } label: {
-                            Text(parent.displayName)
-                                .tag(parent.label)
-                                .accessibilityIdentifier("sidebar.category.\(parent.label)")
-                        }
+                    Text(parent.displayName)
+                        .font(.system(size: FontTheme.metadataSize))
+                        .tag(parent.label)
+                        .accessibilityIdentifier("sidebar.category.\(parent.label)")
+                    ForEach(children(of: parent)) { child in
+                        Text(child.displayName)
+                            .font(.system(size: FontTheme.metadataSize))
+                            .padding(.leading, 16)
+                            .tag(child.label)
+                            .accessibilityIdentifier("sidebar.category.\(child.label)")
                     }
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("News")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
                         .foregroundStyle(.primary)
                         .textCase(nil)
 
                     if let fetchStatus = fetchStatusText {
                         Text(fetchStatus)
-                            .font(.system(size: 11))
+                            .font(.system(size: FontTheme.statusSize))
                             .foregroundStyle(.tertiary)
                             .textCase(nil)
                     }
                     if let classifyStatus = classifyStatusText {
                         Text(classifyStatus)
-                            .font(.system(size: 11))
+                            .font(.system(size: FontTheme.statusSize))
                             .foregroundStyle(.tertiary)
                             .textCase(nil)
                     }

@@ -20,24 +20,24 @@ struct EntryDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(current.title ?? "Untitled")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 12) {
                     if let feedTitle = current.feed?.title {
                         Text(feedTitle)
-                            .font(.system(size: 13))
+                            .font(.system(size: FontTheme.metadataSize))
                             .foregroundStyle(.secondary)
                     }
 
                     if let author = current.author, !author.isEmpty {
                         Text(author)
-                            .font(.system(size: 13))
+                            .font(.system(size: FontTheme.metadataSize))
                             .foregroundStyle(.secondary)
                     }
 
                     Text(current.publishedAt, format: .dateTime.month(.wide).day().year().hour().minute())
-                        .font(.system(size: 13))
+                        .font(.system(size: FontTheme.metadataSize))
                         .foregroundStyle(.tertiary)
                 }
 
@@ -50,7 +50,7 @@ struct EntryDetailView: View {
                                 displayedEntry = sibling
                             } label: {
                                 Text(domainName(for: sibling))
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.system(size: FontTheme.pillSize, weight: .medium))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
@@ -69,7 +69,7 @@ struct EntryDetailView: View {
 
                 // Article body — pre-stripped plain text from database
                 Text(current.plainText)
-                    .font(.system(size: 16))
+                    .font(.system(size: FontTheme.bodySize))
                     .lineSpacing(6)
                     .textSelection(.enabled)
                     .frame(maxWidth: 660, alignment: .leading)
