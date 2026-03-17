@@ -18,10 +18,10 @@ enum FontTheme {
     static let pillSize: CGFloat = baseSize - 1          // 14 (was 12)
     static let iconSize: CGFloat = baseSize + 35         // 50 (was 48)
 
-    // Replacements for semantic styles
-    static let headlineSize: CGFloat = baseSize          // 15 (was .headline ~13)
-    static let titleSize: CGFloat = baseSize + 15        // 30 (was .title ~28)
-    static let bodyMediumSize: CGFloat = baseSize        // 15 (was .body ~13)
+    // Replacements for semantic styles (private — use the Font properties below)
+    private static let headlineSize: CGFloat = baseSize          // 15 (was .headline ~13)
+    private static let titleSize: CGFloat = baseSize + 15        // 30 (was .title ~28)
+    private static let bodyMediumSize: CGFloat = baseSize        // 15 (was .body ~13)
 
     // Font constructors for common semantic patterns
     static var headline: Font { .system(size: headlineSize, weight: .bold) }
