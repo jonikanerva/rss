@@ -1,21 +1,25 @@
-Execute implementation from the approved plan: $ARGUMENTS
+Execute implementation: $ARGUMENTS
 
 ## Prerequisites
 
-- A research dossier and an approved plan must exist. If either is missing, stop and tell the user which `/research` or `/plan` step to run first.
-
-## Execution constraints
-
-- Implement tasks in the order specified by the plan.
-- Keep changes minimal and focused — do not add scope.
-- Report verification evidence for each completed task.
-- The build must remain clean (zero errors, zero warnings) after every change.
-- Follow all Swift 6 strict concurrency rules from `docs/operating-model/swift-concurrency-rules.md`.
+A research dossier AND an approved plan must exist in the current branch. If either is missing, stop and say which step to run first (`/research` or `/plan`).
 
 ## Process
 
-1. Read the referenced plan artifact.
-2. Create a worktree and feature branch.
-3. Implement each milestone sequentially, committing at each checkpoint.
-4. Write implementation notes to `docs/plans/YYYY-MM-DD-<topic>-execution-log.md`.
-5. Update `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md` when done.
+1. Read the plan artifact.
+2. Implement each milestone sequentially, committing at checkpoints.
+3. After every milestone:
+   - Verify build: `xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2>&1 | grep -E "(error:|warning:)"` — must produce zero output.
+   - Run tests: `xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug test 2>&1 | grep -E "(error:|Test Case.*failed)"` — must produce zero output.
+   - If either fails, fix before moving to the next milestone.
+4. After all milestones complete, spawn a **code review subagent** that reviews the full diff against `main`:
+   - Security analysis (injection, credential exposure, unsafe data handling)
+   - Threat modeling (crashes, race conditions, data corruption)
+   - Code style compliance (code style section in `docs/swift-concurrency-rules.md`)
+   - Swift 6 best practices and architecture compliance (two-layer rule)
+   - If issues found: fix, commit, re-run review. Repeat until clean.
+5. Write execution log to `docs/plans/YYYY-MM-DD-<topic>-execution-log.md`.
+6. Update `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md`.
+7. Push branch and open PR for human review.
+
+Follow all Swift 6 concurrency rules from `docs/swift-concurrency-rules.md`.

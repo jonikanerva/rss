@@ -1,24 +1,19 @@
-Act as a **roadmap planner**. Create an implementation plan from the approved research artifact: $ARGUMENTS
+Create an implementation plan: $ARGUMENTS
 
 ## Prerequisites
 
-- A research dossier must exist in `docs/research/`. If not, stop and tell the user to run `/research` first.
+A research dossier must exist in `docs/research/`. If not, stop and say: run `/research <topic>` first.
 
 ## Process
 
-1. Read the referenced research artifact.
-2. Write the plan to `docs/plans/YYYY-MM-DD-<topic>-plan.md` (use today's date).
+1. Read the relevant research artifact.
+2. Write plan to `docs/plans/YYYY-MM-DD-<topic>-plan.md` (use today's date).
+3. Commit the plan to the feature branch.
 
 ## Required sections
 
-1. **Scope and objectives** — what we're building and why.
-2. **Milestones and dependencies** — ordered work with critical path identified.
-3. **Risks and mitigations** — what could go wrong, how we handle it.
-4. **Acceptance criteria** — how we know each milestone is done.
-5. **Quality gates and signoff checklist** — what must pass before implementation.
-
-## Also provide
-
-- Confidence score per milestone (high/medium/low).
-- Top delivery risk.
-- Recommended next decision.
+1. **Scope** — what we're building and why.
+2. **Milestones** — ordered steps with dependencies and acceptance criteria.
+3. **Risks** — what could go wrong, mitigations.
+4. **Confidence** — high/medium/low per milestone.
+5. **Quality gates** — what must pass before shipping.
