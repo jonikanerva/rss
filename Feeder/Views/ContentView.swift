@@ -181,7 +181,6 @@ struct ContentView: View {
         List(selection: $selectedCategory) {
             Section {
                 ForEach(topLevelCategories) { parent in
-                    let kids = children(of: parent)
                     Text(parent.displayName)
                         .font(.system(size: FontTheme.metadataSize))
                         .tag(parent.label)

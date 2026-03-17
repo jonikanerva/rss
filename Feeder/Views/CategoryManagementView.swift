@@ -79,7 +79,6 @@ struct CategoryManagementView: View {
     private var categoryList: some View {
         List {
             ForEach(topLevelCategories) { parent in
-                let kids = children(of: parent)
                 CategoryRowEditor(
                     category: parent,
                     focusedField: $focusedField,
