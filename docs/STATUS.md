@@ -34,31 +34,17 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [In progress] Hierarchical categories + category management UX.
-   - Owner: Agent
-   - Context: Branch `feat/hierarchical-categories`. Implementation complete. Awaiting PR + manual testing.
-   - Acceptance: Build passes. 2-level hierarchy in sidebar and settings. Inline editing. Drag reorder. Deepest-match classification.
-
-2. [Ready] Owner dogfood for 1 week.
+1. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
    - Context: Open `Feeder.xcodeproj` in Xcode, build and run. Authenticate with Feedbin, use daily.
    - Acceptance: Subjective quality feedback after 1 week.
 
 ## Active artifact pointers
 
-- Research: `docs/research/2026-03-16-hierarchical-categories.md`
-- Plan: `docs/plans/2026-03-16-hierarchical-categories-plan.md`
-- Execution log: `docs/plans/2026-03-16-hierarchical-categories-execution-log.md`
-
 - Vision: `docs/vision/VISION.md`
 - Execution plan: `docs/plans/2026-03-04-hard-mvp-execution-plan.md`
 - App source: `Feeder/` (native Xcode project, open `Feeder.xcodeproj` in Xcode)
-- Research: `docs/research/2026-03-02-local-llm-classification-reset.md`
-- Research: `docs/research/2026-03-03-apple-foundation-models-comparison.md`
-- Gate: `docs/quality-gates/2026-03-02-local-llm-classification-reset-gate-check.md`
-- Category definitions: `pre_planning/config/categories-v1.yaml`
-- Feasibility evidence: `pre_planning/artifacts/feasibility/run-017-apple-fm-tighter-descriptions/`
 
 ## Last updated
 
-- 2026-03-16 by Claude agent (Hierarchical categories: 2-level hierarchy, inline editor, drag reorder, deepest-match classification.)
+- 2026-03-17 by Claude agent (Cleanup: removed pre_planning/, stale plans, broken references. Hierarchical categories merged as PR #17.)
