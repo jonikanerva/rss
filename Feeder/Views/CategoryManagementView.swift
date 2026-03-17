@@ -44,7 +44,7 @@ struct CategoryManagementView: View {
     private var header: some View {
         HStack {
             Text("Categories")
-                .font(.headline)
+                .font(FontTheme.headline)
             Spacer()
             Button {
                 addCategory()
@@ -88,25 +88,22 @@ struct CategoryManagementView: View {
                         onDelete: { deleteCategory(parent) }
                     )
                 } else {
-                    DisclosureGroup {
-                        ForEach(kids) { child in
-                            CategoryRowEditor(
-                                category: child,
-                                focusedField: $focusedField,
-                                allTopLevel: topLevelCategories,
-                                onDelete: { deleteCategory(child) }
-                            )
-                        }
-                        .onMove { indices, destination in
-                            moveChildren(of: parent, from: indices, to: destination)
-                        }
-                    } label: {
+                    CategoryRowEditor(
+                        category: parent,
+                        focusedField: $focusedField,
+                        allTopLevel: topLevelCategories,
+                        onDelete: { deleteCategory(parent) }
+                    )
+                    ForEach(kids) { child in
                         CategoryRowEditor(
-                            category: parent,
+                            category: child,
                             focusedField: $focusedField,
                             allTopLevel: topLevelCategories,
-                            onDelete: { deleteCategory(parent) }
+                            onDelete: { deleteCategory(child) }
                         )
+                    }
+                    .onMove { indices, destination in
+                        moveChildren(of: parent, from: indices, to: destination)
                     }
                 }
             }
@@ -125,7 +122,7 @@ struct CategoryManagementView: View {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text(classificationEngine.progress)
-                    .font(.caption)
+                    .font(FontTheme.caption)
                     .foregroundStyle(.secondary)
             } else {
                 Button("Reclassify All") {
@@ -241,13 +238,13 @@ struct CategoryRowEditor: View {
         VStack(alignment: .leading, spacing: 4) {
             TextField("Name", text: $category.displayName)
                 .textFieldStyle(.plain)
-                .font(.body.weight(.medium))
+                .font(FontTheme.bodyMedium)
                 .focused(focusedField, equals: .name(category.label))
                 .onSubmit { save() }
 
             TextField("Description", text: $category.categoryDescription, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.caption)
+                .font(FontTheme.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2...5)
                 .focused(focusedField, equals: .description(category.label))

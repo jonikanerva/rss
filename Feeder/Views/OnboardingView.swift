@@ -11,11 +11,11 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "newspaper.fill")
-                .font(.system(size: 48))
+                .font(.system(size: FontTheme.iconSize))
                 .foregroundStyle(.tint)
 
             Text("Welcome to Feeder")
-                .font(.title)
+                .font(FontTheme.title)
                 .fontWeight(.bold)
 
             Text("Connect your Feedbin account to get started.")
@@ -37,7 +37,7 @@ struct OnboardingView: View {
             if let error = errorMessage {
                 Text(error)
                     .foregroundStyle(.red)
-                    .font(.caption)
+                    .font(FontTheme.caption)
             }
 
             Button {

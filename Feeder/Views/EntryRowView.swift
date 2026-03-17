@@ -17,13 +17,13 @@ struct EntryRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Title
                 Text(entry.title ?? "Untitled")
-                    .font(.system(size: 15, weight: entry.isRead ? .regular : .semibold))
+                    .font(.system(size: FontTheme.rowTitleSize, weight: entry.isRead ? .regular : .semibold))
                     .lineLimit(2)
                     .foregroundStyle(entry.isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
                 // Date — pre-computed, zero Calendar ops
                 Text(entry.formattedDate)
-                    .font(.system(size: 12))
+                    .font(.system(size: FontTheme.captionSize))
                     .foregroundStyle(.tertiary)
             }
         }

@@ -65,7 +65,7 @@ struct SettingsView: View {
                     if let status = statusMessage {
                         Text(status)
                             .foregroundStyle(status.contains("Error") ? .red : .green)
-                            .font(.caption)
+                            .font(FontTheme.caption)
                     }
                 }
             }
@@ -139,7 +139,7 @@ struct SettingsView: View {
                     LabeledContent("Error") {
                         Text(error)
                             .foregroundStyle(.red)
-                            .font(.caption)
+                            .font(FontTheme.caption)
                     }
                 }
             }
