@@ -9,8 +9,8 @@ A research dossier AND an approved plan must exist in the current branch. If eit
 1. Read the plan artifact.
 2. Implement each milestone sequentially, committing at checkpoints.
 3. After every milestone:
-   - Verify build: `xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2>&1 | grep -E "(error:|warning:)"` — must produce zero output.
-   - Run tests: `xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug test 2>&1 | grep -E "(error:|Test Case.*failed)"` — must produce zero output.
+   - Verify build: `bash .claude/scripts/build-for-testing.sh` — must exit 0.
+   - Run tests: `bash .claude/scripts/ui-smoke.sh` — must exit 0.
    - If either fails, fix before moving to the next milestone.
 4. After all milestones complete, spawn a **code review subagent** that reviews the full diff against `main`:
    - Security analysis (injection, credential exposure, unsafe data handling)

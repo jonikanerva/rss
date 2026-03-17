@@ -12,7 +12,7 @@ RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$ROOT_DIR/artifacts/local/xcresult/ui-
 BUILD_FIRST="${BUILD_FIRST:-1}"
 
 if [[ "$BUILD_FIRST" == "1" ]]; then
-  "$ROOT_DIR/scripts/local/build-for-testing.sh"
+  "$ROOT_DIR/.claude/scripts/build-for-testing.sh"
 fi
 
 mkdir -p "$(dirname "$RESULT_BUNDLE_PATH")"
