@@ -105,6 +105,7 @@ xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2
 - One worktree per session, one task branch, one PR scope.
 - PRs target `main` only. Never push directly to `main`.
 - Run `bash .claude/scripts/use-github-app-auth.sh` before push/PR.
+- After PR is merged: delete the local and remote feature branch, switch back to `main`, and pull.
 
 ## Decision Rights
 
