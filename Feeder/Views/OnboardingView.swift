@@ -16,7 +16,6 @@ struct OnboardingView: View {
 
             Text("Welcome to Feeder")
                 .font(FontTheme.title)
-                .fontWeight(.bold)
 
             Text("Connect your Feedbin account to get started.")
                 .foregroundStyle(.secondary)
