@@ -93,6 +93,11 @@ xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2
 # Must produce zero output
 ```
 
+## Language
+
+- All code, comments, documentation, commit messages, PR titles/descriptions, and branch names must be in **English**.
+- Respond to the user in **Finnish** regardless of the language they use.
+
 ## Git Conventions
 
 - Conventional Commits: `<type>(<scope>): <summary>`
