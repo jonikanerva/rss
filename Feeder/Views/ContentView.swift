@@ -182,19 +182,16 @@ struct ContentView: View {
             Section {
                 ForEach(topLevelCategories) { parent in
                     let kids = children(of: parent)
-                    if kids.isEmpty {
-                        Text(parent.displayName)
-                            .tag(parent.label)
-                            .accessibilityIdentifier("sidebar.category.\(parent.label)")
-                    } else {
-                        Text(parent.displayName)
-                            .tag(parent.label)
-                            .accessibilityIdentifier("sidebar.category.\(parent.label)")
-                        ForEach(kids) { child in
-                            Text(child.displayName)
-                                .tag(child.label)
-                                .accessibilityIdentifier("sidebar.category.\(child.label)")
-                        }
+                    Text(parent.displayName)
+                        .font(.system(size: FontTheme.metadataSize))
+                        .tag(parent.label)
+                        .accessibilityIdentifier("sidebar.category.\(parent.label)")
+                    ForEach(children(of: parent)) { child in
+                        Text(child.displayName)
+                            .font(.system(size: FontTheme.metadataSize))
+                            .padding(.leading, 16)
+                            .tag(child.label)
+                            .accessibilityIdentifier("sidebar.category.\(child.label)")
                     }
                 }
             } header: {

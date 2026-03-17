@@ -80,31 +80,23 @@ struct CategoryManagementView: View {
         List {
             ForEach(topLevelCategories) { parent in
                 let kids = children(of: parent)
-                if kids.isEmpty {
+                CategoryRowEditor(
+                    category: parent,
+                    focusedField: $focusedField,
+                    allTopLevel: topLevelCategories,
+                    onDelete: { deleteCategory(parent) }
+                )
+                ForEach(children(of: parent)) { child in
                     CategoryRowEditor(
-                        category: parent,
+                        category: child,
                         focusedField: $focusedField,
                         allTopLevel: topLevelCategories,
-                        onDelete: { deleteCategory(parent) }
+                        onDelete: { deleteCategory(child) }
                     )
-                } else {
-                    CategoryRowEditor(
-                        category: parent,
-                        focusedField: $focusedField,
-                        allTopLevel: topLevelCategories,
-                        onDelete: { deleteCategory(parent) }
-                    )
-                    ForEach(kids) { child in
-                        CategoryRowEditor(
-                            category: child,
-                            focusedField: $focusedField,
-                            allTopLevel: topLevelCategories,
-                            onDelete: { deleteCategory(child) }
-                        )
-                    }
-                    .onMove { indices, destination in
-                        moveChildren(of: parent, from: indices, to: destination)
-                    }
+                    .padding(.leading, 16)
+                }
+                .onMove { indices, destination in
+                    moveChildren(of: parent, from: indices, to: destination)
                 }
             }
             .onMove { indices, destination in
