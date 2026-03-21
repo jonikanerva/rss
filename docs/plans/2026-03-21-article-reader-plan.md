@@ -109,7 +109,7 @@ MarkdownBodyView(markdown: current.plainText)
 ### Step 7: Build verification
 
 ```bash
-xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2>&1 | grep -E "(error:|warning:)"
+bash .claude/scripts/build-for-testing.sh 2>&1 | grep -E "(error:|warning:)"
 # Must produce zero output
 ```
 
