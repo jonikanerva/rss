@@ -11,6 +11,7 @@ DerivedData/
 .vscode/
 .conductor/
 .worktrees/
+.claude/worktrees/
 
 # Xcode project workspace settings (user-specific)
 Feeder.xcodeproj/project.xcworkspace/xcuserdata/
