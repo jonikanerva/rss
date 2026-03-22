@@ -1,18 +1,31 @@
 import Foundation
+import OSLog
 
 // MARK: - HTML to ArticleBlock conversion
 
 private enum HTMLConstants {
-    /// Tags whose content is entirely skipped.
-    nonisolated static let skipTags: Set<String> = [
+    nonisolated static let logger = Logger(subsystem: "com.feeder.app", category: "HTMLToBlocks")
+
+    /// Tags that are known-safe to skip silently (no content loss).
+    nonisolated static let knownSkipTags: Set<String> = [
         "script", "style", "noscript", "nav", "footer", "header",
-        "aside", "form", "iframe", "svg", "video", "audio", "button", "input",
+        "aside", "form", "iframe", "svg", "video", "audio", "button",
+        "input", "select", "textarea", "label", "fieldset", "legend",
+        "meta", "link", "head", "title", "colgroup", "col", "caption",
+        "table", "thead", "tbody", "tfoot", "tr", "td", "th",
     ]
 
     /// Tags that are transparent containers — recurse into children.
     nonisolated static let containerTags: Set<String> = [
-        "div", "section", "article", "span", "main", "figure", "figcaption",
-        "dl", "dd", "dt", "details", "summary", "center",
+        "div", "section", "article", "main", "figure", "figcaption",
+        "dl", "dd", "dt", "details", "summary", "center", "span",
+    ]
+
+    /// Inline tags handled within extractInlineMarkdown.
+    nonisolated static let inlineTags: Set<String> = [
+        "strong", "b", "em", "i", "a", "code", "br", "img", "span",
+        "sub", "sup", "mark", "del", "s", "small", "abbr", "time",
+        "cite", "q", "dfn", "var", "samp", "kbd", "wbr", "u",
     ]
 }
 
@@ -37,7 +50,6 @@ nonisolated func parseHTMLToBlocks(_ html: String) -> [ArticleBlock] {
 // MARK: - DOM walking
 
 nonisolated private func findBody(in doc: XMLDocument) -> XMLElement? {
-    // documentTidyHTML wraps content in <html><body>…</body></html>
     if let body = try? doc.nodes(forXPath: "//body").first as? XMLElement {
         return body
     }
@@ -60,9 +72,7 @@ nonisolated private func walkChildren(of element: XMLElement, into blocks: inout
 nonisolated private func processElement(_ element: XMLElement, into blocks: inout [ArticleBlock]) {
     guard let tag = element.name?.lowercased() else { return }
 
-    // Skip blacklisted tags entirely
-    if HTMLConstants.skipTags.contains(tag) { return }
-
+    // 1. Process known content tags
     switch tag {
     case "p":
         let text = extractInlineMarkdown(from: element)
@@ -111,25 +121,28 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
         blocks.append(.divider)
 
     case "br":
-        break // handled within inline extraction
+        break
 
     case "a":
-        // Top-level link wrapping an image or text
         let text = extractInlineMarkdown(from: element)
         if !text.isEmpty {
             blocks.append(.paragraph(text: text))
         }
 
     default:
+        // 2. Recurse into known containers
         if HTMLConstants.containerTags.contains(tag) {
             walkChildren(of: element, into: &blocks)
-        } else {
-            // Unknown tag — extract text if any
-            let text = extractInlineMarkdown(from: element)
-            if !text.isEmpty {
-                blocks.append(.paragraph(text: text))
-            }
+            return
         }
+
+        // 3. Silently skip known non-content tags
+        if HTMLConstants.knownSkipTags.contains(tag) {
+            return
+        }
+
+        // 4. Unknown tag — skip and log for debugging
+        HTMLConstants.logger.debug("Skipping unknown HTML tag: <\(tag)>")
     }
 }
 
@@ -144,8 +157,6 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
             result += child.stringValue ?? ""
         } else if let el = child as? XMLElement {
             guard let tag = el.name?.lowercased() else { continue }
-
-            if HTMLConstants.skipTags.contains(tag) { continue }
 
             switch tag {
             case "strong", "b":
@@ -172,10 +183,13 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
                     let alt = el.attribute(forName: "alt")?.stringValue ?? ""
                     result += "![\(alt)](\(src))"
                 }
-            case "span":
-                result += extractInlineMarkdown(from: el)
             default:
-                result += extractInlineMarkdown(from: el)
+                if HTMLConstants.inlineTags.contains(tag) || HTMLConstants.containerTags.contains(tag) {
+                    // Known inline/container tag — extract text content
+                    result += extractInlineMarkdown(from: el)
+                } else if !HTMLConstants.knownSkipTags.contains(tag) {
+                    HTMLConstants.logger.debug("Skipping unknown inline tag: <\(tag)>")
+                }
             }
         }
     }
