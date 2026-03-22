@@ -20,12 +20,12 @@ Before acting on any user request, classify and propose an approach:
 → State: "This needs the full pipeline: research → plan → implement."
 → Create worktree + feature branch **immediately** (before research), so all artifacts land in the same branch.
 → Run each phase. Pause for human approval at phase transitions:
-  1. **Research** → commit dossier to branch → present findings → user approves
-  2. **Plan** → commit plan to branch → present plan → user approves
-  3. **Implement** → code autonomously, verify build + tests at each milestone, commit at checkpoints
+  1. **Research** → run `/research` → commit dossier to branch → present findings → user approves
+  2. **Plan** → run `/plan` → commit plan to branch → present plan → user approves
+  3. **Implement** → run `/implement` → code autonomously, verify build + tests at each milestone, commit at checkpoints
   4. **Exit worktree** → merge worktree changes back to the feature branch in the main repo, remove worktree
   5. **Push & open PR** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR (draft OK)
-  6. **Code review** → spawn review subagent against the PR (see below) → fix issues → repeat until PASS
+  6. **Code review** → run `/codereview` against the PR → fix issues → repeat until PASS
   7. **Human review** → present to user for testing in Xcode and final approval before merge
 
 If uncertain about classification, default to MEANINGFUL.
@@ -42,21 +42,18 @@ After implementation and build verification pass, **exit the worktree before cre
 3. The user can now open the feature branch in Xcode for testing.
 4. All subsequent work (PR creation, code review fixes) happens in the main repo, NOT in a worktree.
 
+### Worktree Recovery
+
+If a session ends with an active worktree (crash, timeout, user disconnect):
+- List orphaned worktrees: `git worktree list`
+- If work was committed: exit the worktree normally to preserve changes on the feature branch.
+- If work is uncommitted or broken: `git worktree remove <path> --force` and start fresh.
+
 ### Automated Code Review (After PR Creation — NOT Before)
 
-**CRITICAL: The PR must exist before code review starts.** The review agent writes its analysis as PR comments, which requires a live PR.
+**CRITICAL: The PR must exist before code review starts.** The review subagent writes its analysis as PR comments, which requires a live PR.
 
-After the PR is created, spawn a code review subagent that reviews ALL changes on the branch (diff against `main`). The review must cover:
-
-1. **Security analysis** — injection risks, credential exposure, unsafe data handling, OWASP top 10.
-2. **Threat modeling** — what could go wrong with this code in production? Data corruption, race conditions, crashes.
-3. **Code style** — compliance with code style section in `docs/swift-concurrency-rules.md`.
-4. **Swift best practices** — modern Swift 6 patterns, proper actor isolation, correct Sendable conformance.
-5. **Architecture compliance** — two-layer rule, no computation in views, predicates pushed to @Query.
-
-After each review round, post the full review summary and findings as a comment on the PR (`gh pr comment`) so there is a permanent audit trail in GitHub — including failed reviews with the issues that need fixing.
-
-If the review finds issues: fix them, commit, push, and run the review again. Repeat until the review passes clean. Only then present to the user for final human review and merge approval.
+After the PR is created, spawn a **subagent** to run `/codereview`. The subagent must be isolated — no conversation context, only the PR diff and description. If issues are found: fix them in the main agent, commit, push, and spawn a new `/codereview` subagent. Repeat until PASS. Only then present to the user for final human review.
 
 ### Artifacts
 

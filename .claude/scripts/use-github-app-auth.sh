@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Configure git to authenticate with GitHub via a GitHub App installation token.
+# Reads credentials from env vars or local git config, mints a short-lived token,
+# and sets up git credentials + author identity.
+
 repo_root="$(git rev-parse --show-toplevel)"
+
+# --- Read settings from env or git config ---
 
 read_setting() {
   local env_name="$1"
   local git_key="$2"
-  local fallback=""
 
   if [[ -n "${!env_name:-}" ]]; then
-    fallback="${!env_name}"
+    printf '%s' "${!env_name}"
   else
-    fallback="$(git config --local --get "${git_key}" || true)"
+    printf '%s' "$(git config --local --get "${git_key}" || true)"
   fi
-
-  printf '%s' "${fallback}"
 }
 
 require_env() {
@@ -47,9 +50,42 @@ if [[ ! -f "${GH_APP_PRIVATE_KEY_PATH}" ]]; then
   exit 1
 fi
 
+# --- Mint GitHub App installation token (JWT + RS256) ---
+
 if [[ -z "${GH_APP_TOKEN:-}" ]]; then
-  GH_APP_TOKEN="$("${repo_root}/.claude/scripts/github-app-token.sh")"
+  b64url() {
+    openssl base64 -A | tr '+/' '-_' | tr -d '='
+  }
+
+  now="$(date +%s)"
+  iat="$((now - 60))"
+  exp="$((now + 540))"
+
+  header='{"alg":"RS256","typ":"JWT"}'
+  payload="{\"iat\":${iat},\"exp\":${exp},\"iss\":${GH_APP_ID}}"
+
+  header_b64="$(printf '%s' "${header}" | b64url)"
+  payload_b64="$(printf '%s' "${payload}" | b64url)"
+  unsigned="${header_b64}.${payload_b64}"
+
+  signature_b64="$(printf '%s' "${unsigned}" | openssl dgst -binary -sha256 -sign "${GH_APP_PRIVATE_KEY_PATH}" | b64url)"
+  jwt="${unsigned}.${signature_b64}"
+
+  response="$(curl -sS -X POST \
+    -H "Authorization: Bearer ${jwt}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/app/installations/${GH_APP_INSTALLATION_ID}/access_tokens")"
+
+  GH_APP_TOKEN="$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("token",""))' <<<"${response}")"
+
+  if [[ -z "${GH_APP_TOKEN}" ]]; then
+    echo "Failed to mint GitHub App installation token" >&2
+    echo "Response: ${response}" >&2
+    exit 1
+  fi
 fi
+
+# --- Configure git identity and credentials ---
 
 git config --local user.name "donut"
 git config --local user.email "donut-bot@users.noreply.github.com"
