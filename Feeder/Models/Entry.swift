@@ -49,12 +49,21 @@ final class Entry {
     /// Detected language code (e.g., "en", "fi")
     var detectedLanguage: String?
 
+    /// Cached decoded blocks — transient, not persisted. Decoded once on first access.
+    @Transient private var _cachedBlocks: [ArticleBlock]?
+
     /// Decoded article blocks for display. Falls back to plain text paragraph.
+    /// Cached after first decode to avoid JSON parsing on every re-render.
     var parsedBlocks: [ArticleBlock] {
-        if let data = articleBlocksData, let blocks = data.toArticleBlocks(), !blocks.isEmpty {
-            return blocks
+        if let cached = _cachedBlocks { return cached }
+        let blocks: [ArticleBlock]
+        if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
+            blocks = decoded
+        } else {
+            blocks = plainText.isEmpty ? [] : [.paragraph(text: plainText)]
         }
-        return plainText.isEmpty ? [] : [.paragraph(text: plainText)]
+        _cachedBlocks = blocks
+        return blocks
     }
 
     /// Best available HTML body: extracted > content > summary

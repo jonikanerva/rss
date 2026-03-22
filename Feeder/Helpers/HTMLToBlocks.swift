@@ -83,7 +83,7 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
         }
 
     case "h1", "h2", "h3", "h4", "h5", "h6":
-        let level = Int(String(tag.last!)) ?? 2
+        let level = tag.last.flatMap { Int(String($0)) } ?? 2
         let text = extractInlineMarkdown(from: element)
         if !text.isEmpty {
             blocks.append(.heading(level: level, text: text))

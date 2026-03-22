@@ -37,10 +37,8 @@ extension [ArticleBlock] {
     nonisolated func toJSONData() -> Data? {
         try? JSONEncoder().encode(self)
     }
-}
 
-extension Data {
-    nonisolated func toArticleBlocks() -> [ArticleBlock]? {
-        try? JSONDecoder().decode([ArticleBlock].self, from: self)
+    nonisolated static func from(_ data: Data) -> [ArticleBlock]? {
+        try? JSONDecoder().decode([ArticleBlock].self, from: data)
     }
 }

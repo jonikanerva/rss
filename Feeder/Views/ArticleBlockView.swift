@@ -69,9 +69,13 @@ struct ArticleBlockView: View {
 
     // MARK: - Images
 
+    private static let allowedImageSchemes: Set<String> = ["https", "http"]
+
     private func articleImage(url: String, alt: String) -> some View {
         Group {
-            if let imageURL = URL(string: url) {
+            if let imageURL = URL(string: url),
+               let scheme = imageURL.scheme?.lowercased(),
+               Self.allowedImageSchemes.contains(scheme) {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .success(let image):
@@ -126,4 +130,26 @@ struct ArticleBlockView: View {
     private func attributedInline(_ markdown: String) -> AttributedString {
         (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
     }
+}
+
+// MARK: - Preview
+
+#Preview("Article Blocks") {
+    ScrollView {
+        ArticleBlockView(blocks: [
+            .heading(level: 1, text: "Sample Article Title"),
+            .paragraph(text: "This is a paragraph with **bold**, *italic*, and a [link](https://example.com)."),
+            .image(url: "https://picsum.photos/600/300", alt: "Sample image"),
+            .heading(level: 2, text: "A Subheading"),
+            .paragraph(text: "Another paragraph with `inline code` and some regular text."),
+            .list(ordered: false, items: ["First item", "Second item with **bold**", "Third item"]),
+            .blockquote(text: "This is a blockquote with *emphasis*."),
+            .codeBlock(code: "let x = 42\nprint(x)"),
+            .divider,
+            .list(ordered: true, items: ["Step one", "Step two", "Step three"]),
+        ])
+        .padding(32)
+        .frame(maxWidth: 660, alignment: .leading)
+    }
+    .frame(width: 700, height: 600)
 }
