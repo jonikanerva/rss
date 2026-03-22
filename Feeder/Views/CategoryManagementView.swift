@@ -24,7 +24,7 @@ struct CategoryManagementView: View {
   @State
   private var dropAsTopLevelPosition: Int?
   @State
-  private var dropTargetChildLabel: String?
+  private var dropChildPosition: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -101,24 +101,20 @@ struct CategoryManagementView: View {
     }
 
     let children = childCategories(of: parent.label)
-    ForEach(children, id: \.persistentModelID) { child in
+    if !children.isEmpty {
+      childDropZone(parentLabel: parent.label, position: 0)
+    }
+    ForEach(Array(children.enumerated()), id: \.element.persistentModelID) { childIndex, child in
       CategoryCompactRow(
         label: child.label,
         displayName: child.displayName,
         descriptionPreview: child.categoryDescription,
         depth: 1,
-        isDropTarget: dropTargetChildLabel == child.label,
+        isDropTarget: false,
         onEdit: { editingCategory = child }
       )
       .draggable(child.label)
-      .dropDestination(for: String.self) { labels, _ in
-        guard let draggedLabel = labels.first, draggedLabel != child.label else { return false }
-        handleReorderChild(draggedLabel, after: child, in: parent.label)
-        return true
-      } isTargeted: { targeted in
-        dropTargetChildLabel =
-          targeted ? child.label : (dropTargetChildLabel == child.label ? nil : dropTargetChildLabel)
-      }
+      childDropZone(parentLabel: parent.label, position: childIndex + 1)
     }
 
     topLevelDropZone(position: topIndex + 1)
@@ -139,6 +135,26 @@ struct CategoryManagementView: View {
         return true
       } isTargeted: { targeted in
         dropAsTopLevelPosition = targeted ? position : (dropAsTopLevelPosition == position ? nil : dropAsTopLevelPosition)
+      }
+  }
+
+  // MARK: - Child drop zone
+
+  @ViewBuilder
+  private func childDropZone(parentLabel: String, position: Int) -> some View {
+    let key = "\(parentLabel):\(position)"
+    let isTargeted = dropChildPosition == key
+    Rectangle()
+      .fill(isTargeted ? Color.accentColor : Color.clear)
+      .frame(height: isTargeted ? 3 : 6)
+      .padding(.leading, 20)
+      .animation(.easeInOut(duration: 0.15), value: isTargeted)
+      .dropDestination(for: String.self) { labels, _ in
+        guard let draggedLabel = labels.first else { return false }
+        handleInsertChild(draggedLabel, in: parentLabel, at: position)
+        return true
+      } isTargeted: { targeted in
+        dropChildPosition = targeted ? key : (dropChildPosition == key ? nil : dropChildPosition)
       }
   }
 
@@ -219,17 +235,19 @@ struct CategoryManagementView: View {
     }
   }
 
-  private func handleReorderChild(_ draggedLabel: String, after target: Category, in parentLabel: String) {
+  private func handleInsertChild(_ draggedLabel: String, in parentLabel: String, at position: Int) {
     guard let writer = syncEngine.writer else { return }
     let draggedCategory = allCategories.first { $0.label == draggedLabel }
-
-    // If dragged from a different parent or top-level, move it here first
     let needsReparent = draggedCategory?.parentLabel != parentLabel
+
+    // Prevent circular hierarchy
+    let targetParent = allCategories.first { $0.label == parentLabel }
+    if targetParent?.parentLabel == draggedLabel { return }
 
     var children = childCategories(of: parentLabel).map(\.label)
     children.removeAll { $0 == draggedLabel }
-    let targetIndex = children.firstIndex(of: target.label).map { $0 + 1 } ?? children.count
-    children.insert(draggedLabel, at: targetIndex)
+    let insertAt = min(position, children.count)
+    children.insert(draggedLabel, at: insertAt)
 
     let updates = children.enumerated().map { (index, label) in
       (label: label, sortOrder: index)
@@ -241,7 +259,7 @@ struct CategoryManagementView: View {
       if needsReparent {
         try? await writer.updateCategoryHierarchy(
           label: draggedLabel, parentLabel: parentLabel,
-          depth: 1, isTopLevel: false, sortOrder: targetIndex
+          depth: 1, isTopLevel: false, sortOrder: insertAt
         )
         for (index, orphan) in orphans.enumerated() {
           try? await writer.updateCategoryHierarchy(
