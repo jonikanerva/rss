@@ -67,8 +67,8 @@ struct EntryDetailView: View {
 
                 Divider()
 
-                // Article body — Markdown rendered from database
-                MarkdownBodyView(markdown: current.plainText)
+                // Article body — structured blocks from database
+                ArticleBlockView(blocks: current.parsedBlocks)
                     .textSelection(.enabled)
                     .frame(maxWidth: 660, alignment: .leading)
             }

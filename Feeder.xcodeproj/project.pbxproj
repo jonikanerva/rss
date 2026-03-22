@@ -112,8 +112,6 @@
 			);
 			name = Feeder;
 			packageProductDependencies = (
-				F1A2B3C40002000000000001 /* SwiftHTMLtoMarkdown */,
-				F1A2B3C40002000000000002 /* Markdown */,
 			);
 			productName = Feeder;
 			productReference = A1B2C3D82F5A0001000FEED1 /* Feeder.app */;
@@ -199,10 +197,6 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A1B2C3D92F5A0001000FEED1 /* Products */;
-			packageReferences = (
-				F1A2B3C40001000000000001 /* XCRemoteSwiftPackageReference "SwiftHTMLtoMarkdown" */,
-				F1A2B3C40001000000000002 /* XCRemoteSwiftPackageReference "swift-markdown" */,
-			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -588,37 +582,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		F1A2B3C40001000000000001 /* XCRemoteSwiftPackageReference "SwiftHTMLtoMarkdown" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ActuallyTaylor/SwiftHTMLtoMarkdown.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
-			};
-		};
-		F1A2B3C40001000000000002 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.4.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		F1A2B3C40002000000000001 /* SwiftHTMLtoMarkdown */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A2B3C40001000000000001 /* XCRemoteSwiftPackageReference "SwiftHTMLtoMarkdown" */;
-			productName = SwiftHTMLtoMarkdown;
-		};
-		F1A2B3C40002000000000002 /* Markdown */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A2B3C40001000000000002 /* XCRemoteSwiftPackageReference "swift-markdown" */;
-			productName = Markdown;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1B2C3D02F5A0001000FEED1 /* Project object */;
 }

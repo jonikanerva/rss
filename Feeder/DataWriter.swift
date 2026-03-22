@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
 import OSLog
-import SwiftHTMLtoMarkdown
 
 
 // MARK: - Sendable DTOs for crossing actor boundaries
@@ -32,20 +31,7 @@ nonisolated struct CategoryDefinition: Sendable {
 
 // MARK: - Pure helper functions
 
-/// Convert HTML to Markdown, falling back to plain text stripping on error.
-nonisolated func convertHTMLToMarkdown(_ html: String) -> String {
-    guard !html.isEmpty else { return "" }
-    do {
-        var converter = BasicHTML(rawHTML: html)
-        try converter.parse()
-        return try converter.asMarkdown()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    } catch {
-        return stripHTMLToPlainText(html)
-    }
-}
-
-/// Strip HTML tags and decode entities to produce plain text (fallback).
+/// Strip HTML tags and decode entities to produce plain text.
 nonisolated func stripHTMLToPlainText(_ html: String) -> String {
     guard !html.isEmpty else { return "" }
     var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
@@ -153,7 +139,10 @@ actor DataWriter {
             )
             entry.feed = feedsByFeedbinID[dto.feedId]
             entry.isRead = markAsRead
-            entry.plainText = convertHTMLToMarkdown(dto.content ?? dto.summary ?? "")
+            let html = dto.content ?? dto.summary ?? ""
+            let blocks = parseHTMLToBlocks(html)
+            entry.articleBlocksData = blocks.toJSONData()
+            entry.plainText = blocks.classificationText
             entry.formattedDate = formatEntryDate(dto.published)
             modelContext.insert(entry)
             newCount += 1
@@ -194,7 +183,10 @@ actor DataWriter {
             )
             entry.feed = feedsByFeedbinID[dto.feedId]
             entry.isRead = !unreadIDs.contains(dto.id)
-            entry.plainText = convertHTMLToMarkdown(dto.content ?? dto.summary ?? "")
+            let html = dto.content ?? dto.summary ?? ""
+            let blocks = parseHTMLToBlocks(html)
+            entry.articleBlocksData = blocks.toJSONData()
+            entry.plainText = blocks.classificationText
             entry.formattedDate = formatEntryDate(dto.published)
             modelContext.insert(entry)
             newCount += 1
@@ -250,7 +242,9 @@ actor DataWriter {
         for entry in entries {
             if let content = resultsByID[entry.feedbinEntryID] {
                 entry.extractedContent = content
-                entry.plainText = convertHTMLToMarkdown(content)
+                let blocks = parseHTMLToBlocks(content)
+                entry.articleBlocksData = blocks.toJSONData()
+                entry.plainText = blocks.classificationText
             }
         }
         try modelContext.save()
