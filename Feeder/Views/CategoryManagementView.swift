@@ -263,31 +263,43 @@ struct ChildCategoryManagementItems: View {
 // MARK: - Inline Row Editor
 
 struct CategoryRowEditor: View {
-    @Bindable var category: Category
+    let category: Category
     var focusedField: FocusState<CategoryFocusedField?>.Binding
     let allTopLevel: [Category]
     let onDelete: () -> Void
 
     @Environment(SyncEngine.self) private var syncEngine
+    @State private var editedName: String = ""
+    @State private var editedDescription: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField("Name", text: $category.displayName)
+            TextField("Name", text: $editedName)
                 .textFieldStyle(.plain)
                 .font(FontTheme.bodyMedium)
                 .focused(focusedField, equals: .name(category.label))
-                .onSubmit { save() }
+                .onSubmit { commitEdits() }
 
-            TextField("Description", text: $category.categoryDescription, axis: .vertical)
+            TextField("Description", text: $editedDescription, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(FontTheme.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2...5)
                 .focused(focusedField, equals: .description(category.label))
-                .onSubmit { save() }
+                .onSubmit { commitEdits() }
         }
         .padding(.vertical, 2)
         .contextMenu { contextMenuItems }
+        .onAppear {
+            editedName = category.displayName
+            editedDescription = category.categoryDescription
+        }
+        .onChange(of: category.displayName) { _, newValue in
+            editedName = newValue
+        }
+        .onChange(of: category.categoryDescription) { _, newValue in
+            editedDescription = newValue
+        }
     }
 
     @ViewBuilder
@@ -350,9 +362,14 @@ struct CategoryRowEditor: View {
         }
     }
 
-    private func save() {
+    private func commitEdits() {
         guard let writer = syncEngine.writer else { return }
-        Task { try? await writer.saveCategories() }
+        let label = category.label
+        let name = editedName
+        let desc = editedDescription
+        Task {
+            try? await writer.updateCategoryFields(label: label, displayName: name, description: desc)
+        }
     }
 }
 

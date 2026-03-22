@@ -397,6 +397,16 @@ actor DataWriter {
         try modelContext.save()
     }
 
+    func updateCategoryFields(label: String, displayName: String, description: String) throws {
+        let descriptor = FetchDescriptor<Category>(
+            predicate: #Predicate<Category> { $0.label == label }
+        )
+        guard let category = try modelContext.fetch(descriptor).first else { return }
+        category.displayName = displayName
+        category.categoryDescription = description
+        try modelContext.save()
+    }
+
     func seedDefaultCategories(
         _ definitions: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)]
     ) throws {
@@ -410,10 +420,6 @@ actor DataWriter {
             )
             modelContext.insert(category)
         }
-        try modelContext.save()
-    }
-
-    func saveCategories() throws {
         try modelContext.save()
     }
 
