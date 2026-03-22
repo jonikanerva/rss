@@ -2,17 +2,19 @@ import Foundation
 
 // MARK: - HTML to ArticleBlock conversion
 
-/// Tags whose content is entirely skipped.
-nonisolated(unsafe) private let skipTags: Set<String> = [
-    "script", "style", "noscript", "nav", "footer", "header",
-    "aside", "form", "iframe", "svg", "video", "audio", "button", "input",
-]
+private enum HTMLConstants {
+    /// Tags whose content is entirely skipped.
+    nonisolated static let skipTags: Set<String> = [
+        "script", "style", "noscript", "nav", "footer", "header",
+        "aside", "form", "iframe", "svg", "video", "audio", "button", "input",
+    ]
 
-/// Tags that are transparent containers — recurse into children.
-nonisolated(unsafe) private let containerTags: Set<String> = [
-    "div", "section", "article", "span", "main", "figure", "figcaption",
-    "dl", "dd", "dt", "details", "summary", "center",
-]
+    /// Tags that are transparent containers — recurse into children.
+    nonisolated static let containerTags: Set<String> = [
+        "div", "section", "article", "span", "main", "figure", "figcaption",
+        "dl", "dd", "dt", "details", "summary", "center",
+    ]
+}
 
 /// Convert an HTML string into structured article blocks.
 /// Uses Foundation XMLDocument with documentTidyHTML for robust parsing.
@@ -46,8 +48,8 @@ nonisolated private func walkChildren(of element: XMLElement, into blocks: inout
     for child in element.children ?? [] {
         if let el = child as? XMLElement {
             processElement(el, into: &blocks)
-        } else if let text = child as? XMLNode, child.kind == .text {
-            let trimmed = (text.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if child.kind == .text {
+            let trimmed = (child.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 blocks.append(.paragraph(text: trimmed))
             }
@@ -59,7 +61,7 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
     guard let tag = element.name?.lowercased() else { return }
 
     // Skip blacklisted tags entirely
-    if skipTags.contains(tag) { return }
+    if HTMLConstants.skipTags.contains(tag) { return }
 
     switch tag {
     case "p":
@@ -119,7 +121,7 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
         }
 
     default:
-        if containerTags.contains(tag) {
+        if HTMLConstants.containerTags.contains(tag) {
             walkChildren(of: element, into: &blocks)
         } else {
             // Unknown tag — extract text if any
@@ -138,12 +140,12 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
 nonisolated private func extractInlineMarkdown(from element: XMLElement) -> String {
     var result = ""
     for child in element.children ?? [] {
-        if let textNode = child as? XMLNode, child.kind == .text {
-            result += textNode.stringValue ?? ""
+        if child.kind == .text {
+            result += child.stringValue ?? ""
         } else if let el = child as? XMLElement {
             guard let tag = el.name?.lowercased() else { continue }
 
-            if skipTags.contains(tag) { continue }
+            if HTMLConstants.skipTags.contains(tag) { continue }
 
             switch tag {
             case "strong", "b":
