@@ -1,0 +1,176 @@
+import SwiftData
+import SwiftUI
+
+struct CategoryEditSheet: View {
+  @Environment(SyncEngine.self)
+  private var syncEngine
+  @Environment(\.dismiss)
+  private var dismiss
+
+  let category: Category?
+  let allTopLevel: [Category]
+
+  @State
+  private var name: String = ""
+  @State
+  private var description: String = ""
+  @State
+  private var showDeleteConfirmation = false
+  @State
+  private var childNamesToDelete: [String] = []
+
+  private var isNew: Bool { category == nil }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      header
+      Divider()
+      form
+      Divider()
+      footer
+    }
+    .frame(width: 400)
+    .onAppear {
+      if let category {
+        name = category.displayName
+        description = category.categoryDescription
+      }
+    }
+    .alert("Delete Category?", isPresented: $showDeleteConfirmation) {
+      Button("Cancel", role: .cancel) {}
+      Button("Delete", role: .destructive) {
+        performDelete()
+      }
+    } message: {
+      if childNamesToDelete.isEmpty {
+        Text("Are you sure you want to delete \"\(category?.displayName ?? "")\"?")
+      } else {
+        Text(
+          "This will also delete subcategories: \(childNamesToDelete.joined(separator: ", ")). Are you sure?"
+        )
+      }
+    }
+  }
+
+  // MARK: - Header
+
+  private var header: some View {
+    HStack {
+      Text(isNew ? "New Category" : "Edit Category")
+        .font(FontTheme.headline)
+      Spacer()
+      Button {
+        dismiss()
+      } label: {
+        Image(systemName: "xmark.circle.fill")
+          .foregroundStyle(.secondary)
+      }
+      .buttonStyle(.plain)
+    }
+    .padding()
+  }
+
+  // MARK: - Form
+
+  private var form: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Name")
+          .font(FontTheme.caption)
+          .foregroundStyle(.secondary)
+        TextField("Category name", text: $name)
+          .textFieldStyle(.roundedBorder)
+      }
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Description")
+          .font(FontTheme.caption)
+          .foregroundStyle(.secondary)
+        TextEditor(text: $description)
+          .font(.system(size: FontTheme.bodySize))
+          .frame(minHeight: 80, maxHeight: 160)
+          .overlay(
+            RoundedRectangle(cornerRadius: 6)
+              .stroke(.quaternary, lineWidth: 1)
+          )
+      }
+    }
+    .padding()
+  }
+
+  // MARK: - Footer
+
+  private var footer: some View {
+    HStack {
+      if !isNew {
+        Button("Delete Category", role: .destructive) {
+          prepareDelete()
+        }
+      }
+      Spacer()
+      Button("Cancel") {
+        dismiss()
+      }
+      .keyboardShortcut(.cancelAction)
+      Button(isNew ? "Create" : "Save") {
+        save()
+      }
+      .keyboardShortcut(.defaultAction)
+      .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+    .padding()
+  }
+
+  // MARK: - Actions
+
+  private func save() {
+    guard let writer = syncEngine.writer else { return }
+    let trimmedName = name.trimmingCharacters(in: .whitespaces)
+    let trimmedDesc = description.trimmingCharacters(in: .whitespaces)
+
+    if let category {
+      let label = category.label
+      Task {
+        try? await writer.updateCategoryFields(
+          label: label, displayName: trimmedName, description: trimmedDesc
+        )
+      }
+    } else {
+      let label = trimmedName.lowercased()
+        .replacingOccurrences(of: " ", with: "_")
+        .appending("_\(Int.random(in: 1000...9999))")
+      let sortOrder = allTopLevel.count
+      Task {
+        try? await writer.addCategory(
+          label: label, displayName: trimmedName,
+          description: trimmedDesc, sortOrder: sortOrder
+        )
+      }
+    }
+    dismiss()
+  }
+
+  private func prepareDelete() {
+    guard let writer = syncEngine.writer, let category else { return }
+    if category.isTopLevel {
+      let label = category.label
+      Task {
+        let names = (try? await writer.childCategoryNames(for: label)) ?? []
+        childNamesToDelete = names
+        showDeleteConfirmation = true
+      }
+    } else {
+      childNamesToDelete = []
+      showDeleteConfirmation = true
+    }
+  }
+
+  private func performDelete() {
+    guard let writer = syncEngine.writer, let category else { return }
+    let label = category.label
+    Task {
+      try? await writer.deleteCategory(label: label)
+    }
+    dismiss()
+  }
+}

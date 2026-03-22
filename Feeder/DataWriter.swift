@@ -359,18 +359,20 @@ actor DataWriter {
         predicate: #Predicate<Category> { $0.parentLabel == label }
       )
       let kids = try modelContext.fetch(childDescriptor)
-      let topLevelCount = try modelContext.fetchCount(
-        FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.isTopLevel == true })
-      )
       for child in kids {
-        child.parentLabel = nil
-        child.depth = 0
-        child.isTopLevel = true
-        child.sortOrder = topLevelCount
+        modelContext.delete(child)
       }
     }
     modelContext.delete(category)
     try modelContext.save()
+  }
+
+  func childCategoryNames(for parentLabel: String) throws -> [String] {
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.parentLabel == parentLabel },
+      sortBy: [SortDescriptor(\Category.sortOrder)]
+    )
+    return try modelContext.fetch(descriptor).map(\.displayName)
   }
 
   func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
