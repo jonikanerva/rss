@@ -28,6 +28,10 @@ struct CategoryManagementView: View {
 
   var body: some View {
     Form {
+      Section {
+        actionButtons
+      }
+
       if allCategories.isEmpty {
         Section("Categories") {
           ContentUnavailableView {
@@ -40,10 +44,6 @@ struct CategoryManagementView: View {
         Section("Categories") {
           categoryList
         }
-      }
-
-      Section {
-        footerContent
       }
     }
     .formStyle(.grouped)
@@ -140,7 +140,7 @@ struct CategoryManagementView: View {
 
   // MARK: - Footer
 
-  private var footerContent: some View {
+  private var actionButtons: some View {
     HStack {
       if classificationEngine.isClassifying {
         ProgressView()
