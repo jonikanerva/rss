@@ -19,6 +19,8 @@ struct SettingsView: View {
   @State
   private var statusMessage: String?
   @State
+  private var showAccountEditor = false
+  @State
   private var syncInterval: Double = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
   @State
   private var keepDays: Int = {
@@ -44,8 +46,8 @@ struct SettingsView: View {
         }
     }
     .frame(
-      minWidth: 550, idealWidth: 650, maxWidth: 900,
-      minHeight: 500, idealHeight: 600, maxHeight: 800)
+      minWidth: 420, idealWidth: 480, maxWidth: 550,
+      minHeight: 450, idealHeight: 550, maxHeight: 700)
   }
 
   // MARK: - Account Tab
@@ -53,32 +55,18 @@ struct SettingsView: View {
   private var accountTab: some View {
     Form {
       Section("Feedbin Account") {
-        TextField("Email", text: $username)
-          .textContentType(.emailAddress)
-          .accessibilityLabel("Feedbin email address")
-
-        SecureField("Password", text: $password)
-          .textContentType(.password)
-          .accessibilityLabel("Feedbin password")
-
-        HStack {
-          Button("Save") {
-            Task { await save() }
-          }
-          .disabled(username.isEmpty || password.isEmpty || isSaving)
-          .accessibilityIdentifier("settings.account.save")
-
-          if isSaving {
-            ProgressView()
-              .scaleEffect(0.7)
-          }
-
-          if let status = statusMessage {
-            Text(status)
-              .foregroundStyle(status.contains("Error") ? .red : .green)
-              .font(FontTheme.caption)
-          }
+        LabeledContent("Email") {
+          Text(username.isEmpty ? "Not configured" : username)
+            .foregroundStyle(username.isEmpty ? .tertiary : .secondary)
         }
+        LabeledContent("Password") {
+          Text(password.isEmpty ? "Not set" : "•••••")
+            .foregroundStyle(password.isEmpty ? .tertiary : .secondary)
+        }
+        Button("Edit") {
+          showAccountEditor = true
+        }
+        .accessibilityIdentifier("settings.account.edit")
       }
 
       Section("Data") {
@@ -93,6 +81,13 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
+    .sheet(isPresented: $showAccountEditor) {
+      AccountEditSheet(
+        username: $username, password: $password,
+        isSaving: $isSaving, statusMessage: $statusMessage,
+        onSave: { Task { await save() } }
+      )
+    }
   }
 
   // MARK: - Sync Tab
@@ -118,31 +113,22 @@ struct SettingsView: View {
           Text("14 days").tag(14)
           Text("30 days").tag(30)
         }
-        .onChange(of: keepDays) { _, newValue in
+        .onChange(of: keepDays) { oldValue, newValue in
           UserDefaults.standard.set(newValue, forKey: "article_keep_days")
+          if newValue > oldValue {
+            syncEngine.refetchHistory()
+          }
         }
       }
 
       Section("Status") {
         LabeledContent("Last sync") {
           if let date = syncEngine.lastSyncDate {
-            Text(date, style: .relative)
+            Text(formatEntryDate(date))
               .foregroundStyle(.secondary)
           } else {
             Text("Never")
               .foregroundStyle(.tertiary)
-          }
-        }
-
-        LabeledContent("Sync") {
-          Text(syncEngine.syncProgress)
-            .foregroundStyle(.secondary)
-        }
-
-        if classificationEngine.isClassifying {
-          LabeledContent("Classification") {
-            Text(classificationEngine.progress)
-              .foregroundStyle(.secondary)
           }
         }
 
@@ -203,6 +189,97 @@ struct SettingsView: View {
   }
 }
 
+// MARK: - Account Edit Sheet
+
+private struct AccountEditSheet: View {
+  @Binding
+  var username: String
+  @Binding
+  var password: String
+  @Binding
+  var isSaving: Bool
+  @Binding
+  var statusMessage: String?
+  let onSave: () -> Void
+
+  @Environment(\.dismiss)
+  private var dismiss
+  @State
+  private var editUsername: String = ""
+  @State
+  private var editPassword: String = ""
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text("Edit Account")
+          .font(FontTheme.headline)
+        Spacer()
+      }
+      .padding()
+      Divider()
+
+      VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Email")
+            .font(FontTheme.caption)
+            .foregroundStyle(.secondary)
+          TextField("Email", text: $editUsername)
+            .textFieldStyle(.roundedBorder)
+            .textContentType(.emailAddress)
+        }
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Password")
+            .font(FontTheme.caption)
+            .foregroundStyle(.secondary)
+          SecureField("Password", text: $editPassword)
+            .textFieldStyle(.roundedBorder)
+            .textContentType(.password)
+        }
+
+        if let status = statusMessage {
+          Text(status)
+            .foregroundStyle(status.contains("Error") ? .red : .green)
+            .font(FontTheme.caption)
+        }
+      }
+      .padding()
+
+      Divider()
+      HStack {
+        Spacer()
+        Button("Cancel") {
+          dismiss()
+        }
+        .keyboardShortcut(.cancelAction)
+        Button("Save") {
+          username = editUsername
+          password = editPassword
+          onSave()
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(editUsername.isEmpty || editPassword.isEmpty || isSaving)
+
+        if isSaving {
+          ProgressView()
+            .scaleEffect(0.7)
+        }
+      }
+      .padding()
+    }
+    .frame(width: 400)
+    .onAppear {
+      editUsername = username
+      editPassword = password
+    }
+    .onChange(of: statusMessage) { _, newValue in
+      if let msg = newValue, msg == "Saved" {
+        dismiss()
+      }
+    }
+  }
+}
+
 // MARK: - Helper extension
 
 extension Double {
@@ -216,6 +293,16 @@ extension Double {
 
 #Preview("Settings - Seeded Data") {
   settingsSeededPreview()
+}
+
+#Preview("Account Edit Sheet") {
+  AccountEditSheet(
+    username: .constant("user@example.com"),
+    password: .constant("secret123"),
+    isSaving: .constant(false),
+    statusMessage: .constant(nil),
+    onSave: {}
+  )
 }
 
 @MainActor

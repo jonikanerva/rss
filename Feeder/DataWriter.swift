@@ -359,18 +359,27 @@ actor DataWriter {
         predicate: #Predicate<Category> { $0.parentLabel == label }
       )
       let kids = try modelContext.fetch(childDescriptor)
-      let topLevelCount = try modelContext.fetchCount(
-        FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.isTopLevel == true })
-      )
       for child in kids {
-        child.parentLabel = nil
-        child.depth = 0
-        child.isTopLevel = true
-        child.sortOrder = topLevelCount
+        modelContext.delete(child)
       }
     }
     modelContext.delete(category)
     try modelContext.save()
+  }
+
+  func fetchCategorySortOrder(label: String) throws -> Int? {
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.label == label }
+    )
+    return try modelContext.fetch(descriptor).first?.sortOrder
+  }
+
+  func childCategoryNames(for parentLabel: String) throws -> [String] {
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.parentLabel == parentLabel },
+      sortBy: [SortDescriptor(\Category.sortOrder)]
+    )
+    return try modelContext.fetch(descriptor).map(\.displayName)
   }
 
   func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
@@ -394,6 +403,32 @@ actor DataWriter {
     category.depth = depth
     category.isTopLevel = isTopLevel
     category.sortOrder = sortOrder
+    try modelContext.save()
+  }
+
+  func batchUpdateCategoryHierarchyAndSortOrders(
+    hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)],
+    sortOrderUpdates: [(label: String, sortOrder: Int)]
+  ) throws {
+    for change in hierarchyChanges {
+      let targetLabel = change.label
+      let descriptor = FetchDescriptor<Category>(
+        predicate: #Predicate<Category> { $0.label == targetLabel }
+      )
+      guard let category = try modelContext.fetch(descriptor).first else { continue }
+      category.parentLabel = change.parentLabel
+      category.depth = change.depth
+      category.isTopLevel = change.isTopLevel
+      category.sortOrder = change.sortOrder
+    }
+    for (label, sortOrder) in sortOrderUpdates {
+      let descriptor = FetchDescriptor<Category>(
+        predicate: #Predicate<Category> { $0.label == label }
+      )
+      if let category = try modelContext.fetch(descriptor).first {
+        category.sortOrder = sortOrder
+      }
+    }
     try modelContext.save()
   }
 

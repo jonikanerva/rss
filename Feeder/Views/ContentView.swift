@@ -16,31 +16,6 @@ extension Color {
   }
 }
 
-// MARK: - Child Category Items (dynamic @Query filtered by parent in SQLite)
-
-/// Renders child categories under a parent in the sidebar, using a @Query predicate instead of Swift-side filtering.
-struct ChildCategorySidebarItems: View {
-  @Query
-  private var children: [Category]
-
-  init(parentLabel: String) {
-    _children = Query(
-      filter: #Predicate<Category> { $0.parentLabel == parentLabel },
-      sort: \Category.sortOrder
-    )
-  }
-
-  var body: some View {
-    ForEach(children) { child in
-      Text(child.displayName)
-        .font(.system(size: FontTheme.metadataSize))
-        .padding(.leading, 16)
-        .tag(child.label)
-        .accessibilityIdentifier("sidebar.category.\(child.label)")
-    }
-  }
-}
-
 // MARK: - Entry List View (dynamic @Query filtered by category in SQLite)
 
 struct EntryListView: View {
@@ -121,9 +96,13 @@ struct ContentView: View {
 
   private var fetchStatusText: String? {
     if syncEngine.isSyncing {
+      let progress = syncEngine.syncProgress
+      if !progress.isEmpty {
+        return progress
+      }
       let n = syncEngine.fetchedCount
       let x = syncEngine.totalToFetch
-      return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
+      return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
     }
     return lastSyncText
   }
@@ -189,6 +168,14 @@ struct ContentView: View {
     }
   }
 
+  // MARK: - Child lookup (small category count, acceptable in-memory filter)
+
+  private func childCategories(of parentLabel: String) -> [Category] {
+    allCategories
+      .filter { $0.parentLabel == parentLabel }
+      .sorted { $0.sortOrder < $1.sortOrder }
+  }
+
   // MARK: - Actions
 
   private func openInBackground() {
@@ -218,7 +205,13 @@ struct ContentView: View {
             .font(.system(size: FontTheme.metadataSize))
             .tag(parent.label)
             .accessibilityIdentifier("sidebar.category.\(parent.label)")
-          ChildCategorySidebarItems(parentLabel: parent.label)
+          ForEach(childCategories(of: parent.label)) { child in
+            Text(child.displayName)
+              .font(.system(size: FontTheme.metadataSize))
+              .padding(.leading, 16)
+              .tag(child.label)
+              .accessibilityIdentifier("sidebar.category.\(child.label)")
+          }
         }
       } header: {
         VStack(alignment: .leading, spacing: 2) {
@@ -250,14 +243,14 @@ struct ContentView: View {
         Button {
           Task { await syncAndClassify() }
         } label: {
-          if syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying {
+          if syncEngine.isSyncing || classificationEngine.isClassifying {
             ProgressView()
               .scaleEffect(0.7)
           } else {
             Image(systemName: "arrow.clockwise")
           }
         }
-        .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying)
+        .disabled(syncEngine.isSyncing || classificationEngine.isClassifying)
         .help("Sync and classify")
         .accessibilityIdentifier("toolbar.sync")
       }
