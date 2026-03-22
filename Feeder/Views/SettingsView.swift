@@ -295,6 +295,16 @@ extension Double {
   settingsSeededPreview()
 }
 
+#Preview("Account Edit Sheet") {
+  AccountEditSheet(
+    username: .constant("user@example.com"),
+    password: .constant("secret123"),
+    isSaving: .constant(false),
+    statusMessage: .constant(nil),
+    onSave: {}
+  )
+}
+
 @MainActor
 private func settingsSeededPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)

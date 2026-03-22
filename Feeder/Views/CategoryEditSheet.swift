@@ -179,3 +179,62 @@ struct CategoryEditSheet: View {
     }
   }
 }
+
+// MARK: - Previews
+
+#Preview("Edit Existing Category") {
+  categoryEditExistingPreview()
+}
+
+#Preview("New Category") {
+  categoryEditNewPreview()
+}
+
+@MainActor
+private func categoryEditExistingPreview() -> some View {
+  let config = ModelConfiguration(isStoredInMemoryOnly: true)
+  guard
+    let container = try? ModelContainer(
+      for: Entry.self, Feed.self, Category.self,
+      configurations: config
+    )
+  else {
+    fatalError("Preview ModelContainer failed")
+  }
+  let context = container.mainContext
+
+  let technology = Category(
+    label: "technology", displayName: "Technology",
+    categoryDescription: "A broad category for all news about technology companies, products, platforms, and innovations.",
+    sortOrder: 0
+  )
+  let apple = Category(
+    label: "apple", displayName: "Apple",
+    categoryDescription: "All news about Apple company and products.",
+    sortOrder: 0, parentLabel: "technology"
+  )
+  context.insert(technology)
+  context.insert(apple)
+  try? context.save()
+
+  return CategoryEditSheet(category: technology, allTopLevel: [technology])
+    .environment(SyncEngine())
+    .modelContainer(container)
+}
+
+@MainActor
+private func categoryEditNewPreview() -> some View {
+  let config = ModelConfiguration(isStoredInMemoryOnly: true)
+  guard
+    let container = try? ModelContainer(
+      for: Entry.self, Feed.self, Category.self,
+      configurations: config
+    )
+  else {
+    fatalError("Preview ModelContainer failed")
+  }
+
+  return CategoryEditSheet(category: nil, allTopLevel: [])
+    .environment(SyncEngine())
+    .modelContainer(container)
+}

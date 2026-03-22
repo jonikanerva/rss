@@ -346,7 +346,7 @@ private func categoryManagementHierarchicalPreview() -> some View {
     .environment(ClassificationEngine())
     .environment(SyncEngine())
     .modelContainer(container)
-    .frame(width: 600, height: 500)
+    .frame(width: 480, height: 500)
 }
 
 @MainActor
@@ -365,5 +365,5 @@ private func categoryManagementEmptyPreview() -> some View {
     .environment(ClassificationEngine())
     .environment(SyncEngine())
     .modelContainer(container)
-    .frame(width: 600, height: 500)
+    .frame(width: 480, height: 500)
 }
