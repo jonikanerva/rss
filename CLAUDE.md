@@ -23,14 +23,26 @@ Before acting on any user request, classify and propose an approach:
   1. **Research** → commit dossier to branch → present findings → user approves
   2. **Plan** → commit plan to branch → present plan → user approves
   3. **Implement** → code autonomously, verify build + tests at each milestone, commit at checkpoints
-  4. **Code review** → spawn review subagent (see below) → fix all issues → repeat until clean
-  5. **Deliver** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR → present to human
+  4. **Exit worktree** → merge worktree changes back to the feature branch in the main repo, remove worktree
+  5. **Push & open PR** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR (draft OK)
+  6. **Code review** → spawn review subagent against the PR (see below) → fix issues → repeat until PASS
+  7. **Human review** → present to user for testing in Xcode and final approval before merge
 
 If uncertain about classification, default to MEANINGFUL.
 
-### Automated Code Review (Mandatory Before PR)
+### Worktree Exit (Before PR)
 
-After implementation is complete, spawn a code review subagent that performs a thorough review of ALL changes on the branch (diff against `main`). The review must cover:
+After implementation and build verification pass, **exit the worktree before creating the PR**:
+1. Commit all remaining changes in the worktree.
+2. Exit the worktree (merges changes to the feature branch in the main repo).
+3. The user can now open the feature branch in Xcode for testing.
+4. All subsequent work (PR creation, code review fixes) happens in the main repo, NOT in a worktree.
+
+### Automated Code Review (After PR Creation — NOT Before)
+
+**CRITICAL: The PR must exist before code review starts.** The review agent writes its analysis as PR comments, which requires a live PR.
+
+After the PR is created, spawn a code review subagent that reviews ALL changes on the branch (diff against `main`). The review must cover:
 
 1. **Security analysis** — injection risks, credential exposure, unsafe data handling, OWASP top 10.
 2. **Threat modeling** — what could go wrong with this code in production? Data corruption, race conditions, crashes.
@@ -40,7 +52,7 @@ After implementation is complete, spawn a code review subagent that performs a t
 
 After each review round, post the full review summary and findings as a comment on the PR (`gh pr comment`) so there is a permanent audit trail in GitHub — including failed reviews with the issues that need fixing.
 
-If the review finds issues: fix them, commit, and run the review again. Repeat until the review passes clean. Only then push and open the PR.
+If the review finds issues: fix them, commit, push, and run the review again. Repeat until the review passes clean. Only then present to the user for final human review and merge approval.
 
 ### Artifacts
 
