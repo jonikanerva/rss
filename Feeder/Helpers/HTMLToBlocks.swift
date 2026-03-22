@@ -15,17 +15,19 @@ private enum HTMLConstants {
         "table", "thead", "tbody", "tfoot", "tr", "td", "th",
     ]
 
-    /// Tags that are transparent containers — recurse into children.
+    /// Tags that are transparent containers — recurse into children at block level.
     nonisolated static let containerTags: Set<String> = [
         "div", "section", "article", "main", "figure", "figcaption",
-        "dl", "dd", "dt", "details", "summary", "center", "span",
+        "dl", "dd", "dt", "details", "summary", "center",
     ]
 
-    /// Inline tags handled within extractInlineMarkdown.
+    /// Inline formatting tags — handled inside extractInlineMarkdown,
+    /// and also treated as implicit paragraphs when they appear at block level.
     nonisolated static let inlineTags: Set<String> = [
         "strong", "b", "em", "i", "a", "code", "br", "img", "span",
         "sub", "sup", "mark", "del", "s", "small", "abbr", "time",
         "cite", "q", "dfn", "var", "samp", "kbd", "wbr", "u",
+        "strike", "ins", "address",
     ]
 }
 
@@ -72,8 +74,8 @@ nonisolated private func walkChildren(of element: XMLElement, into blocks: inout
 nonisolated private func processElement(_ element: XMLElement, into blocks: inout [ArticleBlock]) {
     guard let tag = element.name?.lowercased() else { return }
 
-    // 1. Process known content tags
     switch tag {
+    // Block content tags
     case "p":
         let text = extractInlineMarkdown(from: element)
         if !text.isEmpty {
@@ -106,7 +108,20 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
         }
 
     case "blockquote":
-        let text = extractInlineMarkdown(from: element)
+        // Blockquote may contain <p> children — walk them as sub-blocks
+        // and join their text with newlines for a single blockquote.
+        var subBlocks: [ArticleBlock] = []
+        walkChildren(of: element, into: &subBlocks)
+        let text = subBlocks.compactMap { block in
+            switch block {
+            case .paragraph(let t), .heading(_, let t), .blockquote(let t):
+                return t
+            case .list(_, let items):
+                return items.joined(separator: "\n")
+            default:
+                return nil
+            }
+        }.joined(separator: "\n\n")
         if !text.isEmpty {
             blocks.append(.blockquote(text: text))
         }
@@ -123,25 +138,29 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
     case "br":
         break
 
-    case "a":
-        let text = extractInlineMarkdown(from: element)
-        if !text.isEmpty {
-            blocks.append(.paragraph(text: text))
-        }
-
     default:
-        // 2. Recurse into known containers
+        // Containers — recurse into children
         if HTMLConstants.containerTags.contains(tag) {
             walkChildren(of: element, into: &blocks)
             return
         }
 
-        // 3. Silently skip known non-content tags
+        // Inline tags at block level (e.g. <strong>text</strong> without <p> wrapper)
+        // — treat as an implicit paragraph
+        if HTMLConstants.inlineTags.contains(tag) {
+            let text = extractInlineMarkdown(from: element)
+            if !text.isEmpty {
+                blocks.append(.paragraph(text: text))
+            }
+            return
+        }
+
+        // Known skip tags — silently ignore
         if HTMLConstants.knownSkipTags.contains(tag) {
             return
         }
 
-        // 4. Unknown tag — skip and log for debugging
+        // Unknown tag — skip and log for debugging
         HTMLConstants.logger.debug("Skipping unknown HTML tag: <\(tag)>")
     }
 }
@@ -150,6 +169,8 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
 
 /// Recursively extracts text from an element, converting inline HTML tags
 /// to Markdown syntax (bold, italic, links, inline code).
+/// Block-level tags encountered inline (e.g. <p> inside <blockquote>)
+/// are recursed into transparently.
 nonisolated private func extractInlineMarkdown(from element: XMLElement) -> String {
     var result = ""
     for child in element.children ?? [] {
@@ -165,6 +186,12 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
             case "em", "i":
                 let inner = extractInlineMarkdown(from: el)
                 if !inner.isEmpty { result += "*\(inner)*" }
+            case "strike", "s", "del":
+                let inner = extractInlineMarkdown(from: el)
+                if !inner.isEmpty { result += "~~\(inner)~~" }
+            case "ins", "u":
+                // No standard Markdown for underline — render as plain text
+                result += extractInlineMarkdown(from: el)
             case "a":
                 let inner = extractInlineMarkdown(from: el)
                 let href = el.attribute(forName: "href")?.stringValue ?? ""
@@ -184,8 +211,11 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
                     result += "![\(alt)](\(src))"
                 }
             default:
-                if HTMLConstants.inlineTags.contains(tag) || HTMLConstants.containerTags.contains(tag) {
-                    // Known inline/container tag — extract text content
+                // Block tags appearing inline (e.g. <p> inside <li>, <ul> inside <blockquote>)
+                // and other inline/container tags — recurse transparently
+                if HTMLConstants.inlineTags.contains(tag)
+                    || HTMLConstants.containerTags.contains(tag)
+                    || isBlockContentTag(tag) {
                     result += extractInlineMarkdown(from: el)
                 } else if !HTMLConstants.knownSkipTags.contains(tag) {
                     HTMLConstants.logger.debug("Skipping unknown inline tag: <\(tag)>")
@@ -194,6 +224,17 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
         }
     }
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Block content tags that may appear nested inside inline contexts.
+nonisolated private func isBlockContentTag(_ tag: String) -> Bool {
+    switch tag {
+    case "p", "h1", "h2", "h3", "h4", "h5", "h6",
+         "ul", "ol", "li", "blockquote", "pre":
+        return true
+    default:
+        return false
+    }
 }
 
 // MARK: - List extraction
