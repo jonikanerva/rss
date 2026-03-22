@@ -1,18 +1,6 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Flat row model for hierarchical display
-
-private struct FlatCategoryRow: Identifiable, Equatable {
-  let id: PersistentIdentifier
-  let label: String
-  let displayName: String
-  let descriptionPreview: String
-  let depth: Int
-  let isTopLevel: Bool
-  let parentLabel: String?
-}
-
 // MARK: - Category Management View
 
 struct CategoryManagementView: View {
@@ -209,7 +197,7 @@ struct CategoryManagementView: View {
     let insertAt = min(position, ordered.count)
     ordered.insert(draggedLabel, at: insertAt)
 
-    var updates = ordered.enumerated().map { (index, label) in
+    let updates = ordered.enumerated().map { (index, label) in
       (label: label, sortOrder: index)
     }
 
