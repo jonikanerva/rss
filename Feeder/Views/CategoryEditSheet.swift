@@ -60,13 +60,6 @@ struct CategoryEditSheet: View {
       Text(isNew ? "New Category" : "Edit Category")
         .font(FontTheme.headline)
       Spacer()
-      Button {
-        dismiss()
-      } label: {
-        Image(systemName: "xmark.circle.fill")
-          .foregroundStyle(.secondary)
-      }
-      .buttonStyle(.plain)
     }
     .padding()
   }
