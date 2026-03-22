@@ -29,7 +29,8 @@ struct CategoryEditSheet: View {
       Divider()
       footer
     }
-    .frame(width: 400)
+    .frame(width: 500)
+    .frame(minHeight: 350)
     .onAppear {
       if let category {
         name = category.displayName
@@ -80,6 +81,7 @@ struct CategoryEditSheet: View {
           .foregroundStyle(.secondary)
         TextField("Category name", text: $name)
           .textFieldStyle(.roundedBorder)
+          .font(.system(size: FontTheme.bodySize))
       }
 
       VStack(alignment: .leading, spacing: 4) {

@@ -23,6 +23,8 @@ struct CategoryManagementView: View {
   private var dropTargetLabel: String?
   @State
   private var dropAsTopLevelPosition: Int?
+  @State
+  private var dropTargetChildLabel: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -105,10 +107,18 @@ struct CategoryManagementView: View {
         displayName: child.displayName,
         descriptionPreview: child.categoryDescription,
         depth: 1,
-        isDropTarget: false,
+        isDropTarget: dropTargetChildLabel == child.label,
         onEdit: { editingCategory = child }
       )
       .draggable(child.label)
+      .dropDestination(for: String.self) { labels, _ in
+        guard let draggedLabel = labels.first, draggedLabel != child.label else { return false }
+        handleReorderChild(draggedLabel, after: child, in: parent.label)
+        return true
+      } isTargeted: { targeted in
+        dropTargetChildLabel =
+          targeted ? child.label : (dropTargetChildLabel == child.label ? nil : dropTargetChildLabel)
+      }
     }
 
     topLevelDropZone(position: topIndex + 1)
@@ -209,6 +219,41 @@ struct CategoryManagementView: View {
     }
   }
 
+  private func handleReorderChild(_ draggedLabel: String, after target: Category, in parentLabel: String) {
+    guard let writer = syncEngine.writer else { return }
+    let draggedCategory = allCategories.first { $0.label == draggedLabel }
+
+    // If dragged from a different parent or top-level, move it here first
+    let needsReparent = draggedCategory?.parentLabel != parentLabel
+
+    var children = childCategories(of: parentLabel).map(\.label)
+    children.removeAll { $0 == draggedLabel }
+    let targetIndex = children.firstIndex(of: target.label).map { $0 + 1 } ?? children.count
+    children.insert(draggedLabel, at: targetIndex)
+
+    let updates = children.enumerated().map { (index, label) in
+      (label: label, sortOrder: index)
+    }
+
+    let orphans = needsReparent ? childCategories(of: draggedLabel) : []
+
+    Task {
+      if needsReparent {
+        try? await writer.updateCategoryHierarchy(
+          label: draggedLabel, parentLabel: parentLabel,
+          depth: 1, isTopLevel: false, sortOrder: targetIndex
+        )
+        for (index, orphan) in orphans.enumerated() {
+          try? await writer.updateCategoryHierarchy(
+            label: orphan.label, parentLabel: nil,
+            depth: 0, isTopLevel: true, sortOrder: topLevelCategories.count + index
+          )
+        }
+      }
+      try? await writer.updateCategorySortOrders(updates)
+    }
+  }
+
   private func handleMakeTopLevel(_ draggedLabel: String, at position: Int) {
     guard let writer = syncEngine.writer else { return }
     var ordered = topLevelCategories.map(\.label)
@@ -250,21 +295,16 @@ private struct CategoryCompactRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(displayName)
           .font(FontTheme.bodyMedium)
-        Text(descriptionPreview)
+        Text(descriptionPreview.prefix(30) + (descriptionPreview.count > 30 ? "…" : ""))
           .font(FontTheme.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
-          .truncationMode(.tail)
       }
       Spacer()
-      Button {
+      Button("Edit") {
         onEdit()
-      } label: {
-        Image(systemName: "pencil")
-          .foregroundStyle(.secondary)
       }
-      .buttonStyle(.plain)
-      .help("Edit category")
+      .controlSize(.small)
     }
     .padding(.leading, CGFloat(depth) * 20)
     .padding(.vertical, 4)
