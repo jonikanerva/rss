@@ -44,8 +44,8 @@ struct SettingsView: View {
         }
     }
     .frame(
-      minWidth: 550, idealWidth: 650, maxWidth: 900,
-      minHeight: 500, idealHeight: 600, maxHeight: 800)
+      minWidth: 420, idealWidth: 480, maxWidth: 550,
+      minHeight: 450, idealHeight: 550, maxHeight: 700)
   }
 
   // MARK: - Account Tab

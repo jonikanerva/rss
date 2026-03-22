@@ -27,57 +27,39 @@ struct CategoryManagementView: View {
   private var dropChildPosition: String?
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      header
-      Divider()
-
+    Form {
       if allCategories.isEmpty {
-        emptyState
+        Section("Categories") {
+          ContentUnavailableView {
+            Label("No Categories", systemImage: "tag")
+          } description: {
+            Text("Create categories to classify your articles.")
+          }
+        }
       } else {
-        categoryList
+        Section("Categories") {
+          categoryList
+        }
       }
 
-      Divider()
-      footer
+      Section {
+        footerContent
+      }
     }
-  }
-
-  // MARK: - Header
-
-  private var header: some View {
-    HStack {
-      Text("Categories")
-        .font(FontTheme.headline)
-      Spacer()
-    }
-    .padding()
-  }
-
-  // MARK: - Empty state
-
-  private var emptyState: some View {
-    ContentUnavailableView {
-      Label("No Categories", systemImage: "tag")
-    } description: {
-      Text("Create categories to classify your articles.")
-    }
-    .frame(maxHeight: .infinity)
+    .formStyle(.grouped)
   }
 
   // MARK: - Category list (drag-and-drop hierarchy)
 
   private var categoryList: some View {
-    ScrollView {
-      LazyVStack(spacing: 0) {
-        topLevelDropZone(position: 0)
+    VStack(spacing: 0) {
+      topLevelDropZone(position: 0)
 
-        ForEach(Array(topLevelCategories.enumerated()), id: \.element.persistentModelID) {
-          topIndex,
-          parent in
-          parentCategorySection(parent: parent, topIndex: topIndex)
-        }
+      ForEach(Array(topLevelCategories.enumerated()), id: \.element.persistentModelID) {
+        topIndex,
+        parent in
+        parentCategorySection(parent: parent, topIndex: topIndex)
       }
-      .padding(.vertical, 4)
     }
   }
 
@@ -160,7 +142,7 @@ struct CategoryManagementView: View {
 
   // MARK: - Footer
 
-  private var footer: some View {
+  private var footerContent: some View {
     HStack {
       if classificationEngine.isClassifying {
         ProgressView()
@@ -186,7 +168,6 @@ struct CategoryManagementView: View {
       }
       .accessibilityIdentifier("categories.add")
     }
-    .padding()
     .sheet(isPresented: $showNewCategorySheet) {
       CategoryEditSheet(category: nil, allTopLevel: topLevelCategories)
     }
@@ -322,7 +303,6 @@ private struct CategoryCompactRow: View {
       Button("Edit") {
         onEdit()
       }
-      .controlSize(.small)
     }
     .padding(.leading, CGFloat(depth) * 20)
     .padding(.vertical, 4)
