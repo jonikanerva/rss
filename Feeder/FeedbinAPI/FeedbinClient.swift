@@ -1,17 +1,46 @@
 import Foundation
 import OSLog
 
+// MARK: - Pure helpers (nonisolated, testable)
+
+/// Check if a Link header indicates a next page exists.
+nonisolated func hasNextPageInLinkHeader(_ headerValue: String?) -> Bool {
+    guard let header = headerValue else { return false }
+    return header.contains("rel=\"next\"")
+}
+
+/// Format a Date for the Feedbin API (ISO 8601 with fractional seconds).
+nonisolated func formatDateForFeedbin(_ date: Date) -> String {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter.string(from: date)
+}
+
+/// Map an HTTP status code to a FeedbinError, or nil if success.
+nonisolated func mapHTTPStatus(_ statusCode: Int) -> FeedbinError? {
+    switch statusCode {
+    case 200...299: nil
+    case 401: .unauthorized
+    case 403: .forbidden
+    case 404: .notFound
+    case 429: .rateLimited
+    default: .httpError(statusCode: statusCode)
+    }
+}
+
 /// Feedbin API v2 client using HTTP Basic auth and async/await.
 /// Reference: https://github.com/feedbin/feedbin-api
 actor FeedbinClient {
     private static let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
     private let baseURL = URL(string: "https://api.feedbin.com/v2/")!
     private let session: URLSession
-    private let credential: String // Base64-encoded "user:password"
+    private let credential: String  // Base64-encoded "user:password"
     private let decoder: JSONDecoder
 
     init(username: String, password: String) {
-        let credentialData = "\(username):\(password)".data(using: .utf8)!
+        guard let credentialData = "\(username):\(password)".data(using: .utf8) else {
+            fatalError("Failed to encode credentials as UTF-8")
+        }
         self.credential = credentialData.base64EncodedString()
 
         let config = URLSessionConfiguration.default
@@ -92,10 +121,13 @@ actor FeedbinClient {
 
         for batch in batches {
             let idString = batch.map(String.init).joined(separator: ",")
-            var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false)!
+            guard var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false) else {
+                throw FeedbinError.invalidResponse
+            }
             components.queryItems = [URLQueryItem(name: "ids", value: idString)]
+            guard let url = components.url else { throw FeedbinError.invalidResponse }
 
-            let (data, response) = try await session.data(from: components.url!)
+            let (data, response) = try await session.data(from: url)
             try checkResponse(response)
             let entries = try decoder.decode([FeedbinEntry].self, from: data)
             allEntries.append(contentsOf: entries)
@@ -108,17 +140,20 @@ actor FeedbinClient {
     /// Fetch entries with optional `since` date for incremental sync.
     /// Returns entries and whether there are more pages.
     func fetchEntries(since: Date? = nil, page: Int = 1, perPage: Int = 100) async throws -> FeedbinEntriesPage {
-        var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false) else {
+            throw FeedbinError.invalidResponse
+        }
         var queryItems = [
             URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "per_page", value: "\(perPage)")
+            URLQueryItem(name: "per_page", value: "\(perPage)"),
         ]
         if let since {
             queryItems.append(URLQueryItem(name: "since", value: formatDate(since)))
         }
         components.queryItems = queryItems
+        guard let url = components.url else { throw FeedbinError.invalidResponse }
 
-        let (data, response) = try await session.data(from: components.url!)
+        let (data, response) = try await session.data(from: url)
         try checkResponse(response)
         let entries = try decoder.decode([FeedbinEntry].self, from: data)
 
@@ -167,35 +202,21 @@ actor FeedbinClient {
         guard let http = response as? HTTPURLResponse else {
             throw FeedbinError.invalidResponse
         }
-        switch http.statusCode {
-        case 200...299:
-            return
-        case 401:
-            throw FeedbinError.unauthorized
-        case 403:
-            throw FeedbinError.forbidden
-        case 404:
-            throw FeedbinError.notFound
-        case 429:
-            throw FeedbinError.rateLimited
-        default:
-            throw FeedbinError.httpError(statusCode: http.statusCode)
+        if let error = mapHTTPStatus(http.statusCode) {
+            throw error
         }
     }
 
     private func parseLinkHeader(_ response: URLResponse) -> Bool {
-        guard let http = response as? HTTPURLResponse,
-              let linkHeader = http.value(forHTTPHeaderField: "Links")
-                ?? http.value(forHTTPHeaderField: "Link") else {
-            return false
-        }
-        return linkHeader.contains("rel=\"next\"")
+        guard let http = response as? HTTPURLResponse else { return false }
+        let linkHeader =
+            http.value(forHTTPHeaderField: "Links")
+            ?? http.value(forHTTPHeaderField: "Link")
+        return hasNextPageInLinkHeader(linkHeader)
     }
 
     private func formatDate(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        formatDateForFeedbin(date)
     }
 }
 

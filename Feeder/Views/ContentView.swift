@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 // MARK: - Color extension
 
@@ -13,6 +13,30 @@ extension Color {
             blue: Double(hex & 0xFF) / 255,
             opacity: opacity
         )
+    }
+}
+
+// MARK: - Child Category Items (dynamic @Query filtered by parent in SQLite)
+
+/// Renders child categories under a parent in the sidebar, using a @Query predicate instead of Swift-side filtering.
+struct ChildCategorySidebarItems: View {
+    @Query private var children: [Category]
+
+    init(parentLabel: String) {
+        _children = Query(
+            filter: #Predicate<Category> { $0.parentLabel == parentLabel },
+            sort: \Category.sortOrder
+        )
+    }
+
+    var body: some View {
+        ForEach(children) { child in
+            Text(child.displayName)
+                .font(.system(size: FontTheme.metadataSize))
+                .padding(.leading, 16)
+                .tag(child.label)
+                .accessibilityIdentifier("sidebar.category.\(child.label)")
+        }
     }
 }
 
@@ -60,8 +84,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
     private var topLevelCategories: [Category]
-    @Query(filter: #Predicate<Category> { $0.isTopLevel == false }, sort: \Category.sortOrder)
-    private var childCategories: [Category]
+    @Query(sort: \Category.sortOrder) private var allCategories: [Category]
     @State private var selectedEntry: Entry?
     @State private var selectedCategory: String?
     @State private var needsSetup = false
@@ -145,27 +168,26 @@ struct ContentView: View {
             }
         }
         // Keyboard navigation
-        .onKeyPress(.downArrow) { navigateEntry(direction: .next); return .handled }
-        .onKeyPress(.upArrow) { navigateEntry(direction: .previous); return .handled }
-        .onKeyPress(.escape) { selectedEntry = nil; return .handled }
-        .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in openInBackground(); return .handled }
+        .onKeyPress(.escape) {
+            selectedEntry = nil
+            return .handled
+        }
+        .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in
+            openInBackground()
+            return .handled
+        }
     }
 
-    // MARK: - Keyboard Navigation
-
-    private enum NavigationDirection { case next, previous }
-
-    private func navigateEntry(direction: NavigationDirection) {
-        // Keyboard nav needs the current list — but we can't access EntryListView's @Query from here.
-        // For now this is a no-op when no entry is selected; arrow keys work via List's built-in selection.
-        // TODO: Re-evaluate if custom keyboard nav is needed beyond List's default behavior.
-    }
+    // MARK: - Actions
 
     private func openInBackground() {
-        guard let entry = selectedEntry, let url = URL(string: entry.url) else { return }
+        guard let entry = selectedEntry,
+            let url = URL(string: entry.url),
+            let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+        else { return }
         NSWorkspace.shared.open(
             [url],
-            withApplicationAt: NSWorkspace.shared.urlForApplication(toOpen: url)!,
+            withApplicationAt: appURL,
             configuration: {
                 let config = NSWorkspace.OpenConfiguration()
                 config.activates = false
@@ -185,13 +207,7 @@ struct ContentView: View {
                         .font(.system(size: FontTheme.metadataSize))
                         .tag(parent.label)
                         .accessibilityIdentifier("sidebar.category.\(parent.label)")
-                    ForEach(children(of: parent)) { child in
-                        Text(child.displayName)
-                            .font(.system(size: FontTheme.metadataSize))
-                            .padding(.leading, 16)
-                            .tag(child.label)
-                            .accessibilityIdentifier("sidebar.category.\(child.label)")
-                    }
+                    ChildCategorySidebarItems(parentLabel: parent.label)
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -237,19 +253,10 @@ struct ContentView: View {
         }
     }
 
-    private var allCategories: [Category] {
-        topLevelCategories + childCategories
-    }
-
-    private func children(of parent: Category) -> [Category] {
-        childCategories
-            .filter { $0.parentLabel == parent.label }
-            .sorted { $0.sortOrder < $1.sortOrder }
-    }
-
     private var navigationTitle: String {
         if let category = selectedCategory,
-           let cat = allCategories.first(where: { $0.label == category }) {
+            let cat = allCategories.first(where: { $0.label == category })
+        {
             return cat.displayName
         }
         return "Articles"
@@ -260,7 +267,7 @@ struct ContentView: View {
     @ViewBuilder
     private var detailView: some View {
         if let selectedEntry {
-            EntryDetailView(entry: selectedEntry, siblings: [])
+            EntryDetailView(entry: selectedEntry)
         } else {
             ContentUnavailableView {
                 Label("Select an Article", systemImage: "doc.text")
@@ -299,15 +306,23 @@ struct ContentView: View {
         let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
         guard existingCount == 0 else { return }
 
-        let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for local UI testing", sortOrder: 0)
-        let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news for local UI testing", sortOrder: 0, parentLabel: "technology")
-        let world = Category(label: "world", displayName: "World", categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
+        let technology = Category(
+            label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for local UI testing", sortOrder: 0)
+        let apple = Category(
+            label: "apple", displayName: "Apple", categoryDescription: "Apple news for local UI testing", sortOrder: 0,
+            parentLabel: "technology")
+        let world = Category(
+            label: "world", displayName: "World", categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
         modelContext.insert(technology)
         modelContext.insert(apple)
         modelContext.insert(world)
 
-        let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
-        let feed2 = Feed(feedbinSubscriptionID: 2, feedbinFeedID: 2, title: "Ars Technica", feedURL: "https://arstechnica.com/rss", siteURL: "https://arstechnica.com", createdAt: .now)
+        let feed1 = Feed(
+            feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss",
+            siteURL: "https://theverge.com", createdAt: .now)
+        let feed2 = Feed(
+            feedbinSubscriptionID: 2, feedbinFeedID: 2, title: "Ars Technica", feedURL: "https://arstechnica.com/rss",
+            siteURL: "https://arstechnica.com", createdAt: .now)
         modelContext.insert(feed1)
         modelContext.insert(feed2)
 
@@ -400,18 +415,25 @@ private func timelineSeededDemoPreview() -> some View {
     let container = try! ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config)
     let context = container.mainContext
 
-    let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
-    let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, parentLabel: "technology")
+    let technology = Category(
+        label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
+    let apple = Category(
+        label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, parentLabel: "technology")
     let world = Category(label: "world", displayName: "World", categoryDescription: "World coverage for preview", sortOrder: 1)
     context.insert(technology)
     context.insert(apple)
     context.insert(world)
 
-    let feed1 = Feed(feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
+    let feed1 = Feed(
+        feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge", feedURL: "https://theverge.com/rss",
+        siteURL: "https://theverge.com", createdAt: .now)
     context.insert(feed1)
 
     for i in 1...5 {
-        let entry = Entry(feedbinEntryID: i, title: "Sample Tech Story \(i)", author: "Feeder Bot", url: "https://example.com/\(i)", content: "<p>Sample article \(i).</p>", summary: "Sample \(i)", extractedContentURL: nil, publishedAt: .now.addingTimeInterval(-Double(i) * 900), createdAt: .now.addingTimeInterval(-Double(i) * 850))
+        let entry = Entry(
+            feedbinEntryID: i, title: "Sample Tech Story \(i)", author: "Feeder Bot", url: "https://example.com/\(i)",
+            content: "<p>Sample article \(i).</p>", summary: "Sample \(i)", extractedContentURL: nil,
+            publishedAt: .now.addingTimeInterval(-Double(i) * 900), createdAt: .now.addingTimeInterval(-Double(i) * 850))
         entry.feed = feed1
         entry.categoryLabels = ["technology"]
         entry.primaryCategory = "technology"

@@ -1,6 +1,6 @@
 import Foundation
-import SwiftData
 import OSLog
+import SwiftData
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
@@ -225,7 +225,8 @@ final class SyncEngine {
                     for request in requests {
                         if active >= 8 {
                             if let result = await group.next(),
-                               let content = result.1 {
+                                let content = result.1
+                            {
                                 collected.append((entryID: result.0, content: content))
                             }
                             active -= 1
