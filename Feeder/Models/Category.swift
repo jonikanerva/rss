@@ -18,8 +18,10 @@ final class Category {
     /// Whether this is a top-level category (pre-computed for @Query).
     var isTopLevel: Bool
 
-    init(label: String, displayName: String, categoryDescription: String,
-         sortOrder: Int = 0, parentLabel: String? = nil) {
+    init(
+        label: String, displayName: String, categoryDescription: String,
+        sortOrder: Int = 0, parentLabel: String? = nil
+    ) {
         self.label = label
         self.displayName = displayName
         self.categoryDescription = categoryDescription

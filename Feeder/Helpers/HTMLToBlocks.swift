@@ -215,7 +215,8 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
                 // and other inline/container tags — recurse transparently
                 if HTMLConstants.inlineTags.contains(tag)
                     || HTMLConstants.containerTags.contains(tag)
-                    || isBlockContentTag(tag) {
+                    || isBlockContentTag(tag)
+                {
                     result += extractInlineMarkdown(from: el)
                 } else if !HTMLConstants.knownSkipTags.contains(tag) {
                     HTMLConstants.logger.debug("Skipping unknown inline tag: <\(tag)>")
@@ -230,7 +231,7 @@ nonisolated private func extractInlineMarkdown(from element: XMLElement) -> Stri
 nonisolated private func isBlockContentTag(_ tag: String) -> Bool {
     switch tag {
     case "p", "h1", "h2", "h3", "h4", "h5", "h6",
-         "ul", "ol", "li", "blockquote", "pre":
+        "ul", "ol", "li", "blockquote", "pre":
         return true
     default:
         return false

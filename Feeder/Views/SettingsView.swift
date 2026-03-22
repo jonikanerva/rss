@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct SettingsView: View {
     @Environment(SyncEngine.self) private var syncEngine
@@ -33,8 +33,9 @@ struct SettingsView: View {
                     Label("Categories", systemImage: "tag")
                 }
         }
-        .frame(minWidth: 550, idealWidth: 650, maxWidth: 900,
-               minHeight: 500, idealHeight: 600, maxHeight: 800)
+        .frame(
+            minWidth: 550, idealWidth: 650, maxWidth: 900,
+            minHeight: 500, idealHeight: 600, maxHeight: 800)
     }
 
     // MARK: - Account Tab
@@ -194,8 +195,8 @@ struct SettingsView: View {
 
 // MARK: - Helper extension
 
-private extension Double {
-    func clamped(to range: ClosedRange<Double>, default defaultValue: Double) -> Double {
+extension Double {
+    fileprivate func clamped(to range: ClosedRange<Double>, default defaultValue: Double) -> Double {
         if self == 0 { return defaultValue }
         return min(max(self, range.lowerBound), range.upperBound)
     }

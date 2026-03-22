@@ -1,8 +1,8 @@
 import Foundation
 import FoundationModels
 import NaturalLanguage
-import SwiftData
 import OSLog
+import SwiftData
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
 
@@ -10,7 +10,10 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Classificati
 
 @Generable
 struct ArticleClassification {
-    @Guide(description: "The most specific matching category labels. If a subcategory matches, use it instead of the parent. Use 'other' alone only if nothing else fits.", .count(1...4))
+    @Guide(
+        description:
+            "The most specific matching category labels. If a subcategory matches, use it instead of the parent. Use 'other' alone only if nothing else fits.",
+        .count(1...4))
     var categories: [String]
 
     @Guide(description: "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
@@ -19,13 +22,13 @@ struct ArticleClassification {
 
 // MARK: - Pure helper functions (nonisolated)
 
-private nonisolated func detectLanguage(_ text: String) -> String {
+nonisolated func detectLanguage(_ text: String) -> String {
     let recognizer = NLLanguageRecognizer()
     recognizer.processString(text)
     return recognizer.dominantLanguage?.rawValue ?? "unknown"
 }
 
-private nonisolated func normalizeStoryKey(_ value: String) -> String {
+nonisolated func normalizeStoryKey(_ value: String) -> String {
     let lowered = value.lowercased()
     let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
     let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
@@ -82,10 +85,12 @@ final class ClassificationEngine {
     private func classifyNextBatch(writer: DataWriter) async {
         // Fetch data from background actor — zero MainActor SwiftData work
         guard let categories = try? await writer.fetchCategoryDefinitions(),
-              !categories.isEmpty else { return }
+            !categories.isEmpty
+        else { return }
 
         guard let inputs = try? await writer.fetchUnclassifiedInputs(),
-              !inputs.isEmpty else {
+            !inputs.isEmpty
+        else {
             if isClassifying {
                 isClassifying = false
                 progress = ""
@@ -140,8 +145,7 @@ final class ClassificationEngine {
                         options: options
                     )
                     let classification = response.content
-                    var labels = classification.categories.filter { validLabels.contains($0) }
-                    if labels.isEmpty { labels = ["other"] }
+                    let labels = filterValidLabels(classification.categories, validSet: validLabels)
                     return ClassificationResult(
                         entryID: input.entryID,
                         categoryLabels: labels,
@@ -175,29 +179,42 @@ final class ClassificationEngine {
     // MARK: - Private
 
     private nonisolated func buildInstructions(from categories: [CategoryDefinition]) -> String {
-        let topLevel = categories.filter { $0.isTopLevel }
-        let children = categories.filter { !$0.isTopLevel }
-
-        var lines: [String] = []
-        for parent in topLevel {
-            lines.append("- \(parent.label): \(parent.description)")
-            for child in children where child.parentLabel == parent.label {
-                lines.append("  - \(child.label): \(child.description)")
-            }
-        }
-        let categoryDescriptions = lines.joined(separator: "\n")
-
-        return """
-            Categorize the following article into the user-defined categories listed below.
-            Categories are organized hierarchically — subcategories are indented under their parent.
-            Assign ONLY the most specific matching categories.
-            If a subcategory matches, assign the subcategory but NOT the parent.
-            If multiple specific categories match, assign all of them.
-            Only assign a parent category when no subcategory under it matches.
-            Only assign a category when the article content provides clear evidence for it.
-
-            Categories:
-            \(categoryDescriptions)
-            """
+        buildClassificationInstructions(from: categories)
     }
+}
+
+// MARK: - Pure classification helpers (nonisolated, testable)
+
+/// Build LLM system instructions from category definitions.
+nonisolated func buildClassificationInstructions(from categories: [CategoryDefinition]) -> String {
+    let topLevel = categories.filter { $0.isTopLevel }
+    let children = categories.filter { !$0.isTopLevel }
+
+    var lines: [String] = []
+    for parent in topLevel {
+        lines.append("- \(parent.label): \(parent.description)")
+        for child in children where child.parentLabel == parent.label {
+            lines.append("  - \(child.label): \(child.description)")
+        }
+    }
+    let categoryDescriptions = lines.joined(separator: "\n")
+
+    return """
+        Categorize the following article into the user-defined categories listed below.
+        Categories are organized hierarchically — subcategories are indented under their parent.
+        Assign ONLY the most specific matching categories.
+        If a subcategory matches, assign the subcategory but NOT the parent.
+        If multiple specific categories match, assign all of them.
+        Only assign a parent category when no subcategory under it matches.
+        Only assign a category when the article content provides clear evidence for it.
+
+        Categories:
+        \(categoryDescriptions)
+        """
+}
+
+/// Filter labels to only valid category labels. Defaults to ["other"] if none valid.
+nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
+    let filtered = labels.filter { validSet.contains($0) }
+    return filtered.isEmpty ? ["other"] : filtered
 }

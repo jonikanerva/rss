@@ -74,8 +74,9 @@ struct ArticleBlockView: View {
     private func articleImage(url: String, alt: String) -> some View {
         Group {
             if let imageURL = URL(string: url),
-               let scheme = imageURL.scheme?.lowercased(),
-               Self.allowedImageSchemes.contains(scheme) {
+                let scheme = imageURL.scheme?.lowercased(),
+                Self.allowedImageSchemes.contains(scheme)
+            {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .success(let image):

@@ -1,6 +1,6 @@
-import SwiftUI
-import SwiftData
 import OSLog
+import SwiftData
+import SwiftUI
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
@@ -18,13 +18,12 @@ struct FeederApp: App {
     init() {
         let processEnvironment = ProcessInfo.processInfo.environment
         let useInMemoryStore =
-            processEnvironment["UITEST_IN_MEMORY_STORE"] == "1" ||
-            processEnvironment["UITEST_DEMO_MODE"] == "1"
+            processEnvironment["UITEST_IN_MEMORY_STORE"] == "1" || processEnvironment["UITEST_DEMO_MODE"] == "1"
 
         let schema = Schema([
             Feed.self,
             Entry.self,
-            Category.self
+            Category.self,
         ])
         let config = ModelConfiguration("Feeder", isStoredInMemoryOnly: useInMemoryStore)
 
@@ -52,7 +51,9 @@ struct FeederApp: App {
         let entryCount = (try? context.fetchCount(FetchDescriptor<Entry>())) ?? 0
         let categoryCount = (try? context.fetchCount(FetchDescriptor<Category>())) ?? 0
         let lastSync = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date
-        logger.info("Startup: schema v\(currentSchemaVersion), \(feedCount) feeds, \(entryCount) entries, \(categoryCount) categories. Last sync: \(lastSync?.description ?? "never"). In-memory: \(useInMemoryStore)")
+        logger.info(
+            "Startup: schema v\(currentSchemaVersion), \(feedCount) feeds, \(entryCount) entries, \(categoryCount) categories. Last sync: \(lastSync?.description ?? "never"). In-memory: \(useInMemoryStore)"
+        )
     }
 
     var body: some Scene {
@@ -84,7 +85,7 @@ struct FeederApp: App {
         let context = ModelContext(modelContainer)
         let feeds = (try? context.fetch(FetchDescriptor<Feed>())) ?? []
         for feed in feeds {
-            context.delete(feed) // cascade deletes feed's entries
+            context.delete(feed)  // cascade deletes feed's entries
         }
         // Delete any orphaned entries (no feed)
         let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []

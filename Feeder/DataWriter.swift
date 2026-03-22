@@ -1,7 +1,6 @@
 import Foundation
-import SwiftData
 import OSLog
-
+import SwiftData
 
 // MARK: - Sendable DTOs for crossing actor boundaries
 
@@ -50,15 +49,17 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
     let calendar = Calendar.current
     let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     let day = calendar.component(.day, from: date)
-    let suffix: String = switch day {
-    case 11, 12, 13: "th"
-    default: switch day % 10 {
-        case 1: "st"
-        case 2: "nd"
-        case 3: "rd"
-        default: "th"
+    let suffix: String =
+        switch day {
+        case 11, 12, 13: "th"
+        default:
+            switch day % 10 {
+            case 1: "st"
+            case 2: "nd"
+            case 3: "rd"
+            default: "th"
+            }
         }
-    }
     let month = date.formatted(.dateTime.month(.abbreviated))
 
     if calendar.isDateInToday(date) {
@@ -69,6 +70,22 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
         let weekday = date.formatted(.dateTime.weekday(.wide))
         return "\(weekday), \(day)\(suffix) \(month), \(time)"
     }
+}
+
+/// Safety net: strip parent labels when a more specific child label is present.
+/// Given ["technology", "apple"] with apple being a child of technology, returns ["apple"].
+nonisolated func enforceDeepestMatch(
+    labels: [String],
+    childrenByParent: [String: [CategoryDefinition]]
+) -> [String] {
+    var result = labels
+    for (parentLabel, children) in childrenByParent {
+        let childLabels = Set(children.map(\.label))
+        if result.contains(parentLabel), result.contains(where: { childLabels.contains($0) }) {
+            result.removeAll { $0 == parentLabel }
+        }
+    }
+    return result.isEmpty ? ["other"] : result
 }
 
 // MARK: - DataWriter Actor
@@ -292,14 +309,7 @@ actor DataWriter {
             grouping: categories.filter { !$0.isTopLevel },
             by: { $0.parentLabel ?? "" }
         )
-        var labels = result.categoryLabels
-        for (parentLabel, children) in childrenByParent {
-            let childLabels = Set(children.map(\.label))
-            if labels.contains(parentLabel), labels.contains(where: { childLabels.contains($0) }) {
-                labels.removeAll { $0 == parentLabel }
-            }
-        }
-        if labels.isEmpty { labels = ["other"] }
+        let labels = enforceDeepestMatch(labels: result.categoryLabels, childrenByParent: childrenByParent)
 
         entry.detectedLanguage = result.detectedLanguage
         entry.categoryLabels = labels
@@ -319,6 +329,91 @@ actor DataWriter {
             entry.isClassified = false
             entry.primaryCategory = ""
         }
+        try modelContext.save()
+    }
+
+    // MARK: - Purge
+
+    // MARK: - Category management
+
+    func addCategory(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String? = nil) throws {
+        let category = Category(
+            label: label,
+            displayName: displayName,
+            categoryDescription: description,
+            sortOrder: sortOrder,
+            parentLabel: parentLabel
+        )
+        modelContext.insert(category)
+        try modelContext.save()
+    }
+
+    func deleteCategory(label: String) throws {
+        let descriptor = FetchDescriptor<Category>(
+            predicate: #Predicate<Category> { $0.label == label }
+        )
+        guard let category = try modelContext.fetch(descriptor).first else { return }
+
+        if category.isTopLevel {
+            let childDescriptor = FetchDescriptor<Category>(
+                predicate: #Predicate<Category> { $0.parentLabel == label }
+            )
+            let kids = try modelContext.fetch(childDescriptor)
+            let topLevelCount = try modelContext.fetchCount(
+                FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.isTopLevel == true })
+            )
+            for child in kids {
+                child.parentLabel = nil
+                child.depth = 0
+                child.isTopLevel = true
+                child.sortOrder = topLevelCount
+            }
+        }
+        modelContext.delete(category)
+        try modelContext.save()
+    }
+
+    func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
+        for (label, sortOrder) in updates {
+            let descriptor = FetchDescriptor<Category>(
+                predicate: #Predicate<Category> { $0.label == label }
+            )
+            if let category = try modelContext.fetch(descriptor).first {
+                category.sortOrder = sortOrder
+            }
+        }
+        try modelContext.save()
+    }
+
+    func updateCategoryHierarchy(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int) throws {
+        let descriptor = FetchDescriptor<Category>(
+            predicate: #Predicate<Category> { $0.label == label }
+        )
+        guard let category = try modelContext.fetch(descriptor).first else { return }
+        category.parentLabel = parentLabel
+        category.depth = depth
+        category.isTopLevel = isTopLevel
+        category.sortOrder = sortOrder
+        try modelContext.save()
+    }
+
+    func seedDefaultCategories(
+        _ definitions: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)]
+    ) throws {
+        for (label, displayName, description, sortOrder, parentLabel) in definitions {
+            let category = Category(
+                label: label,
+                displayName: displayName,
+                categoryDescription: description,
+                sortOrder: sortOrder,
+                parentLabel: parentLabel
+            )
+            modelContext.insert(category)
+        }
+        try modelContext.save()
+    }
+
+    func saveCategories() throws {
         try modelContext.save()
     }
 

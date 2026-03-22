@@ -18,7 +18,7 @@ extension [ArticleBlock] {
         compactMap { block in
             switch block {
             case .paragraph(let text), .heading(_, let text),
-                 .blockquote(let text):
+                .blockquote(let text):
                 return text
             case .list(_, let items):
                 return items.joined(separator: " ")
