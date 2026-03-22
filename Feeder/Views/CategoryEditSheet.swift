@@ -134,10 +134,13 @@ struct CategoryEditSheet: View {
         try? await writer.updateCategoryFields(
           label: label, displayName: trimmedName, description: trimmedDesc
         )
+        dismiss()
       }
     } else {
-      let label = trimmedName.lowercased()
+      let sanitized = trimmedName.lowercased()
         .replacingOccurrences(of: " ", with: "_")
+        .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+      let label = (sanitized.isEmpty ? "category" : sanitized)
         .appending("_\(Int.random(in: 1000...9999))")
       let sortOrder = allTopLevel.count
       Task {
@@ -145,9 +148,9 @@ struct CategoryEditSheet: View {
           label: label, displayName: trimmedName,
           description: trimmedDesc, sortOrder: sortOrder
         )
+        dismiss()
       }
     }
-    dismiss()
   }
 
   private func prepareDelete() {
@@ -170,7 +173,7 @@ struct CategoryEditSheet: View {
     let label = category.label
     Task {
       try? await writer.deleteCategory(label: label)
+      dismiss()
     }
-    dismiss()
   }
 }

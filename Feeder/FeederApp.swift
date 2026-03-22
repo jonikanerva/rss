@@ -81,6 +81,9 @@ struct FeederApp: App {
   }
 
   // MARK: - First-launch category seeding
+  // Bootstrap exception: writes directly to ModelContext during init(), before any views
+  // or @Query are active. DataWriter is not yet available (SyncEngine.configure() hasn't
+  // been called). This pattern matches resetArticlesIfSchemaChanged() above.
 
   private func seedDefaultCategories(into context: ModelContext) {
     let defaults: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)] = [

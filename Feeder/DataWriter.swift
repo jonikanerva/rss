@@ -367,6 +367,13 @@ actor DataWriter {
     try modelContext.save()
   }
 
+  func fetchCategorySortOrder(label: String) throws -> Int? {
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.label == label }
+    )
+    return try modelContext.fetch(descriptor).first?.sortOrder
+  }
+
   func childCategoryNames(for parentLabel: String) throws -> [String] {
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.parentLabel == parentLabel },

@@ -183,11 +183,10 @@ struct DataWriterCategoryTests {
       (label: "b", sortOrder: 0),
     ])
 
-    let defs = try await writer.fetchCategoryDefinitions()
-    let a = defs.first { $0.label == "a" }
-    let b = defs.first { $0.label == "b" }
-    #expect(a != nil)
-    #expect(b != nil)
+    let orderA = try await writer.fetchCategorySortOrder(label: "a")
+    let orderB = try await writer.fetchCategorySortOrder(label: "b")
+    #expect(orderA == 1)
+    #expect(orderB == 0)
   }
 
   // MARK: - seedDefaultCategories
