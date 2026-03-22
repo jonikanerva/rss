@@ -30,7 +30,10 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   -destination "$DESTINATION" \
   -resultBundlePath "$RESULT_BUNDLE_PATH" \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY=- \
+  CODE_SIGNING_REQUIRED=NO \
+  ENABLE_APP_SANDBOX=NO \
+  ENABLE_HARDENED_RUNTIME=NO \
   test-without-building \
   -only-testing:"$ONLY_TESTING" \
   "$@"

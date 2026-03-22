@@ -581,6 +581,7 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
 	};
 	rootObject = A1B2C3D02F5A0001000FEED1 /* Project object */;
 }

@@ -15,11 +15,17 @@ echo "scheme: $SCHEME"
 echo "configuration: $CONFIGURATION"
 echo "derived data: $DERIVED_DATA_PATH"
 
+# Ad-hoc signing (CODE_SIGN_IDENTITY=-) allows UI tests to launch the app
+# without a full developer identity. Disable entitlements that require
+# provisioning profiles since we don't have them in CI.
 xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY=- \
+  CODE_SIGNING_REQUIRED=NO \
+  ENABLE_APP_SANDBOX=NO \
+  ENABLE_HARDENED_RUNTIME=NO \
   build-for-testing \
   "$@"

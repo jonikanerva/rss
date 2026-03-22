@@ -139,7 +139,10 @@ actor DataWriter {
             )
             entry.feed = feedsByFeedbinID[dto.feedId]
             entry.isRead = markAsRead
-            entry.plainText = stripHTMLToPlainText(dto.content ?? dto.summary ?? "")
+            let html = dto.content ?? dto.summary ?? ""
+            let blocks = parseHTMLToBlocks(html)
+            entry.articleBlocksData = blocks.toJSONData()
+            entry.plainText = blocks.classificationText
             entry.formattedDate = formatEntryDate(dto.published)
             modelContext.insert(entry)
             newCount += 1
@@ -180,7 +183,10 @@ actor DataWriter {
             )
             entry.feed = feedsByFeedbinID[dto.feedId]
             entry.isRead = !unreadIDs.contains(dto.id)
-            entry.plainText = stripHTMLToPlainText(dto.content ?? dto.summary ?? "")
+            let html = dto.content ?? dto.summary ?? ""
+            let blocks = parseHTMLToBlocks(html)
+            entry.articleBlocksData = blocks.toJSONData()
+            entry.plainText = blocks.classificationText
             entry.formattedDate = formatEntryDate(dto.published)
             modelContext.insert(entry)
             newCount += 1
@@ -236,7 +242,9 @@ actor DataWriter {
         for entry in entries {
             if let content = resultsByID[entry.feedbinEntryID] {
                 entry.extractedContent = content
-                entry.plainText = stripHTMLToPlainText(content)
+                let blocks = parseHTMLToBlocks(content)
+                entry.articleBlocksData = blocks.toJSONData()
+                entry.plainText = blocks.classificationText
             }
         }
         try modelContext.save()

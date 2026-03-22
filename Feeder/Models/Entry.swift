@@ -27,8 +27,10 @@ final class Entry {
     var isRead: Bool = false
     /// Whether this entry has been classified (controls UI visibility)
     var isClassified: Bool = false
-    /// Pre-stripped plain text body (computed once at persist/extract time, used by UI and classification)
+    /// Pre-stripped plain text body (computed once at persist/extract time, used by classification)
     var plainText: String = ""
+    /// JSON-encoded [ArticleBlock] for rich article rendering (computed at persist time)
+    var articleBlocksData: Data?
     /// Pre-formatted date string for display (e.g., "Today, 5th Mar, 21:24")
     var formattedDate: String = ""
     /// First assigned category label — denormalized for @Query predicate filtering
@@ -46,6 +48,23 @@ final class Entry {
     var storyKey: String?
     /// Detected language code (e.g., "en", "fi")
     var detectedLanguage: String?
+
+    /// Cached decoded blocks — transient, not persisted. Decoded once on first access.
+    @Transient private var _cachedBlocks: [ArticleBlock]?
+
+    /// Decoded article blocks for display. Falls back to plain text paragraph.
+    /// Cached after first decode to avoid JSON parsing on every re-render.
+    var parsedBlocks: [ArticleBlock] {
+        if let cached = _cachedBlocks { return cached }
+        let blocks: [ArticleBlock]
+        if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
+            blocks = decoded
+        } else {
+            blocks = plainText.isEmpty ? [] : [.paragraph(text: plainText)]
+        }
+        _cachedBlocks = blocks
+        return blocks
+    }
 
     /// Best available HTML body: extracted > content > summary
     var bestHTML: String {

@@ -67,10 +67,8 @@ struct EntryDetailView: View {
 
                 Divider()
 
-                // Article body — pre-stripped plain text from database
-                Text(current.plainText)
-                    .font(.system(size: FontTheme.bodySize))
-                    .lineSpacing(6)
+                // Article body — structured blocks from database
+                ArticleBlockView(blocks: current.parsedBlocks)
                     .textSelection(.enabled)
                     .frame(maxWidth: 660, alignment: .leading)
             }
