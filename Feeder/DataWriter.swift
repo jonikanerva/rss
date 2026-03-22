@@ -406,6 +406,32 @@ actor DataWriter {
     try modelContext.save()
   }
 
+  func batchUpdateCategoryHierarchyAndSortOrders(
+    hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)],
+    sortOrderUpdates: [(label: String, sortOrder: Int)]
+  ) throws {
+    for change in hierarchyChanges {
+      let targetLabel = change.label
+      let descriptor = FetchDescriptor<Category>(
+        predicate: #Predicate<Category> { $0.label == targetLabel }
+      )
+      guard let category = try modelContext.fetch(descriptor).first else { continue }
+      category.parentLabel = change.parentLabel
+      category.depth = change.depth
+      category.isTopLevel = change.isTopLevel
+      category.sortOrder = change.sortOrder
+    }
+    for (label, sortOrder) in sortOrderUpdates {
+      let descriptor = FetchDescriptor<Category>(
+        predicate: #Predicate<Category> { $0.label == label }
+      )
+      if let category = try modelContext.fetch(descriptor).first {
+        category.sortOrder = sortOrder
+      }
+    }
+    try modelContext.save()
+  }
+
   func updateCategoryFields(label: String, displayName: String, description: String) throws {
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }

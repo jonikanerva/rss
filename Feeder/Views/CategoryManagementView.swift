@@ -109,8 +109,7 @@ struct CategoryManagementView: View {
     let isTargeted = dropAsTopLevelPosition == position
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
-      .frame(height: isTargeted ? 3 : 12)
-      .animation(.easeInOut(duration: 0.15), value: isTargeted)
+      .frame(height: 8)
       .dropDestination(for: String.self) { labels, _ in
         guard let draggedLabel = labels.first else { return false }
         handleMakeTopLevel(draggedLabel, at: position)
@@ -128,9 +127,8 @@ struct CategoryManagementView: View {
     let isTargeted = dropChildPosition == key
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
-      .frame(height: isTargeted ? 3 : 6)
+      .frame(height: 6)
       .padding(.leading, 20)
-      .animation(.easeInOut(duration: 0.15), value: isTargeted)
       .dropDestination(for: String.self) { labels, _ in
         guard let draggedLabel = labels.first else { return false }
         handleInsertChild(draggedLabel, in: parentLabel, at: position)
@@ -189,30 +187,24 @@ struct CategoryManagementView: View {
   private func handleMakeChild(_ draggedLabel: String, of parentLabel: String) {
     guard let writer = syncEngine.writer else { return }
 
-    // Prevent dropping a parent onto its own child (circular hierarchy)
     let targetParent = allCategories.first { $0.label == parentLabel }
     if targetParent?.parentLabel == draggedLabel { return }
-
-    // Prevent dropping onto self
     if draggedLabel == parentLabel { return }
 
     let childCount = childCategories(of: parentLabel).count
     let orphans = childCategories(of: draggedLabel)
 
-    Task {
-      // Move dragged item to become a child
-      try? await writer.updateCategoryHierarchy(
-        label: draggedLabel, parentLabel: parentLabel,
-        depth: 1, isTopLevel: false, sortOrder: childCount
-      )
+    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = [
+      (draggedLabel, parentLabel, 1, false, childCount)
+    ]
+    for (index, orphan) in orphans.enumerated() {
+      hierarchyChanges.append((orphan.label, nil, 0, true, topLevelCategories.count + index))
+    }
 
-      // Promote any orphaned children to top-level
-      for (index, orphan) in orphans.enumerated() {
-        try? await writer.updateCategoryHierarchy(
-          label: orphan.label, parentLabel: nil,
-          depth: 0, isTopLevel: true, sortOrder: topLevelCategories.count + index
-        )
-      }
+    Task {
+      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
+        hierarchyChanges: hierarchyChanges, sortOrderUpdates: []
+      )
     }
   }
 
@@ -221,7 +213,6 @@ struct CategoryManagementView: View {
     let draggedCategory = allCategories.first { $0.label == draggedLabel }
     let needsReparent = draggedCategory?.parentLabel != parentLabel
 
-    // Prevent circular hierarchy
     let targetParent = allCategories.first { $0.label == parentLabel }
     if targetParent?.parentLabel == draggedLabel { return }
 
@@ -230,26 +221,22 @@ struct CategoryManagementView: View {
     let insertAt = min(position, children.count)
     children.insert(draggedLabel, at: insertAt)
 
-    let updates = children.enumerated().map { (index, label) in
+    let sortOrderUpdates = children.enumerated().map { (index, label) in
       (label: label, sortOrder: index)
     }
 
-    let orphans = needsReparent ? childCategories(of: draggedLabel) : []
+    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = []
+    if needsReparent {
+      hierarchyChanges.append((draggedLabel, parentLabel, 1, false, insertAt))
+      for (index, orphan) in childCategories(of: draggedLabel).enumerated() {
+        hierarchyChanges.append((orphan.label, nil, 0, true, topLevelCategories.count + index))
+      }
+    }
 
     Task {
-      if needsReparent {
-        try? await writer.updateCategoryHierarchy(
-          label: draggedLabel, parentLabel: parentLabel,
-          depth: 1, isTopLevel: false, sortOrder: insertAt
-        )
-        for (index, orphan) in orphans.enumerated() {
-          try? await writer.updateCategoryHierarchy(
-            label: orphan.label, parentLabel: nil,
-            depth: 0, isTopLevel: true, sortOrder: topLevelCategories.count + index
-          )
-        }
-      }
-      try? await writer.updateCategorySortOrders(updates)
+      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
+        hierarchyChanges: hierarchyChanges, sortOrderUpdates: sortOrderUpdates
+      )
     }
   }
 
@@ -260,21 +247,20 @@ struct CategoryManagementView: View {
     let insertAt = min(position, ordered.count)
     ordered.insert(draggedLabel, at: insertAt)
 
-    let updates = ordered.enumerated().map { (index, label) in
+    let sortOrderUpdates = ordered.enumerated().map { (index, label) in
       (label: label, sortOrder: index)
     }
 
     let draggedCategory = allCategories.first { $0.label == draggedLabel }
-    let needsPromotion = draggedCategory?.isTopLevel == false
+    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = []
+    if draggedCategory?.isTopLevel == false {
+      hierarchyChanges.append((draggedLabel, nil, 0, true, insertAt))
+    }
 
     Task {
-      if needsPromotion {
-        try? await writer.updateCategoryHierarchy(
-          label: draggedLabel, parentLabel: nil,
-          depth: 0, isTopLevel: true, sortOrder: insertAt
-        )
-      }
-      try? await writer.updateCategorySortOrders(updates)
+      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
+        hierarchyChanges: hierarchyChanges, sortOrderUpdates: sortOrderUpdates
+      )
     }
   }
 }
