@@ -19,6 +19,8 @@ struct SettingsView: View {
   @State
   private var statusMessage: String?
   @State
+  private var isEditingPassword = false
+  @State
   private var syncInterval: Double = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
   @State
   private var keepDays: Int = {
@@ -57,9 +59,20 @@ struct SettingsView: View {
           .textContentType(.emailAddress)
           .accessibilityLabel("Feedbin email address")
 
-        SecureField("Password", text: $password)
-          .textContentType(.password)
-          .accessibilityLabel("Feedbin password")
+        HStack {
+          if isEditingPassword {
+            SecureField("Password", text: $password)
+              .textContentType(.password)
+              .accessibilityLabel("Feedbin password")
+          } else {
+            Text("•••••")
+              .foregroundStyle(.secondary)
+            Spacer()
+            Button("Change") {
+              isEditingPassword = true
+            }
+          }
+        }
 
         HStack {
           Button("Save") {
@@ -126,23 +139,11 @@ struct SettingsView: View {
       Section("Status") {
         LabeledContent("Last sync") {
           if let date = syncEngine.lastSyncDate {
-            Text(date, style: .relative)
+            Text(formatEntryDate(date))
               .foregroundStyle(.secondary)
           } else {
             Text("Never")
               .foregroundStyle(.tertiary)
-          }
-        }
-
-        LabeledContent("Sync") {
-          Text(syncEngine.syncProgress)
-            .foregroundStyle(.secondary)
-        }
-
-        if classificationEngine.isClassifying {
-          LabeledContent("Classification") {
-            Text(classificationEngine.progress)
-              .foregroundStyle(.secondary)
           }
         }
 

@@ -280,7 +280,7 @@ private struct CategoryCompactRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(displayName)
           .font(FontTheme.bodyMedium)
-        Text(descriptionPreview.prefix(30) + (descriptionPreview.count > 30 ? "…" : ""))
+        Text(descriptionPreview.prefix(50) + (descriptionPreview.count > 50 ? "…" : ""))
           .font(FontTheme.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
