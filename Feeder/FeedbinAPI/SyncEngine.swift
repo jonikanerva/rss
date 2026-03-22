@@ -263,6 +263,10 @@ final class SyncEngine {
 
   // MARK: - Background: Recent history backfill
 
+  func refetchHistory() {
+    startBackfill()
+  }
+
   private func startBackfill() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
