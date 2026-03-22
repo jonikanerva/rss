@@ -10,29 +10,29 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Classificati
 
 @Generable
 struct ArticleClassification {
-    @Guide(
-        description:
-            "The most specific matching category labels. If a subcategory matches, use it instead of the parent. Use 'other' alone only if nothing else fits.",
-        .count(1...4))
-    var categories: [String]
+  @Guide(
+    description:
+      "The most specific matching category labels. If a subcategory matches, use it instead of the parent. Use 'other' alone only if nothing else fits.",
+    .count(1...4))
+  var categories: [String]
 
-    @Guide(description: "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
-    var storyKey: String
+  @Guide(description: "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
+  var storyKey: String
 }
 
 // MARK: - Pure helper functions (nonisolated)
 
 nonisolated func detectLanguage(_ text: String) -> String {
-    let recognizer = NLLanguageRecognizer()
-    recognizer.processString(text)
-    return recognizer.dominantLanguage?.rawValue ?? "unknown"
+  let recognizer = NLLanguageRecognizer()
+  recognizer.processString(text)
+  return recognizer.dominantLanguage?.rawValue ?? "unknown"
 }
 
 nonisolated func normalizeStoryKey(_ value: String) -> String {
-    let lowered = value.lowercased()
-    let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-    let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-    return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
+  let lowered = value.lowercased()
+  let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+  let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+  return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
 }
 
 // MARK: - Classification Engine
@@ -42,179 +42,179 @@ nonisolated func normalizeStoryKey(_ value: String) -> String {
 @MainActor
 @Observable
 final class ClassificationEngine {
-    private(set) var isClassifying = false
-    private(set) var progress: String = ""
-    private(set) var classifiedCount = 0
-    private(set) var totalToClassify = 0
+  private(set) var isClassifying = false
+  private(set) var progress: String = ""
+  private(set) var classifiedCount = 0
+  private(set) var totalToClassify = 0
 
-    private var classificationTask: Task<Void, Never>?
+  private var classificationTask: Task<Void, Never>?
 
-    // MARK: - Continuous classification (polling loop)
+  // MARK: - Continuous classification (polling loop)
 
-    func startContinuousClassification(writer: DataWriter) {
-        classificationTask?.cancel()
-        classificationTask = Task {
-            while !Task.isCancelled {
-                await classifyNextBatch(writer: writer)
-                if Task.isCancelled { break }
-                try? await Task.sleep(for: .seconds(2))
-            }
-            isClassifying = false
-            progress = ""
-        }
-    }
-
-    func stopContinuousClassification() {
-        classificationTask?.cancel()
-        classificationTask = nil
-    }
-
-    // MARK: - One-shot classification
-
-    func classifyUnclassified(writer: DataWriter) async {
+  func startContinuousClassification(writer: DataWriter) {
+    classificationTask?.cancel()
+    classificationTask = Task {
+      while !Task.isCancelled {
         await classifyNextBatch(writer: writer)
+        if Task.isCancelled { break }
+        try? await Task.sleep(for: .seconds(2))
+      }
+      isClassifying = false
+      progress = ""
     }
+  }
 
-    func reclassifyAll(writer: DataWriter) async {
-        try? await writer.resetClassification()
-        await classifyNextBatch(writer: writer)
-    }
+  func stopContinuousClassification() {
+    classificationTask?.cancel()
+    classificationTask = nil
+  }
 
-    // MARK: - Core classification logic
+  // MARK: - One-shot classification
 
-    private func classifyNextBatch(writer: DataWriter) async {
-        // Fetch data from background actor — zero MainActor SwiftData work
-        guard let categories = try? await writer.fetchCategoryDefinitions(),
-            !categories.isEmpty
-        else { return }
+  func classifyUnclassified(writer: DataWriter) async {
+    await classifyNextBatch(writer: writer)
+  }
 
-        guard let inputs = try? await writer.fetchUnclassifiedInputs(),
-            !inputs.isEmpty
-        else {
-            if isClassifying {
-                isClassifying = false
-                progress = ""
-            }
-            return
-        }
+  func reclassifyAll(writer: DataWriter) async {
+    try? await writer.resetClassification()
+    await classifyNextBatch(writer: writer)
+  }
 
-        let model = SystemLanguageModel.default
-        guard case .available = model.availability else {
-            logger.error("Apple Foundation Model not available")
-            return
-        }
+  // MARK: - Core classification logic
 
-        isClassifying = true
-        totalToClassify = inputs.count
-        classifiedCount = 0
-        logger.info("Classifying \(inputs.count) entries with \(categories.count) categories")
+  private func classifyNextBatch(writer: DataWriter) async {
+    // Fetch data from background actor — zero MainActor SwiftData work
+    guard let categories = try? await writer.fetchCategoryDefinitions(),
+      !categories.isEmpty
+    else { return }
 
-        let instructions = buildInstructions(from: categories)
-        let validLabels = Set(categories.map(\.label))
-
-        for input in inputs {
-            if Task.isCancelled { break }
-
-            // All heavy work on background thread
-            let result = await Task.detached(priority: .utility) {
-                let textForDetection = "\(input.title) \(input.body.prefix(500))"
-                let lang = detectLanguage(textForDetection)
-
-                if lang != "en" {
-                    return ClassificationResult(
-                        entryID: input.entryID,
-                        categoryLabels: ["other"],
-                        storyKey: normalizeStoryKey(input.title),
-                        detectedLanguage: lang
-                    )
-                }
-
-                do {
-                    let session = LanguageModelSession(model: model, instructions: instructions)
-                    var body = input.body
-                    if body.count > 2000 { body = String(body.prefix(2000)) + "..." }
-                    let prompt = """
-                        title: \(input.title)
-                        summary: \(input.summary)
-                        body: \(body)
-                        """
-                    let options = GenerationOptions(sampling: .greedy)
-                    let response = try await session.respond(
-                        to: prompt,
-                        generating: ArticleClassification.self,
-                        options: options
-                    )
-                    let classification = response.content
-                    let labels = filterValidLabels(classification.categories, validSet: validLabels)
-                    return ClassificationResult(
-                        entryID: input.entryID,
-                        categoryLabels: labels,
-                        storyKey: normalizeStoryKey(classification.storyKey),
-                        detectedLanguage: lang
-                    )
-                } catch {
-                    return ClassificationResult(
-                        entryID: input.entryID,
-                        categoryLabels: ["other"],
-                        storyKey: normalizeStoryKey(input.title),
-                        detectedLanguage: lang
-                    )
-                }
-            }.value
-
-            // Write result via background actor — zero MainActor SwiftData work
-            try? await writer.applyClassification(entryID: result.entryID, result: result)
-
-            // Only progress UI state on MainActor (microseconds)
-            classifiedCount += 1
-            progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
-        }
-
-        let finalCount = classifiedCount
-        logger.info("Classification batch complete: \(finalCount) entries")
+    guard let inputs = try? await writer.fetchUnclassifiedInputs(),
+      !inputs.isEmpty
+    else {
+      if isClassifying {
         isClassifying = false
         progress = ""
+      }
+      return
     }
 
-    // MARK: - Private
-
-    private nonisolated func buildInstructions(from categories: [CategoryDefinition]) -> String {
-        buildClassificationInstructions(from: categories)
+    let model = SystemLanguageModel.default
+    guard case .available = model.availability else {
+      logger.error("Apple Foundation Model not available")
+      return
     }
+
+    isClassifying = true
+    totalToClassify = inputs.count
+    classifiedCount = 0
+    logger.info("Classifying \(inputs.count) entries with \(categories.count) categories")
+
+    let instructions = buildInstructions(from: categories)
+    let validLabels = Set(categories.map(\.label))
+
+    for input in inputs {
+      if Task.isCancelled { break }
+
+      // All heavy work on background thread
+      let result = await Task.detached(priority: .utility) {
+        let textForDetection = "\(input.title) \(input.body.prefix(500))"
+        let lang = detectLanguage(textForDetection)
+
+        if lang != "en" {
+          return ClassificationResult(
+            entryID: input.entryID,
+            categoryLabels: ["other"],
+            storyKey: normalizeStoryKey(input.title),
+            detectedLanguage: lang
+          )
+        }
+
+        do {
+          let session = LanguageModelSession(model: model, instructions: instructions)
+          var body = input.body
+          if body.count > 2000 { body = String(body.prefix(2000)) + "..." }
+          let prompt = """
+            title: \(input.title)
+            summary: \(input.summary)
+            body: \(body)
+            """
+          let options = GenerationOptions(sampling: .greedy)
+          let response = try await session.respond(
+            to: prompt,
+            generating: ArticleClassification.self,
+            options: options
+          )
+          let classification = response.content
+          let labels = filterValidLabels(classification.categories, validSet: validLabels)
+          return ClassificationResult(
+            entryID: input.entryID,
+            categoryLabels: labels,
+            storyKey: normalizeStoryKey(classification.storyKey),
+            detectedLanguage: lang
+          )
+        } catch {
+          return ClassificationResult(
+            entryID: input.entryID,
+            categoryLabels: ["other"],
+            storyKey: normalizeStoryKey(input.title),
+            detectedLanguage: lang
+          )
+        }
+      }.value
+
+      // Write result via background actor — zero MainActor SwiftData work
+      try? await writer.applyClassification(entryID: result.entryID, result: result)
+
+      // Only progress UI state on MainActor (microseconds)
+      classifiedCount += 1
+      progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
+    }
+
+    let finalCount = classifiedCount
+    logger.info("Classification batch complete: \(finalCount) entries")
+    isClassifying = false
+    progress = ""
+  }
+
+  // MARK: - Private
+
+  private nonisolated func buildInstructions(from categories: [CategoryDefinition]) -> String {
+    buildClassificationInstructions(from: categories)
+  }
 }
 
 // MARK: - Pure classification helpers (nonisolated, testable)
 
 /// Build LLM system instructions from category definitions.
 nonisolated func buildClassificationInstructions(from categories: [CategoryDefinition]) -> String {
-    let topLevel = categories.filter { $0.isTopLevel }
-    let children = categories.filter { !$0.isTopLevel }
+  let topLevel = categories.filter { $0.isTopLevel }
+  let children = categories.filter { !$0.isTopLevel }
 
-    var lines: [String] = []
-    for parent in topLevel {
-        lines.append("- \(parent.label): \(parent.description)")
-        for child in children where child.parentLabel == parent.label {
-            lines.append("  - \(child.label): \(child.description)")
-        }
+  var lines: [String] = []
+  for parent in topLevel {
+    lines.append("- \(parent.label): \(parent.description)")
+    for child in children where child.parentLabel == parent.label {
+      lines.append("  - \(child.label): \(child.description)")
     }
-    let categoryDescriptions = lines.joined(separator: "\n")
+  }
+  let categoryDescriptions = lines.joined(separator: "\n")
 
-    return """
-        Categorize the following article into the user-defined categories listed below.
-        Categories are organized hierarchically — subcategories are indented under their parent.
-        Assign ONLY the most specific matching categories.
-        If a subcategory matches, assign the subcategory but NOT the parent.
-        If multiple specific categories match, assign all of them.
-        Only assign a parent category when no subcategory under it matches.
-        Only assign a category when the article content provides clear evidence for it.
+  return """
+    Categorize the following article into the user-defined categories listed below.
+    Categories are organized hierarchically — subcategories are indented under their parent.
+    Assign ONLY the most specific matching categories.
+    If a subcategory matches, assign the subcategory but NOT the parent.
+    If multiple specific categories match, assign all of them.
+    Only assign a parent category when no subcategory under it matches.
+    Only assign a category when the article content provides clear evidence for it.
 
-        Categories:
-        \(categoryDescriptions)
-        """
+    Categories:
+    \(categoryDescriptions)
+    """
 }
 
 /// Filter labels to only valid category labels. Defaults to ["other"] if none valid.
 nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
-    let filtered = labels.filter { validSet.contains($0) }
-    return filtered.isEmpty ? ["other"] : filtered
+  let filtered = labels.filter { validSet.contains($0) }
+  return filtered.isEmpty ? ["other"] : filtered
 }
