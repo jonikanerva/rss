@@ -13,12 +13,12 @@ fi
 
 mkdir -p "$REPORT_DIR"
 
-echo "==> extracting xcresult summary"
+echo "==> extracting test results summary"
 echo "source: $RESULT_BUNDLE_PATH"
 echo "output: $REPORT_PATH"
 
-xcrun xcresulttool get \
+xcrun xcresulttool get test-results summary \
   --path "$RESULT_BUNDLE_PATH" \
-  --format json > "$REPORT_PATH"
+  --compact > "$REPORT_PATH"
 
 echo "==> done"
