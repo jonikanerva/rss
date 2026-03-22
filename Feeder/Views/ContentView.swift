@@ -125,6 +125,9 @@ struct ContentView: View {
       let x = syncEngine.totalToFetch
       return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
     }
+    if syncEngine.isBackfilling {
+      return syncEngine.syncProgress
+    }
     return lastSyncText
   }
 
