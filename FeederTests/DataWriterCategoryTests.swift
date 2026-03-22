@@ -245,4 +245,37 @@ struct DataWriterCategoryTests {
     #expect(gaming?.isTopLevel == false)
     #expect(gaming?.parentLabel == "technology")
   }
+
+  @Test
+  func demoteParentOrphansChildrenCanBePromoted() async throws {
+    let writer = try await makeWriter()
+    try await seedHierarchy(writer)
+    // Hierarchy: technology -> [apple, ai], gaming -> [ps5]
+
+    // Demote "technology" under "gaming" — simulating drag
+    try await writer.updateCategoryHierarchy(
+      label: "technology", parentLabel: "gaming",
+      depth: 1, isTopLevel: false, sortOrder: 1
+    )
+    // Promote orphaned children (apple, ai) to top-level
+    try await writer.updateCategoryHierarchy(
+      label: "apple", parentLabel: nil,
+      depth: 0, isTopLevel: true, sortOrder: 2
+    )
+    try await writer.updateCategoryHierarchy(
+      label: "ai", parentLabel: nil,
+      depth: 0, isTopLevel: true, sortOrder: 3
+    )
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let apple = defs.first { $0.label == "apple" }
+    let ai = defs.first { $0.label == "ai" }
+    let tech = defs.first { $0.label == "technology" }
+    #expect(apple?.isTopLevel == true)
+    #expect(apple?.parentLabel == nil)
+    #expect(ai?.isTopLevel == true)
+    #expect(ai?.parentLabel == nil)
+    #expect(tech?.isTopLevel == false)
+    #expect(tech?.parentLabel == "gaming")
+  }
 }

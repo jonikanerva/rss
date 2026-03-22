@@ -181,12 +181,31 @@ struct CategoryManagementView: View {
 
   private func handleMakeChild(_ draggedLabel: String, of parentLabel: String) {
     guard let writer = syncEngine.writer else { return }
+
+    // Prevent dropping a parent onto its own child (circular hierarchy)
+    let targetParent = allCategories.first { $0.label == parentLabel }
+    if targetParent?.parentLabel == draggedLabel { return }
+
+    // Prevent dropping onto self
+    if draggedLabel == parentLabel { return }
+
     let childCount = childCategories(of: parentLabel).count
+    let orphans = childCategories(of: draggedLabel)
+
     Task {
+      // Move dragged item to become a child
       try? await writer.updateCategoryHierarchy(
         label: draggedLabel, parentLabel: parentLabel,
         depth: 1, isTopLevel: false, sortOrder: childCount
       )
+
+      // Promote any orphaned children to top-level
+      for (index, orphan) in orphans.enumerated() {
+        try? await writer.updateCategoryHierarchy(
+          label: orphan.label, parentLabel: nil,
+          depth: 0, isTopLevel: true, sortOrder: topLevelCategories.count + index
+        )
+      }
     }
   }
 
