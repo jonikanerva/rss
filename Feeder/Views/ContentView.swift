@@ -434,11 +434,8 @@ private func timelineSeededDemoPreview() -> some View {
 
   let technology = Category(
     label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
-  let apple = Category(
-    label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, parentLabel: "technology")
   let world = Category(label: "world", displayName: "World", categoryDescription: "World coverage for preview", sortOrder: 1)
   context.insert(technology)
-  context.insert(apple)
   context.insert(world)
 
   let feed1 = Feed(
