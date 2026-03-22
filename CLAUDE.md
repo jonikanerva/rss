@@ -30,6 +30,10 @@ Before acting on any user request, classify and propose an approach:
 
 If uncertain about classification, default to MEANINGFUL.
 
+### Mandatory Test Gate (Before PR)
+
+**CRITICAL: You MUST run `bash .claude/scripts/test-all.sh` and get ALL GREEN before creating a PR or presenting changes to the user.** No exceptions. If tests fail, fix the issues and re-run until all pass. Do NOT skip this step or create a PR with failing tests.
+
 ### Worktree Exit (Before PR)
 
 After implementation and build verification pass, **exit the worktree before creating the PR**:
