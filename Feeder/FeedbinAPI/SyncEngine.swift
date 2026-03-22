@@ -21,7 +21,6 @@ nonisolated var maxArticleAge: TimeInterval {
 @Observable
 final class SyncEngine {
   private(set) var isSyncing = false
-  private(set) var isBackfilling = false
   private(set) var isFetchingContent = false
   private(set) var lastError: String?
   private(set) var syncProgress: String = ""
@@ -113,7 +112,7 @@ final class SyncEngine {
 
       startExtractedContentFetch()
       if isFirstSync {
-        startBackfill()
+        refetchHistory()
       }
 
       logger.info("Primary sync complete")
@@ -264,15 +263,11 @@ final class SyncEngine {
   // MARK: - Background: Recent history backfill
 
   func refetchHistory() {
-    startBackfill()
-  }
-
-  private func startBackfill() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
       guard let client, let writer else { return }
 
-      isBackfilling = true
+      isSyncing = true
       syncProgress = "Loading recent history..."
       logger.info("Starting Phase 2: recent history backfill")
 
@@ -326,7 +321,7 @@ final class SyncEngine {
         syncProgress = ""
       }
 
-      isBackfilling = false
+      isSyncing = false
     }
   }
 }

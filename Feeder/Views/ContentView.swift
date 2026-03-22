@@ -121,12 +121,13 @@ struct ContentView: View {
 
   private var fetchStatusText: String? {
     if syncEngine.isSyncing {
+      let progress = syncEngine.syncProgress
+      if !progress.isEmpty {
+        return progress
+      }
       let n = syncEngine.fetchedCount
       let x = syncEngine.totalToFetch
-      return x > 0 ? "Fetching \(n)/\(x)" : "Fetching..."
-    }
-    if syncEngine.isBackfilling {
-      return syncEngine.syncProgress
+      return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
     }
     return lastSyncText
   }
@@ -253,14 +254,14 @@ struct ContentView: View {
         Button {
           Task { await syncAndClassify() }
         } label: {
-          if syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying {
+          if syncEngine.isSyncing || classificationEngine.isClassifying {
             ProgressView()
               .scaleEffect(0.7)
           } else {
             Image(systemName: "arrow.clockwise")
           }
         }
-        .disabled(syncEngine.isSyncing || syncEngine.isBackfilling || classificationEngine.isClassifying)
+        .disabled(syncEngine.isSyncing || classificationEngine.isClassifying)
         .help("Sync and classify")
         .accessibilityIdentifier("toolbar.sync")
       }
