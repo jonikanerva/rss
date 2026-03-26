@@ -1,4 +1,11 @@
-Review all changes on the current branch against `main`. **This command runs as an isolated subagent** — do not rely on any prior conversation context. Derive all understanding from the PR diff and description only.
+---
+name: codereview
+description: Review all changes on the current branch against main
+context: fork
+user-invocable: true
+---
+
+Review all changes on the current branch against `main`. **This skill runs as an isolated subagent** — do not rely on any prior conversation context. Derive all understanding from the PR diff and description only.
 
 ## Prerequisites
 
