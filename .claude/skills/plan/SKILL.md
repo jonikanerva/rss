@@ -1,3 +1,9 @@
+---
+name: plan
+description: Create an implementation plan from a research dossier
+user-invocable: true
+---
+
 Create an implementation plan: $ARGUMENTS
 
 ## Prerequisites

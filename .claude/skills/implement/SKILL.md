@@ -1,3 +1,9 @@
+---
+name: implement
+description: Execute implementation from an approved plan
+user-invocable: true
+---
+
 Execute implementation: $ARGUMENTS
 
 ## Prerequisites

@@ -1,3 +1,9 @@
+---
+name: research
+description: Act as a research analyst — investigate a topic and produce a dossier
+user-invocable: true
+---
+
 Act as a **research analyst**. Investigate: $ARGUMENTS
 
 If no worktree/feature branch exists yet, create one now (all pipeline artifacts must live in the same branch as the implementation).
