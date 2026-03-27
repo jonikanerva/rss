@@ -5,9 +5,10 @@ import SwiftUI
 
 struct EntryRowView: View {
   let entry: Entry
-  var visuallyRead = false
+  @Environment(\.pendingReadIDs)
+  private var pendingReadIDs
 
-  private var isRead: Bool { entry.isRead || visuallyRead }
+  private var isRead: Bool { entry.isRead || pendingReadIDs.contains(entry.feedbinEntryID) }
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {

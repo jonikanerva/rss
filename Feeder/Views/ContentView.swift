@@ -23,6 +23,19 @@ enum ArticleFilter: String, CaseIterable {
   case read = "Read"
 }
 
+// MARK: - Pending Read IDs Environment Key
+
+private struct PendingReadIDsKey: EnvironmentKey {
+  static let defaultValue: Set<Int> = []
+}
+
+extension EnvironmentValues {
+  var pendingReadIDs: Set<Int> {
+    get { self[PendingReadIDsKey.self] }
+    set { self[PendingReadIDsKey.self] = newValue }
+  }
+}
+
 // MARK: - Entry List View (dynamic @Query filtered by category + read status in SQLite)
 
 struct EntryListView: View {
@@ -31,9 +44,8 @@ struct EntryListView: View {
   @Binding
   var selectedEntry: Entry?
   private let filter: ArticleFilter
-  private let pendingReadIDs: Set<Int>
 
-  init(category: String, filter: ArticleFilter, pendingReadIDs: Set<Int>, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, selectedEntry: Binding<Entry?>) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -43,14 +55,13 @@ struct EntryListView: View {
       order: .reverse
     )
     self.filter = filter
-    self.pendingReadIDs = pendingReadIDs
     _selectedEntry = selectedEntry
   }
 
   var body: some View {
     List(selection: $selectedEntry) {
       ForEach(entries) { entry in
-        EntryRowView(entry: entry, visuallyRead: pendingReadIDs.contains(entry.feedbinEntryID))
+        EntryRowView(entry: entry)
           .tag(entry)
       }
     }
@@ -141,7 +152,8 @@ struct ContentView: View {
       sidebarView
     } content: {
       if let category = selectedCategory {
-        EntryListView(category: category, filter: articleFilter, pendingReadIDs: pendingReadIDs, selectedEntry: $selectedEntry)
+        EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
+          .environment(\.pendingReadIDs, pendingReadIDs)
           .safeAreaInset(edge: .top) {
             Picker("Filter", selection: $articleFilter) {
               ForEach(ArticleFilter.allCases, id: \.self) { filter in
@@ -150,6 +162,7 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .accessibilityIdentifier("article.filter")
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
           }
