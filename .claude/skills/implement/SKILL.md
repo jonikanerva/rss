@@ -19,8 +19,8 @@ A research dossier AND an approved plan must exist in the current branch. If eit
    - Run smoke tests: `bash .claude/scripts/ui-smoke.sh` — must exit 0.
    - If either fails, fix before moving to the next milestone.
 4. After all milestones complete, run the full test gate: `bash .claude/scripts/test-all.sh` — must get ALL GREEN.
-5. Exit worktree, push branch, and open PR.
-6. Spawn a subagent to run `/codereview` against the PR. Fix issues, push, re-run until PASS.
+5. Exit worktree, push branch, and open PR (`gh pr create --base main --title [title] --body [body]`).
+6. Spawn a subagent to run `/codereview` against the PR. Fix all found issues, push branch, add a PR comment (`gh pr comment --body [comment]`) on the implemented fixes, re-run codereview until PASS.
 7. Write execution log to `docs/plans/YYYY-MM-DD-<topic>-execution-log.md`.
 8. Update `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md`.
-9. Present to user for human review.
+9. Present to user for human review. Do not merge until human approves the review.

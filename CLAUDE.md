@@ -20,13 +20,14 @@ Before acting on any user request, classify and propose an approach:
 → State: "This needs the full pipeline: research → plan → implement."
 → Create worktree + feature branch **immediately** (before research), so all artifacts land in the same branch.
 → Run each phase. Pause for human approval at phase transitions:
-  1. **Research** → run `/research` → commit dossier to branch → present findings → user approves
-  2. **Plan** → run `/plan` → commit plan to branch → present plan → user approves
-  3. **Implement** → run `/implement` → code autonomously, verify build + tests at each milestone, commit at checkpoints
-  4. **Exit worktree** → merge worktree changes back to the feature branch in the main repo, remove worktree
-  5. **Push & open PR** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR (draft OK)
-  6. **Code review** → run `/codereview` against the PR → fix issues → repeat until PASS
-  7. **Human review** → present to user for testing in Xcode and final approval before merge
+
+1. **Research** → run `/research` → commit dossier to branch → present findings → user approves
+2. **Plan** → run `/plan` → commit plan to branch → present plan → user approves
+3. **Implement** → run `/implement` → code autonomously, verify build + tests at each milestone, commit at checkpoints
+4. **Exit worktree** → merge worktree changes back to the feature branch in the main repo, remove worktree
+5. **Push & open PR** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR (draft OK)
+6. **Code review** → run `/codereview` against the PR → fix issues → repeat until PASS
+7. **Human review** → present to user for testing in Xcode and final approval before merge
 
 If uncertain about classification, default to MEANINGFUL.
 
@@ -37,6 +38,7 @@ If uncertain about classification, default to MEANINGFUL.
 ### Worktree Exit (Before PR)
 
 After implementation and build verification pass, **exit the worktree before creating the PR**:
+
 1. Commit all remaining changes in the worktree.
 2. Exit the worktree (merges changes to the feature branch in the main repo).
 3. The user can now open the feature branch in Xcode for testing.
@@ -45,6 +47,7 @@ After implementation and build verification pass, **exit the worktree before cre
 ### Worktree Recovery
 
 If a session ends with an active worktree (crash, timeout, user disconnect):
+
 - List orphaned worktrees: `git worktree list`
 - If work was committed: exit the worktree normally to preserve changes on the feature branch.
 - If work is uncommitted or broken: `git worktree remove <path> --force` and start fresh.
@@ -57,12 +60,12 @@ After the PR is created, spawn a **subagent** to run `/codereview`. The subagent
 
 ### Artifacts
 
-| Type | Location |
-|------|----------|
-| Research | `docs/research/YYYY-MM-DD-<topic>.md` |
-| Plans | `docs/plans/YYYY-MM-DD-<topic>-plan.md` |
+| Type           | Location                                         |
+| -------------- | ------------------------------------------------ |
+| Research       | `docs/research/YYYY-MM-DD-<topic>.md`            |
+| Plans          | `docs/plans/YYYY-MM-DD-<topic>-plan.md`          |
 | Execution logs | `docs/plans/YYYY-MM-DD-<topic>-execution-log.md` |
-| Quality gates | `docs/quality-gates/YYYY-MM-DD-<topic>-gate.md` |
+| Quality gates  | `docs/quality-gates/YYYY-MM-DD-<topic>-gate.md`  |
 
 ### Status Tracking
 
@@ -72,16 +75,16 @@ Update `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md` on meaningful changes.
 
 For research and analysis, spawn focused subagents in parallel when multiple domains apply:
 
-| Context | Subagent role |
-|---------|--------------|
-| Problem discovery, evidence gathering | Research analyst |
-| Vision, scope, product direction | Product strategist |
-| Milestones, sequencing, dependencies | Roadmap planner |
-| Quality checks, release readiness | Quality gatekeeper |
+| Context                               | Subagent role      |
+| ------------------------------------- | ------------------ |
+| Problem discovery, evidence gathering | Research analyst   |
+| Vision, scope, product direction      | Product strategist |
+| Milestones, sequencing, dependencies  | Roadmap planner    |
+| Quality checks, release readiness     | Quality gatekeeper |
 
-## Swift 6 Strict Concurrency (Non-Negotiable)
+## Swift 6 Strict Concurrency and Code Style (Non-Negotiable)
 
-Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-concurrency-rules.md`.
+Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`.
 
 ### Two-Layer Architecture
 
