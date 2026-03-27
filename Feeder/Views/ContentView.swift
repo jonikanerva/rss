@@ -16,20 +16,32 @@ extension Color {
   }
 }
 
-// MARK: - Entry List View (dynamic @Query filtered by category in SQLite)
+// MARK: - Article Filter
+
+enum ArticleFilter: String, CaseIterable {
+  case unread = "Unread"
+  case read = "Read"
+}
+
+// MARK: - Entry List View (dynamic @Query filtered by category + read status in SQLite)
 
 struct EntryListView: View {
   @Query
   private var entries: [Entry]
   @Binding
   var selectedEntry: Entry?
+  private let filter: ArticleFilter
 
-  init(category: String, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, selectedEntry: Binding<Entry?>) {
+    let showRead = filter == .read
     _entries = Query(
-      filter: #Predicate<Entry> { $0.isClassified && $0.primaryCategory == category },
+      filter: #Predicate<Entry> {
+        $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+      },
       sort: \Entry.publishedAt,
       order: .reverse
     )
+    self.filter = filter
     _selectedEntry = selectedEntry
   }
 
@@ -47,7 +59,11 @@ struct EntryListView: View {
         ContentUnavailableView {
           Label("No Articles", systemImage: "newspaper")
         } description: {
-          Text("No classified articles in this category yet.")
+          Text(
+            filter == .unread
+              ? "No unread articles in this category."
+              : "No read articles in this category."
+          )
         }
       }
     }
@@ -71,6 +87,8 @@ struct ContentView: View {
   private var selectedEntry: Entry?
   @State
   private var selectedCategory: String?
+  @State
+  private var articleFilter: ArticleFilter = .unread
   @State
   private var needsSetup = false
   @State
@@ -119,7 +137,17 @@ struct ContentView: View {
       sidebarView
     } content: {
       if let category = selectedCategory {
-        EntryListView(category: category, selectedEntry: $selectedEntry)
+        EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
+          .safeAreaInset(edge: .top) {
+            Picker("Filter", selection: $articleFilter) {
+              ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                Text(filter.rawValue).tag(filter)
+              }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+          }
           .navigationTitle(navigationTitle)
       } else {
         ContentUnavailableView {
@@ -152,6 +180,9 @@ struct ContentView: View {
           }
         }
       }
+    }
+    .onChange(of: articleFilter) {
+      selectedEntry = nil
     }
     .onChange(of: topLevelCategories.count) {
       if selectedCategory == nil, let first = topLevelCategories.first {
@@ -383,6 +414,7 @@ private func timelineSeededDemoPreview() -> some View {
     entry.categoryLabels = ["technology"]
     entry.primaryCategory = "technology"
     entry.isClassified = true
+    entry.isRead = i > 3
     entry.formattedDate = "Today, \(i)th Mar, 12:0\(i)"
     entry.plainText = "Sample article \(i)."
     context.insert(entry)
