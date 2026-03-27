@@ -81,6 +81,8 @@ struct ContentView: View {
   private var classificationEngine
   @Environment(\.modelContext)
   private var modelContext
+  @Environment(\.scenePhase)
+  private var scenePhase
   @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
   private var topLevelCategories: [Category]
   @Query(sort: \Category.sortOrder)
@@ -141,14 +143,13 @@ struct ContentView: View {
       if let category = selectedCategory {
         EntryListView(category: category, filter: articleFilter, pendingReadIDs: pendingReadIDs, selectedEntry: $selectedEntry)
           .safeAreaInset(edge: .top) {
-            Picker(selection: $articleFilter) {
+            Picker("Filter", selection: $articleFilter) {
               ForEach(ArticleFilter.allCases, id: \.self) { filter in
                 Text(filter.rawValue).tag(filter)
               }
-            } label: {
-              EmptyView()
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
           }
@@ -189,6 +190,11 @@ struct ContentView: View {
     .onChange(of: topLevelCategories.count) {
       if selectedCategory == nil, let first = topLevelCategories.first {
         selectedCategory = first.label
+      }
+    }
+    .onChange(of: scenePhase) {
+      if scenePhase != .active {
+        flushPendingReads()
       }
     }
     // Keyboard navigation
