@@ -92,7 +92,7 @@ struct ContentView: View {
   @State
   private var needsSetup = false
   @State
-  private var markReadTask: Task<Void, Never>?
+  private var pendingReadIDs: Set<Int> = []
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -139,10 +139,12 @@ struct ContentView: View {
       if let category = selectedCategory {
         EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
           .safeAreaInset(edge: .top) {
-            Picker("Filter", selection: $articleFilter) {
+            Picker(selection: $articleFilter) {
               ForEach(ArticleFilter.allCases, id: \.self) { filter in
                 Text(filter.rawValue).tag(filter)
               }
+            } label: {
+              EmptyView()
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 12)
@@ -170,18 +172,16 @@ struct ContentView: View {
       .environment(syncEngine)
     }
     .onChange(of: selectedEntry) { _, newEntry in
-      markReadTask?.cancel()
       if let entry = newEntry, !entry.isRead {
-        let entryID = entry.feedbinEntryID
-        markReadTask = Task {
-          try? await Task.sleep(for: .milliseconds(500))
-          if !Task.isCancelled, let writer = syncEngine.writer {
-            try? await writer.markEntryRead(feedbinEntryID: entryID)
-          }
-        }
+        pendingReadIDs.insert(entry.feedbinEntryID)
       }
     }
     .onChange(of: articleFilter) {
+      flushPendingReads()
+      selectedEntry = nil
+    }
+    .onChange(of: selectedCategory) {
+      flushPendingReads()
       selectedEntry = nil
     }
     .onChange(of: topLevelCategories.count) {
@@ -209,6 +209,18 @@ struct ContentView: View {
   }
 
   // MARK: - Actions
+
+  private func flushPendingReads() {
+    let ids = pendingReadIDs
+    guard !ids.isEmpty else { return }
+    pendingReadIDs.removeAll()
+    Task {
+      guard let writer = syncEngine.writer else { return }
+      for entryID in ids {
+        try? await writer.markEntryRead(feedbinEntryID: entryID)
+      }
+    }
+  }
 
   private func openInBackground() {
     guard let entry = selectedEntry,
