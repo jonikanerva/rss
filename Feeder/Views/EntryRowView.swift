@@ -5,21 +5,24 @@ import SwiftUI
 
 struct EntryRowView: View {
   let entry: Entry
+  var visuallyRead = false
+
+  private var isRead: Bool { entry.isRead || visuallyRead }
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
       // Unread indicator
       Circle()
-        .fill(entry.isRead ? Color.clear : Color(hex: 0x5A9CFF))
+        .fill(isRead ? Color.clear : Color(hex: 0x5A9CFF))
         .frame(width: 8, height: 8)
         .padding(.top, 6)
 
       VStack(alignment: .leading, spacing: 4) {
         // Title
         Text(entry.title ?? "Untitled")
-          .font(.system(size: FontTheme.rowTitleSize, weight: entry.isRead ? .regular : .semibold))
+          .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
           .lineLimit(2)
-          .foregroundStyle(entry.isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+          .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
         // Date — pre-computed, zero Calendar ops
         Text(entry.formattedDate)
@@ -29,7 +32,7 @@ struct EntryRowView: View {
     }
     .padding(.vertical, 4)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(entry.isRead ? (entry.title ?? "Untitled") : "Unread, \(entry.title ?? "Untitled")")
+    .accessibilityLabel(isRead ? (entry.title ?? "Untitled") : "Unread, \(entry.title ?? "Untitled")")
     .accessibilityIdentifier("entry.row.\(entry.feedbinEntryID)")
   }
 }

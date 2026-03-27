@@ -31,8 +31,9 @@ struct EntryListView: View {
   @Binding
   var selectedEntry: Entry?
   private let filter: ArticleFilter
+  private let pendingReadIDs: Set<Int>
 
-  init(category: String, filter: ArticleFilter, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, pendingReadIDs: Set<Int>, selectedEntry: Binding<Entry?>) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -42,13 +43,14 @@ struct EntryListView: View {
       order: .reverse
     )
     self.filter = filter
+    self.pendingReadIDs = pendingReadIDs
     _selectedEntry = selectedEntry
   }
 
   var body: some View {
     List(selection: $selectedEntry) {
       ForEach(entries) { entry in
-        EntryRowView(entry: entry)
+        EntryRowView(entry: entry, visuallyRead: pendingReadIDs.contains(entry.feedbinEntryID))
           .tag(entry)
       }
     }
@@ -137,7 +139,7 @@ struct ContentView: View {
       sidebarView
     } content: {
       if let category = selectedCategory {
-        EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
+        EntryListView(category: category, filter: articleFilter, pendingReadIDs: pendingReadIDs, selectedEntry: $selectedEntry)
           .safeAreaInset(edge: .top) {
             Picker(selection: $articleFilter) {
               ForEach(ArticleFilter.allCases, id: \.self) { filter in
