@@ -64,6 +64,50 @@ final class FeederUITests: XCTestCase {
   }
 
   @MainActor
+  func testArticleFilterSwitchesAndPreservesEntry() throws {
+    let app = makeApp()
+    app.launch()
+
+    // Select a category
+    let technologyCategory = app.staticTexts["sidebar.category.technology"]
+    XCTAssertTrue(technologyCategory.waitForExistence(timeout: 10))
+    technologyCategory.click()
+
+    // Verify filter picker exists with both segments
+    let filterPicker = app.descendants(matching: .any)["article.filter"]
+    XCTAssertTrue(filterPicker.waitForExistence(timeout: 5))
+
+    // Default tab is Unread — verify a known unread article is visible
+    let unreadArticle = app.descendants(matching: .any)["entry.row.1001"]
+    XCTAssertTrue(unreadArticle.waitForExistence(timeout: 5))
+
+    // Select the article — it should stay in the list (deferred read marking)
+    unreadArticle.click()
+    XCTAssertTrue(unreadArticle.waitForExistence(timeout: 2))
+
+    // Switch to Read tab — demo data has every 3rd article as read
+    // macOS segmented controls expose segments as radioButtons
+    let readTab = app.radioButtons["Read"]
+    XCTAssertTrue(readTab.waitForExistence(timeout: 5))
+    readTab.click()
+
+    // Unread article should no longer be visible
+    XCTAssertFalse(unreadArticle.waitForExistence(timeout: 2))
+
+    // A known read article should be visible (demo seeds 1003, 1006, 1009, 1012 as read)
+    let readArticle = app.descendants(matching: .any)["entry.row.1003"]
+    XCTAssertTrue(readArticle.waitForExistence(timeout: 5))
+
+    // Switch back to Unread tab
+    let unreadTab = app.radioButtons["Unread"]
+    unreadTab.click()
+
+    // Unread articles should reappear — check a known unread entry
+    let anotherUnread = app.descendants(matching: .any)["entry.row.1002"]
+    XCTAssertTrue(anotherUnread.waitForExistence(timeout: 5))
+  }
+
+  @MainActor
   func testLaunchPerformance() throws {
     measure(metrics: [XCTApplicationLaunchMetric()]) {
       makeApp().launch()

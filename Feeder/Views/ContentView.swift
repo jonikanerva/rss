@@ -16,20 +16,45 @@ extension Color {
   }
 }
 
-// MARK: - Entry List View (dynamic @Query filtered by category in SQLite)
+// MARK: - Article Filter
+
+enum ArticleFilter: String, CaseIterable {
+  case unread = "Unread"
+  case read = "Read"
+}
+
+// MARK: - Pending Read IDs Environment Key
+
+private struct PendingReadIDsKey: EnvironmentKey {
+  static let defaultValue: Set<Int> = []
+}
+
+extension EnvironmentValues {
+  var pendingReadIDs: Set<Int> {
+    get { self[PendingReadIDsKey.self] }
+    set { self[PendingReadIDsKey.self] = newValue }
+  }
+}
+
+// MARK: - Entry List View (dynamic @Query filtered by category + read status in SQLite)
 
 struct EntryListView: View {
   @Query
   private var entries: [Entry]
   @Binding
   var selectedEntry: Entry?
+  private let filter: ArticleFilter
 
-  init(category: String, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, selectedEntry: Binding<Entry?>) {
+    let showRead = filter == .read
     _entries = Query(
-      filter: #Predicate<Entry> { $0.isClassified && $0.primaryCategory == category },
+      filter: #Predicate<Entry> {
+        $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+      },
       sort: \Entry.publishedAt,
       order: .reverse
     )
+    self.filter = filter
     _selectedEntry = selectedEntry
   }
 
@@ -47,7 +72,11 @@ struct EntryListView: View {
         ContentUnavailableView {
           Label("No Articles", systemImage: "newspaper")
         } description: {
-          Text("No classified articles in this category yet.")
+          Text(
+            filter == .unread
+              ? "No unread articles in this category."
+              : "No read articles in this category."
+          )
         }
       }
     }
@@ -63,6 +92,8 @@ struct ContentView: View {
   private var classificationEngine
   @Environment(\.modelContext)
   private var modelContext
+  @Environment(\.scenePhase)
+  private var scenePhase
   @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
   private var topLevelCategories: [Category]
   @Query(sort: \Category.sortOrder)
@@ -72,9 +103,11 @@ struct ContentView: View {
   @State
   private var selectedCategory: String?
   @State
+  private var articleFilter: ArticleFilter = .unread
+  @State
   private var needsSetup = false
   @State
-  private var markReadTask: Task<Void, Never>?
+  private var pendingReadIDs: Set<Int> = []
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -119,7 +152,20 @@ struct ContentView: View {
       sidebarView
     } content: {
       if let category = selectedCategory {
-        EntryListView(category: category, selectedEntry: $selectedEntry)
+        EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
+          .environment(\.pendingReadIDs, pendingReadIDs)
+          .safeAreaInset(edge: .top) {
+            Picker("Filter", selection: $articleFilter) {
+              ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                Text(filter.rawValue).tag(filter)
+              }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityIdentifier("article.filter")
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+          }
           .navigationTitle(navigationTitle)
       } else {
         ContentUnavailableView {
@@ -142,20 +188,26 @@ struct ContentView: View {
       .environment(syncEngine)
     }
     .onChange(of: selectedEntry) { _, newEntry in
-      markReadTask?.cancel()
       if let entry = newEntry, !entry.isRead {
-        let entryID = entry.feedbinEntryID
-        markReadTask = Task {
-          try? await Task.sleep(for: .milliseconds(500))
-          if !Task.isCancelled, let writer = syncEngine.writer {
-            try? await writer.markEntryRead(feedbinEntryID: entryID)
-          }
-        }
+        pendingReadIDs.insert(entry.feedbinEntryID)
       }
+    }
+    .onChange(of: articleFilter) {
+      flushPendingReads()
+      selectedEntry = nil
+    }
+    .onChange(of: selectedCategory) {
+      flushPendingReads()
+      selectedEntry = nil
     }
     .onChange(of: topLevelCategories.count) {
       if selectedCategory == nil, let first = topLevelCategories.first {
         selectedCategory = first.label
+      }
+    }
+    .onChange(of: scenePhase) {
+      if scenePhase != .active {
+        flushPendingReads()
       }
     }
     // Keyboard navigation
@@ -178,6 +230,18 @@ struct ContentView: View {
   }
 
   // MARK: - Actions
+
+  private func flushPendingReads() {
+    let ids = pendingReadIDs
+    guard !ids.isEmpty else { return }
+    pendingReadIDs.removeAll()
+    Task {
+      guard let writer = syncEngine.writer else { return }
+      for entryID in ids {
+        try? await writer.markEntryRead(feedbinEntryID: entryID)
+      }
+    }
+  }
 
   private func openInBackground() {
     guard let entry = selectedEntry,
@@ -383,6 +447,7 @@ private func timelineSeededDemoPreview() -> some View {
     entry.categoryLabels = ["technology"]
     entry.primaryCategory = "technology"
     entry.isClassified = true
+    entry.isRead = i > 3
     entry.formattedDate = "Today, \(i)th Mar, 12:0\(i)"
     entry.plainText = "Sample article \(i)."
     context.insert(entry)
