@@ -210,19 +210,22 @@ Article → Input Validation Gate
 
 **Evidence is sufficient to plan.** Recommended approach is a **phased strategy**:
 
-### Phase 1: Quick Wins (Alternative A) — Implement First
-1. Add input validation gate (skip classification for empty/minimal content)
+### Scope: Improve Apple FM Classification Accuracy
+
+1. Add input validation gate — only for completely empty articles (no title AND no body)
 2. Test `contentTagging` adapter (if available in current SDK)
-3. Improve prompt: add negative instructions for empty content, tighten category descriptions
-4. Add confidence field to `ArticleClassification`
+3. Improve prompt engineering: tighten category descriptions, add negative instructions for ambiguous cases
+4. Add confidence field to `ArticleClassification` via `@Guide`
+5. Add confidence gate: route low-confidence results to "Uncategorized"
 
-### Phase 2: Hybrid Fallback (Alternative B) — If Phase 1 Insufficient
-5. Add OpenAI API client with Structured Outputs
-6. Implement cascade: Apple FM → OpenAI fallback
-7. User-facing opt-in setting
-8. Minimal data policy (title + first 200 words)
+NLEmbedding (Alternative C) is not recommended as a classification signal due to poor accuracy (~50-65%) and limited language support (no Finnish). Hybrid cloud fallback (Alternative B) is out of scope for this iteration.
 
-### Phase 3: Pre-classifier (Alternative C) — Optional Optimization
-9. NLEmbedding-based pre-filtering to reduce LLM calls
+### Additional Research: Ensemble Approach Evaluated and Rejected
 
-Phase 1 should be planned and implemented first. Measure classification accuracy before and after. If accuracy remains insufficient, proceed to Phase 2 planning.
+An ensemble approach combining keyword match confidence + NLEmbedding similarity + LLM confidence was evaluated. Conclusion: **not recommended** because:
+- NLEmbedding zero-shot accuracy is only ~50-65%, too noisy to be a useful ensemble member
+- Cosine similarity scores cluster in 0.5-0.85 range with poor discriminative power
+- NLEmbedding supports only 7 languages (no Finnish)
+- No Apple framework needed for ensemble math — simple weighted average suffices
+- Core ML/Create ML ensemble would require training data we don't have (cold start problem)
+- Better ROI comes from improving the LLM signal itself + simple input/output gates
