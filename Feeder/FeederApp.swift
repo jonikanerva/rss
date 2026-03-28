@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
 /// Bump this when the SwiftData schema changes. On mismatch, articles
 /// and feeds are deleted (categories preserved) and a fresh sync runs.
-private let currentSchemaVersion = 7
+private let currentSchemaVersion = 8
 
 @main
 struct FeederApp: App {
@@ -102,7 +102,6 @@ struct FeederApp: App {
         "Geopolitics, government actions, regulatory decisions, international affairs, and global developments. Only apply when government or policy is a central theme, not when a company merely operates in multiple countries.",
         2, nil
       ),
-      ("other", "Other", "Use only when no other category clearly matches. Never combine with another category.", 3, nil),
       (
         "apple", "Apple",
         "All news about Apple company, its products (Mac, iPhone, iPad, Apple Watch), platforms (macOS, iOS), chips (M-series), services, and innovations.",
@@ -138,8 +137,15 @@ struct FeederApp: App {
         )
       )
     }
+    context.insert(
+      Category(
+        label: uncategorizedLabel, displayName: "Uncategorized",
+        categoryDescription: "Use only when no other category clearly matches. Never combine with other categories.",
+        sortOrder: Int.max, isSystem: true
+      )
+    )
     try? context.save()
-    logger.info("Seeded \(defaults.count) default categories on first launch.")
+    logger.info("Seeded \(defaults.count + 1) default categories on first launch.")
   }
 
   // MARK: - Schema versioning

@@ -12,7 +12,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Classificati
 struct ArticleClassification {
   @Guide(
     description:
-      "The most specific matching category labels. If a subcategory matches, use it instead of the parent. Use 'other' alone only if nothing else fits.",
+      "The most specific matching category labels from the provided list. Assign the deepest matching subcategory, not its parent.",
     .count(1...4))
   var categories: [String]
 
@@ -111,19 +111,24 @@ final class ClassificationEngine {
 
     let instructions = buildInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
+    let supportedLangCodes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
+
+    // Conservative context budget: ~3800 tokens to leave room for output and schema overhead
+    let maxContextChars = 3800 * 4
 
     for input in inputs {
       if Task.isCancelled { break }
 
       // All heavy work on background thread
       let result = await Task.detached(priority: .utility) {
-        let textForDetection = "\(input.title) \(input.body.prefix(500))"
-        let lang = detectLanguage(textForDetection)
+        let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
-        if lang != "en" {
+        // Skip languages not supported by the on-device model to avoid
+        // session prewarm warnings and wasted inference attempts.
+        guard supportedLangCodes.contains(lang) else {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: ["other"],
+            categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang
           )
@@ -131,13 +136,12 @@ final class ClassificationEngine {
 
         do {
           let session = LanguageModelSession(model: model, instructions: instructions)
-          var body = input.body
-          if body.count > 2000 { body = String(body.prefix(2000)) + "..." }
-          let prompt = """
-            title: \(input.title)
-            summary: \(input.summary)
-            body: \(body)
-            """
+
+          let promptPrefix = "title: \(input.title)\ncontent: "
+          let usedChars = instructions.count + promptPrefix.count
+          let maxBodyChars = max(500, maxContextChars - usedChars)
+          let body = String(input.body.prefix(maxBodyChars))
+          let prompt = promptPrefix + body
           let options = GenerationOptions(sampling: .greedy)
           let response = try await session.respond(
             to: prompt,
@@ -155,7 +159,7 @@ final class ClassificationEngine {
         } catch {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: ["other"],
+            categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang
           )
@@ -200,21 +204,17 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
   let categoryDescriptions = lines.joined(separator: "\n")
 
   return """
-    Categorize the following article into the user-defined categories listed below.
-    Categories are organized hierarchically — subcategories are indented under their parent.
-    Assign ONLY the most specific matching categories.
-    If a subcategory matches, assign the subcategory but NOT the parent.
-    If multiple specific categories match, assign all of them.
-    Only assign a parent category when no subcategory under it matches.
-    Only assign a category when the article content provides clear evidence for it.
+    Categorize the article into the most specific matching categories below. \
+    Assign subcategories over parents when both match. \
+    Only assign categories with clear evidence in the article.
 
     Categories:
     \(categoryDescriptions)
     """
 }
 
-/// Filter labels to only valid category labels. Defaults to ["other"] if none valid.
+/// Filter labels to only valid category labels. Defaults to [uncategorizedLabel] if none valid.
 nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
   let filtered = labels.filter { validSet.contains($0) }
-  return filtered.isEmpty ? ["other"] : filtered
+  return filtered.isEmpty ? [uncategorizedLabel] : filtered
 }
