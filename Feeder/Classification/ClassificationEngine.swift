@@ -119,6 +119,20 @@ final class ClassificationEngine {
     for input in inputs {
       if Task.isCancelled { break }
 
+      // Skip completely empty articles (no title AND no body)
+      if shouldSkipClassification(title: input.title, body: input.body) {
+        let emptyResult = ClassificationResult(
+          entryID: input.entryID,
+          categoryLabels: [uncategorizedLabel],
+          storyKey: normalizeStoryKey(input.title),
+          detectedLanguage: "unknown"
+        )
+        try? await writer.applyClassification(entryID: emptyResult.entryID, result: emptyResult)
+        classifiedCount += 1
+        progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
+        continue
+      }
+
       // All heavy work on background thread
       let result = await Task.detached(priority: .utility) {
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
@@ -217,4 +231,9 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
 nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
   let filtered = labels.filter { validSet.contains($0) }
   return filtered.isEmpty ? [uncategorizedLabel] : filtered
+}
+
+/// Returns true when an article has no meaningful content to classify.
+nonisolated func shouldSkipClassification(title: String, body: String) -> Bool {
+  title == "Untitled" && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }

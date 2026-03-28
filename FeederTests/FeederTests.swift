@@ -422,6 +422,35 @@ struct StoryKeyTests {
   }
 }
 
+// MARK: - Input Validation Gate Tests
+
+struct InputValidationGateTests {
+  @Test
+  func emptyTitleAndBodySkips() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "") == true)
+  }
+
+  @Test
+  func emptyTitleAndWhitespaceBodySkips() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "   \n\t  ") == true)
+  }
+
+  @Test
+  func realTitleWithEmptyBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Apple announces M5", body: "") == false)
+  }
+
+  @Test
+  func untitledWithBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "Some article content here") == false)
+  }
+
+  @Test
+  func realTitleAndBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Breaking News", body: "Details about the event") == false)
+  }
+}
+
 // MARK: - Language Detection Tests (uses extracted detectLanguage)
 
 struct LanguageDetectionTests {
