@@ -466,7 +466,7 @@ actor DataWriter {
       predicate: #Predicate<Category> { $0.label == label }
     )
     guard let category = try modelContext.fetch(descriptor).first else { return }
-    category.displayName = displayName
+    if !category.isSystem { category.displayName = displayName }
     category.categoryDescription = description
     try modelContext.save()
   }
