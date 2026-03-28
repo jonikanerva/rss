@@ -25,6 +25,15 @@ nonisolated struct CategoryDefinition: Sendable {
   let description: String
   let parentLabel: String?
   let isTopLevel: Bool
+  let keywords: [String]
+
+  init(label: String, description: String, parentLabel: String?, isTopLevel: Bool, keywords: [String] = []) {
+    self.label = label
+    self.description = description
+    self.parentLabel = parentLabel
+    self.isTopLevel = isTopLevel
+    self.keywords = keywords
+  }
 }
 
 // MARK: - Pure helper functions
@@ -299,7 +308,8 @@ actor DataWriter {
         label: cat.label,
         description: cat.categoryDescription,
         parentLabel: cat.parentLabel,
-        isTopLevel: cat.isTopLevel
+        isTopLevel: cat.isTopLevel,
+        keywords: cat.keywords
       )
     }
   }

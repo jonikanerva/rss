@@ -422,6 +422,60 @@ struct StoryKeyTests {
   }
 }
 
+// MARK: - Keyword Match Confidence Tests
+
+struct KeywordMatchConfidenceTests {
+  private let categories: [CategoryDefinition] = [
+    CategoryDefinition(label: "apple", description: "Apple", parentLabel: "technology", isTopLevel: false, keywords: ["apple", "iphone", "macbook"]),
+    CategoryDefinition(label: "gaming", description: "Gaming", parentLabel: nil, isTopLevel: true, keywords: ["xbox", "nintendo"]),
+    CategoryDefinition(label: "world_news", description: "World", parentLabel: nil, isTopLevel: true, keywords: []),
+    CategoryDefinition(label: uncategorizedLabel, description: "Uncategorized", parentLabel: nil, isTopLevel: true),
+  ]
+
+  @Test
+  func titleMatchReturnsHighConfidence() {
+    let result = keywordMatchConfidence(title: "Apple announces new iPhone", body: "", categories: categories)
+    #expect(result["apple"]! >= 0.8)
+  }
+
+  @Test
+  func bodyOnlyMatchReturnsLowerConfidence() {
+    let result = keywordMatchConfidence(title: "Tech news today", body: "The new MacBook is here", categories: categories)
+    #expect(result["apple"]! >= 0.4)
+    #expect(result["apple"]! < 0.8)
+  }
+
+  @Test
+  func noMatchReturnsEmpty() {
+    let result = keywordMatchConfidence(title: "Weather forecast", body: "It will rain tomorrow", categories: categories)
+    #expect(result.isEmpty)
+  }
+
+  @Test
+  func multipleKeywordHitsIncrease() {
+    let result = keywordMatchConfidence(title: "Apple iPhone and MacBook", body: "", categories: categories)
+    #expect(result["apple"]! == 1.0)
+  }
+
+  @Test
+  func caseInsensitive() {
+    let result = keywordMatchConfidence(title: "APPLE IPHONE", body: "", categories: categories)
+    #expect(result["apple"] != nil)
+  }
+
+  @Test
+  func categoriesWithNoKeywordsSkipped() {
+    let result = keywordMatchConfidence(title: "World leaders meet", body: "Global summit", categories: categories)
+    #expect(result["world_news"] == nil)
+  }
+
+  @Test
+  func cappedAtOne() {
+    let result = keywordMatchConfidence(title: "Apple iPhone MacBook", body: "apple iphone macbook", categories: categories)
+    #expect(result["apple"]! == 1.0)
+  }
+}
+
 // MARK: - Input Validation Gate Tests
 
 struct InputValidationGateTests {

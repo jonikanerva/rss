@@ -237,3 +237,33 @@ nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) ->
 nonisolated func shouldSkipClassification(title: String, body: String) -> Bool {
   title == "Untitled" && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }
+
+/// Compute keyword match confidence per category. Title matches weigh more than body matches.
+/// Returns a dictionary of categoryLabel → confidence (0.0–1.0) for categories with any match.
+nonisolated func keywordMatchConfidence(
+  title: String,
+  body: String,
+  categories: [CategoryDefinition]
+) -> [String: Double] {
+  let titleLower = title.lowercased()
+  let bodyLower = body.lowercased()
+  var result: [String: Double] = [:]
+
+  for category in categories where !category.keywords.isEmpty {
+    var score = 0.0
+    for keyword in category.keywords {
+      let keywordLower = keyword.lowercased()
+      let titleHit = titleLower.contains(keywordLower)
+      let bodyHit = bodyLower.contains(keywordLower)
+      if titleHit {
+        score += 0.8
+      } else if bodyHit {
+        score += 0.4
+      }
+    }
+    if score > 0 {
+      result[category.label] = min(score, 1.0)
+    }
+  }
+  return result
+}
