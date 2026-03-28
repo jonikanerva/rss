@@ -122,6 +122,17 @@ final class ClassificationEngine {
       let result = await Task.detached(priority: .utility) {
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
+        // Apple Foundation Models only supports English — skip unsupported languages
+        // to avoid session prewarm warnings and wasted inference attempts.
+        guard lang == "en" else {
+          return ClassificationResult(
+            entryID: input.entryID,
+            categoryLabels: ["other"],
+            storyKey: normalizeStoryKey(input.title),
+            detectedLanguage: lang
+          )
+        }
+
         do {
           let session = LanguageModelSession(model: model, instructions: instructions)
 
