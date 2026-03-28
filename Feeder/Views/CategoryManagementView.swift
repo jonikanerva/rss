@@ -348,7 +348,7 @@ private func categoryManagementHierarchicalPreview() -> some View {
     parentLabel: "technology")
   let ai = Category(
     label: "ai", displayName: "AI", categoryDescription: "AI and ML news.", sortOrder: 1, parentLabel: "technology")
-  let world = Category(label: "world", displayName: "World", categoryDescription: "Global policy news.", sortOrder: 1)
+  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "Global policy news.", sortOrder: 1)
 
   context.insert(technology)
   context.insert(apple)

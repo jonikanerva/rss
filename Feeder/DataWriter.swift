@@ -501,7 +501,7 @@ actor DataWriter {
       categoryDescription: "Apple news for local UI testing", sortOrder: 0,
       parentLabel: "technology")
     let world = Category(
-      label: "world", displayName: "World",
+      label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
     modelContext.insert(technology)
     modelContext.insert(apple)
@@ -551,8 +551,8 @@ actor DataWriter {
       createdAt: .now.addingTimeInterval(-7100)
     )
     worldEntry.feed = feed1
-    worldEntry.categoryLabels = ["world", "technology"]
-    worldEntry.primaryCategory = "world"
+    worldEntry.categoryLabels = ["world_news", "technology"]
+    worldEntry.primaryCategory = "world_news"
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
