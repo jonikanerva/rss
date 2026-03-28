@@ -18,6 +18,9 @@ struct ArticleClassification {
 
   @Guide(description: "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
   var storyKey: String
+
+  @Guide(description: "How confident you are in the classification, from 0.0 (guessing) to 1.0 (certain)")
+  var confidence: Double
 }
 
 // MARK: - Pure helper functions (nonisolated)
@@ -125,7 +128,8 @@ final class ClassificationEngine {
           entryID: input.entryID,
           categoryLabels: [uncategorizedLabel],
           storyKey: normalizeStoryKey(input.title),
-          detectedLanguage: "unknown"
+          detectedLanguage: "unknown",
+          confidence: 0.0
         )
         try? await writer.applyClassification(entryID: emptyResult.entryID, result: emptyResult)
         classifiedCount += 1
@@ -144,7 +148,8 @@ final class ClassificationEngine {
             entryID: input.entryID,
             categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
-            detectedLanguage: lang
+            detectedLanguage: lang,
+            confidence: 0.0
           )
         }
 
@@ -168,14 +173,16 @@ final class ClassificationEngine {
             entryID: input.entryID,
             categoryLabels: labels,
             storyKey: normalizeStoryKey(classification.storyKey),
-            detectedLanguage: lang
+            detectedLanguage: lang,
+            confidence: classification.confidence
           )
         } catch {
           return ClassificationResult(
             entryID: input.entryID,
             categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
-            detectedLanguage: lang
+            detectedLanguage: lang,
+            confidence: 0.0
           )
         }
       }.value

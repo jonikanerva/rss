@@ -17,6 +17,7 @@ nonisolated struct ClassificationResult: Sendable {
   let categoryLabels: [String]
   let storyKey: String
   let detectedLanguage: String
+  let confidence: Double
 }
 
 /// Category definition — read from SwiftData, passed to classification as Sendable.
