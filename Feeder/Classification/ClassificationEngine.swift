@@ -215,12 +215,15 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
       lines.append("  - \(child.label): \(child.description)")
     }
   }
+  lines.append("- \(uncategorizedLabel): Use only when no other category clearly matches. Never combine with another category.")
   let categoryDescriptions = lines.joined(separator: "\n")
 
   return """
     Categorize the article into the most specific matching categories below. \
     Assign subcategories over parents when both match. \
-    Only assign categories with clear evidence in the article.
+    Only assign categories with clear evidence in the article. \
+    Prefer fewer categories — assign 1 unless multiple clearly apply. \
+    If the article content is too short, vague, or does not clearly match any category, assign only "uncategorized".
 
     Categories:
     \(categoryDescriptions)

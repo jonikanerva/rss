@@ -195,6 +195,33 @@ struct ClassificationInstructionsTests {
     let instructions = buildClassificationInstructions(from: categories)
     #expect(instructions.contains("Categorize the article into the most specific matching categories"))
   }
+
+  @Test
+  func instructionsIncludeUncategorized() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(instructions.contains("- uncategorized:"))
+  }
+
+  @Test
+  func instructionsContainNegativeGuidance() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(instructions.contains("assign only \"uncategorized\""))
+  }
+
+  @Test
+  func instructionsPreferFewerCategories() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(instructions.contains("Prefer fewer categories"))
+  }
 }
 
 // MARK: - Filter Valid Labels Tests (uses extracted filterValidLabels)
