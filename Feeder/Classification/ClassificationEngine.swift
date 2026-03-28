@@ -111,6 +111,7 @@ final class ClassificationEngine {
 
     let instructions = buildInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
+    let supportedLangCodes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
 
     // Conservative context budget: ~3800 tokens to leave room for output and schema overhead
     let maxContextChars = 3800 * 4
@@ -122,9 +123,9 @@ final class ClassificationEngine {
       let result = await Task.detached(priority: .utility) {
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
-        // Apple Foundation Models only supports English — skip unsupported languages
-        // to avoid session prewarm warnings and wasted inference attempts.
-        guard lang == "en" else {
+        // Skip languages not supported by the on-device model to avoid
+        // session prewarm warnings and wasted inference attempts.
+        guard supportedLangCodes.contains(lang) else {
           return ClassificationResult(
             entryID: input.entryID,
             categoryLabels: ["other"],
