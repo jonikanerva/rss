@@ -11,10 +11,11 @@ Improve the accuracy of on-device article classification using Apple Foundation 
 
 **In scope:**
 - Input validation gate for completely empty articles (no title AND no body)
+- Keyword match confidence signal (0.0–1.0) with future-proof `keywords` field on Category
 - `contentTagging` adapter (if available in SDK)
 - Prompt engineering improvements
 - Confidence field via `@Guide` on `ArticleClassification`
-- Confidence gate routing low-confidence results to "Uncategorized"
+- Confidence gate combining keyword + LLM confidence to route low-confidence results to "Uncategorized"
 
 **Out of scope:** OpenAI/cloud fallback, NLEmbedding ensemble, LoRA adapter training.
 
@@ -43,22 +44,48 @@ Improve the accuracy of on-device article classification using Apple Foundation 
 
 ---
 
-### M2: Test `contentTagging` Adapter
+### M2: Keyword Match Confidence
 
-**What:** Switch from `SystemLanguageModel.default` to `SystemLanguageModel(useCase: .contentTagging)` if the API exists in the current SDK. This adapter is specifically trained for classification/tagging tasks.
+**What:** Add a keyword-based classification signal that produces a confidence score (0.0–1.0). When a category's keywords appear in the article title or body, that category gets a confidence boost. This runs before LLM inference — cheap and deterministic.
 
-**Where:** `ClassificationEngine.swift`, line 101.
+**Future-proofing:** Add a `keywords: [String]` field to the `Category` model so users can later manage keywords per category in Settings UI. For now, auto-derive keywords from `label` and `displayName` (e.g., category "playstation_5" matches keywords ["playstation 5", "ps5"]).
+
+**Where:**
+- `Category.swift` — add `keywords: [String]` field (schema version bump required)
+- `CategoryDefinition` DTO — add `keywords: [String]`
+- New pure function `keywordMatchConfidence()` in `ClassificationEngine.swift`
+- Seed default keywords in `seedDefaultCategories()`
 
 **Changes:**
-- Replace `SystemLanguageModel.default` with `SystemLanguageModel(useCase: .contentTagging)` (or equivalent API if the naming differs)
-- If the API doesn't exist in the current SDK, document this and skip — no workaround needed
-- Build verification must pass
+1. Add `keywords: [String]` to `Category` model (default: `[]`)
+2. Add `keywords` to `CategoryDefinition` DTO and `fetchCategoryDefinitions()`
+3. Seed sensible default keywords for existing categories:
+   - `technology` → ["tech"]
+   - `apple` → ["apple", "iphone", "ipad", "macbook", "macos", "ios", "watchos", "airpods", "apple watch", "vision pro"]
+   - `tesla` → ["tesla", "cybertruck", "model 3", "model y", "model s", "model x"]
+   - `ai` → ["openai", "chatgpt", "anthropic", "claude", "gemini", "llama", "midjourney", "stable diffusion", "machine learning", "deep learning", "neural network"]
+   - `gaming` → ["xbox", "nintendo", "steam", "epic games"]
+   - `gaming_industry` → ["layoffs", "acquisition", "studio closure"]
+   - `playstation_5` → ["playstation 5", "ps5", "dualsense", "psn"]
+   - `home_automation` → ["homekit", "matter", "alexa", "google home", "smart home", "zigbee", "thread"]
+   - `world` → [] (too broad for keywords)
+   - `uncategorized` → [] (never matched by keywords)
+4. Pure function: `keywordMatchConfidence(input: ClassificationInput, categories: [CategoryDefinition]) -> [String: Double]`
+   - Case-insensitive search in title + body
+   - Title match weighs more than body match (title hit: 0.8, body-only hit: 0.4)
+   - Multiple keyword hits in same category increase confidence (capped at 1.0)
+   - Returns dict of `categoryLabel → confidence` for all categories with any match
+5. Bump `currentSchemaVersion` in `FeederApp.swift`
+6. Add unit tests for keyword matching logic
 
 **Acceptance criteria:**
-- Build succeeds with the new model init (or reverted if API unavailable)
-- Documented whether `contentTagging` adapter exists and if it changes behavior
+- `Category` model has `keywords: [String]` field
+- Default categories seeded with sensible keywords
+- `keywordMatchConfidence()` returns correct scores for known test cases
+- Schema version bumped
+- All tests pass
 
-**Confidence:** Low — the API may not exist in the current Xcode beta. If unavailable, skip this milestone entirely.
+**Confidence:** High — pure string matching, no API risk.
 
 ---
 
@@ -122,25 +149,55 @@ struct ArticleClassification {
 
 ---
 
-### M5: Confidence Gate
+### M5: Confidence Gate (Combining Keyword + LLM Signals)
 
-**What:** Route low-confidence classifications to "Uncategorized" instead of accepting a likely-wrong category.
+**What:** Combine keyword match confidence (M2) and LLM self-assessed confidence (M4) to make the final classification decision. Route low-confidence results to "Uncategorized".
 
-**Where:** `ClassificationEngine.swift`, after receiving the classification response (line 151), before creating `ClassificationResult`.
+**Where:** `ClassificationEngine.swift`, after receiving the classification response, before creating `ClassificationResult`.
+
+**Logic:**
+1. Run keyword match → `[String: Double]` per category
+2. Run LLM classification → categories + confidence
+3. For each LLM-assigned category:
+   - `finalConfidence = max(llmConfidence, keywordConfidence[category] ?? 0.0)`
+   - If keyword confidence is high (≥ 0.8) for a category the LLM didn't pick → log it (future: consider overriding)
+4. If `finalConfidence < threshold` → override to `[uncategorizedLabel]`
+5. Threshold constant: start at `0.5`, tuneable
 
 **Changes:**
-- Add a confidence threshold constant (start with `0.5` — tuneable)
-- If `classification.confidence < threshold`, override labels to `[uncategorizedLabel]`
-- Log when confidence gate triggers for debugging/tuning
-- Add unit test for the gating logic
+- Integrate `keywordMatchConfidence()` call before LLM inference
+- Combine signals after LLM response
+- Add confidence threshold constant
+- Log when confidence gate triggers and when keyword/LLM disagree
+- Add unit tests for combined gating logic
 
 **Acceptance criteria:**
-- Classifications with confidence below threshold → "Uncategorized"
-- Classifications with confidence at or above threshold → normal flow
+- Keyword match boosts confidence for LLM-assigned categories
+- Low overall confidence → "Uncategorized"
+- High keyword confidence logged when LLM disagrees (diagnostic)
 - Threshold is a named constant, easy to tune
-- Existing tests pass, new gate test added
+- Tests cover: keyword-only high, LLM-only high, both low, both high
 
-**Confidence:** Medium — the right threshold value will need empirical tuning. Start conservative (0.5) and adjust based on real-world results.
+**Confidence:** Medium — logic is simple, threshold tuning is empirical.
+
+---
+
+### M6: Test `contentTagging` Adapter
+
+**What:** Switch from `SystemLanguageModel.default` to `SystemLanguageModel(useCase: .contentTagging)` if the API exists in the current SDK. This adapter is specifically trained for classification/tagging tasks.
+
+**Where:** `ClassificationEngine.swift`, model init.
+
+**Changes:**
+- Replace `SystemLanguageModel.default` with `SystemLanguageModel(useCase: .contentTagging)` (or equivalent API if the naming differs)
+- If the API doesn't exist in the current SDK, document this and skip — no workaround needed
+- Build verification must pass
+
+**Acceptance criteria:**
+- Build succeeds with the new model init (or reverted if API unavailable)
+- Documented whether `contentTagging` adapter exists and if it changes behavior
+
+**Confidence:** Low — the API may not exist in the current Xcode beta. If unavailable, skip this milestone entirely.
 
 ---
 
@@ -148,11 +205,12 @@ struct ArticleClassification {
 
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
-| `contentTagging` adapter API doesn't exist | M2 skipped, no improvement from adapter | Medium | Skip M2, proceed with other milestones |
-| Confidence from 3B model is poorly calibrated | Confidence gate is ineffective or too aggressive | High | Start with low threshold (0.5), log confidence values for tuning, make threshold easily adjustable |
+| `contentTagging` adapter API doesn't exist | M6 skipped, no improvement from adapter | Medium | Skip M6, proceed with other milestones |
+| Confidence from 3B model is poorly calibrated | Confidence gate is ineffective or too aggressive | High | Keyword match provides a second signal; start with low threshold (0.5); log values for tuning |
 | Prompt changes degrade accuracy for currently-correct articles | Regression | Low | Test with diverse article set before/after; reclassify-all to compare |
 | `@Generable` doesn't support `Double` field well | M4 blocked | Low | Fall back to `String` confidence like "high"/"medium"/"low" and map to numeric |
 | Context window pressure from longer prompt | Less article body fits in context | Low | Keep prompt additions minimal; measure instruction character count before/after |
+| Schema version bump (M2 keywords field) resets articles | User loses existing classifications | Low | Expected behavior per project rules; user re-syncs and reclassifies |
 
 ---
 
@@ -161,10 +219,11 @@ struct ArticleClassification {
 | Milestone | Confidence | Notes |
 |---|---|---|
 | M1: Input validation gate | **High** | Simple conditional, no API risk |
-| M2: contentTagging adapter | **Low** | API availability unknown |
+| M2: Keyword match confidence | **High** | Pure string matching, schema change straightforward |
 | M3: Prompt improvements | **High** | Pure text changes, testable |
-| M4: Confidence field | **Medium** | `@Generable` + Double should work, calibration uncertain |
-| M5: Confidence gate | **Medium** | Logic is simple, threshold tuning is empirical |
+| M4: LLM confidence field | **Medium** | `@Generable` + Double should work, calibration uncertain |
+| M5: Confidence gate (combined) | **Medium** | Logic is simple, threshold tuning is empirical |
+| M6: contentTagging adapter | **Low** | API availability unknown |
 
 ---
 
@@ -176,11 +235,12 @@ struct ArticleClassification {
 2. **Unit tests pass:** All existing + new tests green
 3. **New tests cover:**
    - Empty article input gate (M1)
+   - Keyword match confidence scoring (M2)
    - Updated prompt includes `uncategorized` and negative instruction (M3)
-   - Confidence gate logic at threshold boundary (M5)
+   - Combined confidence gate logic at threshold boundary (M5)
 4. **Context budget check:** Measure instruction string length before/after prompt changes — must not exceed current budget significantly
 5. **Manual smoke test:** User reclassifies a batch in Xcode and compares results
 
 ### Implementation Order
 
-M1 → M3 → M4 → M5 → M2 (M2 last because it may not be available, and the other milestones provide value regardless)
+M1 → M2 → M3 → M4 → M5 → M6 (M6 last because it may not be available, and the other milestones provide value regardless)
