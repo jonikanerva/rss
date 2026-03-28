@@ -178,7 +178,7 @@ struct ClassificationInstructionsTests {
       CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
     ]
     let instructions = buildClassificationInstructions(from: categories)
-    #expect(instructions.contains("Assign ONLY the most specific matching categories"))
+    #expect(instructions.contains("Categorize the article into the most specific matching categories"))
   }
 }
 

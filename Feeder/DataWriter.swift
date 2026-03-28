@@ -8,7 +8,6 @@ import SwiftData
 nonisolated struct ClassificationInput: Sendable {
   let entryID: Int
   let title: String
-  let summary: String
   let body: String
 }
 
@@ -287,7 +286,6 @@ actor DataWriter {
       ClassificationInput(
         entryID: entry.feedbinEntryID,
         title: entry.title ?? "Untitled",
-        summary: entry.summary ?? "",
         body: entry.plainText
       )
     }
