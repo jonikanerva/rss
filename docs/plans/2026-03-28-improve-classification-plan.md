@@ -23,6 +23,50 @@ Improve the accuracy of on-device article classification using Apple Foundation 
 
 ## 2. Milestones
 
+### M0: Replace Default Categories
+
+**What:** Replace the current default category set with a new, expanded taxonomy. Removes `world` (renamed to `world_news`), adds `rivian`, `marathon`, `science`, `whisky`, `buddhism`. Restructures hierarchy and improves descriptions.
+
+**Where:** `FeederApp.swift`, `seedDefaultCategories()` function.
+
+**New category tree:**
+
+| Label | Parent | Description |
+|---|---|---|
+| `gaming` | — | Video game releases, reviews, gameplay content, announcements, and all game-specific news. |
+| `playstation_5` | gaming | News about PlayStation 5 games, hardware, and ecosystem. Multiplatform news is acceptable if PS5 is one of the platforms. Exclude mobile gaming, PC-only gaming, and other console news. |
+| `marathon` | gaming | Articles about Marathon, the video game by developer Bungie. |
+| `gaming_industry` | gaming | Business and industry news about the gaming sector: studio layoffs, closures, acquisitions, insolvency, market analysis, financial results, and workforce changes. |
+| `technology` | — | A broad category for all news about technology companies, products, platforms, and innovations. |
+| `apple` | technology | All news related to Apple Inc., its products (Mac, iPhone, iPad, Apple Watch), platforms (macOS, iOS), chips (M-series, A-series), services, and innovations. |
+| `tesla` | technology | All news related to Tesla Inc., its vehicles, energy products, and innovations. |
+| `rivian` | technology | All news related to Rivian Automotive, its electric vehicles, technology, and business developments. |
+| `ai` | technology | Only for articles where AI is the central topic: AI models, ML systems, AI products, AI-focused companies (OpenAI, Anthropic), and applied generative AI. Do not apply when a product merely uses AI as a feature. |
+| `home_automation` | technology | Smart home devices, appliances, home automation platforms (Home Assistant, Google Home, Apple HomeKit, Amazon Alexa), protocols (Matter, Thread, Z-Wave, Zigbee), and related IoT technologies for the home. |
+| `science` | — | Scientific discoveries, research, space exploration, astronomy, rockets, NASA, ESA, and related topics. |
+| `world_news` | — | Geopolitics, government actions, regulatory decisions, international affairs, and global developments. Only apply when government or policy is a central theme, not when a company merely operates in multiple countries. |
+| `whisky` | — | Articles about whisky — distilleries, reviews, tastings, industry news, and culture. |
+| `buddhism` | — | Articles about Buddhism, meditation, mindfulness, and spiritual topics. Do not include general health or fitness articles. |
+| `uncategorized` | — | Use only when no other category clearly matches. Never combine with another category. (System, immutable) |
+
+**Changes:**
+- Replace entire `defaults` array in `seedDefaultCategories()`
+- Update sort orders to reflect new hierarchy
+- Rename `world` → `world_news` (label change)
+- Add new categories: `rivian`, `marathon`, `science`, `whisky`, `buddhism`
+- Remove old `world` label
+- Update M2 keyword seeds to cover new categories
+
+**Acceptance criteria:**
+- Fresh launch seeds all 15 categories with correct hierarchy
+- Descriptions match the table above
+- Schema version bump triggers article reset (categories preserved via separate seeding path)
+- Build passes
+
+**Confidence:** High
+
+---
+
 ### M1: Input Validation Gate
 
 **What:** Skip classification entirely when an article has no meaningful content — both title is "Untitled" (the default) AND body is empty. Assign `["uncategorized"]` directly without invoking the model.
@@ -59,16 +103,21 @@ Improve the accuracy of on-device article classification using Apple Foundation 
 **Changes:**
 1. Add `keywords: [String]` to `Category` model (default: `[]`)
 2. Add `keywords` to `CategoryDefinition` DTO and `fetchCategoryDefinitions()`
-3. Seed sensible default keywords for existing categories:
+3. Seed sensible default keywords for all categories:
    - `technology` → ["tech"]
-   - `apple` → ["apple", "iphone", "ipad", "macbook", "macos", "ios", "watchos", "airpods", "apple watch", "vision pro"]
-   - `tesla` → ["tesla", "cybertruck", "model 3", "model y", "model s", "model x"]
+   - `apple` → ["apple", "iphone", "ipad", "macbook", "macos", "ios", "watchos", "airpods", "apple watch", "vision pro", "apple intelligence"]
+   - `tesla` → ["tesla", "cybertruck", "model 3", "model y", "model s", "model x", "supercharger"]
+   - `rivian` → ["rivian", "r1t", "r1s", "r2", "r3"]
    - `ai` → ["openai", "chatgpt", "anthropic", "claude", "gemini", "llama", "midjourney", "stable diffusion", "machine learning", "deep learning", "neural network"]
    - `gaming` → ["xbox", "nintendo", "steam", "epic games"]
    - `gaming_industry` → ["layoffs", "acquisition", "studio closure"]
-   - `playstation_5` → ["playstation 5", "ps5", "dualsense", "psn"]
-   - `home_automation` → ["homekit", "matter", "alexa", "google home", "smart home", "zigbee", "thread"]
-   - `world` → [] (too broad for keywords)
+   - `playstation_5` → ["playstation 5", "ps5", "dualsense", "psn", "playstation"]
+   - `marathon` → ["marathon", "bungie"]
+   - `home_automation` → ["homekit", "home assistant", "matter", "alexa", "google home", "smart home", "zigbee", "thread", "z-wave"]
+   - `science` → ["nasa", "esa", "spacex", "rocket", "asteroid", "exoplanet", "james webb", "hubble"]
+   - `world_news` → [] (too broad for keywords)
+   - `whisky` → ["whisky", "whiskey", "scotch", "bourbon", "distillery", "single malt", "islay"]
+   - `buddhism` → ["buddhism", "buddhist", "meditation", "dharma", "mindfulness", "zen"]
    - `uncategorized` → [] (never matched by keywords)
 4. Pure function: `keywordMatchConfidence(input: ClassificationInput, categories: [CategoryDefinition]) -> [String: Double]`
    - Case-insensitive search in title + body
@@ -218,6 +267,7 @@ struct ArticleClassification {
 
 | Milestone | Confidence | Notes |
 |---|---|---|
+| M0: Replace default categories | **High** | Data-only change, straightforward |
 | M1: Input validation gate | **High** | Simple conditional, no API risk |
 | M2: Keyword match confidence | **High** | Pure string matching, schema change straightforward |
 | M3: Prompt improvements | **High** | Pure text changes, testable |
@@ -243,4 +293,4 @@ struct ArticleClassification {
 
 ### Implementation Order
 
-M1 → M2 → M3 → M4 → M5 → M6 (M6 last because it may not be available, and the other milestones provide value regardless)
+M0 → M1 → M2 → M3 → M4 → M5 → M6 (M0 first as foundation for all other changes; M6 last because it may not be available)
