@@ -18,10 +18,12 @@ final class Category {
   var depth: Int
   /// Whether this is a top-level category (pre-computed for @Query).
   var isTopLevel: Bool
+  /// System categories cannot be deleted, moved, or renamed.
+  var isSystem: Bool
 
   init(
     label: String, displayName: String, categoryDescription: String,
-    sortOrder: Int = 0, parentLabel: String? = nil
+    sortOrder: Int = 0, parentLabel: String? = nil, isSystem: Bool = false
   ) {
     self.label = label
     self.displayName = displayName
@@ -30,5 +32,6 @@ final class Category {
     self.parentLabel = parentLabel
     self.depth = parentLabel == nil ? 0 : 1
     self.isTopLevel = parentLabel == nil
+    self.isSystem = isSystem
   }
 }

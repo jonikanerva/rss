@@ -278,4 +278,70 @@ struct DataWriterCategoryTests {
     #expect(tech?.isTopLevel == false)
     #expect(tech?.parentLabel == "gaming")
   }
+
+  // MARK: - System category protection
+
+  @Test
+  func deleteSystemCategoryIsNoOp() async throws {
+    let writer = try await makeWriter()
+    try await writer.addCategory(
+      label: uncategorizedLabel, displayName: "Uncategorized",
+      description: "Fallback", sortOrder: Int.max
+    )
+    // Manually set isSystem since addCategory doesn't support it
+    try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
+
+    try await writer.deleteCategory(label: uncategorizedLabel)
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    #expect(defs.contains { $0.label == uncategorizedLabel })
+  }
+
+  @Test
+  func systemCategoryCannotBecomeChild() async throws {
+    let writer = try await makeWriter()
+    try await writer.addCategory(
+      label: "tech", displayName: "Tech",
+      description: "Tech", sortOrder: 0
+    )
+    try await writer.addCategory(
+      label: uncategorizedLabel, displayName: "Uncategorized",
+      description: "Fallback", sortOrder: Int.max
+    )
+    try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
+
+    try await writer.updateCategoryHierarchy(
+      label: uncategorizedLabel, parentLabel: "tech",
+      depth: 1, isTopLevel: false, sortOrder: 0
+    )
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let uncat = defs.first { $0.label == uncategorizedLabel }
+    #expect(uncat?.isTopLevel == true)
+    #expect(uncat?.parentLabel == nil)
+  }
+
+  @Test
+  func categoryCannotBecomeChildOfSystem() async throws {
+    let writer = try await makeWriter()
+    try await writer.addCategory(
+      label: "tech", displayName: "Tech",
+      description: "Tech", sortOrder: 0
+    )
+    try await writer.addCategory(
+      label: uncategorizedLabel, displayName: "Uncategorized",
+      description: "Fallback", sortOrder: Int.max
+    )
+    try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
+
+    try await writer.updateCategoryHierarchy(
+      label: "tech", parentLabel: uncategorizedLabel,
+      depth: 1, isTopLevel: false, sortOrder: 0
+    )
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let tech = defs.first { $0.label == "tech" }
+    #expect(tech?.isTopLevel == true)
+    #expect(tech?.parentLabel == nil)
+  }
 }

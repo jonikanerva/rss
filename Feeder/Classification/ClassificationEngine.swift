@@ -128,7 +128,7 @@ final class ClassificationEngine {
         guard supportedLangCodes.contains(lang) else {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: ["other"],
+            categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang
           )
@@ -159,7 +159,7 @@ final class ClassificationEngine {
         } catch {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: ["other"],
+            categoryLabels: [uncategorizedLabel],
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang
           )
@@ -213,8 +213,8 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
     """
 }
 
-/// Filter labels to only valid category labels. Defaults to ["other"] if none valid.
+/// Filter labels to only valid category labels. Defaults to [uncategorizedLabel] if none valid.
 nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
   let filtered = labels.filter { validSet.contains($0) }
-  return filtered.isEmpty ? ["other"] : filtered
+  return filtered.isEmpty ? [uncategorizedLabel] : filtered
 }

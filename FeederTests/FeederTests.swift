@@ -40,6 +40,21 @@ struct CategoryModelTests {
       parentLabel: "technology")
     #expect(cat.label == "ai")
   }
+  @Test
+  func systemCategoryHasFlag() {
+    let cat = Category(
+      label: uncategorizedLabel, displayName: "Uncategorized",
+      categoryDescription: "Fallback", sortOrder: Int.max, isSystem: true)
+    #expect(cat.isSystem == true)
+  }
+
+  @Test
+  func defaultCategoryIsNotSystem() {
+    let cat = Category(
+      label: "tech", displayName: "Tech",
+      categoryDescription: "Tech", sortOrder: 0)
+    #expect(cat.isSystem == false)
+  }
 }
 
 // MARK: - CategoryDefinition DTO Tests
@@ -73,7 +88,7 @@ struct DeepestMatchTests {
       CategoryDefinition(label: "technology", description: "Tech", parentLabel: nil, isTopLevel: true),
       CategoryDefinition(label: "gaming", description: "Gaming", parentLabel: nil, isTopLevel: true),
       CategoryDefinition(label: "world", description: "World", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "other", description: "Other", parentLabel: nil, isTopLevel: true),
+      CategoryDefinition(label: uncategorizedLabel, description: "Uncategorized", parentLabel: nil, isTopLevel: true),
       CategoryDefinition(label: "apple", description: "Apple", parentLabel: "technology", isTopLevel: false),
       CategoryDefinition(label: "ai", description: "AI", parentLabel: "technology", isTopLevel: false),
       CategoryDefinition(label: "gaming_industry", description: "Gaming biz", parentLabel: "gaming", isTopLevel: false),
@@ -118,15 +133,15 @@ struct DeepestMatchTests {
   }
 
   @Test
-  func emptyLabelsDefaultToOther() {
+  func emptyLabelsDefaultToUncategorized() {
     let result = enforceDeepestMatch(labels: [], childrenByParent: childrenByParent)
-    #expect(result == ["other"])
+    #expect(result == [uncategorizedLabel])
   }
 
   @Test
-  func onlyOtherStaysAsIs() {
-    let result = enforceDeepestMatch(labels: ["other"], childrenByParent: childrenByParent)
-    #expect(result == ["other"])
+  func onlyUncategorizedStaysAsIs() {
+    let result = enforceDeepestMatch(labels: [uncategorizedLabel], childrenByParent: childrenByParent)
+    #expect(result == [uncategorizedLabel])
   }
 }
 
@@ -185,7 +200,7 @@ struct ClassificationInstructionsTests {
 // MARK: - Filter Valid Labels Tests (uses extracted filterValidLabels)
 
 struct FilterValidLabelsTests {
-  private let validSet: Set<String> = ["technology", "apple", "gaming", "world", "other"]
+  private let validSet: Set<String> = ["technology", "apple", "gaming", "world", uncategorizedLabel]
 
   @Test
   func allValidLabelsKept() {
@@ -200,15 +215,15 @@ struct FilterValidLabelsTests {
   }
 
   @Test
-  func allInvalidDefaultsToOther() {
+  func allInvalidDefaultsToUncategorized() {
     let result = filterValidLabels(["bogus", "fake"], validSet: validSet)
-    #expect(result == ["other"])
+    #expect(result == [uncategorizedLabel])
   }
 
   @Test
-  func emptyLabelsDefaultToOther() {
+  func emptyLabelsDefaultToUncategorized() {
     let result = filterValidLabels([], validSet: validSet)
-    #expect(result == ["other"])
+    #expect(result == [uncategorizedLabel])
   }
 
   @Test

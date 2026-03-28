@@ -84,7 +84,7 @@ nonisolated func enforceDeepestMatch(
       result.removeAll { $0 == parentLabel }
     }
   }
-  return result.isEmpty ? ["other"] : result
+  return result.isEmpty ? [uncategorizedLabel] : result
 }
 
 // MARK: - DataWriter Actor
@@ -322,7 +322,7 @@ actor DataWriter {
     entry.categoryLabels = labels
     entry.storyKey = result.storyKey
     entry.isClassified = true
-    entry.primaryCategory = labels.first ?? "other"
+    entry.primaryCategory = labels.first ?? uncategorizedLabel
     try modelContext.save()
   }
 
@@ -360,6 +360,7 @@ actor DataWriter {
       predicate: #Predicate<Category> { $0.label == label }
     )
     guard let category = try modelContext.fetch(descriptor).first else { return }
+    guard !category.isSystem else { return }
 
     if category.isTopLevel {
       let childDescriptor = FetchDescriptor<Category>(
@@ -394,7 +395,7 @@ actor DataWriter {
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == label }
       )
-      if let category = try modelContext.fetch(descriptor).first {
+      if let category = try modelContext.fetch(descriptor).first, !category.isSystem {
         category.sortOrder = sortOrder
       }
     }
@@ -405,7 +406,13 @@ actor DataWriter {
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
-    guard let category = try modelContext.fetch(descriptor).first else { return }
+    guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { return }
+    if let parentLabel {
+      let parentDescriptor = FetchDescriptor<Category>(
+        predicate: #Predicate<Category> { $0.label == parentLabel }
+      )
+      if let parent = try modelContext.fetch(parentDescriptor).first, parent.isSystem { return }
+    }
     category.parentLabel = parentLabel
     category.depth = depth
     category.isTopLevel = isTopLevel
@@ -422,7 +429,13 @@ actor DataWriter {
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == targetLabel }
       )
-      guard let category = try modelContext.fetch(descriptor).first else { continue }
+      guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { continue }
+      if let parentLabel = change.parentLabel {
+        let parentDescriptor = FetchDescriptor<Category>(
+          predicate: #Predicate<Category> { $0.label == parentLabel }
+        )
+        if let parent = try modelContext.fetch(parentDescriptor).first, parent.isSystem { continue }
+      }
       category.parentLabel = change.parentLabel
       category.depth = change.depth
       category.isTopLevel = change.isTopLevel
@@ -432,10 +445,19 @@ actor DataWriter {
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == label }
       )
-      if let category = try modelContext.fetch(descriptor).first {
+      if let category = try modelContext.fetch(descriptor).first, !category.isSystem {
         category.sortOrder = sortOrder
       }
     }
+    try modelContext.save()
+  }
+
+  func updateSystemFlag(label: String, isSystem: Bool) throws {
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.label == label }
+    )
+    guard let category = try modelContext.fetch(descriptor).first else { return }
+    category.isSystem = isSystem
     try modelContext.save()
   }
 

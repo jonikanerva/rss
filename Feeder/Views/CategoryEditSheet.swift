@@ -75,6 +75,7 @@ struct CategoryEditSheet: View {
         TextField("Category name", text: $name)
           .textFieldStyle(.roundedBorder)
           .font(.system(size: FontTheme.bodySize))
+          .disabled(category?.isSystem ?? false)
       }
 
       VStack(alignment: .leading, spacing: 4) {
@@ -97,7 +98,7 @@ struct CategoryEditSheet: View {
 
   private var footer: some View {
     HStack {
-      if !isNew {
+      if !isNew && !(category?.isSystem ?? false) {
         Button("Delete Category", role: .destructive) {
           prepareDelete()
         }

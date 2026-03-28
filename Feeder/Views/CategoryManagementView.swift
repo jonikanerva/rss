@@ -65,21 +65,32 @@ struct CategoryManagementView: View {
 
   @ViewBuilder
   private func parentCategorySection(parent: Category, topIndex: Int) -> some View {
-    CategoryCompactRow(
-      label: parent.label,
-      displayName: parent.displayName,
-      descriptionPreview: parent.categoryDescription,
-      depth: 0,
-      isDropTarget: dropTargetLabel == parent.label,
-      onEdit: { editingCategory = parent }
-    )
-    .draggable(parent.label)
-    .dropDestination(for: String.self) { labels, _ in
-      guard let draggedLabel = labels.first, draggedLabel != parent.label else { return false }
-      handleMakeChild(draggedLabel, of: parent.label)
-      return true
-    } isTargeted: { targeted in
-      dropTargetLabel = targeted ? parent.label : (dropTargetLabel == parent.label ? nil : dropTargetLabel)
+    if parent.isSystem {
+      CategoryCompactRow(
+        label: parent.label,
+        displayName: parent.displayName,
+        descriptionPreview: parent.categoryDescription,
+        depth: 0,
+        isDropTarget: false,
+        onEdit: { editingCategory = parent }
+      )
+    } else {
+      CategoryCompactRow(
+        label: parent.label,
+        displayName: parent.displayName,
+        descriptionPreview: parent.categoryDescription,
+        depth: 0,
+        isDropTarget: dropTargetLabel == parent.label,
+        onEdit: { editingCategory = parent }
+      )
+      .draggable(parent.label)
+      .dropDestination(for: String.self) { labels, _ in
+        guard let draggedLabel = labels.first, draggedLabel != parent.label else { return false }
+        handleMakeChild(draggedLabel, of: parent.label)
+        return true
+      } isTargeted: { targeted in
+        dropTargetLabel = targeted ? parent.label : (dropTargetLabel == parent.label ? nil : dropTargetLabel)
+      }
     }
 
     let children = childCategories(of: parent.label)
@@ -186,6 +197,7 @@ struct CategoryManagementView: View {
 
   private func handleMakeChild(_ draggedLabel: String, of parentLabel: String) {
     guard let writer = syncEngine.writer else { return }
+    if draggedLabel == uncategorizedLabel || parentLabel == uncategorizedLabel { return }
 
     let targetParent = allCategories.first { $0.label == parentLabel }
     if targetParent?.parentLabel == draggedLabel { return }
@@ -210,6 +222,8 @@ struct CategoryManagementView: View {
 
   private func handleInsertChild(_ draggedLabel: String, in parentLabel: String, at position: Int) {
     guard let writer = syncEngine.writer else { return }
+    if draggedLabel == uncategorizedLabel || parentLabel == uncategorizedLabel { return }
+
     let draggedCategory = allCategories.first { $0.label == draggedLabel }
     let needsReparent = draggedCategory?.parentLabel != parentLabel
 
