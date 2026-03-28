@@ -499,10 +499,18 @@ struct ConfidenceGateTests {
 
 struct KeywordMatchConfidenceTests {
   private let categories: [CategoryDefinition] = [
-    CategoryDefinition(label: "apple", description: "Apple", parentLabel: "technology", isTopLevel: false, keywords: ["apple", "iphone", "macbook"]),
-    CategoryDefinition(label: "gaming", description: "Gaming", parentLabel: nil, isTopLevel: true, keywords: ["xbox", "nintendo"]),
-    CategoryDefinition(label: "world_news", description: "World", parentLabel: nil, isTopLevel: true, keywords: []),
-    CategoryDefinition(label: uncategorizedLabel, description: "Uncategorized", parentLabel: nil, isTopLevel: true),
+    CategoryDefinition(
+      label: "apple", description: "Apple", parentLabel: "technology",
+      isTopLevel: false, keywords: ["apple", "iphone", "macbook"]),
+    CategoryDefinition(
+      label: "gaming", description: "Gaming", parentLabel: nil,
+      isTopLevel: true, keywords: ["xbox", "nintendo"]),
+    CategoryDefinition(
+      label: "world_news", description: "World", parentLabel: nil,
+      isTopLevel: true, keywords: []),
+    CategoryDefinition(
+      label: uncategorizedLabel, description: "Uncategorized",
+      parentLabel: nil, isTopLevel: true),
   ]
 
   @Test

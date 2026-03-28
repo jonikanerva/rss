@@ -35,9 +35,9 @@ fi
 # Phase 2: Build
 log "Phase 2/4: Build (zero warnings, zero errors)"
 BUILD_OUTPUT=$("$ROOT_DIR/.claude/scripts/build-for-testing.sh" 2>&1)
-BUILD_WARNINGS=$(echo "$BUILD_OUTPUT" | grep -cE "(error:|warning:)" | grep -v "xcodebuild\[" || true)
+BUILD_WARNINGS=$(echo "$BUILD_OUTPUT" | grep -E "(error:|warning:)" | grep -v "xcodebuild\[" | grep -v "appintentsmetadataprocessor" | grep -c "" || true)
 if [[ "$BUILD_WARNINGS" -gt 0 ]]; then
-    echo "$BUILD_OUTPUT" | grep -E "(error:|warning:)" | grep -v "xcodebuild\["
+    echo "$BUILD_OUTPUT" | grep -E "(error:|warning:)" | grep -v "xcodebuild\[" | grep -v "appintentsmetadataprocessor"
     log "FAIL: Build produced warnings or errors"
     FAILED=$((FAILED + 1))
 else

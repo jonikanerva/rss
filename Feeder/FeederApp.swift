@@ -156,7 +156,10 @@ struct FeederApp: App {
         "ai", "AI",
         "Only for articles where AI is the central topic: AI models, ML systems, AI products, AI-focused companies (OpenAI, Anthropic), and applied generative AI. Do not apply when a product merely uses AI as a feature.",
         3, "technology",
-        ["openai", "chatgpt", "anthropic", "claude", "gemini", "llama", "midjourney", "stable diffusion", "machine learning", "deep learning", "neural network"]
+        [
+          "openai", "chatgpt", "anthropic", "claude", "gemini", "llama",
+          "midjourney", "stable diffusion", "machine learning", "deep learning", "neural network",
+        ]
       ),
       (
         "home_automation", "Home Automation",
