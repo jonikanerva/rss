@@ -449,6 +449,52 @@ struct StoryKeyTests {
   }
 }
 
+// MARK: - Confidence Gate Tests
+
+struct ConfidenceGateTests {
+  @Test
+  func highLLMConfidenceKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.8, keywordScores: [:])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func lowLLMButHighKeywordKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.2, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func bothLowDefaultsToUncategorized() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.3, keywordScores: ["apple": 0.4])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func bothHighKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.9, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func atThresholdKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.5, keywordScores: [:])
+    #expect(result == ["gaming"])
+  }
+
+  @Test
+  func justBelowThresholdGates() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.49, keywordScores: [:])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func keywordScoreForDifferentCategoryIgnored() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.3, keywordScores: ["apple": 0.9])
+    #expect(result == [uncategorizedLabel])
+  }
+}
+
 // MARK: - Keyword Match Confidence Tests
 
 struct KeywordMatchConfidenceTests {

@@ -137,6 +137,9 @@ final class ClassificationEngine {
         continue
       }
 
+      // Compute keyword match before LLM (cheap, deterministic)
+      let keywordScores = keywordMatchConfidence(title: input.title, body: input.body, categories: categories)
+
       // All heavy work on background thread
       let result = await Task.detached(priority: .utility) {
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
@@ -168,10 +171,18 @@ final class ClassificationEngine {
             options: options
           )
           let classification = response.content
-          let labels = filterValidLabels(classification.categories, validSet: validLabels)
+          let rawLabels = filterValidLabels(classification.categories, validSet: validLabels)
+
+          // Apply confidence gate: combine LLM confidence with keyword scores
+          let gatedLabels = applyConfidenceGate(
+            labels: rawLabels,
+            llmConfidence: classification.confidence,
+            keywordScores: keywordScores
+          )
+
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: labels,
+            categoryLabels: gatedLabels,
             storyKey: normalizeStoryKey(classification.storyKey),
             detectedLanguage: lang,
             confidence: classification.confidence
@@ -186,6 +197,13 @@ final class ClassificationEngine {
           )
         }
       }.value
+
+      // Log keyword/LLM disagreements for diagnostics (MainActor context)
+      for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
+        if !result.categoryLabels.contains(kwCategory) {
+          logger.info("Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabels)")
+        }
+      }
 
       // Write result via background actor — zero MainActor SwiftData work
       try? await writer.applyClassification(entryID: result.entryID, result: result)
@@ -246,6 +264,24 @@ nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) ->
 /// Returns true when an article has no meaningful content to classify.
 nonisolated func shouldSkipClassification(title: String, body: String) -> Bool {
   title == "Untitled" && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
+/// Minimum confidence threshold for accepting a classification. Below this, assign "Uncategorized".
+nonisolated let confidenceThreshold = 0.5
+
+/// Apply confidence gate: if the combined confidence (max of LLM and keyword) is below threshold,
+/// override labels to uncategorized.
+nonisolated func applyConfidenceGate(
+  labels: [String],
+  llmConfidence: Double,
+  keywordScores: [String: Double]
+) -> [String] {
+  let bestKeywordScore = labels.compactMap { keywordScores[$0] }.max() ?? 0.0
+  let finalConfidence = max(llmConfidence, bestKeywordScore)
+  if finalConfidence < confidenceThreshold {
+    return [uncategorizedLabel]
+  }
+  return labels
 }
 
 /// Compute keyword match confidence per category. Title matches weigh more than body matches.
