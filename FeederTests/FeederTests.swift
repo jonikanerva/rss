@@ -195,6 +195,33 @@ struct ClassificationInstructionsTests {
     let instructions = buildClassificationInstructions(from: categories)
     #expect(instructions.contains("Categorize the article into the most specific matching categories"))
   }
+
+  @Test
+  func instructionsIncludeUncategorized() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(instructions.contains("- uncategorized:"))
+  }
+
+  @Test
+  func instructionsDoNotOverpushUncategorized() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(!instructions.contains("assign only \"uncategorized\""))
+  }
+
+  @Test
+  func instructionsPreferFewerCategories() {
+    let categories = [
+      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+    ]
+    let instructions = buildClassificationInstructions(from: categories)
+    #expect(instructions.contains("Prefer fewer categories"))
+  }
 }
 
 // MARK: - Filter Valid Labels Tests (uses extracted filterValidLabels)
@@ -419,6 +446,166 @@ struct StoryKeyTests {
   @Test
   func collapsesMultipleDashes() {
     #expect(normalizeStoryKey("hello   world") == "hello-world")
+  }
+}
+
+// MARK: - Confidence Gate Tests
+
+struct ConfidenceGateTests {
+  @Test
+  func highLLMConfidenceKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.8, keywordScores: [:])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func lowLLMButHighKeywordKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func bothLowDefaultsToUncategorized() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.2])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func bothHighKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.9, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func atThresholdKeepsLabels() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.3, keywordScores: [:])
+    #expect(result == ["gaming"])
+  }
+
+  @Test
+  func justBelowThresholdGates() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.29, keywordScores: [:])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func keywordScoreForDifferentCategoryIgnored() {
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.1, keywordScores: ["apple": 0.9])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  // Keyword override tests — when LLM chose uncategorized but keywords are strong
+  @Test
+  func keywordOverridesUncategorized() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func keywordDoesNotOverrideIfBelowThreshold() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.6])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func keywordOverridePicksHighestScore() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.1,
+      keywordScores: ["apple": 0.8, "gaming": 1.0])
+    #expect(result == ["gaming"])
+  }
+}
+
+// MARK: - Keyword Match Confidence Tests
+
+struct KeywordMatchConfidenceTests {
+  private let categories: [CategoryDefinition] = [
+    CategoryDefinition(
+      label: "apple", description: "Apple", parentLabel: "technology",
+      isTopLevel: false, keywords: ["apple", "iphone", "macbook"]),
+    CategoryDefinition(
+      label: "gaming", description: "Gaming", parentLabel: nil,
+      isTopLevel: true, keywords: ["xbox", "nintendo"]),
+    CategoryDefinition(
+      label: "world_news", description: "World", parentLabel: nil,
+      isTopLevel: true, keywords: []),
+    CategoryDefinition(
+      label: uncategorizedLabel, description: "Uncategorized",
+      parentLabel: nil, isTopLevel: true),
+  ]
+
+  @Test
+  func titleMatchReturnsHighConfidence() {
+    let result = keywordMatchConfidence(title: "Apple announces new iPhone", body: "", categories: categories)
+    #expect(result["apple"]! >= 0.8)
+  }
+
+  @Test
+  func bodyOnlyMatchReturnsLowerConfidence() {
+    let result = keywordMatchConfidence(title: "Tech news today", body: "The new MacBook is here", categories: categories)
+    #expect(result["apple"]! >= 0.4)
+    #expect(result["apple"]! < 0.8)
+  }
+
+  @Test
+  func noMatchReturnsEmpty() {
+    let result = keywordMatchConfidence(title: "Weather forecast", body: "It will rain tomorrow", categories: categories)
+    #expect(result.isEmpty)
+  }
+
+  @Test
+  func multipleKeywordHitsIncrease() {
+    let result = keywordMatchConfidence(title: "Apple iPhone and MacBook", body: "", categories: categories)
+    #expect(result["apple"]! == 1.0)
+  }
+
+  @Test
+  func caseInsensitive() {
+    let result = keywordMatchConfidence(title: "APPLE IPHONE", body: "", categories: categories)
+    #expect(result["apple"] != nil)
+  }
+
+  @Test
+  func categoriesWithNoKeywordsSkipped() {
+    let result = keywordMatchConfidence(title: "World leaders meet", body: "Global summit", categories: categories)
+    #expect(result["world_news"] == nil)
+  }
+
+  @Test
+  func cappedAtOne() {
+    let result = keywordMatchConfidence(title: "Apple iPhone MacBook", body: "apple iphone macbook", categories: categories)
+    #expect(result["apple"]! == 1.0)
+  }
+}
+
+// MARK: - Input Validation Gate Tests
+
+struct InputValidationGateTests {
+  @Test
+  func emptyTitleAndBodySkips() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "") == true)
+  }
+
+  @Test
+  func emptyTitleAndWhitespaceBodySkips() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "   \n\t  ") == true)
+  }
+
+  @Test
+  func realTitleWithEmptyBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Apple announces M5", body: "") == false)
+  }
+
+  @Test
+  func untitledWithBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Untitled", body: "Some article content here") == false)
+  }
+
+  @Test
+  func realTitleAndBodyDoesNotSkip() {
+    #expect(shouldSkipClassification(title: "Breaking News", body: "Details about the event") == false)
   }
 }
 

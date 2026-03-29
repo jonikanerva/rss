@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
 /// Bump this when the SwiftData schema changes. On mismatch, articles
 /// and feeds are deleted (categories preserved) and a fresh sync runs.
-private let currentSchemaVersion = 8
+private let currentSchemaVersion = 9
 
 @main
 struct FeederApp: App {
@@ -86,61 +86,100 @@ struct FeederApp: App {
   // been called). This pattern matches resetArticlesIfSchemaChanged() above.
 
   private func seedDefaultCategories(into context: ModelContext) {
-    let defaults: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)] = [
-      (
-        "technology", "Technology",
-        "A broad category for all news about technology companies, products, platforms, and innovations. This includes news about Apple, Tesla, AI companies, and any other tech company. Use alongside more specific categories when applicable.",
-        0, nil
-      ),
+    // swiftlint:disable:next large_tuple
+    let defaults: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?, keywords: [String])] = [
+      // Top-level categories
       (
         "gaming", "Gaming",
-        "Game releases, game reviews, gameplay content, game announcements, and game-specific news. For business news about the gaming industry (layoffs, acquisitions, financial results), use 'gaming_industry' instead.",
-        1, nil
+        "Video game releases, reviews, gameplay content, announcements, and all game-specific news.",
+        0, nil, ["xbox", "nintendo", "steam", "epic games"]
       ),
       (
-        "world", "World",
+        "technology", "Technology",
+        "A broad category for all news about technology companies, products, platforms, and innovations.",
+        1, nil, ["tech"]
+      ),
+      (
+        "science", "Science",
+        "Scientific discoveries, research, space exploration, astronomy, rockets, NASA, ESA, and related topics.",
+        2, nil, ["nasa", "esa", "spacex", "rocket", "asteroid", "exoplanet", "james webb", "hubble"]
+      ),
+      (
+        "world_news", "World News",
         "Geopolitics, government actions, regulatory decisions, international affairs, and global developments. Only apply when government or policy is a central theme, not when a company merely operates in multiple countries.",
-        2, nil
+        3, nil, []
       ),
       (
-        "apple", "Apple",
-        "All news about Apple company, its products (Mac, iPhone, iPad, Apple Watch), platforms (macOS, iOS), chips (M-series), services, and innovations.",
-        0, "technology"
-      ),
-      ("tesla", "Tesla", "All news related to Tesla company, its vehicles, energy products, and innovations.", 1, "technology"),
-      (
-        "ai", "AI",
-        "Only for articles where AI is the central topic: AI models, ML systems, AI products, AI-focused companies like OpenAI or Anthropic, and applied generative AI. Do not apply when a product merely uses AI as a feature.",
-        2, "technology"
+        "whisky", "Whisky",
+        "Articles about whisky — distilleries, reviews, tastings, industry news, and culture.",
+        4, nil, ["whisky", "whiskey", "scotch", "bourbon", "distillery", "single malt", "islay"]
       ),
       (
-        "home_automation", "Home Automation",
-        "Smart home devices, home automation platforms (Google Home, Apple HomeKit, Amazon Alexa), Matter protocol, and related IoT technologies for the home.",
-        3, "technology"
+        "buddhism", "Buddhism",
+        "Articles about Buddhism, meditation, mindfulness, and spiritual topics. Do not include general health or fitness articles.",
+        5, nil, ["buddhism", "buddhist", "meditation", "dharma", "mindfulness", "zen"]
+      ),
+      // Gaming children
+      (
+        "playstation_5", "PlayStation 5",
+        "News about PlayStation 5 games, hardware, and ecosystem. Multiplatform news is acceptable if PS5 is one of the platforms. Exclude mobile gaming, PC-only gaming, and other console news.",
+        0, "gaming", ["playstation 5", "ps5", "dualsense", "psn", "playstation"]
+      ),
+      (
+        "marathon", "Marathon",
+        "Articles about Marathon, the video game by developer Bungie.",
+        1, "gaming", ["marathon", "bungie"]
       ),
       (
         "gaming_industry", "Gaming Industry",
-        "Business and industry news about the gaming sector: studio layoffs, closures, acquisitions, insolvency, market analysis, financial results, and workforce changes. Use this instead of 'gaming' when the article is about the business side rather than games themselves.",
-        0, "gaming"
+        "Business and industry news about the gaming sector: studio layoffs, closures, acquisitions, insolvency, market analysis, financial results, and workforce changes.",
+        2, "gaming", ["layoffs", "acquisition", "studio closure"]
+      ),
+      // Technology children
+      (
+        "apple", "Apple",
+        "All news related to Apple Inc., its products (Mac, iPhone, iPad, Apple Watch), platforms (macOS, iOS), chips (M-series, A-series), services, and innovations.",
+        0, "technology",
+        ["apple", "iphone", "ipad", "macbook", "macos", "ios", "watchos", "airpods", "apple watch", "vision pro", "apple intelligence"]
       ),
       (
-        "playstation_5", "PlayStation 5",
-        "All news specifically about PlayStation 5 games, hardware, and ecosystem. Exclude mobile gaming, PC gaming, and other console news, which should be categorized under 'gaming'.",
-        1, "gaming"
+        "tesla", "Tesla",
+        "All news related to Tesla Inc., its vehicles, energy products, and innovations.",
+        1, "technology", ["tesla", "cybertruck", "model 3", "model y", "model s", "model x", "supercharger"]
+      ),
+      (
+        "rivian", "Rivian",
+        "All news related to Rivian Automotive, its electric vehicles, technology, and business developments.",
+        2, "technology", ["rivian", "r1t", "r1s", "r2", "r3"]
+      ),
+      (
+        "ai", "AI",
+        "Only for articles where AI is the central topic: AI models, ML systems, AI products, AI-focused companies (OpenAI, Anthropic), and applied generative AI. Do not apply when a product merely uses AI as a feature.",
+        3, "technology",
+        [
+          "openai", "chatgpt", "anthropic", "claude", "gemini", "llama",
+          "midjourney", "stable diffusion", "machine learning", "deep learning", "neural network",
+        ]
+      ),
+      (
+        "home_automation", "Home Automation",
+        "Smart home devices, appliances, home automation platforms (Home Assistant, Google Home, Apple HomeKit, Amazon Alexa), protocols (Matter, Thread, Z-Wave, Zigbee), and related IoT technologies for the home.",
+        4, "technology",
+        ["homekit", "home assistant", "matter", "alexa", "google home", "smart home", "zigbee", "thread", "z-wave"]
       ),
     ]
-    for (label, displayName, description, sortOrder, parentLabel) in defaults {
+    for (label, displayName, description, sortOrder, parentLabel, keywords) in defaults {
       context.insert(
         Category(
           label: label, displayName: displayName, categoryDescription: description,
-          sortOrder: sortOrder, parentLabel: parentLabel
+          sortOrder: sortOrder, parentLabel: parentLabel, keywords: keywords
         )
       )
     }
     context.insert(
       Category(
         label: uncategorizedLabel, displayName: "Uncategorized",
-        categoryDescription: "Use only when no other category clearly matches. Never combine with other categories.",
+        categoryDescription: "Use only when no other category clearly matches. Never combine with another category.",
         sortOrder: Int.max, isSystem: true
       )
     )

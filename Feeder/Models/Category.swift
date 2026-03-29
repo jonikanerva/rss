@@ -20,10 +20,13 @@ final class Category {
   var isTopLevel: Bool
   /// System categories cannot be deleted, moved, or renamed.
   var isSystem: Bool
+  /// Keywords for keyword-match classification signal. Editable in Settings UI (future).
+  var keywords: [String]
 
   init(
     label: String, displayName: String, categoryDescription: String,
-    sortOrder: Int = 0, parentLabel: String? = nil, isSystem: Bool = false
+    sortOrder: Int = 0, parentLabel: String? = nil, isSystem: Bool = false,
+    keywords: [String] = []
   ) {
     self.label = label
     self.displayName = displayName
@@ -33,5 +36,6 @@ final class Category {
     self.depth = parentLabel == nil ? 0 : 1
     self.isTopLevel = parentLabel == nil
     self.isSystem = isSystem
+    self.keywords = keywords
   }
 }

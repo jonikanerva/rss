@@ -17,6 +17,7 @@ nonisolated struct ClassificationResult: Sendable {
   let categoryLabels: [String]
   let storyKey: String
   let detectedLanguage: String
+  let confidence: Double
 }
 
 /// Category definition — read from SwiftData, passed to classification as Sendable.
@@ -25,6 +26,15 @@ nonisolated struct CategoryDefinition: Sendable {
   let description: String
   let parentLabel: String?
   let isTopLevel: Bool
+  let keywords: [String]
+
+  init(label: String, description: String, parentLabel: String?, isTopLevel: Bool, keywords: [String] = []) {
+    self.label = label
+    self.description = description
+    self.parentLabel = parentLabel
+    self.isTopLevel = isTopLevel
+    self.keywords = keywords
+  }
 }
 
 // MARK: - Pure helper functions
@@ -299,7 +309,8 @@ actor DataWriter {
         label: cat.label,
         description: cat.categoryDescription,
         parentLabel: cat.parentLabel,
-        isTopLevel: cat.isTopLevel
+        isTopLevel: cat.isTopLevel,
+        keywords: cat.keywords
       )
     }
   }
@@ -501,7 +512,7 @@ actor DataWriter {
       categoryDescription: "Apple news for local UI testing", sortOrder: 0,
       parentLabel: "technology")
     let world = Category(
-      label: "world", displayName: "World",
+      label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
     modelContext.insert(technology)
     modelContext.insert(apple)
@@ -551,8 +562,8 @@ actor DataWriter {
       createdAt: .now.addingTimeInterval(-7100)
     )
     worldEntry.feed = feed1
-    worldEntry.categoryLabels = ["world", "technology"]
-    worldEntry.primaryCategory = "world"
+    worldEntry.categoryLabels = ["world_news", "technology"]
+    worldEntry.primaryCategory = "world_news"
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)

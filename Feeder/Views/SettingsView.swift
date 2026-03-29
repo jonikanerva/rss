@@ -330,7 +330,7 @@ private func settingsSeededPreview() -> some View {
 
   let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology news", sortOrder: 0)
   let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news", sortOrder: 0, parentLabel: "technology")
-  let world = Category(label: "world", displayName: "World", categoryDescription: "World policy news", sortOrder: 1)
+  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "World policy news", sortOrder: 1)
   context.insert(technology)
   context.insert(apple)
   context.insert(world)
