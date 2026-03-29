@@ -247,8 +247,7 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
     Categorize the article into the most specific matching categories below. \
     Assign subcategories over parents when both match. \
     Only assign categories with clear evidence in the article. \
-    Prefer fewer categories — assign 1 unless multiple clearly apply. \
-    If the article content is too short, vague, or does not clearly match any category, assign only "uncategorized".
+    Prefer fewer categories — assign 1 unless multiple clearly apply.
 
     Categories:
     \(categoryDescriptions)
@@ -267,15 +266,29 @@ nonisolated func shouldSkipClassification(title: String, body: String) -> Bool {
 }
 
 /// Minimum confidence threshold for accepting a classification. Below this, assign "Uncategorized".
-nonisolated let confidenceThreshold = 0.5
+nonisolated let confidenceThreshold = 0.3
 
-/// Apply confidence gate: if the combined confidence (max of LLM and keyword) is below threshold,
-/// override labels to uncategorized.
+/// Minimum keyword confidence to override an LLM "uncategorized" result.
+nonisolated let keywordOverrideThreshold = 0.8
+
+/// Apply confidence gate: if LLM chose uncategorized and keywords have a strong match, use keywords.
+/// If LLM chose a real category but confidence is too low, fall back to uncategorized.
 nonisolated func applyConfidenceGate(
   labels: [String],
   llmConfidence: Double,
   keywordScores: [String: Double]
 ) -> [String] {
+  // If LLM chose only uncategorized, check if keywords can override
+  let isUncategorized = labels == [uncategorizedLabel]
+  if isUncategorized {
+    let bestKeyword = keywordScores.max(by: { $0.value < $1.value })
+    if let best = bestKeyword, best.value >= keywordOverrideThreshold {
+      return [best.key]
+    }
+    return labels
+  }
+
+  // LLM chose a real category — apply confidence threshold
   let bestKeywordScore = labels.compactMap { keywordScores[$0] }.max() ?? 0.0
   let finalConfidence = max(llmConfidence, bestKeywordScore)
   if finalConfidence < confidenceThreshold {

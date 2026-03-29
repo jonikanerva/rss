@@ -206,12 +206,12 @@ struct ClassificationInstructionsTests {
   }
 
   @Test
-  func instructionsContainNegativeGuidance() {
+  func instructionsDoNotOverpushUncategorized() {
     let categories = [
       CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
     ]
     let instructions = buildClassificationInstructions(from: categories)
-    #expect(instructions.contains("assign only \"uncategorized\""))
+    #expect(!instructions.contains("assign only \"uncategorized\""))
   }
 
   @Test
@@ -460,13 +460,13 @@ struct ConfidenceGateTests {
 
   @Test
   func lowLLMButHighKeywordKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.2, keywordScores: ["apple": 0.8])
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.8])
     #expect(result == ["apple"])
   }
 
   @Test
   func bothLowDefaultsToUncategorized() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.3, keywordScores: ["apple": 0.4])
+    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.2])
     #expect(result == [uncategorizedLabel])
   }
 
@@ -478,20 +478,43 @@ struct ConfidenceGateTests {
 
   @Test
   func atThresholdKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.5, keywordScores: [:])
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.3, keywordScores: [:])
     #expect(result == ["gaming"])
   }
 
   @Test
   func justBelowThresholdGates() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.49, keywordScores: [:])
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.29, keywordScores: [:])
     #expect(result == [uncategorizedLabel])
   }
 
   @Test
   func keywordScoreForDifferentCategoryIgnored() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.3, keywordScores: ["apple": 0.9])
+    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.1, keywordScores: ["apple": 0.9])
     #expect(result == [uncategorizedLabel])
+  }
+
+  // Keyword override tests — when LLM chose uncategorized but keywords are strong
+  @Test
+  func keywordOverridesUncategorized() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.8])
+    #expect(result == ["apple"])
+  }
+
+  @Test
+  func keywordDoesNotOverrideIfBelowThreshold() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.6])
+    #expect(result == [uncategorizedLabel])
+  }
+
+  @Test
+  func keywordOverridePicksHighestScore() {
+    let result = applyConfidenceGate(
+      labels: [uncategorizedLabel], llmConfidence: 0.1,
+      keywordScores: ["apple": 0.8, "gaming": 1.0])
+    #expect(result == ["gaming"])
   }
 }
 
