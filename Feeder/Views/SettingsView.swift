@@ -44,6 +44,11 @@ struct SettingsView: View {
         .tabItem {
           Label("Categories", systemImage: "tag")
         }
+
+      classificationTab
+        .tabItem {
+          Label("Classification", systemImage: "brain")
+        }
     }
     .frame(
       minWidth: 420, idealWidth: 480, maxWidth: 550,
@@ -161,6 +166,14 @@ struct SettingsView: View {
 
   private var categoriesTab: some View {
     CategoryManagementView()
+      .environment(classificationEngine)
+      .environment(syncEngine)
+  }
+
+  // MARK: - Classification Tab
+
+  private var classificationTab: some View {
+    ClassificationSettingsView()
       .environment(classificationEngine)
       .environment(syncEngine)
   }
