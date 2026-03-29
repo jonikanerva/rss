@@ -15,80 +15,75 @@ struct ClassificationSettingsView: View {
   private var hasStoredKey: Bool = KeychainHelper.load(key: "openai_api_key") != nil
   @State
   private var showReclassifyAlert = false
-  @State
-  private var previousProvider: String = ""
 
   var body: some View {
     Form {
       Section("Classification Provider") {
-        Picker("Provider", selection: $selectedProvider) {
-          Label {
-            VStack(alignment: .leading) {
-              Text("Apple Foundation Models")
-              Text("Free \u{00B7} On-device \u{00B7} Private")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          } icon: {
-            Image(systemName: "apple.logo")
-          }
-          .tag("apple_fm")
+        VStack(alignment: .leading, spacing: 12) {
+          providerRow(
+            tag: "apple_fm",
+            icon: "apple.logo",
+            title: "Apple Foundation Models",
+            subtitle: "Free \u{00B7} On-device \u{00B7} Private"
+          )
 
-          Label {
-            VStack(alignment: .leading) {
-              Text("OpenAI GPT-5.4-nano")
-              Text("Requires API key \u{00B7} Cloud-based")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          } icon: {
-            Image(systemName: "cloud")
-          }
-          .tag("openai")
+          Divider()
+
+          providerRow(
+            tag: "openai",
+            icon: "cloud",
+            title: "OpenAI GPT-5.4-nano",
+            subtitle: "Requires API key \u{00B7} Cloud-based"
+          )
         }
-        .pickerStyle(.radioGroup)
-        .onChange(of: selectedProvider) { oldValue, newValue in
-          previousProvider = oldValue
-          UserDefaults.standard.set(newValue, forKey: "classification_provider")
-          showReclassifyAlert = true
-        }
+        .padding(.vertical, 4)
       }
 
       if selectedProvider == "openai" {
         Section("OpenAI API Key") {
-          SecureField("sk-...", text: $apiKeyInput)
-            .textFieldStyle(.roundedBorder)
-            .onSubmit {
-              saveAPIKey()
-            }
-
-          HStack {
-            if hasStoredKey {
-              Label("Key saved", systemImage: "checkmark.circle.fill")
+          if hasStoredKey {
+            HStack {
+              Label("API key is saved", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
-                .font(.caption)
-            } else {
-              Label("No key set", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .font(.caption)
+
+              Spacer()
+
+              Button("Clear Key") {
+                KeychainHelper.delete(key: "openai_api_key")
+                apiKeyInput = ""
+                hasStoredKey = false
+              }
+              .controlSize(.small)
             }
 
-            Spacer()
+            SecureField("Enter new key to replace", text: $apiKeyInput)
+              .textFieldStyle(.roundedBorder)
+              .onSubmit {
+                saveAPIKey()
+              }
 
             if !apiKeyInput.isEmpty {
-              Button("Save") {
+              Button("Update Key") {
                 saveAPIKey()
               }
               .buttonStyle(.borderedProminent)
               .controlSize(.small)
             }
+          } else {
+            Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
 
-            if hasStoredKey {
-              Button("Clear") {
-                KeychainHelper.delete(key: "openai_api_key")
-                apiKeyInput = ""
-                hasStoredKey = false
+            SecureField("sk-...", text: $apiKeyInput)
+              .textFieldStyle(.roundedBorder)
+              .onSubmit {
+                saveAPIKey()
               }
+
+            if !apiKeyInput.isEmpty {
+              Button("Save Key") {
+                saveAPIKey()
+              }
+              .buttonStyle(.borderedProminent)
               .controlSize(.small)
             }
           }
@@ -128,6 +123,37 @@ struct ClassificationSettingsView: View {
       Button("Later", role: .cancel) {}
     } message: {
       Text("Would you like to reclassify all articles with the new provider?")
+    }
+  }
+
+  // MARK: - Provider row
+
+  private func providerRow(tag: String, icon: String, title: String, subtitle: String) -> some View {
+    HStack(spacing: 12) {
+      Image(systemName: selectedProvider == tag ? "circle.inset.filled" : "circle")
+        .foregroundStyle(selectedProvider == tag ? Color.accentColor : .secondary)
+        .font(.title3)
+
+      Image(systemName: icon)
+        .frame(width: 20)
+        .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(subtitle)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .contentShape(Rectangle())
+    .onTapGesture {
+      guard selectedProvider != tag else { return }
+      selectedProvider = tag
+      UserDefaults.standard.set(tag, forKey: "classification_provider")
+      // Only prompt reclassify when switching to a provider that's ready to use
+      if tag == "apple_fm" || hasStoredKey {
+        showReclassifyAlert = true
+      }
     }
   }
 
