@@ -1,5 +1,4 @@
 import Foundation
-import FoundationModels
 import NaturalLanguage
 import OSLog
 import SwiftData
@@ -68,7 +67,7 @@ final class ClassificationEngine {
 
   // MARK: - Provider factory
 
-  private nonisolated func makeProvider() -> any ClassificationProvider {
+  private func makeProvider() -> any ClassificationProvider {
     let selection = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
     switch selection {
     case "openai":
@@ -112,14 +111,7 @@ final class ClassificationEngine {
     let instructions = buildInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
 
-    // Language filtering only applies to Apple FM (limited language support)
-    let supportedLangCodes: Set<String>?
-    if provider is AppleFMClassificationProvider {
-      let model = SystemLanguageModel.default
-      supportedLangCodes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
-    } else {
-      supportedLangCodes = nil
-    }
+    let supportedLangCodes = await provider.supportedLanguageCodes
 
     for input in inputs {
       if Task.isCancelled { break }
@@ -143,14 +135,12 @@ final class ClassificationEngine {
       let keywordScores = keywordMatchConfidence(
         title: input.title, body: input.body, categories: categories)
 
-      // All heavy work on background thread
-      let capturedProvider = provider
-      let capturedLangCodes = supportedLangCodes
-      let result = await Task.detached(priority: .utility) {
+      // All heavy work on background thread — provider and langCodes are Sendable
+      let result = await Task.detached(priority: .utility) { [provider, supportedLangCodes] in
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
-        // Skip languages not supported by the on-device model
-        if let langCodes = capturedLangCodes, !langCodes.contains(lang) {
+        // Skip languages not supported by the provider
+        if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
           return ClassificationResult(
             entryID: input.entryID,
             categoryLabels: [uncategorizedLabel],
@@ -161,7 +151,7 @@ final class ClassificationEngine {
         }
 
         do {
-          let providerResult = try await capturedProvider.classify(
+          let providerResult = try await provider.classify(
             title: input.title,
             body: input.body,
             instructions: instructions,

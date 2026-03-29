@@ -27,6 +27,10 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     }
   }
 
+  var supportedLanguageCodes: Set<String>? {
+    get async { nil }
+  }
+
   func classify(
     title: String,
     body: String,
@@ -88,10 +92,21 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
 // MARK: - OpenAI API types (private)
 
-enum OpenAIError: Error {
+private enum OpenAIError: LocalizedError {
   case invalidResponse
   case apiError(statusCode: Int, message: String)
   case emptyResponse
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidResponse:
+      return "OpenAI returned an invalid response"
+    case .apiError(let statusCode, let message):
+      return "OpenAI API error \(statusCode): \(message)"
+    case .emptyResponse:
+      return "OpenAI returned an empty response"
+    }
+  }
 }
 
 private struct OpenAIRequest: Encodable {

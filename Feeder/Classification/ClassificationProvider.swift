@@ -12,6 +12,9 @@ protocol ClassificationProvider: Sendable {
   var name: String { get }
   var isAvailable: Bool { get async }
 
+  /// Language codes this provider supports, or nil if it supports all languages.
+  var supportedLanguageCodes: Set<String>? { get async }
+
   func classify(
     title: String,
     body: String,
@@ -41,6 +44,13 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
       let model = SystemLanguageModel.default
       if case .available = model.availability { return true }
       return false
+    }
+  }
+
+  var supportedLanguageCodes: Set<String>? {
+    get async {
+      let model = SystemLanguageModel.default
+      return Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
     }
   }
 
