@@ -101,7 +101,7 @@ final class ClassificationEngine {
       return
     }
 
-    let model = SystemLanguageModel(useCase: .contentTagging)
+    let model = SystemLanguageModel.default
     guard case .available = model.availability else {
       logger.error("Apple Foundation Model not available")
       return
