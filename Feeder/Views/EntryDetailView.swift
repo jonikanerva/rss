@@ -12,6 +12,12 @@ struct EntryDetailView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         HStack(spacing: 12) {
+          if !entry.displayDomain.isEmpty {
+            Text(entry.displayDomain)
+              .font(.system(size: FontTheme.pillSize, weight: .medium))
+              .foregroundStyle(Color(hex: 0xE8654A))
+          }
+
           if let feedTitle = entry.feed?.title {
             Text(feedTitle)
               .font(.system(size: FontTheme.metadataSize))
@@ -76,6 +82,7 @@ private func articleDetailPreview() -> some View {
     publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
   )
   entry.feed = feed
+  entry.displayDomain = "theverge.com"
   context.insert(entry)
 
   return EntryDetailView(entry: entry)

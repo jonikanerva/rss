@@ -34,6 +34,8 @@ final class Entry {
   var articleBlocksData: Data?
   /// Pre-formatted date string for display (e.g., "Today, 5th Mar, 21:24")
   var formattedDate: String = ""
+  /// Pre-computed display domain (e.g., "theverge.com") — stripped of www. prefix
+  var displayDomain: String = ""
   /// First assigned category label — denormalized for @Query predicate filtering
   var primaryCategory: String = ""
 

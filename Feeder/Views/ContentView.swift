@@ -337,6 +337,16 @@ struct ContentView: View {
   private var detailView: some View {
     if let selectedEntry {
       EntryDetailView(entry: selectedEntry)
+        .toolbar {
+          ToolbarItem(placement: .automatic) {
+            Button {
+              openInBackground()
+            } label: {
+              Label("Open in Browser", systemImage: "safari")
+            }
+            .help("Open in browser (B)")
+          }
+        }
     } else {
       ContentUnavailableView {
         Label("Select an Article", systemImage: "doc.text")
