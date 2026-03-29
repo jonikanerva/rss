@@ -1,27 +1,9 @@
 import Foundation
-import FoundationModels
 import NaturalLanguage
 import OSLog
 import SwiftData
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
-
-// MARK: - Generable output type
-
-@Generable
-struct ArticleClassification {
-  @Guide(
-    description:
-      "The most specific matching category labels from the provided list. Assign the deepest matching subcategory, not its parent.",
-    .count(1...4))
-  var categories: [String]
-
-  @Guide(description: "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
-  var storyKey: String
-
-  @Guide(description: "How confident you are in the classification, from 0.0 (guessing) to 1.0 (certain)")
-  var confidence: Double
-}
 
 // MARK: - Pure helper functions (nonisolated)
 
@@ -40,7 +22,7 @@ nonisolated func normalizeStoryKey(_ value: String) -> String {
 
 // MARK: - Classification Engine
 
-/// Classifies articles using Apple Foundation Models.
+/// Classifies articles using a pluggable ClassificationProvider.
 /// Stays @MainActor @Observable for progress UI only — all SwiftData operations via DataWriter.
 @MainActor
 @Observable
@@ -83,6 +65,19 @@ final class ClassificationEngine {
     await classifyNextBatch(writer: writer)
   }
 
+  // MARK: - Provider factory
+
+  private func makeProvider() -> any ClassificationProvider {
+    let selection = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
+    switch selection {
+    case "openai":
+      let apiKey = KeychainHelper.load(key: "openai_api_key") ?? ""
+      return OpenAIClassificationProvider(apiKey: apiKey)
+    default:
+      return AppleFMClassificationProvider()
+    }
+  }
+
   // MARK: - Core classification logic
 
   private func classifyNextBatch(writer: DataWriter) async {
@@ -101,23 +96,22 @@ final class ClassificationEngine {
       return
     }
 
-    let model = SystemLanguageModel.default
-    guard case .available = model.availability else {
-      logger.error("Apple Foundation Model not available")
+    let provider = makeProvider()
+    guard await provider.isAvailable else {
+      logger.error("Classification provider '\(provider.name)' not available")
       return
     }
 
     isClassifying = true
     totalToClassify = inputs.count
     classifiedCount = 0
-    logger.info("Classifying \(inputs.count) entries with \(categories.count) categories")
+    let providerName = provider.name
+    logger.info("Classifying \(inputs.count) entries with \(categories.count) categories using \(providerName)")
 
     let instructions = buildInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
-    let supportedLangCodes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
 
-    // Conservative context budget: ~3800 tokens to leave room for output and schema overhead
-    let maxContextChars = 3800 * 4
+    let supportedLangCodes = await provider.supportedLanguageCodes
 
     for input in inputs {
       if Task.isCancelled { break }
@@ -133,20 +127,20 @@ final class ClassificationEngine {
         )
         try? await writer.applyClassification(entryID: emptyResult.entryID, result: emptyResult)
         classifiedCount += 1
-        progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
+        progress = "Categorizing \(classifiedCount)/\(totalToClassify) (\(providerName))"
         continue
       }
 
       // Compute keyword match before LLM (cheap, deterministic)
-      let keywordScores = keywordMatchConfidence(title: input.title, body: input.body, categories: categories)
+      let keywordScores = keywordMatchConfidence(
+        title: input.title, body: input.body, categories: categories)
 
-      // All heavy work on background thread
-      let result = await Task.detached(priority: .utility) {
+      // All heavy work on background thread — provider and langCodes are Sendable
+      let result = await Task.detached(priority: .utility) { [provider, supportedLangCodes] in
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
-        // Skip languages not supported by the on-device model to avoid
-        // session prewarm warnings and wasted inference attempts.
-        guard supportedLangCodes.contains(lang) else {
+        // Skip languages not supported by the provider
+        if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
           return ClassificationResult(
             entryID: input.entryID,
             categoryLabels: [uncategorizedLabel],
@@ -157,35 +151,27 @@ final class ClassificationEngine {
         }
 
         do {
-          let session = LanguageModelSession(model: model, instructions: instructions)
-
-          let promptPrefix = "title: \(input.title)\ncontent: "
-          let usedChars = instructions.count + promptPrefix.count
-          let maxBodyChars = max(500, maxContextChars - usedChars)
-          let body = String(input.body.prefix(maxBodyChars))
-          let prompt = promptPrefix + body
-          let options = GenerationOptions(sampling: .greedy)
-          let response = try await session.respond(
-            to: prompt,
-            generating: ArticleClassification.self,
-            options: options
+          let providerResult = try await provider.classify(
+            title: input.title,
+            body: input.body,
+            instructions: instructions,
+            validLabels: validLabels
           )
-          let classification = response.content
-          let rawLabels = filterValidLabels(classification.categories, validSet: validLabels)
+          let rawLabels = filterValidLabels(providerResult.categories, validSet: validLabels)
 
           // Apply confidence gate: combine LLM confidence with keyword scores
           let gatedLabels = applyConfidenceGate(
             labels: rawLabels,
-            llmConfidence: classification.confidence,
+            llmConfidence: providerResult.confidence,
             keywordScores: keywordScores
           )
 
           return ClassificationResult(
             entryID: input.entryID,
             categoryLabels: gatedLabels,
-            storyKey: normalizeStoryKey(classification.storyKey),
+            storyKey: normalizeStoryKey(providerResult.storyKey),
             detectedLanguage: lang,
-            confidence: classification.confidence
+            confidence: providerResult.confidence
           )
         } catch {
           return ClassificationResult(
@@ -201,7 +187,9 @@ final class ClassificationEngine {
       // Log keyword/LLM disagreements for diagnostics (MainActor context)
       for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
         if !result.categoryLabels.contains(kwCategory) {
-          logger.info("Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabels)")
+          logger.info(
+            "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabels)"
+          )
         }
       }
 
@@ -210,7 +198,7 @@ final class ClassificationEngine {
 
       // Only progress UI state on MainActor (microseconds)
       classifiedCount += 1
-      progress = "Categorizing \(classifiedCount)/\(totalToClassify)"
+      progress = "Categorizing \(classifiedCount)/\(totalToClassify) (\(providerName))"
     }
 
     let finalCount = classifiedCount
@@ -240,7 +228,9 @@ nonisolated func buildClassificationInstructions(from categories: [CategoryDefin
       lines.append("  - \(child.label): \(child.description)")
     }
   }
-  lines.append("- \(uncategorizedLabel): Use only when no other category clearly matches. Never combine with another category.")
+  lines.append(
+    "- \(uncategorizedLabel): Use only when no other category clearly matches. Never combine with another category."
+  )
   let categoryDescriptions = lines.joined(separator: "\n")
 
   return """
