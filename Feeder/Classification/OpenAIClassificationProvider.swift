@@ -10,7 +10,12 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
   private let apiKey: String
   private let model = "gpt-5.4-nano"
-  private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
+  private static let endpoint: URL = {
+    guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+      fatalError("Invalid OpenAI endpoint URL")
+    }
+    return url
+  }()
 
   init(apiKey: String) {
     self.apiKey = apiKey
@@ -48,7 +53,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
       )
     )
 
-    var request = URLRequest(url: endpoint)
+    var request = URLRequest(url: Self.endpoint)
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
