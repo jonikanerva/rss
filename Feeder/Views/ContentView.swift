@@ -67,6 +67,7 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
+    .accentColor(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
