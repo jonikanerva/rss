@@ -41,7 +41,7 @@ struct EntryDetailView: View {
         ArticleBlockView(blocks: entry.parsedBlocks)
           .textSelection(.enabled)
       }
-      .frame(maxWidth: 660, alignment: .leading)
+      .frame(maxWidth: 610, alignment: .leading)
       .padding(.horizontal, 50)
       .padding(.top, 24)
       .padding(.bottom, 32)
