@@ -30,7 +30,7 @@ struct EntryRowView: View {
           if let domain = entry.displayDomain, !domain.isEmpty {
             Text(domain)
               .font(.system(size: FontTheme.pillSize, weight: .medium))
-              .foregroundStyle(Color(hex: 0xE8654A))
+              .foregroundStyle(FontTheme.domainPillColor)
           }
           Text(entry.formattedDate)
             .font(.system(size: FontTheme.captionSize))

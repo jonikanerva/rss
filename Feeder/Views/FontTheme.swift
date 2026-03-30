@@ -32,4 +32,5 @@ enum FontTheme {
   // MARK: - Colors
 
   static let listSelectionColor = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+  static let domainPillColor = Color(hex: 0xE8654A)
 }

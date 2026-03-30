@@ -15,7 +15,7 @@ struct EntryDetailView: View {
           if let domain = entry.displayDomain, !domain.isEmpty {
             Text(domain)
               .font(.system(size: FontTheme.pillSize, weight: .medium))
-              .foregroundStyle(Color(hex: 0xE8654A))
+              .foregroundStyle(FontTheme.domainPillColor)
           }
 
           if let feedTitle = entry.feed?.title {
