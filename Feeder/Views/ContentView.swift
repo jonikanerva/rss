@@ -59,29 +59,14 @@ struct EntryListView: View {
   }
 
   var body: some View {
-    ScrollView {
-      LazyVStack(spacing: 0) {
-        ForEach(entries) { entry in
-          EntryRowView(entry: entry)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(
-              RoundedRectangle(cornerRadius: 8)
-                .fill(
-                  selectedEntry == entry
-                    ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
-                    : Color.clear
-                )
-                .padding(.horizontal, 4)
-            )
-            .contentShape(Rectangle())
-            .onTapGesture {
-              selectedEntry = entry
-            }
-        }
+    List(selection: $selectedEntry) {
+      ForEach(entries) { entry in
+        EntryRowView(entry: entry)
+          .tag(entry)
+          .listRowSeparator(.hidden)
       }
-      .padding(.vertical, 4)
     }
+    .listStyle(.inset(alternatesRowBackgrounds: false))
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
