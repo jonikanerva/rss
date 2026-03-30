@@ -14,7 +14,7 @@ enum FontTheme {
   static let bodySize: CGFloat = baseSize + 3  // 18 (was 16)
   static let rowTitleSize: CGFloat = baseSize + 2  // 17 (was 15)
   static let sectionHeaderSize: CGFloat = baseSize + 7  // 22 (was 20)
-  static let articleTitleSize: CGFloat = baseSize + 11  // 26 (was 24)
+  static let articleTitleSize: CGFloat = baseSize + 15  // 30 (was 26)
   static let pillSize: CGFloat = baseSize - 1  // 14 (was 12)
   static let iconSize: CGFloat = baseSize + 35  // 50 (was 48)
 
@@ -28,4 +28,9 @@ enum FontTheme {
   static var title: Font { .system(size: titleSize, weight: .bold) }
   static var caption: Font { .system(size: captionSize) }
   static var bodyMedium: Font { .system(size: bodyMediumSize, weight: .medium) }
+
+  // MARK: - Colors
+
+  static let listSelectionColor = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+  static let domainPillColor = Color(hex: 0xE8654A)
 }

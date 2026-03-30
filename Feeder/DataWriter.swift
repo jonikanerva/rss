@@ -81,6 +81,13 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
   }
 }
 
+/// Extract display domain from a URL string, stripping the `www.` prefix.
+/// e.g., "https://www.theverge.com/rss" → "theverge.com"
+nonisolated func extractDomain(from urlString: String) -> String {
+  guard let host = URL(string: urlString)?.host() else { return "" }
+  return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+}
+
 /// Safety net: strip parent labels when a more specific child label is present.
 /// Given ["technology", "apple"] with apple being a child of technology, returns ["apple"].
 nonisolated func enforceDeepestMatch(
@@ -170,6 +177,7 @@ actor DataWriter {
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
     }
@@ -214,6 +222,7 @@ actor DataWriter {
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
     }
@@ -545,6 +554,7 @@ actor DataWriter {
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
+      entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
       entry.isRead = index.isMultiple(of: 3)
       modelContext.insert(entry)
@@ -567,6 +577,7 @@ actor DataWriter {
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
+    worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
     worldEntry.isRead = false
     modelContext.insert(worldEntry)

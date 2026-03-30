@@ -12,6 +12,12 @@ struct EntryDetailView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         HStack(spacing: 12) {
+          if let domain = entry.displayDomain, !domain.isEmpty {
+            Text(domain)
+              .font(.system(size: FontTheme.pillSize, weight: .medium))
+              .foregroundStyle(FontTheme.domainPillColor)
+          }
+
           if let feedTitle = entry.feed?.title {
             Text(feedTitle)
               .font(.system(size: FontTheme.metadataSize))
@@ -34,11 +40,12 @@ struct EntryDetailView: View {
         // Article body — structured blocks from database
         ArticleBlockView(blocks: entry.parsedBlocks)
           .textSelection(.enabled)
-          .frame(maxWidth: 660, alignment: .leading)
       }
-      .padding(.horizontal, 32)
+      .frame(maxWidth: 610, alignment: .leading)
+      .padding(.horizontal, 50)
       .padding(.top, 24)
       .padding(.bottom, 32)
+      .frame(maxWidth: .infinity, alignment: .center)
     }
     .id(entry.feedbinEntryID)
     .accessibilityElement(children: .contain)
@@ -76,6 +83,7 @@ private func articleDetailPreview() -> some View {
     publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
   )
   entry.feed = feed
+  entry.displayDomain = "theverge.com"
   context.insert(entry)
 
   return EntryDetailView(entry: entry)

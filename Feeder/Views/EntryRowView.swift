@@ -25,10 +25,17 @@ struct EntryRowView: View {
           .lineLimit(2)
           .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
-        // Date — pre-computed, zero Calendar ops
-        Text(entry.formattedDate)
-          .font(.system(size: FontTheme.captionSize))
-          .foregroundStyle(.tertiary)
+        // Domain + date — pre-computed, zero Calendar ops
+        HStack(spacing: 6) {
+          if let domain = entry.displayDomain, !domain.isEmpty {
+            Text(domain)
+              .font(.system(size: FontTheme.pillSize, weight: .medium))
+              .foregroundStyle(FontTheme.domainPillColor)
+          }
+          Text(entry.formattedDate)
+            .font(.system(size: FontTheme.captionSize))
+            .foregroundStyle(.tertiary)
+        }
       }
     }
     .padding(.vertical, 4)
@@ -65,6 +72,7 @@ private func unreadEntryRowPreview() -> some View {
   )
   entry.isRead = false
   entry.formattedDate = "Today, 15th Mar, 09:30"
+  entry.displayDomain = "theverge.com"
   context.insert(entry)
 
   return EntryRowView(entry: entry)
@@ -90,6 +98,7 @@ private func readEntryRowPreview() -> some View {
   )
   entry.isRead = true
   entry.formattedDate = "Yesterday, 14th Mar, 08:30"
+  entry.displayDomain = "arstechnica.com"
   context.insert(entry)
 
   return EntryRowView(entry: entry)

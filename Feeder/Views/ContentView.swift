@@ -63,9 +63,20 @@ struct EntryListView: View {
       ForEach(entries) { entry in
         EntryRowView(entry: entry)
           .tag(entry)
+          .listRowSeparator(.hidden)
+          .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+              .fill(
+                selectedEntry == entry
+                  ? FontTheme.listSelectionColor
+                  : Color.clear
+              )
+              .padding(.horizontal, 4)
+          )
       }
     }
-    .listStyle(.plain)
+    .listStyle(.inset(alternatesRowBackgrounds: false))
+    .scrollContentBackground(.hidden)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -337,6 +348,16 @@ struct ContentView: View {
   private var detailView: some View {
     if let selectedEntry {
       EntryDetailView(entry: selectedEntry)
+        .toolbar {
+          ToolbarItem(placement: .automatic) {
+            Button {
+              openInBackground()
+            } label: {
+              Label("Open in Browser", systemImage: "safari")
+            }
+            .help("Open in browser (B)")
+          }
+        }
     } else {
       ContentUnavailableView {
         Label("Select an Article", systemImage: "doc.text")
