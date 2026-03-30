@@ -28,4 +28,8 @@ enum FontTheme {
   static var title: Font { .system(size: titleSize, weight: .bold) }
   static var caption: Font { .system(size: captionSize) }
   static var bodyMedium: Font { .system(size: bodyMediumSize, weight: .medium) }
+
+  // MARK: - Colors
+
+  static let listSelectionColor = Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
 }

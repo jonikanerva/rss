@@ -64,9 +64,19 @@ struct EntryListView: View {
         EntryRowView(entry: entry)
           .tag(entry)
           .listRowSeparator(.hidden)
+          .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+              .fill(
+                selectedEntry == entry
+                  ? FontTheme.listSelectionColor
+                  : Color.clear
+              )
+              .padding(.horizontal, 4)
+          )
       }
     }
-    .listStyle(.sidebar)
+    .listStyle(.inset(alternatesRowBackgrounds: false))
+    .scrollContentBackground(.hidden)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
