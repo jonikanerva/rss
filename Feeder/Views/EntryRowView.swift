@@ -27,8 +27,8 @@ struct EntryRowView: View {
 
         // Domain + date — pre-computed, zero Calendar ops
         HStack(spacing: 6) {
-          if !entry.displayDomain.isEmpty {
-            Text(entry.displayDomain)
+          if let domain = entry.displayDomain, !domain.isEmpty {
+            Text(domain)
               .font(.system(size: FontTheme.pillSize, weight: .medium))
               .foregroundStyle(Color(hex: 0xE8654A))
           }
