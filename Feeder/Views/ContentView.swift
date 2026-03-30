@@ -63,6 +63,17 @@ struct EntryListView: View {
       ForEach(entries) { entry in
         EntryRowView(entry: entry)
           .tag(entry)
+          .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+          .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+              .fill(
+                selectedEntry == entry
+                  ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+                  : Color.clear
+              )
+              .padding(.horizontal, 4)
+          )
+          .listRowSeparator(.hidden)
       }
     }
     .listStyle(.plain)

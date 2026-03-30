@@ -42,7 +42,7 @@ struct EntryDetailView: View {
           .textSelection(.enabled)
           .frame(maxWidth: 660, alignment: .leading)
       }
-      .padding(.horizontal, 32)
+      .padding(.horizontal, 50)
       .padding(.top, 24)
       .padding(.bottom, 32)
     }
