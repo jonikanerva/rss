@@ -66,8 +66,7 @@ struct EntryListView: View {
           .listRowSeparator(.hidden)
       }
     }
-    .listStyle(.inset(alternatesRowBackgrounds: false))
-    .accentColor(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
+    .listStyle(.sidebar)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
