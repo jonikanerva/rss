@@ -40,11 +40,12 @@ struct EntryDetailView: View {
         // Article body — structured blocks from database
         ArticleBlockView(blocks: entry.parsedBlocks)
           .textSelection(.enabled)
-          .frame(maxWidth: 660, alignment: .leading)
       }
+      .frame(maxWidth: 660, alignment: .leading)
       .padding(.horizontal, 50)
       .padding(.top, 24)
       .padding(.bottom, 32)
+      .frame(maxWidth: .infinity, alignment: .center)
     }
     .id(entry.feedbinEntryID)
     .accessibilityElement(children: .contain)

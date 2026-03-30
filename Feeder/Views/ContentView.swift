@@ -63,7 +63,7 @@ struct EntryListView: View {
       ForEach(entries) { entry in
         EntryRowView(entry: entry)
           .tag(entry)
-          .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+          .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
           .listRowBackground(
             RoundedRectangle(cornerRadius: 8)
               .fill(
@@ -77,6 +77,7 @@ struct EntryListView: View {
       }
     }
     .listStyle(.plain)
+    .tint(.clear)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
