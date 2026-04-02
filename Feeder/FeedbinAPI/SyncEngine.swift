@@ -154,6 +154,7 @@ final class SyncEngine {
       let batchIDs = Array(sortedIDs[batchStart..<batchEnd])
 
       let entries = try await client.fetchEntriesByIDs(batchIDs)
+      fetchedCount = batchEnd
       let recent = entries.filter { $0.createdAt >= cutoff }
 
       if recent.isEmpty && !entries.isEmpty {
@@ -164,7 +165,6 @@ final class SyncEngine {
       if !recent.isEmpty {
         let newCount = try await writer.persistEntries(recent, markAsRead: false)
         totalNew += newCount
-        fetchedCount += newCount
         syncProgress = "Loaded \(totalNew) unread articles..."
         logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
       }
@@ -192,7 +192,7 @@ final class SyncEngine {
 
     if !entries.isEmpty {
       let newCount = try await writer.persistEntries(entries, unreadIDs: unreadIDSet)
-      fetchedCount = newCount
+      fetchedCount = entries.count
       syncProgress = "Synced \(newCount) new entries"
       logger.info("Incremental sync: \(newCount) new entries")
     }
@@ -289,7 +289,7 @@ final class SyncEngine {
 
           totalToFetch += result.entries.count
           let newCount = try await writer.persistEntries(result.entries, markAsRead: true)
-          fetchedCount += newCount
+          fetchedCount += result.entries.count
           syncProgress = "History: page \(page) (\(newCount) new)"
           logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
 
