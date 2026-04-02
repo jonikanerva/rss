@@ -287,9 +287,7 @@ final class SyncEngine {
           let result = try await client.fetchEntries(since: sevenDaysAgo, page: page)
           if result.entries.isEmpty { break }
 
-          totalToFetch += result.entries.count
           let newCount = try await writer.persistEntries(result.entries, markAsRead: true)
-          fetchedCount += result.entries.count
           syncProgress = "History: page \(page) (\(newCount) new)"
           logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
 
