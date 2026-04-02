@@ -30,36 +30,41 @@ struct EntryRowView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      // Top row: favicon + feed name + time
-      HStack(spacing: 6) {
-        FaviconView(feed: entry.feed)
-          .frame(width: 16, height: 16)
+    HStack(alignment: .top, spacing: 15) {
+      // Favicon — own vertical column
+      FaviconView(feed: entry.feed)
+        .frame(width: 24, height: 24)
+        .padding(.top, 2)
 
-        Text(feedName.uppercased())
-          .font(.system(size: FontTheme.pillSize, weight: .medium))
-          .foregroundStyle(FontTheme.domainPillColor)
-          .lineLimit(1)
+      // All text content aligned to the right of the icon
+      VStack(alignment: .leading, spacing: 3) {
+        // Feed name + time
+        HStack(spacing: 6) {
+          Text(feedName.uppercased())
+            .font(.system(size: FontTheme.rowFeedNameSize, weight: .semibold))
+            .foregroundStyle(FontTheme.domainPillColor)
+            .lineLimit(1)
 
-        Spacer()
+          Spacer()
 
-        Text(timeOnlyFormatter.string(from: entry.publishedAt))
-          .font(.system(size: FontTheme.captionSize))
-          .foregroundStyle(.tertiary)
-      }
+          Text(timeOnlyFormatter.string(from: entry.publishedAt))
+            .font(.system(size: FontTheme.rowFeedNameSize))
+            .foregroundStyle(.tertiary)
+        }
 
-      // Title
-      Text(entry.title ?? "Untitled")
-        .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
-        .lineLimit(2)
-        .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
-
-      // Summary excerpt
-      if !summaryText.isEmpty {
-        Text(summaryText)
-          .font(.system(size: FontTheme.captionSize))
+        // Title
+        Text(entry.title ?? "Untitled")
+          .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
           .lineLimit(2)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+
+        // Summary excerpt
+        if !summaryText.isEmpty {
+          Text(summaryText)
+            .font(.system(size: FontTheme.rowSummarySize))
+            .lineLimit(2)
+            .foregroundStyle(.tertiary)
+        }
       }
     }
     .padding(.vertical, 4)
@@ -87,7 +92,7 @@ struct FaviconView: View {
           image
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
         default:
           initialsIcon
         }
@@ -99,10 +104,10 @@ struct FaviconView: View {
 
   private var initialsIcon: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 3)
+      RoundedRectangle(cornerRadius: 4)
         .fill(FontTheme.domainPillColor.opacity(0.15))
       Text(fallbackLetter)
-        .font(.system(size: 9, weight: .bold))
+        .font(.system(size: 12, weight: .bold))
         .foregroundStyle(FontTheme.domainPillColor)
     }
   }
