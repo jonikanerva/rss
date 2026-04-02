@@ -1,6 +1,6 @@
 #!/bin/bash
 # Gate enforcer hook for Claude Code PreToolUse
-# Blocks: .env reads, force push, push to main/master, rm -rf
+# Blocks: .env reads, any push to main/master, rm -rf
 #
 # Receives tool input JSON on stdin.
 # Exit 2 = block with message on stderr.
@@ -34,14 +34,10 @@ if [[ "$TOOL_NAME" == "Bash" && -n "$COMMAND" ]]; then
       ;;
   esac
 
-  # Block force push — only when git is the actual command
+  # Block any push to main/master (normal or force) — only when git is the actual command
   if [[ "$FIRST_WORD" == "git" ]]; then
-    if echo "$COMMAND" | grep -qE '^git push.*--(force|force-with-lease)(\s|$)'; then
-      echo "Blocked: force push is not allowed" >&2
-      exit 2
-    fi
     if echo "$COMMAND" | grep -qE '^git push.*\borigin\s+(main|master)(\s|$)'; then
-      echo "Blocked: pushing directly to protected branch is not allowed" >&2
+      echo "Blocked: pushing to protected branch (main/master) is not allowed" >&2
       exit 2
     fi
   fi
