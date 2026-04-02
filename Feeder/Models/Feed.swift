@@ -16,6 +16,8 @@ final class Feed {
   var siteURL: String
   /// Date subscription was created in Feedbin
   var createdAt: Date
+  /// Favicon URL from Feedbin Icons API (matched by host)
+  var faviconURL: String?
 
   @Relationship(deleteRule: .cascade)
   var entries: [Entry] = []

@@ -24,6 +24,12 @@ nonisolated struct FeedbinEntry: Decodable, Sendable {
   let createdAt: Date
 }
 
+/// A Feedbin favicon icon for a feed host.
+nonisolated struct FeedbinIcon: Decodable, Sendable {
+  let host: String
+  let url: String
+}
+
 /// Result of a paginated entries fetch.
 nonisolated struct FeedbinEntriesPage: Sendable {
   let entries: [FeedbinEntry]
