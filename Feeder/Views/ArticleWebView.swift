@@ -1,21 +1,6 @@
 import SwiftUI
 import WebKit
 
-// MARK: - Cached DateFormatters
-
-private let webViewDateFormatter: DateFormatter = {
-  let f = DateFormatter()
-  f.dateFormat = "EEEE d. MMMM yyyy"
-  f.locale = Locale(identifier: "en_US_POSIX")
-  return f
-}()
-
-private let webViewTimeFormatter: DateFormatter = {
-  let f = DateFormatter()
-  f.dateFormat = "HH.mm"
-  return f
-}()
-
 // MARK: - Article Web View
 
 struct ArticleWebView: NSViewRepresentable {
@@ -27,19 +12,8 @@ struct ArticleWebView: NSViewRepresentable {
 
   func makeNSView(context: Context) -> WKWebView {
     let config = WKWebViewConfiguration()
-    // Disable JavaScript from feed content for security.
-    // Our strip script is injected as a WKUserScript instead.
+    // JS fully disabled — all stripping done in Swift before injection
     config.defaultWebpagePreferences.allowsContentJavaScript = false
-
-    let stripJS = loadResource("article-strip", ext: "js")
-    if !stripJS.isEmpty {
-      let script = WKUserScript(
-        source: stripJS,
-        injectionTime: .atDocumentEnd,
-        forMainFrameOnly: true
-      )
-      config.userContentController.addUserScript(script)
-    }
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
@@ -62,11 +36,11 @@ struct ArticleWebView: NSViewRepresentable {
     let template = loadResource("article-template", ext: "html")
     let css = loadResource("article-style", ext: "css")
 
-    let dateStr = formatDetailDate(entry.publishedAt)
+    let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")
     let author = escapeHTML(entry.author ?? "")
     let domain = escapeHTML((entry.displayDomain ?? "").uppercased())
-    let body = entry.bestHTML
+    let body = stripFeedStyles(entry.bestHTML)
 
     return
       template
@@ -87,18 +61,66 @@ struct ArticleWebView: NSViewRepresentable {
     return contents
   }
 
-  private func formatDetailDate(_ date: Date) -> String {
-    let dateStr = webViewDateFormatter.string(from: date)
-    let timeStr = webViewTimeFormatter.string(from: date)
-    return "\(dateStr) AT \(timeStr)".uppercased()
-  }
-
   private func escapeHTML(_ string: String) -> String {
     string
       .replacingOccurrences(of: "&", with: "&amp;")
       .replacingOccurrences(of: "<", with: "&lt;")
       .replacingOccurrences(of: ">", with: "&gt;")
       .replacingOccurrences(of: "\"", with: "&quot;")
+  }
+
+  /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.
+  /// This replaces the JS-based stripping, ensuring it works even with JS disabled.
+  private func stripFeedStyles(_ html: String) -> String {
+    var result = html
+
+    // Remove <style> tags and their content
+    result = result.replacingOccurrences(
+      of: "<style[^>]*>[\\s\\S]*?</style>",
+      with: "",
+      options: .regularExpression
+    )
+
+    // Remove <link rel="stylesheet"> tags
+    result = result.replacingOccurrences(
+      of: "<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>",
+      with: "",
+      options: .regularExpression
+    )
+
+    // Remove <script> tags and their content
+    result = result.replacingOccurrences(
+      of: "<script[^>]*>[\\s\\S]*?</script>",
+      with: "",
+      options: .regularExpression
+    )
+
+    // Remove event handler attributes (onclick, onerror, onload, etc.)
+    result = result.replacingOccurrences(
+      of: "\\s+on\\w+\\s*=\\s*\"[^\"]*\"",
+      with: "",
+      options: .regularExpression
+    )
+    result = result.replacingOccurrences(
+      of: "\\s+on\\w+\\s*=\\s*'[^']*'",
+      with: "",
+      options: .regularExpression
+    )
+
+    // Strip inline style attributes entirely
+    // This is aggressive but matches our goal: only our CSS should apply
+    result = result.replacingOccurrences(
+      of: "\\s+style\\s*=\\s*\"[^\"]*\"",
+      with: "",
+      options: .regularExpression
+    )
+    result = result.replacingOccurrences(
+      of: "\\s+style\\s*=\\s*'[^']*'",
+      with: "",
+      options: .regularExpression
+    )
+
+    return result
   }
 
   // MARK: - Coordinator

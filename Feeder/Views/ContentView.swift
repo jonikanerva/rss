@@ -282,11 +282,11 @@ struct ContentView: View {
       selectedEntry = nil
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
       openInBackground()
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "r")) { _ in
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
       guard selectedEntry != nil else { return .ignored }
       articleViewMode = articleViewMode == .web ? .reader : .web
       return .handled

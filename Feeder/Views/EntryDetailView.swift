@@ -1,20 +1,29 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Detail Date Formatter
+// MARK: - Shared Detail Date Formatting
 
-private let detailDateFormatter: DateFormatter = {
-  let f = DateFormatter()
-  f.dateFormat = "EEEE d. MMMM yyyy"
-  f.locale = Locale(identifier: "en_US_POSIX")
-  return f
-}()
+/// Shared date formatters for article detail views (both SwiftUI and WebView).
+enum DetailDateFormatting {
+  static let dateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "EEEE d. MMMM yyyy"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+  }()
 
-private let detailTimeFormatter: DateFormatter = {
-  let f = DateFormatter()
-  f.dateFormat = "HH.mm"
-  return f
-}()
+  static let timeFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "HH.mm"
+    return f
+  }()
+
+  static func formatDate(_ date: Date) -> String {
+    let dateStr = dateFormatter.string(from: date)
+    let timeStr = timeFormatter.string(from: date)
+    return "\(dateStr) AT \(timeStr)".uppercased()
+  }
+}
 
 struct EntryDetailView: View {
   let entry: Entry
@@ -57,12 +66,9 @@ struct EntryDetailView: View {
   private var articleHeader: some View {
     VStack(alignment: .leading, spacing: 8) {
       // Date + time
-      Text(
-        "\(detailDateFormatter.string(from: entry.publishedAt)) AT \(detailTimeFormatter.string(from: entry.publishedAt))"
-          .uppercased()
-      )
-      .font(.system(size: FontTheme.captionSize, weight: .medium))
-      .foregroundStyle(FontTheme.domainPillColor)
+      Text(DetailDateFormatting.formatDate(entry.publishedAt))
+        .font(.system(size: FontTheme.captionSize, weight: .medium))
+        .foregroundStyle(FontTheme.domainPillColor)
 
       // Title
       Text(entry.title ?? "Untitled")
