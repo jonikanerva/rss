@@ -80,70 +80,10 @@ test-ui: build ## Run UI smoke tests (FeederUITests)
 		-only-testing:FeederUITests
 
 # ---------------------------------------------------------------------------
-# Full gate (replaces test-all.sh)
+# Full gate
 # ---------------------------------------------------------------------------
 
-test-all: ## Full test gate: lint + build + unit + UI
-	@PASSED=0; FAILED=0; SKIPPED=0; \
-	echo "==> Phase 1/4: swift-format lint (code style)"; \
-	if xcrun swift-format lint --strict --recursive --parallel . 2>&1; then \
-		echo "==> PASS: Lint clean"; \
-		PASSED=$$((PASSED + 1)); \
-	else \
-		echo "==> FAIL: Lint found style violations"; \
-		FAILED=$$((FAILED + 1)); \
-	fi; \
-	\
-	echo "==> Phase 2/4: Build (zero warnings, zero errors)"; \
-	BUILD_OUTPUT=$$(xcodebuild build-for-testing $(XCODEBUILD_FLAGS) 2>&1); \
-	BUILD_WARNINGS=$$(echo "$$BUILD_OUTPUT" | grep -E '(error:|warning:)' | grep -v 'xcodebuild\[' | grep -v 'appintentsmetadataprocessor' | grep -c '' || true); \
-	if [ "$$BUILD_WARNINGS" -gt 0 ]; then \
-		echo "$$BUILD_OUTPUT" | grep -E '(error:|warning:)' | grep -v 'xcodebuild\[' | grep -v 'appintentsmetadataprocessor'; \
-		echo "==> FAIL: Build produced warnings or errors"; \
-		FAILED=$$((FAILED + 1)); \
-	else \
-		echo "==> PASS: Build clean"; \
-		PASSED=$$((PASSED + 1)); \
-	fi; \
-	\
-	echo "==> Phase 3/4: Unit tests (FeederTests)"; \
-	mkdir -p $(dir $(UNIT_RESULT)); \
-	rm -rf $(UNIT_RESULT); \
-	if xcodebuild test-without-building \
-		$(XCODEBUILD_FLAGS) \
-		-resultBundlePath $(UNIT_RESULT) \
-		-only-testing:FeederTests \
-		2>&1 | tail -5; then \
-		echo "==> PASS: Unit tests"; \
-		PASSED=$$((PASSED + 1)); \
-	else \
-		echo "==> FAIL: Unit tests"; \
-		FAILED=$$((FAILED + 1)); \
-	fi; \
-	\
-	echo "==> Phase 4/4: UI smoke tests (FeederUITests)"; \
-	rm -rf $(UI_RESULT); \
-	if xcodebuild test-without-building \
-		$(XCODEBUILD_FLAGS) \
-		-resultBundlePath $(UI_RESULT) \
-		-only-testing:FeederUITests \
-		2>&1 | tail -5; then \
-		echo "==> PASS: UI smoke tests"; \
-		PASSED=$$((PASSED + 1)); \
-	else \
-		echo "==> WARN: UI smoke tests failed (non-blocking in headless environments)"; \
-		SKIPPED=$$((SKIPPED + 1)); \
-	fi; \
-	\
-	echo ""; \
-	echo "==> Summary: $$PASSED passed, $$FAILED failed, $$SKIPPED skipped"; \
-	echo "==> Unit test results: $(UNIT_RESULT)"; \
-	echo "==> UI test results: $(UI_RESULT)"; \
-	if [ "$$FAILED" -gt 0 ]; then \
-		echo "==> BLOCKED — fix failures before presenting to human"; \
-		exit 1; \
-	fi; \
-	echo "==> ALL GREEN — safe to present changes"
+test-all: lint build test test-ui ## Full test gate: lint + build + unit + UI
 
 # ---------------------------------------------------------------------------
 # Artifacts
