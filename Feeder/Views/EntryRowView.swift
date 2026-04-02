@@ -29,9 +29,6 @@ struct EntryRowView: View {
   }
 
   var body: some View {
-    #if DEBUG
-      let _ = Self._printChanges()
-    #endif
     HStack(alignment: .top, spacing: 15) {
       // Favicon — own vertical column
       FaviconView(feed: entry.feed)
