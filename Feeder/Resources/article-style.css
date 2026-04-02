@@ -2,15 +2,15 @@
 /* Inspired by NetNewsWire — system fonts, dark mode, constrained width */
 
 :root {
-  --accent: #E8654A;
+  --accent: #C0463A;
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
   --text-tertiary: #aeaeb2;
   --bg: #ffffff;
-  --link: #E8654A;
+  --link: #4A90D9;
   --code-bg: #f5f5f7;
   --border: #d2d2d7;
-  --blockquote-border: #E8654A;
+  --blockquote-border: #C0463A;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,7 +18,7 @@
     --text-primary: #f5f5f7;
     --text-secondary: #a1a1a6;
     --text-tertiary: #6e6e73;
-    --bg: #1d1d1f;
+    --bg: #1E1E1E;
     --code-bg: #2c2c2e;
     --border: #3a3a3c;
   }
@@ -54,8 +54,8 @@ header {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--accent);
-  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-transform: none;
   margin-bottom: 8px;
 }
 
@@ -76,14 +76,14 @@ header {
 .author {
   font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
-  color: var(--accent);
+  text-transform: none;
+  color: var(--text-secondary);
 }
 
 .domain {
   font-size: 13px;
   font-weight: 500;
-  text-transform: uppercase;
+  text-transform: lowercase;
   color: var(--text-secondary);
 }
 

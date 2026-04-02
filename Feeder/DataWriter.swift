@@ -141,7 +141,10 @@ actor DataWriter {
 
   // MARK: - Icon persistence
 
-  func syncIcons(_ icons: [FeedbinIcon]) throws {
+  func syncIcons(_ icons: [FeedbinIcon]) async throws {
+    #if DEBUG
+      assert(!Thread.isMainThread, "DataWriter.syncIcons must not run on main thread")
+    #endif
     guard !icons.isEmpty else { return }
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
 
@@ -153,8 +156,13 @@ actor DataWriter {
       guard let host = URL(string: feed.siteURL)?.host() else { continue }
       let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
       if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
-        if feed.faviconURL != iconURL {
+        if feed.faviconURL != iconURL || feed.faviconData == nil {
           feed.faviconURL = iconURL
+          if let url = URL(string: iconURL),
+            let (data, _) = try? await URLSession.shared.data(from: url)
+          {
+            feed.faviconData = data
+          }
           updated += 1
         }
       }
@@ -169,6 +177,9 @@ actor DataWriter {
   // MARK: - Entry persistence
 
   func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {
+    #if DEBUG
+      assert(!Thread.isMainThread, "DataWriter.persistEntries must not run on main thread")
+    #endif
     guard !entries.isEmpty else { return 0 }
 
     let entryIDs = entries.map(\.id)
@@ -203,6 +214,7 @@ actor DataWriter {
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
+      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -214,6 +226,9 @@ actor DataWriter {
   }
 
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
+    #if DEBUG
+      assert(!Thread.isMainThread, "DataWriter.persistEntries must not run on main thread")
+    #endif
     guard !entries.isEmpty else { return 0 }
 
     let entryIDs = entries.map(\.id)
@@ -248,6 +263,7 @@ actor DataWriter {
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
+      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -261,6 +277,9 @@ actor DataWriter {
   // MARK: - Read state
 
   func updateReadState(unreadIDs: Set<Int>) throws {
+    #if DEBUG
+      assert(!Thread.isMainThread, "DataWriter.updateReadState must not run on main thread")
+    #endif
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
@@ -352,6 +371,9 @@ actor DataWriter {
   }
 
   func applyClassification(entryID: Int, result: ClassificationResult) throws {
+    #if DEBUG
+      assert(!Thread.isMainThread, "DataWriter.applyClassification must not run on main thread")
+    #endif
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { entry in entry.feedbinEntryID == entryID }
     )
@@ -583,6 +605,7 @@ actor DataWriter {
       entry.formattedDate = formatEntryDate(entry.publishedAt)
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
+      entry.summaryPlainText = "Sample article \(index)"
       entry.isRead = index.isMultiple(of: 3)
       modelContext.insert(entry)
     }
@@ -606,6 +629,7 @@ actor DataWriter {
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
+    worldEntry.summaryPlainText = "EU finalizes AI transparency framework."
     worldEntry.isRead = false
     modelContext.insert(worldEntry)
 

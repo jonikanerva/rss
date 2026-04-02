@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -23,10 +24,8 @@ struct EntryRowView: View {
   }
 
   private var summaryText: String {
-    if let summary = entry.summary, !summary.isEmpty {
-      return stripHTMLToPlainText(summary)
-    }
-    return entry.plainText
+    let summary = entry.summaryPlainText
+    return summary.isEmpty ? entry.plainText : summary
   }
 
   var body: some View {
@@ -40,7 +39,7 @@ struct EntryRowView: View {
       VStack(alignment: .leading, spacing: 3) {
         // Feed name + time
         HStack(spacing: 6) {
-          Text(feedName.uppercased())
+          Text(feedName)
             .font(.system(size: FontTheme.rowFeedNameSize, weight: .semibold))
             .foregroundStyle(FontTheme.domainPillColor)
             .lineLimit(1)
@@ -85,18 +84,11 @@ struct FaviconView: View {
   }
 
   var body: some View {
-    if let faviconURL = feed?.faviconURL, let url = URL(string: faviconURL) {
-      AsyncImage(url: url) { phase in
-        switch phase {
-        case .success(let image):
-          image
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-        default:
-          initialsIcon
-        }
-      }
+    if let data = feed?.faviconData, let nsImage = NSImage(data: data) {
+      Image(nsImage: nsImage)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     } else {
       initialsIcon
     }
@@ -105,10 +97,10 @@ struct FaviconView: View {
   private var initialsIcon: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 4)
-        .fill(FontTheme.domainPillColor.opacity(0.15))
+        .fill(Color.secondary.opacity(0.15))
       Text(fallbackLetter)
         .font(.system(size: 12, weight: .bold))
-        .foregroundStyle(FontTheme.domainPillColor)
+        .foregroundStyle(.secondary)
     }
   }
 }
@@ -150,6 +142,7 @@ private func unreadEntryRowPreview() -> some View {
   entry.formattedDate = "Today, 15th Mar, 09:30"
   entry.displayDomain = "mobilegamer.biz"
   entry.plainText = "Coffee Stain is closing its mobile development arm in Malmö, Sweden."
+  entry.summaryPlainText = "Coffee Stain is closing its mobile development arm in Malmö, Sweden."
   context.insert(entry)
 
   return EntryRowView(entry: entry)
@@ -177,6 +170,7 @@ private func readEntryRowPreview() -> some View {
   entry.formattedDate = "Yesterday, 14th Mar, 08:30"
   entry.displayDomain = "arstechnica.com"
   entry.plainText = "The European Union has approved comprehensive AI legislation."
+  entry.summaryPlainText = "The European Union has approved comprehensive AI legislation."
   context.insert(entry)
 
   return EntryRowView(entry: entry)

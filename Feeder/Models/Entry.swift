@@ -30,6 +30,8 @@ final class Entry {
   var isClassified: Bool = false
   /// Pre-stripped plain text body (computed once at persist/extract time, used by classification)
   var plainText: String = ""
+  /// Pre-stripped summary plain text (computed at persist time, used by row view)
+  var summaryPlainText: String = ""
   /// JSON-encoded [ArticleBlock] for rich article rendering (computed at persist time)
   var articleBlocksData: Data?
   /// Pre-formatted date string for display (e.g., "Today, 5th Mar, 21:24")
