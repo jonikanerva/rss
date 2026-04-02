@@ -116,7 +116,27 @@ User specified "Synced Today hh:mm" — current code shows "Synced today hh:mm" 
 
 **Confidence:** High
 
-### M4: Build verification
+### M4: Document status display spec in CLAUDE.md
+
+**File:** `CLAUDE.md`
+
+Add a "Status Display Specification" section that locks down the exact behavior so future agents cannot drift from this design. This section goes under a new heading and specifies:
+
+- The status display is the two-line area below "News" in the sidebar
+- **Line 1 (sync):** Exactly three states — "Syncing...", "Fetching xxx/yyy", "Synced today hh:mm"
+- **Line 2 (classification):** Exactly two states — "Categorizing xxx/yyy" (active), hidden (idle)
+- No other text, status, or information may appear on either line
+- Status text is computed in ContentView only — SyncEngine/ClassificationEngine expose raw counters, not display strings
+- Never show provider names, phase details, error messages, or intermediate sync step descriptions in the sidebar status
+
+**Acceptance criteria:**
+- CLAUDE.md contains a clear, unambiguous spec for the status display
+- Any future agent reading CLAUDE.md knows exactly what the status display must show
+- The spec is prescriptive ("must", "never") not descriptive
+
+**Confidence:** High
+
+### M5: Build verification
 
 Run `make build` and verify zero errors and zero warnings.
 
@@ -141,9 +161,10 @@ Run `make build` and verify zero errors and zero warnings.
 | M1: Simplify fetchStatusText | High | Removing 4 lines from a computed property |
 | M2: Verify classifyStatusText | High | No change needed — already correct |
 | M3: Verify lastSyncText | High | No change needed — already correct |
-| M4: Build verification | High | Trivial change, no new code paths |
+| M4: Document spec in CLAUDE.md | High | Writing documentation |
+| M5: Build verification | High | Trivial change, no new code paths |
 
-**Overall: High** — this is a 4-line deletion in one computed property.
+**Overall: High** — this is a 4-line deletion + documentation.
 
 ---
 
@@ -155,3 +176,4 @@ Run `make build` and verify zero errors and zero warnings.
 - [ ] Manual verification: classification shows "Categorizing N/X" then disappears
 - [ ] Manual verification: no other text appears on either status line
 - [ ] No changes to SyncEngine.swift, ClassificationEngine.swift, or any other file
+- [ ] CLAUDE.md contains status display spec that locks down the exact behavior for future agents
