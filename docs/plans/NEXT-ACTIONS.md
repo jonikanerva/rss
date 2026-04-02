@@ -46,7 +46,12 @@ Status: Active
    - Category management UI still needs a way to define the folder→category hierarchy, even if the main timeline UI only shows folders.
    - Needs research and design discussion before implementation.
 
-7. **Codereview skill: enforce dead code and duplication checks**
+7. **Sync read status back to Feedbin**
+   - Owner: Agent
+   - When an article is marked as read in the app, sync that status to Feedbin via the API.
+   - Ensures read state stays consistent between Feeder and Feedbin (and any other Feedbin clients).
+
+8. **Codereview skill: enforce dead code and duplication checks**
    - Owner: Agent
    - Update `/codereview` to flag dead code, duplication, and leftover TODOs/placeholders.
    - Policy: no "do later" debt — fix everything before merge.
