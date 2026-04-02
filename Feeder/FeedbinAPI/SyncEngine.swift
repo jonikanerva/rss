@@ -183,6 +183,7 @@ final class SyncEngine {
 
     let cutoff = Date().addingTimeInterval(-maxArticleAge)
     let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
+    totalToFetch = unreadIDs.count
     syncProgress = "Fetching new entries..."
     logger.info("Fetching entries since \(sinceClamped.description)")
     let entries = try await client.fetchAllEntries(since: sinceClamped)
@@ -273,6 +274,8 @@ final class SyncEngine {
       guard let client, let writer else { return }
 
       isSyncing = true
+      fetchedCount = 0
+      totalToFetch = 0
       syncProgress = "Loading recent history..."
       logger.info("Starting Phase 2: recent history backfill")
 
@@ -284,7 +287,9 @@ final class SyncEngine {
           let result = try await client.fetchEntries(since: sevenDaysAgo, page: page)
           if result.entries.isEmpty { break }
 
+          totalToFetch += result.entries.count
           let newCount = try await writer.persistEntries(result.entries, markAsRead: true)
+          fetchedCount += newCount
           syncProgress = "History: page \(page) (\(newCount) new)"
           logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
 
