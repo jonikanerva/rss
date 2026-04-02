@@ -34,15 +34,7 @@ struct ArticleWebView: NSViewRepresentable {
   private func buildHTML(for entry: Entry) -> String {
     let template = loadResource("article-template", ext: "html")
     let baseCss = loadResource("article-style", ext: "css")
-
-    // Read the actual window background color from AppKit so CSS always matches SwiftUI
-    let bgColor = NSColor.windowBackgroundColor.usingColorSpace(.sRGB) ?? NSColor.windowBackgroundColor
-    let bgHex = String(
-      format: "#%02X%02X%02X",
-      Int(bgColor.redComponent * 255),
-      Int(bgColor.greenComponent * 255),
-      Int(bgColor.blueComponent * 255))
-    let css = baseCss + "\nbody { background-color: \(bgHex) !important; }"
+    let css = baseCss + "\nbody { background-color: \(FontTheme.backgroundHex) !important; }"
 
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")

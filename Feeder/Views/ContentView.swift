@@ -266,6 +266,7 @@ struct ContentView: View {
     } detail: {
       detailView
     }
+    .background(FontTheme.backgroundColor)
     .onAppear {
       checkCredentials()
     }
