@@ -1,6 +1,14 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Time Formatter
+
+private let timeOnlyFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "HH.mm"
+  return f
+}()
+
 // MARK: - Entry Row View
 
 struct EntryRowView: View {
@@ -10,38 +18,93 @@ struct EntryRowView: View {
 
   private var isRead: Bool { entry.isRead || pendingReadIDs.contains(entry.feedbinEntryID) }
 
+  private var feedName: String {
+    entry.feed?.title ?? entry.displayDomain ?? ""
+  }
+
+  private var summaryText: String {
+    if let summary = entry.summary, !summary.isEmpty {
+      return stripHTMLToPlainText(summary)
+    }
+    return entry.plainText
+  }
+
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      // Unread indicator
-      Circle()
-        .fill(isRead ? Color.clear : Color(hex: 0x5A9CFF))
-        .frame(width: 8, height: 8)
-        .padding(.top, 6)
+    VStack(alignment: .leading, spacing: 4) {
+      // Top row: favicon + feed name + time
+      HStack(spacing: 6) {
+        FaviconView(feed: entry.feed)
+          .frame(width: 16, height: 16)
 
-      VStack(alignment: .leading, spacing: 4) {
-        // Title
-        Text(entry.title ?? "Untitled")
-          .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
+        Text(feedName.uppercased())
+          .font(.system(size: FontTheme.pillSize, weight: .medium))
+          .foregroundStyle(FontTheme.domainPillColor)
+          .lineLimit(1)
+
+        Spacer()
+
+        Text(timeOnlyFormatter.string(from: entry.publishedAt))
+          .font(.system(size: FontTheme.captionSize))
+          .foregroundStyle(.tertiary)
+      }
+
+      // Title
+      Text(entry.title ?? "Untitled")
+        .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
+        .lineLimit(2)
+        .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+
+      // Summary excerpt
+      if !summaryText.isEmpty {
+        Text(summaryText)
+          .font(.system(size: FontTheme.captionSize))
           .lineLimit(2)
-          .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
-
-        // Domain + date — pre-computed, zero Calendar ops
-        HStack(spacing: 6) {
-          if let domain = entry.displayDomain, !domain.isEmpty {
-            Text(domain)
-              .font(.system(size: FontTheme.pillSize, weight: .medium))
-              .foregroundStyle(FontTheme.domainPillColor)
-          }
-          Text(entry.formattedDate)
-            .font(.system(size: FontTheme.captionSize))
-            .foregroundStyle(.tertiary)
-        }
+          .foregroundStyle(.tertiary)
       }
     }
     .padding(.vertical, 4)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(isRead ? (entry.title ?? "Untitled") : "Unread, \(entry.title ?? "Untitled")")
     .accessibilityIdentifier("entry.row.\(entry.feedbinEntryID)")
+  }
+}
+
+// MARK: - Favicon View
+
+struct FaviconView: View {
+  let feed: Feed?
+
+  private var fallbackLetter: String {
+    guard let title = feed?.title, let first = title.first else { return "?" }
+    return String(first).uppercased()
+  }
+
+  var body: some View {
+    if let faviconURL = feed?.faviconURL, let url = URL(string: faviconURL) {
+      AsyncImage(url: url) { phase in
+        switch phase {
+        case .success(let image):
+          image
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+        default:
+          initialsIcon
+        }
+      }
+    } else {
+      initialsIcon
+    }
+  }
+
+  private var initialsIcon: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 3)
+        .fill(FontTheme.domainPillColor.opacity(0.15))
+      Text(fallbackLetter)
+        .font(.system(size: 9, weight: .bold))
+        .foregroundStyle(FontTheme.domainPillColor)
+    }
   }
 }
 
@@ -63,16 +126,25 @@ private func unreadEntryRowPreview() -> some View {
   }
   let context = container.mainContext
 
+  let feed = Feed(
+    feedbinSubscriptionID: 1, feedbinFeedID: 1,
+    title: "Mobilegamer.biz", feedURL: "https://mobilegamer.biz/feed",
+    siteURL: "https://mobilegamer.biz", createdAt: .now
+  )
+  context.insert(feed)
+
   let entry = Entry(
-    feedbinEntryID: 1, title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
-    author: "Tom Warren", url: "https://example.com/1",
-    content: "<p>Apple today announced...</p>",
-    summary: "Apple today announced the M5 Ultra.",
+    feedbinEntryID: 1, title: "Goat Simulator maker Coffee Stain to close its mobile studio",
+    author: "Neil Long", url: "https://example.com/1",
+    content: "<p>Coffee Stain is closing its mobile development arm...</p>",
+    summary: "Coffee Stain is closing its mobile development arm in Malmö, Sweden.",
     extractedContentURL: nil, publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
   )
+  entry.feed = feed
   entry.isRead = false
   entry.formattedDate = "Today, 15th Mar, 09:30"
-  entry.displayDomain = "theverge.com"
+  entry.displayDomain = "mobilegamer.biz"
+  entry.plainText = "Coffee Stain is closing its mobile development arm in Malmö, Sweden."
   context.insert(entry)
 
   return EntryRowView(entry: entry)
@@ -99,6 +171,7 @@ private func readEntryRowPreview() -> some View {
   entry.isRead = true
   entry.formattedDate = "Yesterday, 14th Mar, 08:30"
   entry.displayDomain = "arstechnica.com"
+  entry.plainText = "The European Union has approved comprehensive AI legislation."
   context.insert(entry)
 
   return EntryRowView(entry: entry)
