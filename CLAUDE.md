@@ -2,8 +2,7 @@
 
 ## Session Start
 
-1. Read `docs/STATUS.md` for current project state.
-2. Read `docs/plans/NEXT-ACTIONS.md` for active work queue.
+1. Read `docs/plans/NEXT-ACTIONS.md` for active work queue.
 
 ## Prompt Analysis Protocol (Every Request)
 
@@ -25,7 +24,7 @@ Before acting on any user request, classify and propose an approach:
 2. **Plan** → run `/plan` → commit plan to branch → present plan → user approves
 3. **Implement** → run `/implement` → code autonomously, verify build + tests at each milestone, commit at checkpoints
 4. **Exit worktree** → merge worktree changes back to the feature branch in the main repo, remove worktree
-5. **Push & open PR** → update STATUS.md/NEXT-ACTIONS.md, push branch, open PR (draft OK)
+5. **Push & open PR** → update NEXT-ACTIONS.md, push branch, open PR (draft OK)
 6. **Code review** → run `/codereview` against the PR → fix issues → repeat until PASS
 7. **Human review** → present to user for testing in Xcode and final approval before merge
 
@@ -69,7 +68,7 @@ After the PR is created, spawn a **subagent** to run `/codereview`. The subagent
 
 ### Status Tracking
 
-Update `docs/STATUS.md` and `docs/plans/NEXT-ACTIONS.md` on meaningful changes.
+Update `docs/plans/NEXT-ACTIONS.md` on meaningful changes.
 
 ## Agent Dispatch
 
