@@ -34,7 +34,11 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [Ready] Owner dogfood for 1 week.
+1. [In progress] UI redesign: article list & detail pane (PR #34)
+   - Owner: Agent
+   - Context: Favicon pipeline, row redesign, date sections, WKWebView HTML renderer, R toggle
+   - Acceptance: Human review in Xcode, merge PR
+2. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
    - Context: Open `Feeder.xcodeproj` in Xcode, build and run. Authenticate with Feedbin, use daily.
    - Acceptance: Subjective quality feedback after 1 week.
@@ -47,4 +51,5 @@ Status: Active
 
 ## Last updated
 
+- 2026-04-02 by Claude agent (UI redesign PR #34: article list + detail pane overhaul)
 - 2026-03-17 by Claude agent (Cleanup: removed pre_planning/, stale plans, broken references. Hierarchical categories merged as PR #17.)
