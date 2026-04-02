@@ -169,6 +169,8 @@ struct ContentView: View {
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
+  private var articleViewMode: ArticleViewMode = .web
+  @State
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
@@ -255,6 +257,7 @@ struct ContentView: View {
       if let entry = newEntry, !entry.isRead {
         pendingReadIDs.insert(entry.feedbinEntryID)
       }
+      articleViewMode = .web
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
@@ -281,6 +284,11 @@ struct ContentView: View {
     }
     .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in
       openInBackground()
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "r")) { _ in
+      guard selectedEntry != nil else { return .ignored }
+      articleViewMode = articleViewMode == .web ? .reader : .web
       return .handled
     }
   }
@@ -400,8 +408,19 @@ struct ContentView: View {
   @ViewBuilder
   private var detailView: some View {
     if let selectedEntry {
-      EntryDetailView(entry: selectedEntry)
+      EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
         .toolbar {
+          ToolbarItem(placement: .automatic) {
+            Button {
+              articleViewMode = articleViewMode == .web ? .reader : .web
+            } label: {
+              Label(
+                articleViewMode == .web ? "Reader Mode" : "Web Mode",
+                systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
+              )
+            }
+            .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
+          }
           ToolbarItem(placement: .automatic) {
             Button {
               openInBackground()
