@@ -1,39 +1,44 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Detail Date Formatter
+
+private let detailDateFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "EEEE d. MMMM yyyy"
+  f.locale = Locale(identifier: "en_US_POSIX")
+  return f
+}()
+
+private let detailTimeFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "HH.mm"
+  return f
+}()
+
 struct EntryDetailView: View {
   let entry: Entry
+  let viewMode: ArticleViewMode
 
   var body: some View {
+    Group {
+      switch viewMode {
+      case .web:
+        ArticleWebView(entry: entry)
+      case .reader:
+        readerView
+      }
+    }
+    .id(entry.feedbinEntryID)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
+    .accessibilityIdentifier("entry.detail")
+  }
+
+  private var readerView: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
-        Text(entry.title ?? "Untitled")
-          .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
-          .fixedSize(horizontal: false, vertical: true)
-
-        HStack(spacing: 12) {
-          if let domain = entry.displayDomain, !domain.isEmpty {
-            Text(domain)
-              .font(.system(size: FontTheme.pillSize, weight: .medium))
-              .foregroundStyle(FontTheme.domainPillColor)
-          }
-
-          if let feedTitle = entry.feed?.title {
-            Text(feedTitle)
-              .font(.system(size: FontTheme.metadataSize))
-              .foregroundStyle(.secondary)
-          }
-
-          if let author = entry.author, !author.isEmpty {
-            Text(author)
-              .font(.system(size: FontTheme.metadataSize))
-              .foregroundStyle(.secondary)
-          }
-
-          Text(entry.publishedAt, format: .dateTime.month(.wide).day().year().hour().minute())
-            .font(.system(size: FontTheme.metadataSize))
-            .foregroundStyle(.tertiary)
-        }
+        articleHeader
 
         Divider()
 
@@ -47,11 +52,45 @@ struct EntryDetailView: View {
       .padding(.bottom, 32)
       .frame(maxWidth: .infinity, alignment: .center)
     }
-    .id(entry.feedbinEntryID)
-    .accessibilityElement(children: .contain)
-    .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
-    .accessibilityIdentifier("entry.detail")
   }
+
+  private var articleHeader: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      // Date + time
+      Text(
+        "\(detailDateFormatter.string(from: entry.publishedAt)) AT \(detailTimeFormatter.string(from: entry.publishedAt))"
+          .uppercased()
+      )
+      .font(.system(size: FontTheme.captionSize, weight: .medium))
+      .foregroundStyle(FontTheme.domainPillColor)
+
+      // Title
+      Text(entry.title ?? "Untitled")
+        .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
+        .fixedSize(horizontal: false, vertical: true)
+
+      // Author + domain
+      VStack(alignment: .leading, spacing: 2) {
+        if let author = entry.author, !author.isEmpty {
+          Text(author.uppercased())
+            .font(.system(size: FontTheme.captionSize, weight: .medium))
+            .foregroundStyle(FontTheme.domainPillColor)
+        }
+        if let domain = entry.displayDomain, !domain.isEmpty {
+          Text(domain.uppercased())
+            .font(.system(size: FontTheme.captionSize, weight: .medium))
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
+  }
+}
+
+// MARK: - Article View Mode
+
+enum ArticleViewMode {
+  case web
+  case reader
 }
 
 // MARK: - Preview
@@ -86,7 +125,7 @@ private func articleDetailPreview() -> some View {
   entry.displayDomain = "theverge.com"
   context.insert(entry)
 
-  return EntryDetailView(entry: entry)
+  return EntryDetailView(entry: entry, viewMode: .reader)
     .modelContainer(container)
     .frame(width: 600, height: 500)
 }
