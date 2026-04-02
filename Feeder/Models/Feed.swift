@@ -18,6 +18,8 @@ final class Feed {
   var createdAt: Date
   /// Favicon URL from Feedbin Icons API (matched by host)
   var faviconURL: String?
+  /// Favicon image data — downloaded at sync time, rendered directly in list rows
+  var faviconData: Data?
 
   @Relationship(deleteRule: .cascade)
   var entries: [Entry] = []
