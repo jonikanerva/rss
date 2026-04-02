@@ -15,10 +15,10 @@ A research dossier AND an approved plan must exist in the current branch. If eit
 1. Read the plan artifact.
 2. Implement each milestone sequentially, committing at checkpoints.
 3. After every milestone:
-   - Verify build: `bash .claude/scripts/build-for-testing.sh` — must exit 0.
-   - Run smoke tests: `bash .claude/scripts/ui-smoke.sh` — must exit 0.
+   - Verify build: `make build` — must exit 0.
+   - Run smoke tests: `make test-ui` — must exit 0.
    - If either fails, fix before moving to the next milestone.
-4. After all milestones complete, run the full test gate: `bash .claude/scripts/test-all.sh` — must get ALL GREEN.
+4. After all milestones complete, run the full test gate: `make test-all` — must get ALL GREEN.
 5. Exit worktree, push branch, and open PR (`gh pr create --base main --title [title] --body [body]`).
 6. Spawn a subagent to run `/codereview` against the PR. Fix all found issues, push branch, add a PR comment (`gh pr comment --body [comment]`) on the implemented fixes, re-run codereview until PASS.
 7. Write execution log to `docs/plans/YYYY-MM-DD-<topic>-execution-log.md`.

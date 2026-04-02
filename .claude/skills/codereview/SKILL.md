@@ -10,7 +10,6 @@ Review all changes on the current branch against `main`. **This skill runs as an
 ## Prerequisites
 
 - A PR must exist for the current branch. If not, stop and say: create the PR first.
-- Run `bash .claude/scripts/use-github-app-auth.sh` before posting comments.
 - Read the PR description, comments, checks, and full diff as your sole inputs. (`gh pr view --comments`, `gh pr diff`, `gh pr checks`)
 
 ## Review checklist
