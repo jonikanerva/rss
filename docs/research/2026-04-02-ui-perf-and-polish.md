@@ -339,7 +339,169 @@ Text(feedName.uppercased())
 
 ---
 
-## 6. Evidence
+## 6. Performance Measurement Strategy
+
+### Goal
+
+Establish numeric before/after metrics so we can objectively verify whether changes improve performance — not rely on subjective feel.
+
+### Current State
+
+The app has one existing performance test: `testLaunchPerformance()` in `FeederUITests.swift:111-114` using `XCTApplicationLaunchMetric()`. No scroll performance measurement, no `os_signpost` instrumentation, no FPS tracking.
+
+### Recommended Measurement Stack
+
+We need three layers: automated CI-friendly tests, developer-time profiling, and runtime instrumentation.
+
+#### Layer 1: Automated Scroll Performance Test (XCTest)
+
+Add a `testScrollPerformanceDuringSync` XCTest that:
+1. Launches the app with demo data (`UITEST_DEMO_MODE=1`)
+2. Navigates to the article list
+3. Measures scroll performance using `XCTClockMetric` and `measure()` with `manuallyStop`
+4. Scrolls up/down 10 times at fast velocity
+5. Produces a numeric baseline that Xcode tracks across runs
+
+```swift
+func testScrollPerformance() throws {
+    let app = makeApp()
+    app.launch()
+
+    let list = app.tables["timeline.list"]
+    guard list.waitForExistence(timeout: 5) else { XCTFail("List not found"); return }
+
+    let options = XCTMeasureOptions()
+    options.invocationOptions = [.manuallyStop]
+
+    measure(metrics: [XCTClockMetric()], options: options) {
+        for _ in 0..<10 { list.swipeUp(velocity: .fast) }
+        stopMeasuring()
+        for _ in 0..<10 { list.swipeDown(velocity: .fast) }
+    }
+}
+```
+
+**Limitations**: `XCTOSSignpostMetric.scrollingAndDecelerationMetric` provides hitch ratio on physical iOS devices but has limited macOS support. `XCTClockMetric` gives wall-clock duration, which is a useful proxy — slower = more main thread contention.
+
+**macOS-specific note**: Run with Release build configuration and debugger detached for accurate numbers. Configure the test scheme: disable code coverage, disable diagnostics sanitizers.
+
+#### Layer 2: os_signpost Instrumentation (Developer Profiling)
+
+Add `OSSignposter` markers to critical paths so they appear in Instruments:
+
+| Code path | Signpost name | What it measures |
+|-----------|---------------|------------------|
+| `DataWriter.persistEntries()` | `PersistEntries` | Total time to parse HTML + save batch |
+| `DataWriter.applyClassification()` | `ApplyClassification` | Per-article classification write |
+| `ClassificationEngine.classifyNextBatch()` | `ClassifyBatch` | Full classification batch |
+| `SyncEngine.sync()` | `SyncPhase` | Each sync phase duration |
+| `EntryListView.body` | `EntryListBody` | View body evaluation time |
+
+These can be read programmatically via `OSLogStore` for automated analysis, or viewed in Instruments with the `os_signpost` instrument.
+
+**Verify DataWriter thread affinity** by adding to `DataWriter.init`:
+```swift
+#if DEBUG
+assert(!Thread.isMainThread, "DataWriter must not init on main thread")
+#endif
+```
+
+And in key methods:
+```swift
+func persistEntries(...) throws -> Int {
+    #if DEBUG
+    assert(!Thread.isMainThread, "DataWriter.persistEntries running on main thread!")
+    #endif
+    // ...
+}
+```
+
+#### Layer 3: In-App FPS Counter (Debug Builds)
+
+Add a `CADisplayLink`-based FPS counter (macOS 14+) that:
+1. Runs only in `#if DEBUG` builds
+2. Samples frame intervals continuously
+3. Logs min/avg/max FPS and dropped frame count over configurable windows
+4. Writes results to a JSON file in the temp directory for automated reading
+
+```swift
+#if DEBUG
+@Observable
+final class FPSCounter {
+    var fps: Double = 0
+    var minFPS: Double = .infinity
+    var droppedFrames: Int = 0
+    private var samples: [Double] = []
+    // ... CADisplayLink tick callback
+}
+#endif
+```
+
+This gives us a real-time numeric readout during manual testing and can be read by UI tests via file I/O.
+
+#### Layer 4: Instruments CLI (xctrace) for Detailed Before/After
+
+Run from terminal before and after changes:
+
+```bash
+# Record 15 seconds of Animation Hitches during manual scroll
+xctrace record --attach "Feeder" \
+  --template 'Animation Hitches' \
+  --time-limit 15s \
+  --output /tmp/feeder-before.trace
+
+# After changes:
+xctrace record --attach "Feeder" \
+  --template 'Animation Hitches' \
+  --time-limit 15s \
+  --output /tmp/feeder-after.trace
+
+# Export hitch data as XML for comparison
+xctrace export --input /tmp/feeder-before.trace \
+  --xpath '/trace-toc/run[@number="1"]/data/table[@schema="animation-hitch"]' \
+  --output /tmp/hitches-before.xml
+```
+
+Key metrics from the trace:
+- **Hitch count**: number of frames that took >16.67ms (60fps) or >8.33ms (120fps)
+- **Hitch total duration**: cumulative time spent in hitched frames
+- **Hitch time ratio**: ms of hitch per second of animation (target: <5 ms/s)
+
+#### Layer 5: SwiftUI Body Evaluation Counter (Debug)
+
+Add `_printChanges()` temporarily to `EntryRowView` and `EntryListView` to identify which properties cause re-renders. Also add a numeric counter:
+
+```swift
+#if DEBUG
+var body: some View {
+    let _ = Self._printChanges()
+    let _ = BodyCounter.track("EntryRowView")
+    // ...
+}
+#endif
+```
+
+After a sync cycle, `BodyCounter.report()` shows exactly how many times each view was re-evaluated. Target: `EntryRowView` should only re-evaluate when its specific entry's data changes, not on every @Observable counter tick.
+
+### Concrete Before/After Protocol
+
+1. **Before** (on `main` branch, before any perf changes):
+   - Run `testScrollPerformance` 5 times → record baseline `XCTClockMetric` average
+   - Run xctrace Animation Hitches for 15s during manual scroll → record hitch count + ratio
+   - Add `_printChanges()` to EntryRowView → count body evaluations during a full sync
+   - Add `Thread.isMainThread` assert to DataWriter → verify thread affinity
+
+2. **After** (on feature branch, after perf changes):
+   - Run same tests → compare numbers
+   - Target improvements:
+     - Scroll duration: ≥20% faster
+     - Hitch count: ≥50% reduction
+     - Hitch ratio: <5 ms/s (from likely >10 ms/s currently)
+     - EntryRowView body evaluations during sync: ≥80% reduction
+
+---
+
+## 7. Evidence
 
 ### Scroll Performance
 - SwiftUI `@Observable` updates across `await` boundaries are **not coalesced** — each is a separate render transaction. Source: [Swift Forums](https://forums.swift.org/t/understanding-when-swiftui-re-renders-an-observable/77876), [Fat Bob Man](https://fatbobman.com/en/posts/mastering-observation/)
@@ -356,6 +518,14 @@ Text(feedName.uppercased())
 ### Animations
 - macOS desktop animations should be 200-350ms with easeInOut. Source: [Apple Developer Docs](https://developer.apple.com/documentation/swiftui/animations)
 - Must check `accessibilityReduceMotion`. Source: [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/motion)
+
+### Performance Measurement
+- `xctrace` CLI can record and export Animation Hitches as XML. Source: [xctrace man page](https://keith.github.io/xcode-man-pages/xctrace.1.html)
+- `CADisplayLink` available on macOS 14+ for programmatic FPS counting. Source: [Apple Documentation](https://developer.apple.com/documentation/quartzcore/cadisplaylink)
+- `OSSignposter` + `OSLogStore` for custom interval measurement with programmatic readout. Source: [Swift with Majid](https://swiftwithmajid.com/2022/05/04/measuring-app-performance-in-swift/)
+- `XCTOSSignpostMetric.scrollingAndDecelerationMetric` for automated scroll tests (limited macOS support). Source: [WWDC20](https://developer.apple.com/videos/play/wwdc2020/10077/)
+- WWDC25 introduced dedicated SwiftUI instrument with Long View Body Updates counter. Source: [WWDC25: Optimize SwiftUI performance with Instruments](https://developer.apple.com/videos/play/wwdc2025/306/)
+- `_printChanges()` for debugging view re-evaluation causes. Source: [Hacking with Swift](https://www.hackingwithswift.com/quick-start/swiftui/how-to-find-which-data-change-is-causing-a-swiftui-view-to-update)
 
 ---
 
@@ -398,16 +568,27 @@ Text(feedName.uppercased())
 
 ### Suggested plan scope (for `/plan` phase):
 
-**Performance (priority order):**
-1. Verify DataWriter thread affinity — if on main thread, fix init to use background
-2. Replace AsyncImage with pre-cached/in-memory favicon system
-3. Pre-compute summary plain text at persist time (eliminate runtime regex)
-4. Throttle @Observable progress updates + isolate status view from list panel
-5. Batch classification saves (if still needed after 1-4)
+**Milestone 0: Establish Baseline Measurements**
+1. Add `os_signpost` instrumentation to DataWriter, SyncEngine, ClassificationEngine
+2. Add `Thread.isMainThread` assertions to DataWriter (verify thread affinity)
+3. Add `_printChanges()` + body counter to EntryRowView/EntryListView (debug only)
+4. Add scroll performance XCTest (`testScrollPerformance`)
+5. Record baseline numbers: xctrace hitch count, scroll test duration, body eval count
 
-**Visual polish:**
-6. Dark theme: audit backgrounds, consider muting accent color
-7. Selection: remove custom `listRowBackground`, test native selection
-8. Animations: add 3-4 subtle transitions (selection, article appearance, panel switch)
-9. Metadata: fix ALL CAPS → Title Case / lowercase in both panels + CSS
-10. Verification: Instruments profiling before/after, visual review in dark mode
+**Milestone 1: Performance Fixes (priority order)**
+6. Fix DataWriter thread affinity if needed
+7. Replace AsyncImage with pre-cached/in-memory favicon system
+8. Pre-compute summary plain text at persist time (eliminate runtime regex)
+9. Throttle @Observable progress updates + isolate status view from list panel
+10. Re-measure after each fix → record improvement delta
+
+**Milestone 2: Visual Polish**
+11. Dark theme: audit backgrounds, consider muting accent color
+12. Selection: remove custom `listRowBackground`, test native selection
+13. Animations: add 3-4 subtle transitions (selection, article appearance, panel switch)
+14. Metadata: fix ALL CAPS → Title Case / lowercase in both panels + CSS
+
+**Milestone 3: Final Verification**
+15. Run full measurement suite → compare before/after
+16. Visual review in dark mode
+17. User acceptance testing in Xcode
