@@ -108,8 +108,20 @@ nonisolated func enforceDeepestMatch(
 
 /// Background actor that owns all SwiftData write operations.
 /// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
-@ModelActor
-actor DataWriter {
+///
+/// Uses ModelActor protocol with explicit init to guarantee the ModelContext
+/// and its serial executor run on a background thread (not the cooperative pool's main thread).
+actor DataWriter: ModelActor {
+  nonisolated let modelExecutor: any ModelExecutor
+  nonisolated let modelContainer: ModelContainer
+
+  init(modelContainer: ModelContainer) {
+    self.modelContainer = modelContainer
+    let context = ModelContext(modelContainer)
+    context.autosaveEnabled = false
+    self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
+  }
+
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
   // MARK: - Feed persistence
@@ -142,9 +154,6 @@ actor DataWriter {
   // MARK: - Icon persistence
 
   func syncIcons(_ icons: [FeedbinIcon]) async throws {
-    #if DEBUG
-      assert(!Thread.isMainThread, "DataWriter.syncIcons must not run on main thread")
-    #endif
     guard !icons.isEmpty else { return }
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
 
@@ -177,9 +186,6 @@ actor DataWriter {
   // MARK: - Entry persistence
 
   func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {
-    #if DEBUG
-      assert(!Thread.isMainThread, "DataWriter.persistEntries must not run on main thread")
-    #endif
     guard !entries.isEmpty else { return 0 }
 
     let entryIDs = entries.map(\.id)
@@ -226,9 +232,6 @@ actor DataWriter {
   }
 
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
-    #if DEBUG
-      assert(!Thread.isMainThread, "DataWriter.persistEntries must not run on main thread")
-    #endif
     guard !entries.isEmpty else { return 0 }
 
     let entryIDs = entries.map(\.id)
@@ -277,9 +280,6 @@ actor DataWriter {
   // MARK: - Read state
 
   func updateReadState(unreadIDs: Set<Int>) throws {
-    #if DEBUG
-      assert(!Thread.isMainThread, "DataWriter.updateReadState must not run on main thread")
-    #endif
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
@@ -371,9 +371,6 @@ actor DataWriter {
   }
 
   func applyClassification(entryID: Int, result: ClassificationResult) throws {
-    #if DEBUG
-      assert(!Thread.isMainThread, "DataWriter.applyClassification must not run on main thread")
-    #endif
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { entry in entry.feedbinEntryID == entryID }
     )

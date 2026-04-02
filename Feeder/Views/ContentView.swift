@@ -469,11 +469,8 @@ struct ContentView: View {
   }
 
   private func seedUITestDataIfNeeded() {
-    let container = modelContext.container
+    let writer = DataWriter(modelContainer: modelContext.container)
     Task {
-      let writer = await Task.detached {
-        DataWriter(modelContainer: container)
-      }.value
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
         selectedCategory = "technology"
@@ -486,20 +483,19 @@ struct ContentView: View {
     let password = KeychainHelper.load(key: "feedbin_password") ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
-    Task {
-      await syncEngine.configure(
-        username: username, password: password, modelContainer: modelContext.container)
+    syncEngine.configure(username: username, password: password, modelContainer: modelContext.container)
 
-      // Purge old entries via background DataWriter
+    // Purge old entries via background DataWriter
+    Task {
       if let writer = syncEngine.writer {
         let cutoff = Date().addingTimeInterval(-maxArticleAge)
         try? await writer.purgeEntriesOlderThan(cutoff)
       }
+    }
 
-      syncEngine.startPeriodicSync()
-      if let writer = syncEngine.writer {
-        classificationEngine.startContinuousClassification(writer: writer)
-      }
+    syncEngine.startPeriodicSync()
+    if let writer = syncEngine.writer {
+      classificationEngine.startContinuousClassification(writer: writer)
     }
   }
 
