@@ -45,17 +45,18 @@
     }
   }
 
-  // Convert relative image src to absolute
-  var baseURL = document.querySelector('base');
-  if (baseURL) {
-    var imgs = content.querySelectorAll('img[src]');
-    for (var i = 0; i < imgs.length; i++) {
-      var src = imgs[i].getAttribute('src');
-      if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-        try {
-          imgs[i].setAttribute('src', new URL(src, baseURL.href).href);
-        } catch(e) {}
+  // Strip event handler attributes (onclick, onerror, onload, etc.)
+  var allElements = content.querySelectorAll('*');
+  for (var i = 0; i < allElements.length; i++) {
+    var attrs = allElements[i].attributes;
+    var toRemove = [];
+    for (var j = 0; j < attrs.length; j++) {
+      if (attrs[j].name.startsWith('on')) {
+        toRemove.push(attrs[j].name);
       }
+    }
+    for (var j = 0; j < toRemove.length; j++) {
+      allElements[i].removeAttribute(toRemove[j]);
     }
   }
 })();

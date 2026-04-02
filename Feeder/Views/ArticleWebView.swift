@@ -1,6 +1,21 @@
 import SwiftUI
 import WebKit
 
+// MARK: - Cached DateFormatters
+
+private let webViewDateFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "EEEE d. MMMM yyyy"
+  f.locale = Locale(identifier: "en_US_POSIX")
+  return f
+}()
+
+private let webViewTimeFormatter: DateFormatter = {
+  let f = DateFormatter()
+  f.dateFormat = "HH.mm"
+  return f
+}()
+
 // MARK: - Article Web View
 
 struct ArticleWebView: NSViewRepresentable {
@@ -12,7 +27,19 @@ struct ArticleWebView: NSViewRepresentable {
 
   func makeNSView(context: Context) -> WKWebView {
     let config = WKWebViewConfiguration()
-    config.defaultWebpagePreferences.allowsContentJavaScript = true
+    // Disable JavaScript from feed content for security.
+    // Our strip script is injected as a WKUserScript instead.
+    config.defaultWebpagePreferences.allowsContentJavaScript = false
+
+    let stripJS = loadResource("article-strip", ext: "js")
+    if !stripJS.isEmpty {
+      let script = WKUserScript(
+        source: stripJS,
+        injectionTime: .atDocumentEnd,
+        forMainFrameOnly: true
+      )
+      config.userContentController.addUserScript(script)
+    }
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
@@ -34,7 +61,6 @@ struct ArticleWebView: NSViewRepresentable {
   private func buildHTML(for entry: Entry) -> String {
     let template = loadResource("article-template", ext: "html")
     let css = loadResource("article-style", ext: "css")
-    let js = loadResource("article-strip", ext: "js")
 
     let dateStr = formatDetailDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")
@@ -45,7 +71,6 @@ struct ArticleWebView: NSViewRepresentable {
     return
       template
       .replacingOccurrences(of: "[[style]]", with: css)
-      .replacingOccurrences(of: "[[strip_js]]", with: js)
       .replacingOccurrences(of: "[[date]]", with: dateStr)
       .replacingOccurrences(of: "[[title]]", with: title)
       .replacingOccurrences(of: "[[author]]", with: author)
@@ -63,15 +88,8 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   private func formatDetailDate(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEEE d. MMMM yyyy"
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    let dateStr = formatter.string(from: date)
-
-    let timeFormatter = DateFormatter()
-    timeFormatter.dateFormat = "HH.mm"
-    let timeStr = timeFormatter.string(from: date)
-
+    let dateStr = webViewDateFormatter.string(from: date)
+    let timeStr = webViewTimeFormatter.string(from: date)
     return "\(dateStr) AT \(timeStr)".uppercased()
   }
 
@@ -91,23 +109,20 @@ struct ArticleWebView: NSViewRepresentable {
 
     func webView(
       _ webView: WKWebView,
-      decidePolicyFor navigationAction: WKNavigationAction,
-      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
+      decidePolicyFor navigationAction: WKNavigationAction
+    ) async -> WKNavigationActionPolicy {
       // Allow initial HTML load and fragment navigations
       if navigationAction.navigationType == .other {
-        decisionHandler(.allow)
-        return
+        return .allow
       }
 
       // Open all link clicks in the system browser
       if let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
         NSWorkspace.shared.open(url)
-        decisionHandler(.cancel)
-        return
+        return .cancel
       }
 
-      decisionHandler(.allow)
+      return .allow
     }
   }
 }
