@@ -42,7 +42,8 @@ struct ArticleWebView: NSViewRepresentable {
     let domain = escapeHTML((entry.displayDomain ?? "").uppercased())
     let body = entry.bestHTML
 
-    return template
+    return
+      template
       .replacingOccurrences(of: "[[style]]", with: css)
       .replacingOccurrences(of: "[[strip_js]]", with: js)
       .replacingOccurrences(of: "[[date]]", with: dateStr)
