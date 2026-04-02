@@ -34,9 +34,9 @@ Status: Active
 
 ## Next actions (max 3)
 
-1. [In progress] UI redesign: article list & detail pane (PR #34)
+1. [In progress] Status display redesign (PR #36)
    - Owner: Agent
-   - Context: Favicon pipeline, row redesign, date sections, WKWebView HTML renderer, R toggle
+   - Context: Simplified sidebar status to 3 sync states + classification. X-Feedbin-Record-Count for progress. docs/app-rules.md created.
    - Acceptance: Human review in Xcode, merge PR
 2. [Ready] Owner dogfood for 1 week.
    - Owner: Repository Owner
@@ -51,5 +51,6 @@ Status: Active
 
 ## Last updated
 
+- 2026-04-02 by Claude agent (Status display redesign PR #36: X-Feedbin-Record-Count, app-rules.md)
 - 2026-04-02 by Claude agent (UI redesign PR #34: article list + detail pane overhaul)
 - 2026-03-17 by Claude agent (Cleanup: removed pre_planning/, stale plans, broken references. Hierarchical categories merged as PR #17.)

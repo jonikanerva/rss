@@ -13,7 +13,7 @@ Status: Active
 
 ## Active queue
 
-1. [In progress] UI redesign: article list & detail pane (PR #34)
+1. [In progress] Status display redesign (PR #36)
    - Owner: Agent
    - Acceptance: Human review in Xcode, merge PR
    - Target: 2026-04-02
