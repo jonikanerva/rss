@@ -78,20 +78,21 @@ struct EntryDetailView: View {
         .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
         .fixedSize(horizontal: false, vertical: true)
 
-      // Favicon + domain/author
-      HStack(alignment: .top, spacing: 8) {
+      // Favicon + author/domain
+      HStack(alignment: .center, spacing: 8) {
         FaviconView(feed: entry.feed)
           .frame(width: 20, height: 20)
+
         VStack(alignment: .leading, spacing: 2) {
-          if let domain = entry.displayDomain, !domain.isEmpty {
-            Text(domain.lowercased())
-              .font(.system(size: FontTheme.captionSize, weight: .medium))
-              .foregroundStyle(.secondary)
-          }
           if let author = entry.author, !author.isEmpty {
             Text(author)
               .font(.system(size: FontTheme.captionSize, weight: .medium))
               .foregroundStyle(.secondary)
+          }
+          if let domain = entry.displayDomain, !domain.isEmpty {
+            Text(domain.lowercased())
+              .font(.system(size: FontTheme.captionSize, weight: .medium))
+              .foregroundStyle(.tertiary)
           }
         }
       }

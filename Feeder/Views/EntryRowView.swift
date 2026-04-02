@@ -84,20 +84,22 @@ struct FaviconView: View {
   }
 
   var body: some View {
-    if let data = feed?.faviconData, let nsImage = NSImage(data: data) {
-      Image(nsImage: nsImage)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-    } else {
-      initialsIcon
+    Group {
+      if let data = feed?.faviconData, let nsImage = NSImage(data: data) {
+        Image(nsImage: nsImage)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .clipShape(RoundedRectangle(cornerRadius: 4))
+      } else {
+        initialsIcon
+      }
     }
   }
 
   private var initialsIcon: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 4)
-        .fill(Color.secondary.opacity(0.15))
+        .fill(Color.secondary.opacity(0.2))
       Text(fallbackLetter)
         .font(.system(size: 12, weight: .bold))
         .foregroundStyle(.secondary)
