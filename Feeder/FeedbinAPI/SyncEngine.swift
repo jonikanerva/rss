@@ -183,7 +183,6 @@ final class SyncEngine {
 
     let cutoff = Date().addingTimeInterval(-maxArticleAge)
     let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
-    totalToFetch = unreadIDs.count
     syncProgress = "Fetching new entries..."
     logger.info("Fetching entries since \(sinceClamped.description)")
     let entries = try await client.fetchAllEntries(since: sinceClamped)
