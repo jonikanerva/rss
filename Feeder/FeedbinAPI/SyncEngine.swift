@@ -185,13 +185,17 @@ final class SyncEngine {
     let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
     syncProgress = "Fetching new entries..."
     logger.info("Fetching entries since \(sinceClamped.description)")
-    let entries = try await client.fetchAllEntries(since: sinceClamped)
-    logger.info("Fetched \(entries.count) new entries")
-    totalToFetch = entries.count
 
-    if !entries.isEmpty {
-      let newCount = try await writer.persistEntries(entries, unreadIDs: unreadIDSet)
-      fetchedCount = entries.count
+    var allEntries: [FeedbinEntry] = []
+    for try await page in client.fetchAllEntryPages(since: sinceClamped) {
+      if let total = page.totalCount { totalToFetch = total }
+      allEntries.append(contentsOf: page.entries)
+      fetchedCount = allEntries.count
+      logger.info("Incremental page: \(page.entries.count) entries (\(allEntries.count) total)")
+    }
+
+    if !allEntries.isEmpty {
+      let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)
       syncProgress = "Synced \(newCount) new entries"
       logger.info("Incremental sync: \(newCount) new entries")
     }
@@ -280,18 +284,14 @@ final class SyncEngine {
 
       do {
         let sevenDaysAgo = Date().addingTimeInterval(-maxArticleAge)
-        var page = 1
 
-        while !Task.isCancelled {
-          let result = try await client.fetchEntries(since: sevenDaysAgo, page: page)
-          if result.entries.isEmpty { break }
-
-          let newCount = try await writer.persistEntries(result.entries, markAsRead: true)
-          syncProgress = "History: page \(page) (\(newCount) new)"
-          logger.info("Backfill page \(page): \(result.entries.count) fetched, \(newCount) new")
-
-          if !result.hasNextPage { break }
-          page += 1
+        for try await page in client.fetchAllEntryPages(since: sevenDaysAgo) {
+          if Task.isCancelled { break }
+          if let total = page.totalCount { totalToFetch = total }
+          let newCount = try await writer.persistEntries(page.entries, markAsRead: true)
+          fetchedCount += page.entries.count
+          syncProgress = "History: \(fetchedCount)/\(totalToFetch) (\(newCount) new)"
+          logger.info("Backfill: \(page.entries.count) fetched, \(newCount) new (\(self.fetchedCount)/\(self.totalToFetch))")
         }
 
         // Fetch extracted content for backfilled entries
@@ -322,7 +322,7 @@ final class SyncEngine {
         }
 
         syncProgress = ""
-        logger.info("Phase 2 backfill complete (\(page) pages)")
+        logger.info("Phase 2 backfill complete (\(self.fetchedCount) entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
         syncProgress = ""
