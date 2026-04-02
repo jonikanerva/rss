@@ -39,7 +39,7 @@ struct ArticleWebView: NSViewRepresentable {
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")
     let author = escapeHTML(entry.author ?? "")
-    let domain = escapeHTML((entry.displayDomain ?? "").uppercased())
+    let domain = escapeHTML((entry.displayDomain ?? "").lowercased())
     let body = stripFeedStyles(entry.bestHTML)
 
     return

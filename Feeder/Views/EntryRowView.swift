@@ -42,7 +42,7 @@ struct EntryRowView: View {
       VStack(alignment: .leading, spacing: 3) {
         // Feed name + time
         HStack(spacing: 6) {
-          Text(feedName.uppercased())
+          Text(feedName)
             .font(.system(size: FontTheme.rowFeedNameSize, weight: .semibold))
             .foregroundStyle(FontTheme.domainPillColor)
             .lineLimit(1)

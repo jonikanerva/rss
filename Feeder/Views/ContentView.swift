@@ -42,15 +42,15 @@ extension EnvironmentValues {
 private func sectionLabel(for date: Date) -> String {
   let calendar = Calendar.current
   if calendar.isDateInToday(date) {
-    return "TODAY"
+    return "Today"
   } else if calendar.isDateInYesterday(date) {
-    return "YESTERDAY"
+    return "Yesterday"
   } else {
     let weekday = date.formatted(.dateTime.weekday(.wide))
     let day = calendar.component(.day, from: date)
     let month = date.formatted(.dateTime.month(.wide))
     let year = date.formatted(.dateTime.year())
-    return "\(weekday) \(day). \(month) \(year)".uppercased()
+    return "\(weekday) \(day). \(month) \(year)"
   }
 }
 
@@ -113,15 +113,6 @@ struct EntryListView: View {
             EntryRowView(entry: entry)
               .tag(entry)
               .listRowSeparator(.hidden)
-              .listRowBackground(
-                RoundedRectangle(cornerRadius: 8)
-                  .fill(
-                    selectedEntry == entry
-                      ? FontTheme.listSelectionColor
-                      : Color.clear
-                  )
-                  .padding(.horizontal, 4)
-              )
           }
         } header: {
           Text(section.label)
@@ -132,7 +123,6 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
-    .scrollContentBackground(.hidden)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -199,12 +189,14 @@ struct SyncStatusView: View {
           .font(.system(size: FontTheme.statusSize))
           .foregroundStyle(.tertiary)
           .textCase(nil)
+          .contentTransition(.numericText())
       }
       if let classifyStatus = classifyStatusText {
         Text(classifyStatus)
           .font(.system(size: FontTheme.statusSize))
           .foregroundStyle(.tertiary)
           .textCase(nil)
+          .contentTransition(.numericText())
       }
     }
     .padding(.bottom, 4)
@@ -242,6 +234,8 @@ struct ContentView: View {
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
   private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
+  @Environment(\.accessibilityReduceMotion)
+  private var reduceMotion
 
   var body: some View {
     NavigationSplitView {
@@ -263,6 +257,8 @@ struct ContentView: View {
             .padding(.vertical, 8)
           }
           .navigationTitle(navigationTitle)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
       } else {
         ContentUnavailableView {
           Label("No Category", systemImage: "newspaper")
