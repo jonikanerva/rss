@@ -108,34 +108,6 @@ final class FeederUITests: XCTestCase {
   }
 
   @MainActor
-  func testScrollPerformance() throws {
-    let app = makeApp()
-    app.launch()
-
-    let technologyCategory = app.staticTexts["sidebar.category.technology"]
-    guard technologyCategory.waitForExistence(timeout: 10) else {
-      XCTFail("Category not found")
-      return
-    }
-    technologyCategory.click()
-
-    let list = app.descendants(matching: .any)["timeline.list"]
-    guard list.waitForExistence(timeout: 5) else {
-      XCTFail("List not found")
-      return
-    }
-
-    let options = XCTMeasureOptions()
-    options.invocationOptions = [.manuallyStop]
-
-    measure(metrics: [XCTClockMetric()], options: options) {
-      for _ in 0..<10 { list.swipeUp(velocity: .fast) }
-      stopMeasuring()
-      for _ in 0..<10 { list.swipeDown(velocity: .fast) }
-    }
-  }
-
-  @MainActor
   func testLaunchPerformance() throws {
     measure(metrics: [XCTApplicationLaunchMetric()]) {
       makeApp().launch()

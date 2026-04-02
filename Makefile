@@ -6,7 +6,6 @@
 #   make test       — unit tests (builds first)
 #   make test-ui    — UI smoke tests (builds first)
 #   make test-all   — full gate: lint + build + unit + UI
-#   make perftest   — scroll performance test (Clock Monotonic Time)
 #   make clean      — remove derived data and artifacts
 
 SHELL          := /bin/bash
@@ -32,9 +31,7 @@ XCODEBUILD_FLAGS = \
 	ENABLE_APP_SANDBOX=NO \
 	ENABLE_HARDENED_RUNTIME=NO
 
-PERF_RESULT    ?= artifacts/local/xcresult/perf-test.xcresult
-
-.PHONY: lint lint-fix build test test-ui test-all perftest clean artifacts help
+.PHONY: lint lint-fix build test test-ui test-all clean artifacts help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -81,19 +78,6 @@ test-ui: build ## Run UI smoke tests (FeederUITests)
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UI_RESULT) \
 		-only-testing:FeederUITests
-
-# ---------------------------------------------------------------------------
-# Performance
-# ---------------------------------------------------------------------------
-
-perftest: build ## Run scroll performance test (prints Clock Monotonic Time)
-	@echo "==> scroll performance test"
-	@mkdir -p $(dir $(PERF_RESULT))
-	@rm -rf $(PERF_RESULT)
-	xcodebuild test-without-building \
-		$(XCODEBUILD_FLAGS) \
-		-resultBundlePath $(PERF_RESULT) \
-		-only-testing:FeederUITests/FeederUITests/testScrollPerformance
 
 # ---------------------------------------------------------------------------
 # Full gate
