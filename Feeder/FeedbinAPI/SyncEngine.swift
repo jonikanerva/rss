@@ -23,7 +23,7 @@ final class SyncEngine {
   private(set) var isSyncing = false
   private(set) var isFetchingContent = false
   private(set) var lastError: String?
-  private(set) var syncProgress: String = ""
+
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
@@ -93,13 +93,13 @@ final class SyncEngine {
 
     do {
       // Sync subscriptions
-      syncProgress = "Syncing feeds..."
+
       let subscriptions = try await client.fetchSubscriptions()
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
       // Fetch and store favicon icons
-      syncProgress = "Fetching icons..."
+
       let icons = try await client.fetchIcons()
       try await writer.syncIcons(icons)
 
@@ -123,7 +123,7 @@ final class SyncEngine {
       logger.info("Primary sync complete")
     } catch {
       lastError = error.localizedDescription
-      syncProgress = "Sync failed"
+
       logger.error("Sync failed: \(error.localizedDescription)")
       isSyncing = false
     }
@@ -132,12 +132,10 @@ final class SyncEngine {
   // MARK: - Phase 1: Unread articles (streaming, newest first)
 
   private func syncUnread(using client: FeedbinClient, writer: DataWriter) async throws {
-    syncProgress = "Fetching unread articles..."
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     logger.info("Found \(unreadIDs.count) unread entries")
 
     guard !unreadIDs.isEmpty else {
-      syncProgress = "No unread articles"
       return
     }
 
@@ -165,25 +163,23 @@ final class SyncEngine {
       if !recent.isEmpty {
         let newCount = try await writer.persistEntries(recent, markAsRead: false)
         totalNew += newCount
-        syncProgress = "Loaded \(totalNew) unread articles..."
+
         logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
       }
     }
 
-    syncProgress = "Synced \(totalNew) unread articles"
     logger.info("Phase 1 complete: \(totalNew) unread entries persisted")
   }
 
   // MARK: - Incremental sync
 
   private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws {
-    syncProgress = "Checking unread state..."
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 
     let cutoff = Date().addingTimeInterval(-maxArticleAge)
     let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
-    syncProgress = "Fetching new entries..."
+
     logger.info("Fetching entries since \(sinceClamped.description)")
 
     var allEntries: [FeedbinEntry] = []
@@ -196,7 +192,7 @@ final class SyncEngine {
 
     if !allEntries.isEmpty {
       let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)
-      syncProgress = "Synced \(newCount) new entries"
+
       logger.info("Incremental sync: \(newCount) new entries")
     }
 
@@ -279,7 +275,7 @@ final class SyncEngine {
       isSyncing = true
       fetchedCount = 0
       totalToFetch = 0
-      syncProgress = "Loading recent history..."
+
       logger.info("Starting Phase 2: recent history backfill")
 
       do {
@@ -290,7 +286,7 @@ final class SyncEngine {
           if let total = page.totalCount { totalToFetch = total }
           let newCount = try await writer.persistEntries(page.entries, markAsRead: true)
           fetchedCount += page.entries.count
-          syncProgress = "History: \(fetchedCount)/\(totalToFetch) (\(newCount) new)"
+
           logger.info("Backfill: \(page.entries.count) fetched, \(newCount) new (\(self.fetchedCount)/\(self.totalToFetch))")
         }
 
@@ -321,11 +317,9 @@ final class SyncEngine {
           }
         }
 
-        syncProgress = ""
         logger.info("Phase 2 backfill complete (\(self.fetchedCount) entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
-        syncProgress = ""
       }
 
       isSyncing = false
