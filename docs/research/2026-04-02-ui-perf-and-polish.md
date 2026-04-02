@@ -272,6 +272,40 @@ Apply D + E + A + B together, in priority order:
 
 **Investigate**: The perceived "pure black" may be a contrast illusion from the bright #E8654A accent. Toning down the accent may fix the perception without changing backgrounds.
 
+### 5.1b Visual Reference: Feedbin macOS App
+
+Screenshot reference: `~/Desktop/Screenshot 2026-04-02 at 20.39.14.png`
+
+Feedbin is a polished macOS RSS reader with a similar 3-panel layout. Key color analysis:
+
+| Element | Feedbin Color | Our Current | Action |
+|---------|--------------|-------------|--------|
+| Sidebar background | ~`#2B2B2B` (dark gray, vibrancy) | System default | Use `.regularMaterial` or semantic color |
+| Article list background | ~`#1E1E1E` (slightly darker) | `.scrollContentBackground(.hidden)` | Explicit `Color(.controlBackgroundColor)` |
+| Reader pane background | **White/light** | Same dark as list | Consider light reader pane for contrast |
+| Selection highlight | ~`#3A3A3C` (subtle dark gray) | Bright `unemphasizedSelectedContentBackgroundColor` with rounded rect | Much more subtle, no rounded rect |
+| Feed name (list row) | ~`#8A8A8A` muted gray, ALL CAPS | `#E8654A` bright orange, ALL CAPS | **Tone down dramatically** — muted gray, not accent color |
+| Article title (list) | `#FFFFFF` white, bold | `.primary` | OK as-is |
+| URL/summary text | ~`#6E6E73` dim gray | `.tertiary` | OK as-is |
+| Time stamp | ~`#6E6E73` dim gray | `.tertiary` | OK as-is |
+| Detail panel date | ~`#8A8A8A` gray, small | `#E8654A` orange accent | Change to muted gray |
+| Detail panel category tag | ~`#C0463A` muted red | N/A | Could adopt for category labels |
+| Link color | ~`#4A90D9` blue | `#E8654A` orange | Consider standard blue for links |
+
+**Key design principles from Feedbin:**
+
+1. **Accent color used sparingly** — only on category tags and links, never on feed names or timestamps. Our app overuses `#E8654A` on feed names, dates, and author lines.
+2. **Selection is ultra-subtle** — just a slight background shade change, no bright highlight or rounded rect. Lets content speak.
+3. **Three distinct depth levels** — sidebar (medium dark), list (dark), reader (light). Creates visual hierarchy through background contrast.
+4. **Feed name is deliberately understated** — small, gray, uppercase. It's metadata, not a headline. Our bright orange feed name competes with the article title for attention.
+5. **Reader pane uses light background** — strong contrast with the dark list panel. This is the most striking difference from our current design.
+
+**Recommendations based on reference:**
+- Reduce accent color usage: feed names → muted gray, dates → muted gray
+- Reserve accent color for interactive elements only (links, category tags)
+- Consider light reader pane (would require `prefers-color-scheme` aware CSS)
+- Simplify selection to subtle background shade, no rounded rect
+
 ### 5.2 Selection Styling
 
 **Current state** (`ContentView.swift:113-121`):
