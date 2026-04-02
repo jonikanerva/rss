@@ -41,10 +41,13 @@ final class SyncEngine {
   private var lastProgressUpdate: ContinuousClock.Instant = .now
 
   /// Configure the sync engine with credentials and model container.
-  /// DataWriter is created on a background thread to ensure it runs off MainActor.
-  func configure(username: String, password: String, modelContainer: ModelContainer) {
+  /// DataWriter is created via Task.detached to ensure its @ModelActor
+  /// executor runs off the main thread.
+  func configure(username: String, password: String, modelContainer: ModelContainer) async {
     self.client = FeedbinClient(username: username, password: password)
-    self.writer = DataWriter(modelContainer: modelContainer)
+    self.writer = await Task.detached {
+      DataWriter(modelContainer: modelContainer)
+    }.value
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
   }
 
