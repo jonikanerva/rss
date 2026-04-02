@@ -158,30 +158,33 @@ actor FeedbinClient {
     try checkResponse(response)
     let entries = try decoder.decode([FeedbinEntry].self, from: data)
 
-    // Parse Link header for pagination
     let hasNextPage = parseLinkHeader(response)
+    let totalCount = parseRecordCount(response)
 
-    return FeedbinEntriesPage(entries: entries, hasNextPage: hasNextPage)
+    return FeedbinEntriesPage(entries: entries, hasNextPage: hasNextPage, totalCount: totalCount)
   }
 
-  /// Fetch all entries, auto-paginating. Uses `since` for incremental sync.
-  func fetchAllEntries(since: Date? = nil) async throws -> [FeedbinEntry] {
-    var allEntries: [FeedbinEntry] = []
-    var page = 1
-
-    while true {
-      let result = try await fetchEntries(since: since, page: page)
-      allEntries.append(contentsOf: result.entries)
-      FeedbinClient.logger.info("Fetched page \(page): \(result.entries.count) entries (\(allEntries.count) total so far)")
-
-      if !result.hasNextPage || result.entries.isEmpty {
-        break
+  /// Fetch all entries page by page as an async sequence.
+  /// Each yielded page includes entries, pagination state, and total record count from X-Feedbin-Record-Count.
+  nonisolated func fetchAllEntryPages(since: Date? = nil) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
+    let client = self
+    return AsyncThrowingStream { continuation in
+      let task = Task {
+        var page = 1
+        do {
+          while !Task.isCancelled {
+            let result = try await client.fetchEntries(since: since, page: page)
+            continuation.yield(result)
+            if !result.hasNextPage || result.entries.isEmpty { break }
+            page += 1
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
       }
-      page += 1
+      continuation.onTermination = { _ in task.cancel() }
     }
-
-    FeedbinClient.logger.info("Fetched all entries: \(allEntries.count) total across \(page) pages")
-    return allEntries
   }
 
   // MARK: - Icons
@@ -217,6 +220,15 @@ actor FeedbinClient {
     if let error = mapHTTPStatus(http.statusCode) {
       throw error
     }
+  }
+
+  private func parseRecordCount(_ response: URLResponse) -> Int? {
+    guard
+      let http = response as? HTTPURLResponse,
+      let value = http.value(forHTTPHeaderField: "X-Feedbin-Record-Count"),
+      let count = Int(value)
+    else { return nil }
+    return count
   }
 
   private func parseLinkHeader(_ response: URLResponse) -> Bool {

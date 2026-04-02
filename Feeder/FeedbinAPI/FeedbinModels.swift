@@ -34,6 +34,7 @@ nonisolated struct FeedbinIcon: Decodable, Sendable {
 nonisolated struct FeedbinEntriesPage: Sendable {
   let entries: [FeedbinEntry]
   let hasNextPage: Bool
+  let totalCount: Int?
 }
 
 /// Extracted full content from Feedbin's Mercury Parser service.

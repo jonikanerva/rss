@@ -195,10 +195,6 @@ struct ContentView: View {
 
   private var fetchStatusText: String? {
     if syncEngine.isSyncing {
-      let progress = syncEngine.syncProgress
-      if !progress.isEmpty {
-        return progress
-      }
       let n = syncEngine.fetchedCount
       let x = syncEngine.totalToFetch
       return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
