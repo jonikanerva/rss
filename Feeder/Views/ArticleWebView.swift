@@ -17,6 +17,8 @@ struct ArticleWebView: NSViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
+    // Make WKWebView background transparent so SwiftUI background shows through.
+    // No public API exists on macOS for this — KVC is the standard workaround.
     webView.setValue(false, forKey: "drawsBackground")
     context.coordinator.webView = webView
     return webView

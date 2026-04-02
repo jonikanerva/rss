@@ -197,6 +197,8 @@ final class SyncEngine {
       }
       logger.info("Incremental page: \(page.entries.count) entries (\(allEntries.count) total)")
     }
+    // Ensure final count is published after loop
+    fetchedCount = allEntries.count
 
     if !allEntries.isEmpty {
       let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)
