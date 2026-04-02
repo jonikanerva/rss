@@ -84,7 +84,7 @@ For research and analysis, spawn focused subagents in parallel when multiple dom
 
 ## Swift 6 Strict Concurrency and Code Style (Non-Negotiable)
 
-Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`.
+Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`. App behavior rules: `docs/app-rules.md`.
 
 ### Two-Layer Architecture
 
