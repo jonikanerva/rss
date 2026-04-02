@@ -17,7 +17,7 @@ struct ArticleWebView: NSViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
-    webView.underPageBackgroundColor = .clear
+    webView.setValue(false, forKey: "drawsBackground")
     context.coordinator.webView = webView
     return webView
   }
