@@ -116,23 +116,31 @@ User specified "Synced Today hh:mm" — current code shows "Synced today hh:mm" 
 
 **Confidence:** High
 
-### M4: Document status display spec in CLAUDE.md
+### M4: Create `docs/app-rules.md` with status display spec
 
-**File:** `CLAUDE.md`
+**New file:** `docs/app-rules.md`
 
-Add a "Status Display Specification" section that locks down the exact behavior so future agents cannot drift from this design. This section goes under a new heading and specifies:
+Create a new "app fundamentals" document for rules that must never be broken. This is the place for locked-down behavioral specs — not code style (that's `swift-code-rules.md`), not architecture (that's `CLAUDE.md`), but concrete app behavior contracts.
+
+**Initial content — Status Display section:**
 
 - The status display is the two-line area below "News" in the sidebar
 - **Line 1 (sync):** Exactly three states — "Syncing...", "Fetching xxx/yyy", "Synced today hh:mm"
 - **Line 2 (classification):** Exactly two states — "Categorizing xxx/yyy" (active), hidden (idle)
 - No other text, status, or information may appear on either line
-- Status text is computed in ContentView only — SyncEngine/ClassificationEngine expose raw counters, not display strings
+- Status text is computed in ContentView only — engines expose raw counters, not display strings
 - Never show provider names, phase details, error messages, or intermediate sync step descriptions in the sidebar status
 
+**Integration points:**
+
+1. **CLAUDE.md** — add one-line reference: `App behavior rules: docs/app-rules.md`
+2. **`.claude/skills/codereview/skill.md`** — add to review checklist: read `docs/app-rules.md` and verify changes don't violate any app rules
+
 **Acceptance criteria:**
-- CLAUDE.md contains a clear, unambiguous spec for the status display
-- Any future agent reading CLAUDE.md knows exactly what the status display must show
-- The spec is prescriptive ("must", "never") not descriptive
+- `docs/app-rules.md` exists with prescriptive ("must", "never") status display spec
+- CLAUDE.md references it so agents discover it during normal work
+- Codereview skill reads it as part of every review
+- Future app behavior rules can be added to the same file
 
 **Confidence:** High
 
@@ -161,7 +169,7 @@ Run `make build` and verify zero errors and zero warnings.
 | M1: Simplify fetchStatusText | High | Removing 4 lines from a computed property |
 | M2: Verify classifyStatusText | High | No change needed — already correct |
 | M3: Verify lastSyncText | High | No change needed — already correct |
-| M4: Document spec in CLAUDE.md | High | Writing documentation |
+| M4: Create docs/app-rules.md + integrate | High | New file + two one-line additions |
 | M5: Build verification | High | Trivial change, no new code paths |
 
 **Overall: High** — this is a 4-line deletion + documentation.
@@ -176,4 +184,6 @@ Run `make build` and verify zero errors and zero warnings.
 - [ ] Manual verification: classification shows "Categorizing N/X" then disappears
 - [ ] Manual verification: no other text appears on either status line
 - [ ] No changes to SyncEngine.swift, ClassificationEngine.swift, or any other file
-- [ ] CLAUDE.md contains status display spec that locks down the exact behavior for future agents
+- [ ] `docs/app-rules.md` exists with prescriptive status display spec
+- [ ] CLAUDE.md references `docs/app-rules.md`
+- [ ] Codereview skill reads `docs/app-rules.md` as part of every review
