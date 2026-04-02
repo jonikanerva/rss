@@ -16,7 +16,8 @@
 | 6 | M6: View Mode Toggle | DONE | R key + toolbar button, .web/.reader modes |
 | 7 | Code review round 1 | DONE | 3 blocking issues found |
 | 8 | Code review fixes | DONE | Security: JS disabled, WKUserScript, event handler stripping |
-| 9 | Code review round 2 | PENDING | Awaiting results |
+| 9 | Code review round 2 | DONE | PASS — 0 critical, 4 warnings (non-blocking) |
+| 10 | Human review | PENDING | Awaiting user testing in Xcode |
 
 ## Files Changed (15)
 
@@ -46,8 +47,14 @@
 2. **Dead code:** Base URL image conversion unreachable → Fixed: replaced with event handler stripping
 3. **Performance:** DateFormatter per-call → Fixed: module-level cached instances
 
+### Round 2 (PASS)
+- 0 critical issues
+- 4 warnings (non-blocking): JS execution flag, HTML injection order, stripHTMLToPlainText in render, groupedByDay recomputation
+- Positives: solid security model, clean architecture compliance, good WKWebView lifecycle management
+
 ### Test Results
 - swift-format lint: PASS
 - Build (zero warnings): PASS
 - Unit tests: PASS (7/7)
 - UI smoke tests: PASS (4/4)
+- Code review: PASS (round 2)
