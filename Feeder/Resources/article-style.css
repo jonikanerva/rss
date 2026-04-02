@@ -69,8 +69,31 @@ header {
 
 .byline {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.byline-text {
+  display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.favicon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.favicon-placeholder {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--text-tertiary);
+  opacity: 0.3;
+  flex-shrink: 0;
 }
 
 .author {
