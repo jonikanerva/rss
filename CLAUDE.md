@@ -33,7 +33,7 @@ If uncertain about classification, default to MEANINGFUL.
 
 ### Mandatory Test Gate (Before PR)
 
-**CRITICAL: You MUST run `bash .claude/scripts/test-all.sh` and get ALL GREEN before creating a PR or presenting changes to the user.** No exceptions. If tests fail, fix the issues and re-run until all pass. Do NOT skip this step or create a PR with failing tests.
+**CRITICAL: You MUST run `make test-all` and get ALL GREEN before creating a PR or presenting changes to the user.** No exceptions. If tests fail, fix the issues and re-run until all pass. Do NOT skip this step or create a PR with failing tests.
 
 ### Worktree Exit (Before PR)
 
@@ -107,8 +107,8 @@ No `DispatchQueue`/GCD/`NSLock`/semaphores/`OperationQueue`. No completion handl
 ### Build Verification
 
 ```bash
-xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2>&1 | grep -E "(error:|warning:)"
-# Must produce zero output
+make build
+# Must produce zero warnings and zero errors
 ```
 
 ## Language
@@ -122,7 +122,6 @@ xcodebuild -project Feeder.xcodeproj -scheme Feeder -configuration Debug build 2
 - Branch naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`
 - One worktree per session, one task branch, one PR scope.
 - PRs target `main` only. Never push directly to `main`.
-- Run `bash .claude/scripts/use-github-app-auth.sh` before push/PR.
 - After PR is merged: delete the local and remote feature branch, switch back to `main`, and pull.
 
 ## Decision Rights
