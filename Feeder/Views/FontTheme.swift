@@ -12,7 +12,9 @@ enum FontTheme {
   static let captionSize: CGFloat = baseSize - 1  // 14 (was 12)
   static let metadataSize: CGFloat = baseSize  // 15 (was 13)
   static let bodySize: CGFloat = baseSize + 3  // 18 (was 16)
-  static let rowTitleSize: CGFloat = baseSize + 2  // 17 (was 15)
+  static let rowTitleSize: CGFloat = baseSize + 2  // 17 — article list row title
+  static let rowFeedNameSize: CGFloat = baseSize - 2  // 13 — uppercase feed name in row
+  static let rowSummarySize: CGFloat = baseSize  // 15 — summary excerpt in row
   static let sectionHeaderSize: CGFloat = baseSize + 7  // 22 (was 20)
   static let articleTitleSize: CGFloat = baseSize + 15  // 30 (was 26)
   static let pillSize: CGFloat = baseSize - 1  // 14 (was 12)

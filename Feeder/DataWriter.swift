@@ -139,6 +139,33 @@ actor DataWriter {
     try modelContext.save()
   }
 
+  // MARK: - Icon persistence
+
+  func syncIcons(_ icons: [FeedbinIcon]) throws {
+    guard !icons.isEmpty else { return }
+    let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
+
+    let descriptor = FetchDescriptor<Feed>()
+    let feeds = try modelContext.fetch(descriptor)
+
+    var updated = 0
+    for feed in feeds {
+      guard let host = URL(string: feed.siteURL)?.host() else { continue }
+      let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+      if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
+        if feed.faviconURL != iconURL {
+          feed.faviconURL = iconURL
+          updated += 1
+        }
+      }
+    }
+
+    if updated > 0 {
+      try modelContext.save()
+      Self.logger.info("Updated favicon URLs for \(updated) feeds")
+    }
+  }
+
   // MARK: - Entry persistence
 
   func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {

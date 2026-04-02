@@ -36,6 +36,49 @@ extension EnvironmentValues {
   }
 }
 
+// MARK: - Date Section Helpers
+
+/// Format a section header label for a given date.
+private func sectionLabel(for date: Date) -> String {
+  let calendar = Calendar.current
+  if calendar.isDateInToday(date) {
+    return "TODAY"
+  } else if calendar.isDateInYesterday(date) {
+    return "YESTERDAY"
+  } else {
+    let weekday = date.formatted(.dateTime.weekday(.wide))
+    let day = calendar.component(.day, from: date)
+    let month = date.formatted(.dateTime.month(.wide))
+    let year = date.formatted(.dateTime.year())
+    return "\(weekday) \(day). \(month) \(year)".uppercased()
+  }
+}
+
+/// Group entries by calendar day (start of day), preserving order.
+private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, entries: [Entry])] {
+  let calendar = Calendar.current
+  var groups: [(date: Date, label: String, entries: [Entry])] = []
+  var currentDay: Date?
+  var currentEntries: [Entry] = []
+
+  for entry in entries {
+    let day = calendar.startOfDay(for: entry.publishedAt)
+    if day != currentDay {
+      if let prevDay = currentDay, !currentEntries.isEmpty {
+        groups.append((date: prevDay, label: sectionLabel(for: prevDay), entries: currentEntries))
+      }
+      currentDay = day
+      currentEntries = [entry]
+    } else {
+      currentEntries.append(entry)
+    }
+  }
+  if let lastDay = currentDay, !currentEntries.isEmpty {
+    groups.append((date: lastDay, label: sectionLabel(for: lastDay), entries: currentEntries))
+  }
+  return groups
+}
+
 // MARK: - Entry List View (dynamic @Query filtered by category + read status in SQLite)
 
 struct EntryListView: View {
@@ -59,20 +102,30 @@ struct EntryListView: View {
   }
 
   var body: some View {
+    let sections = groupedByDay(entries)
     List(selection: $selectedEntry) {
-      ForEach(entries) { entry in
-        EntryRowView(entry: entry)
-          .tag(entry)
-          .listRowSeparator(.hidden)
-          .listRowBackground(
-            RoundedRectangle(cornerRadius: 8)
-              .fill(
-                selectedEntry == entry
-                  ? FontTheme.listSelectionColor
-                  : Color.clear
+      ForEach(sections, id: \.date) { section in
+        Section {
+          ForEach(section.entries) { entry in
+            EntryRowView(entry: entry)
+              .tag(entry)
+              .listRowSeparator(.hidden)
+              .listRowBackground(
+                RoundedRectangle(cornerRadius: 8)
+                  .fill(
+                    selectedEntry == entry
+                      ? FontTheme.listSelectionColor
+                      : Color.clear
+                  )
+                  .padding(.horizontal, 4)
               )
-              .padding(.horizontal, 4)
-          )
+          }
+        } header: {
+          Text(section.label)
+            .font(.system(size: FontTheme.captionSize, weight: .medium))
+            .foregroundStyle(.tertiary)
+            .textCase(nil)
+        }
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
@@ -115,6 +168,8 @@ struct ContentView: View {
   private var selectedCategory: String?
   @State
   private var articleFilter: ArticleFilter = .unread
+  @State
+  private var articleViewMode: ArticleViewMode = .web
   @State
   private var needsSetup = false
   @State
@@ -202,6 +257,7 @@ struct ContentView: View {
       if let entry = newEntry, !entry.isRead {
         pendingReadIDs.insert(entry.feedbinEntryID)
       }
+      articleViewMode = .web
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
@@ -226,8 +282,13 @@ struct ContentView: View {
       selectedEntry = nil
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "b")) { _ in
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
       openInBackground()
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
+      guard selectedEntry != nil else { return .ignored }
+      articleViewMode = articleViewMode == .web ? .reader : .web
       return .handled
     }
   }
@@ -347,8 +408,19 @@ struct ContentView: View {
   @ViewBuilder
   private var detailView: some View {
     if let selectedEntry {
-      EntryDetailView(entry: selectedEntry)
+      EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
         .toolbar {
+          ToolbarItem(placement: .automatic) {
+            Button {
+              articleViewMode = articleViewMode == .web ? .reader : .web
+            } label: {
+              Label(
+                articleViewMode == .web ? "Reader Mode" : "Web Mode",
+                systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
+              )
+            }
+            .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
+          }
           ToolbarItem(placement: .automatic) {
             Button {
               openInBackground()

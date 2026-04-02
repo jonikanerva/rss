@@ -184,6 +184,17 @@ actor FeedbinClient {
     return allEntries
   }
 
+  // MARK: - Icons
+
+  /// Fetch all favicon icons for the user's subscriptions.
+  /// GET /v2/icons.json
+  func fetchIcons() async throws -> [FeedbinIcon] {
+    let url = baseURL.appending(path: "icons.json")
+    let (data, response) = try await session.data(from: url)
+    try checkResponse(response)
+    return try decoder.decode([FeedbinIcon].self, from: data)
+  }
+
   // MARK: - Extracted Content
 
   /// Fetch extracted full content from Feedbin's Mercury Parser.

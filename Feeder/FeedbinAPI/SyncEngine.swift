@@ -98,6 +98,11 @@ final class SyncEngine {
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
+      // Fetch and store favicon icons
+      syncProgress = "Fetching icons..."
+      let icons = try await client.fetchIcons()
+      try await writer.syncIcons(icons)
+
       if lastSyncDate != nil {
         try await syncIncremental(using: client, writer: writer)
       } else {
