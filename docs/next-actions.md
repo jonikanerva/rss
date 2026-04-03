@@ -18,12 +18,9 @@ Status: Active
    - Category management UI still needs a way to define the folder→category hierarchy, even if the main timeline UI only shows folders.
    - Needs research and design discussion before implementation.
 
-2. **Sync read status to Feedbin**
-   - Owner: Agent
-   - Implement read state sync back to Feedbin API.
-
 ## Completed history
 
+- **2026-04-03**: Sync read status to Feedbin — fire-and-forget push via DELETE /v2/unread_entries.json, push-before-pull in incremental sync, eager push on app background. PR #42.
 - **2026-04-03**: Keep days runtime — date-based @Query filtering hides articles outside retention window without deletion, classification cancel/restart on setting change, fixed 30-day startup purge. PR #41.
 - **2026-04-03**: Test suite quality review — fixed Keychain prompt (CODE_SIGNING_ALLOWED=NO), split test gates, removed 19 low-value tests, added 13 DataWriter entry integration tests, deleted launch tests. PR #39.
 - **2026-04-03**: Codereview skill: added premium quality standard, zero-tolerance policy, and 4 new checks (dead code, duplication, leftover markers, naming & clarity).
