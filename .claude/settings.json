@@ -1,12 +1,50 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push origin:*)",
+      "Bash(git pull:*)",
+      "Bash(git worktree:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:developer.apple.com)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push origin main:*)",
+      "Bash(rm -rf:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read",
+        "matcher": "Read",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/gate-enforcer.sh"
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \".env\"; then echo \"BLOCKED: reading .env files is not allowed\" >&2; exit 2; fi'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"gh pr create\"; then echo \"PR created. Run /codereview to start review.\"; fi'"
           }
         ]
       }

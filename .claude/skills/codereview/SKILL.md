@@ -28,7 +28,7 @@ Specific zero-tolerance rules:
 
 Analyze the PR and evaluate:
 
-1. **Scope verification** — does the diff match the PR description? Are there undocumented changes — especially removals, renames, or architectural shifts? Cross-check against any research/plan artifacts included in the PR branch (`docs/research/`, `docs/plans/`).
+1. **Scope verification** — does the diff match the PR description? Are there undocumented changes — especially removals, renames, or architectural shifts?
 2. **Security analysis** — injection risks, credential exposure, unsafe data handling, OWASP top 10.
 3. **Threat modeling** — what could go wrong in production? Data corruption, migration issues, race conditions, crashes.
 4. **Code style** — compliance with code style section in `docs/swift-code-rules.md`.
