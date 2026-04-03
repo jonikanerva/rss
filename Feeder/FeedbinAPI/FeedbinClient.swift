@@ -3,6 +3,25 @@ import OSLog
 
 // MARK: - Pure helpers (nonisolated, testable)
 
+/// Create a JSONDecoder configured for Feedbin API responses.
+/// Uses `convertFromSnakeCase` keys and ISO 8601 dates (with optional fractional seconds).
+nonisolated func makeFeedbinDecoder() -> JSONDecoder {
+  let decoder = JSONDecoder()
+  decoder.keyDecodingStrategy = .convertFromSnakeCase
+  decoder.dateDecodingStrategy = .custom { decoder in
+    let container = try decoder.singleValueContainer()
+    let string = try container.decode(String.self)
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: string) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    if let date = formatter.date(from: string) { return date }
+    throw DecodingError.dataCorruptedError(
+      in: container, debugDescription: "Cannot decode date: \(string)")
+  }
+  return decoder
+}
+
 /// Check if a Link header indicates a next page exists.
 nonisolated func hasNextPageInLinkHeader(_ headerValue: String?) -> Bool {
   guard let header = headerValue else { return false }
@@ -50,29 +69,7 @@ actor FeedbinClient {
     ]
     self.session = URLSession(configuration: config)
 
-    let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
-    // Feedbin uses ISO 8601 with fractional seconds
-    decoder.dateDecodingStrategy = .custom { decoder in
-      let container = try decoder.singleValueContainer()
-      let string = try container.decode(String.self)
-      // Try with fractional seconds first
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      if let date = formatter.date(from: string) {
-        return date
-      }
-      // Fallback: try without fractional seconds
-      formatter.formatOptions = [.withInternetDateTime]
-      if let date = formatter.date(from: string) {
-        return date
-      }
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Cannot decode date: \(string)"
-      )
-    }
-    self.decoder = decoder
+    self.decoder = makeFeedbinDecoder()
   }
 
   // MARK: - Authentication

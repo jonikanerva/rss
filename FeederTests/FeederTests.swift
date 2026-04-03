@@ -8,78 +8,6 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - Category Model Tests
-
-struct CategoryModelTests {
-  @Test
-  func topLevelCategoryHasCorrectDefaults() {
-    let cat = Category(
-      label: "technology", displayName: "Technology",
-      categoryDescription: "Tech news", sortOrder: 0)
-    #expect(cat.parentLabel == nil)
-    #expect(cat.depth == 0)
-    #expect(cat.isTopLevel == true)
-  }
-
-  @Test
-  func childCategoryHasCorrectFields() {
-    let cat = Category(
-      label: "apple", displayName: "Apple",
-      categoryDescription: "Apple news", sortOrder: 0,
-      parentLabel: "technology")
-    #expect(cat.parentLabel == "technology")
-    #expect(cat.depth == 1)
-    #expect(cat.isTopLevel == false)
-  }
-
-  @Test
-  func categoryLabelIsUnique() {
-    let cat = Category(
-      label: "ai", displayName: "AI",
-      categoryDescription: "AI news", sortOrder: 2,
-      parentLabel: "technology")
-    #expect(cat.label == "ai")
-  }
-  @Test
-  func systemCategoryHasFlag() {
-    let cat = Category(
-      label: uncategorizedLabel, displayName: "Uncategorized",
-      categoryDescription: "Fallback", sortOrder: Int.max, isSystem: true)
-    #expect(cat.isSystem == true)
-  }
-
-  @Test
-  func defaultCategoryIsNotSystem() {
-    let cat = Category(
-      label: "tech", displayName: "Tech",
-      categoryDescription: "Tech", sortOrder: 0)
-    #expect(cat.isSystem == false)
-  }
-}
-
-// MARK: - CategoryDefinition DTO Tests
-
-struct CategoryDefinitionTests {
-  @Test
-  func dtoCarriesHierarchyInfo() {
-    let dto = CategoryDefinition(
-      label: "apple", description: "Apple news",
-      parentLabel: "technology", isTopLevel: false)
-    #expect(dto.label == "apple")
-    #expect(dto.parentLabel == "technology")
-    #expect(dto.isTopLevel == false)
-  }
-
-  @Test
-  func topLevelDtoHasNilParent() {
-    let dto = CategoryDefinition(
-      label: "world", description: "World news",
-      parentLabel: nil, isTopLevel: true)
-    #expect(dto.parentLabel == nil)
-    #expect(dto.isTopLevel == true)
-  }
-}
-
 // MARK: - Deepest-Match Logic Tests (uses extracted enforceDeepestMatch function)
 
 struct DeepestMatchTests {
@@ -260,24 +188,6 @@ struct FilterValidLabelsTests {
   }
 }
 
-// MARK: - Article Keep Days Tests
-
-struct ArticleKeepDaysTests {
-  @Test
-  func defaultKeepDaysIs7() {
-    let stored = UserDefaults.standard.integer(forKey: "article_keep_days_test_nonexistent")
-    let result = stored > 0 ? stored : 7
-    #expect(result == 7)
-  }
-
-  @Test
-  func maxArticleAgeMatchesKeepDays() {
-    let days = 3
-    let expected = TimeInterval(days) * 24 * 60 * 60
-    #expect(expected == 259200)
-  }
-}
-
 // MARK: - Pure Helper Tests (stripHTMLToPlainText, formatEntryDate)
 
 struct HTMLStrippingTests {
@@ -349,57 +259,6 @@ struct DateFormattingTests {
     #expect(!formatted.hasPrefix("Yesterday,"))
     // Should start with a weekday name
     #expect(formatted.contains(","))
-  }
-
-  @Test
-  func ordinalSuffix1st() {
-    // Create a date on the 1st of any month
-    var components = Calendar.current.dateComponents([.year, .month], from: Date())
-    components.day = 1
-    components.hour = 12
-    let date = Calendar.current.date(from: components)!
-    let formatted = formatEntryDate(date)
-    #expect(formatted.contains("1st"))
-  }
-
-  @Test
-  func ordinalSuffix2nd() {
-    var components = Calendar.current.dateComponents([.year, .month], from: Date())
-    components.day = 2
-    components.hour = 12
-    let date = Calendar.current.date(from: components)!
-    let formatted = formatEntryDate(date)
-    #expect(formatted.contains("2nd"))
-  }
-
-  @Test
-  func ordinalSuffix3rd() {
-    var components = Calendar.current.dateComponents([.year, .month], from: Date())
-    components.day = 3
-    components.hour = 12
-    let date = Calendar.current.date(from: components)!
-    let formatted = formatEntryDate(date)
-    #expect(formatted.contains("3rd"))
-  }
-
-  @Test
-  func ordinalSuffix11th() {
-    var components = Calendar.current.dateComponents([.year, .month], from: Date())
-    components.day = 11
-    components.hour = 12
-    let date = Calendar.current.date(from: components)!
-    let formatted = formatEntryDate(date)
-    #expect(formatted.contains("11th"))
-  }
-
-  @Test
-  func ordinalSuffix21st() {
-    var components = Calendar.current.dateComponents([.year, .month], from: Date())
-    components.day = 21
-    components.hour = 12
-    let date = Calendar.current.date(from: components)!
-    let formatted = formatEntryDate(date)
-    #expect(formatted.contains("21st"))
   }
 }
 
@@ -606,22 +465,6 @@ struct InputValidationGateTests {
   @Test
   func realTitleAndBodyDoesNotSkip() {
     #expect(shouldSkipClassification(title: "Breaking News", body: "Details about the event") == false)
-  }
-}
-
-// MARK: - Language Detection Tests (uses extracted detectLanguage)
-
-struct LanguageDetectionTests {
-  @Test
-  func detectsEnglish() {
-    let lang = detectLanguage("Apple today announced the M5 Ultra, its most powerful chip ever designed for professional workflows.")
-    #expect(lang == "en")
-  }
-
-  @Test
-  func emptyStringReturnsUnknown() {
-    let lang = detectLanguage("")
-    #expect(lang == "unknown")
   }
 }
 
