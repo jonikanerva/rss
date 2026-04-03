@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 import Testing
 
 @testable import Feeder
@@ -10,29 +9,7 @@ struct DataWriterEntryTests {
   // MARK: - Helpers
 
   private func makeWriter() async throws -> DataWriter {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(
-      for: Category.self, Entry.self, Feed.self,
-      configurations: config
-    )
-    return DataWriter(modelContainer: container)
-  }
-
-  private static func makeFeedbinDecoder() -> JSONDecoder {
-    let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
-    decoder.dateDecodingStrategy = .custom { decoder in
-      let container = try decoder.singleValueContainer()
-      let string = try container.decode(String.self)
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      if let date = formatter.date(from: string) { return date }
-      formatter.formatOptions = [.withInternetDateTime]
-      if let date = formatter.date(from: string) { return date }
-      throw DecodingError.dataCorruptedError(
-        in: container, debugDescription: "Cannot decode date: \(string)")
-    }
-    return decoder
+    try await DataWriterTestSupport.makeWriter()
   }
 
   private static func makeFeedbinSubscription(
@@ -118,7 +95,7 @@ struct DataWriterEntryTests {
   }
 
   @Test
-  func persistEntriesExtractsDomain() async throws {
+  func persistEntriesAssociatesWithFeed() async throws {
     let writer = try await makeWriter()
     let sub = try Self.makeFeedbinSubscription(
       id: 1, feedId: 100,
@@ -126,8 +103,9 @@ struct DataWriterEntryTests {
     try await writer.syncFeeds([sub])
 
     let entry = try Self.makeFeedbinEntry(id: 1001, feedId: 100)
-    _ = try await writer.persistEntries([entry], markAsRead: false)
+    let count = try await writer.persistEntries([entry], markAsRead: false)
 
+    #expect(count == 1)
     let inputs = try await writer.fetchUnclassifiedInputs()
     #expect(inputs.count == 1)
     #expect(inputs.first?.title == "Test Article")

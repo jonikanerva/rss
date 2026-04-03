@@ -10,12 +10,7 @@ struct DataWriterCategoryTests {
   // MARK: - Helpers
 
   private func makeWriter() async throws -> DataWriter {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(
-      for: Category.self, Entry.self, Feed.self,
-      configurations: config
-    )
-    return DataWriter(modelContainer: container)
+    try await DataWriterTestSupport.makeWriter()
   }
 
   private func seedHierarchy(_ writer: DataWriter) async throws {
