@@ -21,13 +21,15 @@ enum DetailDateFormatting {
   static func formatDate(_ date: Date) -> String {
     let dateStr = dateFormatter.string(from: date)
     let timeStr = timeFormatter.string(from: date)
-    return "\(dateStr) AT \(timeStr)".uppercased()
+    return "\(dateStr) at \(timeStr)"
   }
 }
 
 struct EntryDetailView: View {
   let entry: Entry
   let viewMode: ArticleViewMode
+  @Environment(\.accessibilityReduceMotion)
+  private var reduceMotion
 
   var body: some View {
     Group {
@@ -39,6 +41,7 @@ struct EntryDetailView: View {
       }
     }
     .id(entry.feedbinEntryID)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: viewMode)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
     .accessibilityIdentifier("entry.detail")
@@ -68,24 +71,29 @@ struct EntryDetailView: View {
       // Date + time
       Text(DetailDateFormatting.formatDate(entry.publishedAt))
         .font(.system(size: FontTheme.captionSize, weight: .medium))
-        .foregroundStyle(FontTheme.domainPillColor)
+        .foregroundStyle(.secondary)
 
       // Title
       Text(entry.title ?? "Untitled")
         .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
         .fixedSize(horizontal: false, vertical: true)
 
-      // Author + domain
-      VStack(alignment: .leading, spacing: 2) {
-        if let author = entry.author, !author.isEmpty {
-          Text(author.uppercased())
-            .font(.system(size: FontTheme.captionSize, weight: .medium))
-            .foregroundStyle(FontTheme.domainPillColor)
-        }
-        if let domain = entry.displayDomain, !domain.isEmpty {
-          Text(domain.uppercased())
-            .font(.system(size: FontTheme.captionSize, weight: .medium))
-            .foregroundStyle(.secondary)
+      // Favicon + author/domain
+      HStack(alignment: .center, spacing: 8) {
+        FaviconView(feed: entry.feed)
+          .frame(width: 20, height: 20)
+
+        VStack(alignment: .leading, spacing: 2) {
+          if let author = entry.author, !author.isEmpty {
+            Text(author)
+              .font(.system(size: FontTheme.captionSize, weight: .medium))
+              .foregroundStyle(.secondary)
+          }
+          if let domain = entry.displayDomain, !domain.isEmpty {
+            Text(domain.lowercased())
+              .font(.system(size: FontTheme.captionSize, weight: .medium))
+              .foregroundStyle(.tertiary)
+          }
         }
       }
     }

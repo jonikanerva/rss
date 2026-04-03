@@ -38,9 +38,9 @@ final class SyncEngine {
   private var periodicSyncTask: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
   private var extractedContentTask: Task<Void, Never>?
+  private var lastProgressUpdate: ContinuousClock.Instant = .now
 
   /// Configure the sync engine with credentials and model container.
-  /// DataWriter is created on a background thread to ensure it runs off MainActor.
   func configure(username: String, password: String, modelContainer: ModelContainer) {
     self.client = FeedbinClient(username: username, password: password)
     self.writer = DataWriter(modelContainer: modelContainer)
@@ -152,7 +152,11 @@ final class SyncEngine {
       let batchIDs = Array(sortedIDs[batchStart..<batchEnd])
 
       let entries = try await client.fetchEntriesByIDs(batchIDs)
-      fetchedCount = batchEnd
+      let now = ContinuousClock.now
+      if now - lastProgressUpdate >= .milliseconds(200) || batchEnd == sortedIDs.count {
+        fetchedCount = batchEnd
+        lastProgressUpdate = now
+      }
       let recent = entries.filter { $0.createdAt >= cutoff }
 
       if recent.isEmpty && !entries.isEmpty {
@@ -186,9 +190,15 @@ final class SyncEngine {
     for try await page in client.fetchAllEntryPages(since: sinceClamped) {
       if let total = page.totalCount { totalToFetch = total }
       allEntries.append(contentsOf: page.entries)
-      fetchedCount = allEntries.count
+      let now = ContinuousClock.now
+      if now - lastProgressUpdate >= .milliseconds(200) {
+        fetchedCount = allEntries.count
+        lastProgressUpdate = now
+      }
       logger.info("Incremental page: \(page.entries.count) entries (\(allEntries.count) total)")
     }
+    // Ensure final count is published after loop
+    fetchedCount = allEntries.count
 
     if !allEntries.isEmpty {
       let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)

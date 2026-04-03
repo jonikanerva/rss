@@ -44,6 +44,6 @@ The following must **never** appear on either status line:
 
 ### Implementation Contract
 
-- Status text is computed in `ContentView` only — as computed properties over engine counters.
+- Status text is computed in `SyncStatusView` (defined in `ContentView.swift`) — as computed properties over engine counters.
 - `SyncEngine` and `ClassificationEngine` expose raw numeric counters (`fetchedCount`, `totalToFetch`, `classifiedCount`, `totalToClassify`) and boolean flags (`isSyncing`, `isClassifying`).
 - The sidebar status display must **never** read `syncProgress` or `progress` strings from the engines.

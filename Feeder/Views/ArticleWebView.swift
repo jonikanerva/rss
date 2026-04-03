@@ -17,7 +17,6 @@ struct ArticleWebView: NSViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
-    webView.underPageBackgroundColor = .clear
     context.coordinator.webView = webView
     return webView
   }
@@ -39,8 +38,18 @@ struct ArticleWebView: NSViewRepresentable {
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")
     let author = escapeHTML(entry.author ?? "")
-    let domain = escapeHTML((entry.displayDomain ?? "").uppercased())
+    let domain = escapeHTML((entry.displayDomain ?? "").lowercased())
     let body = stripFeedStyles(entry.bestHTML)
+
+    let favicon: String
+    if let data = entry.feed?.faviconData {
+      let base64 = data.base64EncodedString()
+      favicon = "<img class=\"favicon\" src=\"data:image/png;base64,\(base64)\" alt=\"\">"
+    } else {
+      let firstChar = entry.feed?.title.first ?? Character("?")
+      let letter = escapeHTML(String(firstChar))
+      favicon = "<div class=\"favicon-placeholder\">\(letter)</div>"
+    }
 
     return
       template
@@ -49,6 +58,7 @@ struct ArticleWebView: NSViewRepresentable {
       .replacingOccurrences(of: "[[title]]", with: title)
       .replacingOccurrences(of: "[[author]]", with: author)
       .replacingOccurrences(of: "[[domain]]", with: domain)
+      .replacingOccurrences(of: "[[favicon]]", with: favicon)
       .replacingOccurrences(of: "[[body]]", with: body)
   }
 

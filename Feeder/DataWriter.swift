@@ -108,8 +108,20 @@ nonisolated func enforceDeepestMatch(
 
 /// Background actor that owns all SwiftData write operations.
 /// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
-@ModelActor
-actor DataWriter {
+///
+/// Uses ModelActor protocol with explicit init to guarantee the ModelContext
+/// and its serial executor run on a background thread (not the cooperative pool's main thread).
+actor DataWriter: ModelActor {
+  nonisolated let modelExecutor: any ModelExecutor
+  nonisolated let modelContainer: ModelContainer
+
+  init(modelContainer: ModelContainer) {
+    self.modelContainer = modelContainer
+    let context = ModelContext(modelContainer)
+    context.autosaveEnabled = false
+    self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
+  }
+
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
   // MARK: - Feed persistence
@@ -141,7 +153,7 @@ actor DataWriter {
 
   // MARK: - Icon persistence
 
-  func syncIcons(_ icons: [FeedbinIcon]) throws {
+  func syncIcons(_ icons: [FeedbinIcon]) async throws {
     guard !icons.isEmpty else { return }
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
 
@@ -153,8 +165,13 @@ actor DataWriter {
       guard let host = URL(string: feed.siteURL)?.host() else { continue }
       let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
       if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
-        if feed.faviconURL != iconURL {
+        if feed.faviconURL != iconURL || feed.faviconData == nil {
           feed.faviconURL = iconURL
+          if let url = URL(string: iconURL),
+            let (data, _) = try? await URLSession.shared.data(from: url)
+          {
+            feed.faviconData = data
+          }
           updated += 1
         }
       }
@@ -203,6 +220,7 @@ actor DataWriter {
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
+      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -248,6 +266,7 @@ actor DataWriter {
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
+      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -583,6 +602,7 @@ actor DataWriter {
       entry.formattedDate = formatEntryDate(entry.publishedAt)
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
+      entry.summaryPlainText = "Sample article \(index)"
       entry.isRead = index.isMultiple(of: 3)
       modelContext.insert(entry)
     }
@@ -606,6 +626,7 @@ actor DataWriter {
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
+    worldEntry.summaryPlainText = "EU finalizes AI transparency framework."
     worldEntry.isRead = false
     modelContext.insert(worldEntry)
 

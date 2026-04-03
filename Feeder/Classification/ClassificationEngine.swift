@@ -33,6 +33,7 @@ final class ClassificationEngine {
   private(set) var totalToClassify = 0
 
   private var classificationTask: Task<Void, Never>?
+  private var lastProgressUpdate: ContinuousClock.Instant = .now
 
   // MARK: - Continuous classification (polling loop)
 
@@ -113,6 +114,8 @@ final class ClassificationEngine {
 
     let supportedLangCodes = await provider.supportedLanguageCodes
 
+    var processedCount = 0
+
     for input in inputs {
       if Task.isCancelled { break }
 
@@ -126,8 +129,13 @@ final class ClassificationEngine {
           confidence: 0.0
         )
         try? await writer.applyClassification(entryID: emptyResult.entryID, result: emptyResult)
-        classifiedCount += 1
-        progress = "Categorizing \(classifiedCount)/\(totalToClassify) (\(providerName))"
+        processedCount += 1
+        let now = ContinuousClock.now
+        if now - lastProgressUpdate >= .milliseconds(200) || processedCount == inputs.count {
+          classifiedCount = processedCount
+          progress = "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))"
+          lastProgressUpdate = now
+        }
         continue
       }
 
@@ -196,11 +204,18 @@ final class ClassificationEngine {
       // Write result via background actor — zero MainActor SwiftData work
       try? await writer.applyClassification(entryID: result.entryID, result: result)
 
-      // Only progress UI state on MainActor (microseconds)
-      classifiedCount += 1
-      progress = "Categorizing \(classifiedCount)/\(totalToClassify) (\(providerName))"
+      // Throttled progress UI update (at most once per 200ms)
+      processedCount += 1
+      let now = ContinuousClock.now
+      if now - lastProgressUpdate >= .milliseconds(200) || processedCount == inputs.count {
+        classifiedCount = processedCount
+        progress = "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))"
+        lastProgressUpdate = now
+      }
     }
 
+    // Ensure final count is published
+    classifiedCount = processedCount
     let finalCount = classifiedCount
     logger.info("Classification batch complete: \(finalCount) entries")
     isClassifying = false

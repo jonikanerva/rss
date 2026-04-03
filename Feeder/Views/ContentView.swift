@@ -42,15 +42,15 @@ extension EnvironmentValues {
 private func sectionLabel(for date: Date) -> String {
   let calendar = Calendar.current
   if calendar.isDateInToday(date) {
-    return "TODAY"
+    return "Today"
   } else if calendar.isDateInYesterday(date) {
-    return "YESTERDAY"
+    return "Yesterday"
   } else {
     let weekday = date.formatted(.dateTime.weekday(.wide))
     let day = calendar.component(.day, from: date)
     let month = date.formatted(.dateTime.month(.wide))
     let year = date.formatted(.dateTime.year())
-    return "\(weekday) \(day). \(month) \(year)".uppercased()
+    return "\(weekday) \(day). \(month) \(year)"
   }
 }
 
@@ -110,15 +110,6 @@ struct EntryListView: View {
             EntryRowView(entry: entry)
               .tag(entry)
               .listRowSeparator(.hidden)
-              .listRowBackground(
-                RoundedRectangle(cornerRadius: 8)
-                  .fill(
-                    selectedEntry == entry
-                      ? FontTheme.listSelectionColor
-                      : Color.clear
-                  )
-                  .padding(.horizontal, 4)
-              )
           }
         } header: {
           Text(section.label)
@@ -129,7 +120,6 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
-    .scrollContentBackground(.hidden)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -144,6 +134,69 @@ struct EntryListView: View {
         }
       }
     }
+  }
+}
+
+// MARK: - Sync Status View (isolated from article list to prevent unnecessary re-renders)
+
+struct SyncStatusView: View {
+  @Environment(SyncEngine.self)
+  private var syncEngine
+  @Environment(ClassificationEngine.self)
+  private var classificationEngine
+
+  private var lastSyncText: String? {
+    guard let date = syncEngine.lastSyncDate else { return nil }
+    let calendar = Calendar.current
+    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    if calendar.isDateInToday(date) {
+      return "Synced today \(time)"
+    } else if calendar.isDateInYesterday(date) {
+      return "Synced yesterday \(time)"
+    } else {
+      return "Synced \(date.formatted(.dateTime.month(.abbreviated).day())) \(time)"
+    }
+  }
+
+  private var fetchStatusText: String? {
+    if syncEngine.isSyncing {
+      let n = syncEngine.fetchedCount
+      let x = syncEngine.totalToFetch
+      return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
+    }
+    return lastSyncText
+  }
+
+  private var classifyStatusText: String? {
+    guard classificationEngine.isClassifying else { return nil }
+    let n = classificationEngine.classifiedCount
+    let x = classificationEngine.totalToClassify
+    return x > 0 ? "Categorizing \(n)/\(x)" : nil
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text("News")
+        .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
+        .foregroundStyle(.primary)
+        .textCase(nil)
+
+      if let fetchStatus = fetchStatusText {
+        Text(fetchStatus)
+          .font(.system(size: FontTheme.statusSize))
+          .foregroundStyle(.tertiary)
+          .textCase(nil)
+          .contentTransition(.numericText())
+      }
+      if let classifyStatus = classifyStatusText {
+        Text(classifyStatus)
+          .font(.system(size: FontTheme.statusSize))
+          .foregroundStyle(.tertiary)
+          .textCase(nil)
+          .contentTransition(.numericText())
+      }
+    }
+    .padding(.bottom, 4)
   }
 }
 
@@ -178,36 +231,8 @@ struct ContentView: View {
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
   private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
-
-  /// Formatted last sync time for display.
-  private var lastSyncText: String? {
-    guard let date = syncEngine.lastSyncDate else { return nil }
-    let calendar = Calendar.current
-    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    if calendar.isDateInToday(date) {
-      return "Synced today \(time)"
-    } else if calendar.isDateInYesterday(date) {
-      return "Synced yesterday \(time)"
-    } else {
-      return "Synced \(date.formatted(.dateTime.month(.abbreviated).day())) \(time)"
-    }
-  }
-
-  private var fetchStatusText: String? {
-    if syncEngine.isSyncing {
-      let n = syncEngine.fetchedCount
-      let x = syncEngine.totalToFetch
-      return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
-    }
-    return lastSyncText
-  }
-
-  private var classifyStatusText: String? {
-    guard classificationEngine.isClassifying else { return nil }
-    let n = classificationEngine.classifiedCount
-    let x = classificationEngine.totalToClassify
-    return x > 0 ? "Categorizing \(n)/\(x)" : nil
-  }
+  @Environment(\.accessibilityReduceMotion)
+  private var reduceMotion
 
   var body: some View {
     NavigationSplitView {
@@ -229,6 +254,8 @@ struct ContentView: View {
             .padding(.vertical, 8)
           }
           .navigationTitle(navigationTitle)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
       } else {
         ContentUnavailableView {
           Label("No Category", systemImage: "newspaper")
@@ -347,26 +374,7 @@ struct ContentView: View {
           }
         }
       } header: {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("News")
-            .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
-            .foregroundStyle(.primary)
-            .textCase(nil)
-
-          if let fetchStatus = fetchStatusText {
-            Text(fetchStatus)
-              .font(.system(size: FontTheme.statusSize))
-              .foregroundStyle(.tertiary)
-              .textCase(nil)
-          }
-          if let classifyStatus = classifyStatusText {
-            Text(classifyStatus)
-              .font(.system(size: FontTheme.statusSize))
-              .foregroundStyle(.tertiary)
-              .textCase(nil)
-          }
-        }
-        .padding(.bottom, 4)
+        SyncStatusView()
       }
     }
     .listStyle(.sidebar)
