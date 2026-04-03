@@ -56,7 +56,6 @@ No `DispatchQueue`/GCD/`NSLock`/semaphores/`OperationQueue`. No completion handl
 - Use `/implement <task>` for the full branch → implement → test → PR workflow.
 - Every feature gets its own branch. Branch from `main`, PR back to `main`.
 - **NEVER** commit or push directly to `main`.
-- **NEVER** force push (`--force` or `--force-with-lease`).
 - Conventional Commits: `<type>(<scope>): <summary>`
 - Branch naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`
 - Commits must be complete logical units — one logical change per commit.
@@ -73,7 +72,8 @@ No `DispatchQueue`/GCD/`NSLock`/semaphores/`OperationQueue`. No completion handl
 
 ## Planning
 
-Use Claude Code's built-in `/plan` mode for any non-trivial work. Before implementation, research the codebase and relevant documentation as part of planning — no separate research phase needed.
+Use Claude Code's built-in `/plan` mode for any non-trivial work. Before implementation
+search the web, research the codebase, and read relevant documentation as part of planning.
 
 ## Code Review
 
