@@ -85,7 +85,7 @@ struct DataWriterEntryTests {
       id: 1001, content: "<p>Hello <b>world</b></p>")
     _ = try await writer.persistEntries([entry], markAsRead: false)
 
-    let inputs = try await writer.fetchUnclassifiedInputs()
+    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
     let persisted = inputs.first { $0.entryID == 1001 }
     #expect(persisted != nil)
     #expect(persisted?.body.contains("Hello") == true)
@@ -106,7 +106,7 @@ struct DataWriterEntryTests {
     let count = try await writer.persistEntries([entry], markAsRead: false)
 
     #expect(count == 1)
-    let inputs = try await writer.fetchUnclassifiedInputs()
+    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
     #expect(inputs.count == 1)
     #expect(inputs.first?.title == "Test Article")
   }
@@ -285,7 +285,7 @@ struct DataWriterEntryTests {
     }
     try await writer.purgeEntriesOlderThan(cutoff)
 
-    let remaining = try await writer.fetchUnclassifiedInputs()
+    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
     #expect(remaining.count == 1)
     #expect(remaining.first?.entryID == 1002)
   }

@@ -27,6 +27,14 @@ final class SyncEngine {
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
+  /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
+  private(set) var articleCutoffDate: Date = Date().addingTimeInterval(-maxArticleAge)
+
+  /// Recalculate article cutoff from current keepDays setting.
+  func refreshArticleCutoff() {
+    articleCutoffDate = Date().addingTimeInterval(-maxArticleAge)
+  }
+
   /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
   private(set) var lastSyncDate: Date? {
     get { UserDefaults.standard.object(forKey: "lastSyncDate") as? Date }
