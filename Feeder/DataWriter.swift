@@ -307,6 +307,26 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  /// Mark all unread classified entries in a category as read. Returns the feedbin entry IDs that were marked.
+  func markAllAsRead(category: String, cutoffDate: Date) throws -> Set<Int> {
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> {
+        $0.isClassified && $0.primaryCategory == category && !$0.isRead
+          && $0.publishedAt >= cutoffDate
+      }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    guard !entries.isEmpty else { return [] }
+    var markedIDs = Set<Int>()
+    for entry in entries {
+      entry.isRead = true
+      markedIDs.insert(entry.feedbinEntryID)
+    }
+    try modelContext.save()
+    Self.logger.info("Marked \(markedIDs.count) entries as read in category '\(category)'")
+    return markedIDs
+  }
+
   // MARK: - Extracted content
 
   func fetchExtractedContentRequests() throws -> [(entryID: Int, url: String)] {

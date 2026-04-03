@@ -242,19 +242,29 @@ struct ContentView: View {
       if let category = selectedCategory {
         EntryListView(category: category, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
           .environment(\.pendingReadIDs, pendingReadIDs)
-          .safeAreaInset(edge: .top) {
-            Picker("Filter", selection: $articleFilter) {
-              ForEach(ArticleFilter.allCases, id: \.self) { filter in
-                Text(filter.rawValue).tag(filter)
-              }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .accessibilityIdentifier("article.filter")
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-          }
           .navigationTitle(navigationTitle)
+          .toolbar {
+            ToolbarItem(placement: .automatic) {
+              Picker("Filter", selection: $articleFilter) {
+                ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                  Text(filter.rawValue).tag(filter)
+                }
+              }
+              .pickerStyle(.segmented)
+              .labelsHidden()
+              .accessibilityIdentifier("article.filter")
+            }
+            ToolbarItem(placement: .automatic) {
+              Button {
+                markAllAsRead()
+              } label: {
+                Image(systemName: "checkmark")
+              }
+              .disabled(articleFilter == .read)
+              .help("Mark all as read (⇧A)")
+              .accessibilityIdentifier("toolbar.markAllRead")
+            }
+          }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
       } else {
@@ -316,6 +326,11 @@ struct ContentView: View {
       articleViewMode = articleViewMode == .web ? .reader : .web
       return .handled
     }
+    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+      guard articleFilter == .unread, selectedCategory != nil else { return .ignored }
+      markAllAsRead()
+      return .handled
+    }
   }
 
   // MARK: - Child lookup (small category count, acceptable in-memory filter)
@@ -338,6 +353,19 @@ struct ContentView: View {
       for entryID in ids {
         try? await writer.markEntryRead(feedbinEntryID: entryID)
       }
+    }
+  }
+
+  private func markAllAsRead() {
+    guard let category = selectedCategory, let writer = syncEngine.writer else { return }
+    selectedEntry = nil
+    Task {
+      guard
+        let markedIDs = try? await writer.markAllAsRead(
+          category: category, cutoffDate: syncEngine.queryCutoffDate),
+        !markedIDs.isEmpty
+      else { return }
+      syncEngine.queueReadIDs(markedIDs)
     }
   }
 
@@ -414,34 +442,38 @@ struct ContentView: View {
 
   @ViewBuilder
   private var detailView: some View {
-    if let selectedEntry {
-      EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
-        .toolbar {
-          ToolbarItem(placement: .automatic) {
-            Button {
-              articleViewMode = articleViewMode == .web ? .reader : .web
-            } label: {
-              Label(
-                articleViewMode == .web ? "Reader Mode" : "Web Mode",
-                systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
-              )
-            }
-            .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
-          }
-          ToolbarItem(placement: .automatic) {
-            Button {
-              openInBackground()
-            } label: {
-              Label("Open in Browser", systemImage: "safari")
-            }
-            .help("Open in browser (B)")
-          }
+    Group {
+      if let selectedEntry {
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+      } else {
+        ContentUnavailableView {
+          Label("Select an Article", systemImage: "doc.text")
+        } description: {
+          Text("Choose an article from the list to read it.")
         }
-    } else {
-      ContentUnavailableView {
-        Label("Select an Article", systemImage: "doc.text")
-      } description: {
-        Text("Choose an article from the list to read it.")
+      }
+    }
+    .toolbar {
+      ToolbarItem(placement: .automatic) {
+        Button {
+          articleViewMode = articleViewMode == .web ? .reader : .web
+        } label: {
+          Label(
+            articleViewMode == .web ? "Reader Mode" : "Web Mode",
+            systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
+          )
+        }
+        .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
+        .disabled(selectedEntry == nil)
+      }
+      ToolbarItem(placement: .automatic) {
+        Button {
+          openInBackground()
+        } label: {
+          Label("Open in Browser", systemImage: "safari")
+        }
+        .help("Open in browser (B)")
+        .disabled(selectedEntry == nil)
       }
     }
   }
