@@ -38,11 +38,11 @@ struct EntryRowView: View {
       // All text content aligned to the right of the icon
       VStack(alignment: .leading, spacing: 3) {
         // Feed name + time
-        HStack(spacing: 6) {
-          Text(feedName)
-            .font(.system(size: FontTheme.rowFeedNameSize, weight: .semibold))
-            .foregroundStyle(FontTheme.domainPillColor)
-            .lineLimit(1)
+        HStack(alignment: .top, spacing: 5) {
+          Text(entry.title ?? "Untitled")
+            .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
+            .lineLimit(2)
+            .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
           Spacer()
 
@@ -51,11 +51,11 @@ struct EntryRowView: View {
             .foregroundStyle(.tertiary)
         }
 
-        // Title
-        Text(entry.title ?? "Untitled")
-          .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
-          .lineLimit(2)
-          .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+        if let domain = entry.displayDomain, !domain.isEmpty {
+          Text(domain.lowercased())
+            .font(.system(size: FontTheme.rowFeedNameSize, weight: .regular))
+            .foregroundStyle(FontTheme.domainPillColor)
+        }
 
         // Summary excerpt
         if !summaryText.isEmpty {
