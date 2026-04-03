@@ -108,11 +108,13 @@ struct DataWriterEntryTests {
       id: 1001, content: "<p>Hello <b>world</b></p>")
     _ = try await writer.persistEntries([entry], markAsRead: false)
 
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // Read back via the writer's container
-    let entries = try await writer.fetchUnclassifiedInputs()
-    let persisted = entries.first { $0.entryID == 1001 }
+    let inputs = try await writer.fetchUnclassifiedInputs()
+    let persisted = inputs.first { $0.entryID == 1001 }
     #expect(persisted != nil)
+    #expect(persisted?.body.contains("Hello") == true)
+    #expect(persisted?.body.contains("world") == true)
+    // HTML tags should be stripped
+    #expect(persisted?.body.contains("<p>") == false)
   }
 
   @Test
@@ -127,7 +129,8 @@ struct DataWriterEntryTests {
     _ = try await writer.persistEntries([entry], markAsRead: false)
 
     let inputs = try await writer.fetchUnclassifiedInputs()
-    #expect(!inputs.isEmpty)
+    #expect(inputs.count == 1)
+    #expect(inputs.first?.title == "Test Article")
   }
 
   @Test
@@ -135,13 +138,17 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(id: 1001)
-    _ = try await writer.persistEntries([entry], markAsRead: true)
+    let unreadEntry = try Self.makeFeedbinEntry(id: 1001)
+    let readEntry = try Self.makeFeedbinEntry(id: 1002, title: "Read One")
+    _ = try await writer.persistEntries([unreadEntry], markAsRead: false)
+    _ = try await writer.persistEntries([readEntry], markAsRead: true)
 
-    // Entry should not appear in unread-based queries
-    // Verify via updateReadState — marking all as unread should flip our entry
-    try await writer.updateReadState(unreadIDs: Set([1001]))
-    // If it was previously read, updateReadState would flip it — no crash confirms success
+    // Flip read entry to unread via updateReadState — verifies it was read before
+    try await writer.updateReadState(unreadIDs: Set([1001, 1002]))
+
+    // Both entries should exist as unclassified
+    let inputs = try await writer.fetchUnclassifiedInputs()
+    #expect(inputs.count == 2)
   }
 
   // MARK: - persistEntries (unreadIDs overload)
@@ -156,10 +163,14 @@ struct DataWriterEntryTests {
       try Self.makeFeedbinEntry(id: 1002, title: "Read Article"),
     ]
     // 1001 is unread, 1002 is not in unread set so it's read
-    _ = try await writer.persistEntries(entries, unreadIDs: Set([1001]))
+    let count = try await writer.persistEntries(entries, unreadIDs: Set([1001]))
 
-    // Verify by updating read state with empty unread set — all become read
-    try await writer.updateReadState(unreadIDs: Set())
+    #expect(count == 2)
+
+    // Verify read state: mark all as unread, then check both exist
+    try await writer.updateReadState(unreadIDs: Set([1001, 1002]))
+    let inputs = try await writer.fetchUnclassifiedInputs()
+    #expect(inputs.count == 2)
   }
 
   // MARK: - applyClassification
@@ -252,10 +263,12 @@ struct DataWriterEntryTests {
     // Mark 1001 as unread, 1002 and 1003 become read
     try await writer.updateReadState(unreadIDs: Set([1001]))
 
-    // Now flip: 1002 unread, rest read
+    // Now flip: only 1002 unread, rest become read
     try await writer.updateReadState(unreadIDs: Set([1002]))
 
-    // No crash, state toggled correctly
+    // All 3 entries should still be in the store (read state change doesn't delete)
+    let inputs = try await writer.fetchUnclassifiedInputs()
+    #expect(inputs.count == 3)
   }
 
   @Test
