@@ -243,27 +243,37 @@ struct ContentView: View {
         EntryListView(category: category, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
-          .toolbar {
-            ToolbarItem(placement: .automatic) {
-              Picker("Filter", selection: $articleFilter) {
-                ForEach(ArticleFilter.allCases, id: \.self) { filter in
-                  Text(filter.rawValue).tag(filter)
+          .toolbar(.hidden, for: .windowToolbar)
+          .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+              HStack(spacing: 8) {
+                Text(navigationTitle)
+                  .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
+                  .foregroundStyle(.primary)
+                Spacer()
+                Picker("Filter", selection: $articleFilter) {
+                  ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                  }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityIdentifier("article.filter")
+                .frame(width: 140)
+                Button {
+                  markAllAsRead()
+                } label: {
+                  Image(systemName: "checkmark")
+                }
+                .disabled(articleFilter == .read)
+                .help("Mark all as read (⇧A)")
+                .accessibilityIdentifier("toolbar.markAllRead")
               }
-              .pickerStyle(.segmented)
-              .labelsHidden()
-              .accessibilityIdentifier("article.filter")
+              .padding(.horizontal, 12)
+              .padding(.vertical, 6)
+              Divider()
             }
-            ToolbarItem(placement: .automatic) {
-              Button {
-                markAllAsRead()
-              } label: {
-                Image(systemName: "checkmark")
-              }
-              .disabled(articleFilter == .read)
-              .help("Mark all as read (⇧A)")
-              .accessibilityIdentifier("toolbar.markAllRead")
-            }
+            .background(.bar)
           }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
@@ -276,29 +286,6 @@ struct ContentView: View {
       }
     } detail: {
       detailView
-    }
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          articleViewMode = articleViewMode == .web ? .reader : .web
-        } label: {
-          Label(
-            articleViewMode == .web ? "Reader Mode" : "Web Mode",
-            systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
-          )
-        }
-        .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
-        .disabled(selectedEntry == nil)
-      }
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          openInBackground()
-        } label: {
-          Label("Open in Browser", systemImage: "safari")
-        }
-        .help("Open in browser (B)")
-        .disabled(selectedEntry == nil)
-      }
     }
     .onAppear {
       checkCredentials()
@@ -464,14 +451,41 @@ struct ContentView: View {
 
   @ViewBuilder
   private var detailView: some View {
-    if let selectedEntry {
-      EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
-    } else {
-      ContentUnavailableView {
-        Label("Select an Article", systemImage: "doc.text")
-      } description: {
-        Text("Choose an article from the list to read it.")
+    Group {
+      if let selectedEntry {
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+      } else {
+        ContentUnavailableView {
+          Label("Select an Article", systemImage: "doc.text")
+        } description: {
+          Text("Choose an article from the list to read it.")
+        }
       }
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      VStack(spacing: 0) {
+        HStack {
+          Spacer()
+          Button {
+            articleViewMode = articleViewMode == .web ? .reader : .web
+          } label: {
+            Image(systemName: articleViewMode == .web ? "doc.plaintext" : "doc.richtext")
+          }
+          .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
+          .disabled(selectedEntry == nil)
+          Button {
+            openInBackground()
+          } label: {
+            Image(systemName: "safari")
+          }
+          .help("Open in browser (B)")
+          .disabled(selectedEntry == nil)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        Divider()
+      }
+      .background(.bar)
     }
   }
 
