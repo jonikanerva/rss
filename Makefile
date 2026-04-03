@@ -31,7 +31,10 @@ XCODEBUILD_FLAGS = \
 	ENABLE_APP_SANDBOX=NO \
 	ENABLE_HARDENED_RUNTIME=NO
 
-.PHONY: lint lint-fix build test test-ui test-all test-full clean artifacts help
+APP_NAME        ?= Feeder
+INSTALL_DIR     ?= /Applications
+
+.PHONY: lint lint-fix build install test test-ui test-all test-full clean artifacts help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -56,6 +59,22 @@ build: ## Build for testing (ad-hoc signing)
 	@echo "==> build-for-testing"
 	@mkdir -p $(DERIVED_DATA)
 	xcodebuild build-for-testing $(XCODEBUILD_FLAGS)
+
+install: ## Build Release and install to /Applications
+	@echo "==> build Release"
+	xcodebuild build \
+		-project $(PROJECT) \
+		-scheme $(SCHEME) \
+		-configuration Release \
+		-derivedDataPath $(DERIVED_DATA) \
+		-destination '$(DESTINATION)' \
+		CODE_SIGN_IDENTITY="-" \
+		ENABLE_APP_SANDBOX=NO \
+		ENABLE_HARDENED_RUNTIME=NO
+	@echo "==> install $(APP_NAME).app → $(INSTALL_DIR)"
+	@rm -rf "$(INSTALL_DIR)/$(APP_NAME).app"
+	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(APP_NAME).app"
+	@echo "==> done: $(INSTALL_DIR)/$(APP_NAME).app"
 
 # ---------------------------------------------------------------------------
 # Test
