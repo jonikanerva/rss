@@ -121,12 +121,10 @@ struct DataWriterEntryTests {
     _ = try await writer.persistEntries([unreadEntry], markAsRead: false)
     _ = try await writer.persistEntries([readEntry], markAsRead: true)
 
-    // Flip read entry to unread via updateReadState — verifies it was read before
-    try await writer.updateReadState(unreadIDs: Set([1001, 1002]))
-
-    // Both entries should exist as unclassified
-    let inputs = try await writer.fetchUnclassifiedInputs()
-    #expect(inputs.count == 2)
+    let snap1 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
+    let snap2 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)
+    #expect(snap1?.isRead == false)
+    #expect(snap2?.isRead == true)
   }
 
   // MARK: - persistEntries (unreadIDs overload)
@@ -145,10 +143,10 @@ struct DataWriterEntryTests {
 
     #expect(count == 2)
 
-    // Verify read state: mark all as unread, then check both exist
-    try await writer.updateReadState(unreadIDs: Set([1001, 1002]))
-    let inputs = try await writer.fetchUnclassifiedInputs()
-    #expect(inputs.count == 2)
+    let snap1 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
+    let snap2 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)
+    #expect(snap1?.isRead == false)
+    #expect(snap2?.isRead == true)
   }
 
   // MARK: - applyClassification
@@ -174,9 +172,10 @@ struct DataWriterEntryTests {
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
-    let inputs = try await writer.fetchUnclassifiedInputs()
-    // Entry should no longer appear as unclassified
-    #expect(!inputs.contains { $0.entryID == 1001 })
+    let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
+    #expect(snapshot?.isClassified == true)
+    #expect(snapshot?.categoryLabels == ["technology"])
+    #expect(snapshot?.primaryCategory == "technology")
   }
 
   @Test
@@ -204,9 +203,11 @@ struct DataWriterEntryTests {
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
-    // Verify entry is classified (no longer in unclassified list)
-    let inputs = try await writer.fetchUnclassifiedInputs()
-    #expect(!inputs.contains { $0.entryID == 1001 })
+    // Parent "technology" should be stripped, only child "apple" remains
+    let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
+    #expect(snapshot?.isClassified == true)
+    #expect(snapshot?.categoryLabels == ["apple"])
+    #expect(snapshot?.primaryCategory == "apple")
   }
 
   @Test
@@ -241,12 +242,16 @@ struct DataWriterEntryTests {
     // Mark 1001 as unread, 1002 and 1003 become read
     try await writer.updateReadState(unreadIDs: Set([1001]))
 
-    // Now flip: only 1002 unread, rest become read
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == false)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)?.isRead == true)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1003)?.isRead == true)
+
+    // Flip: only 1002 unread, rest become read
     try await writer.updateReadState(unreadIDs: Set([1002]))
 
-    // All 3 entries should still be in the store (read state change doesn't delete)
-    let inputs = try await writer.fetchUnclassifiedInputs()
-    #expect(inputs.count == 3)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == true)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)?.isRead == false)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1003)?.isRead == true)
   }
 
   @Test
@@ -273,7 +278,11 @@ struct DataWriterEntryTests {
     _ = try await writer.persistEntries([oldEntry, newEntry], markAsRead: false)
 
     // Purge entries older than 2025-01-01
-    let cutoff = ISO8601DateFormatter().date(from: "2025-01-01T00:00:00Z")!
+    let formatter = ISO8601DateFormatter()
+    guard let cutoff = formatter.date(from: "2025-01-01T00:00:00Z") else {
+      Issue.record("Failed to parse cutoff date")
+      return
+    }
     try await writer.purgeEntriesOlderThan(cutoff)
 
     let remaining = try await writer.fetchUnclassifiedInputs()
