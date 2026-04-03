@@ -17,7 +17,7 @@ Run before every commit and PR — all must pass, no exceptions:
 make test-all
 ```
 
-This runs: build (zero warnings) → unit tests → UI tests. Use `make help` for all available targets.
+This runs: lint → build (zero warnings) → unit tests. Use `make help` for all available targets.
 
 ## Swift 6 Strict Concurrency (Non-Negotiable)
 

@@ -60,7 +60,7 @@ Status: Active
 ## MVP scope (in)
 
 - Feed ingest and normalization only via Feedbin so we get the full-content of the article via the API.
-- Uses built in Apple Foundation Models as the LLM.
+- Uses Apple Foundation Models as the primary LLM, with optional OpenAI provider for comparison.
 - Category assignment to user-defined main categories (with explicit fallback path).
 - Articles can have multiple categories.
 - Same-story grouping across sources.
