@@ -33,7 +33,7 @@ body {
   font-size: 18px;
   line-height: 1.65;
   color: var(--text-primary);
-  background-color: var(--bg);
+  /* No background-color — WKWebView inherits the macOS window background automatically */
   margin: 0;
   padding: 24px 50px 40px;
   -webkit-font-smoothing: antialiased;

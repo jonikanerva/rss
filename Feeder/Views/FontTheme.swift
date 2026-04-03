@@ -33,10 +33,5 @@ enum FontTheme {
 
   // MARK: - Colors
 
-  /// App background color — used by SwiftUI panels and injected into web view CSS.
-  /// Single source of truth: change here to update everywhere.
-  static let backgroundColor = Color(hex: 0x2B2B2D)
-  static let backgroundHex = "#2B2B2D"
-
   static let domainPillColor = Color(nsColor: .secondaryLabelColor)
 }

@@ -33,8 +33,7 @@ struct ArticleWebView: NSViewRepresentable {
 
   private func buildHTML(for entry: Entry) -> String {
     let template = loadResource("article-template", ext: "html")
-    let baseCss = loadResource("article-style", ext: "css")
-    let css = baseCss + "\nbody { background-color: \(FontTheme.backgroundHex) !important; }"
+    let css = loadResource("article-style", ext: "css")
 
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = escapeHTML(entry.title ?? "Untitled")
