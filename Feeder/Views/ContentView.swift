@@ -360,11 +360,12 @@ struct ContentView: View {
     guard let category = selectedCategory, let writer = syncEngine.writer else { return }
     selectedEntry = nil
     Task {
-      let markedIDs = try await writer.markAllAsRead(
-        category: category, cutoffDate: syncEngine.queryCutoffDate)
-      if !markedIDs.isEmpty {
-        syncEngine.queueReadIDs(markedIDs)
-      }
+      guard
+        let markedIDs = try? await writer.markAllAsRead(
+          category: category, cutoffDate: syncEngine.queryCutoffDate),
+        !markedIDs.isEmpty
+      else { return }
+      syncEngine.queueReadIDs(markedIDs)
     }
   }
 
