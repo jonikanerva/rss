@@ -41,7 +41,7 @@ final class ClassificationEngine {
     classificationTask?.cancel()
     classificationTask = Task {
       while !Task.isCancelled {
-        let cutoff = Date().addingTimeInterval(-maxArticleAge)
+        let cutoff = articleCutoffDate()
         await classifyNextBatch(writer: writer, cutoffDate: cutoff)
         if Task.isCancelled { break }
         try? await Task.sleep(for: .seconds(2))
@@ -59,13 +59,13 @@ final class ClassificationEngine {
   // MARK: - One-shot classification
 
   func classifyUnclassified(writer: DataWriter) async {
-    let cutoff = Date().addingTimeInterval(-maxArticleAge)
+    let cutoff = articleCutoffDate()
     await classifyNextBatch(writer: writer, cutoffDate: cutoff)
   }
 
   func reclassifyAll(writer: DataWriter) async {
     try? await writer.resetClassification()
-    let cutoff = Date().addingTimeInterval(-maxArticleAge)
+    let cutoff = articleCutoffDate()
     await classifyNextBatch(writer: writer, cutoffDate: cutoff)
   }
 

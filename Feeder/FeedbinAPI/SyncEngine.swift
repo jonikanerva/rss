@@ -15,6 +15,14 @@ nonisolated var maxArticleAge: TimeInterval {
   TimeInterval(articleKeepDays) * 24 * 60 * 60
 }
 
+/// Fixed 30-day ceiling for disk purge — the maximum value the keepDays picker offers.
+nonisolated let maxRetentionAge: TimeInterval = 30 * 24 * 60 * 60
+
+/// Current cutoff date based on keepDays. Articles older than this are hidden from UI.
+nonisolated func articleCutoffDate() -> Date {
+  Date().addingTimeInterval(-maxArticleAge)
+}
+
 /// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
 /// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
 @MainActor
@@ -28,11 +36,11 @@ final class SyncEngine {
   private(set) var totalToFetch: Int = 0
 
   /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
-  private(set) var articleCutoffDate: Date = Date().addingTimeInterval(-maxArticleAge)
+  private(set) var queryCutoffDate: Date = articleCutoffDate()
 
   /// Recalculate article cutoff from current keepDays setting.
   func refreshArticleCutoff() {
-    articleCutoffDate = Date().addingTimeInterval(-maxArticleAge)
+    queryCutoffDate = articleCutoffDate()
   }
 
   /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
