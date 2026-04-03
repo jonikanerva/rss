@@ -81,11 +81,6 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
   }
 }
 
-/// Compute start-of-day for a date — used for pre-computing Entry.publishedDay.
-nonisolated func startOfDay(for date: Date) -> Date {
-  Calendar.current.startOfDay(for: date)
-}
-
 /// Extract display domain from a URL string, stripping the `www.` prefix.
 /// e.g., "https://www.theverge.com/rss" → "theverge.com"
 nonisolated func extractDomain(from urlString: String) -> String {
@@ -158,8 +153,30 @@ actor DataWriter: ModelActor {
 
   // MARK: - Icon persistence
 
+  /// Return icon URLs that need downloading — either the URL changed or cached data is missing.
+  func iconURLsNeedingFetch(_ icons: [FeedbinIcon]) throws -> Set<String> {
+    guard !icons.isEmpty else { return [] }
+    let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
+
+    let descriptor = FetchDescriptor<Feed>()
+    let feeds = try modelContext.fetch(descriptor)
+
+    var needed: Set<String> = []
+    for feed in feeds {
+      guard let host = URL(string: feed.siteURL)?.host() else { continue }
+      let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+      if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
+        if feed.faviconURL != iconURL || feed.faviconData == nil {
+          needed.insert(iconURL)
+        }
+      }
+    }
+    return needed
+  }
+
   /// Persist favicon URLs and pre-fetched image data for feeds.
-  /// Icon data fetching is done externally (SyncEngine) to keep DataWriter free of network I/O.
+  /// Only updates feeds whose icon URL changed or whose data was missing.
+  /// Preserves existing faviconData when the new download failed (not in prefetchedData).
   func syncIcons(_ icons: [FeedbinIcon], prefetchedData: [String: Data]) throws {
     guard !icons.isEmpty else { return }
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
@@ -174,7 +191,9 @@ actor DataWriter: ModelActor {
       if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
         if feed.faviconURL != iconURL || feed.faviconData == nil {
           feed.faviconURL = iconURL
-          feed.faviconData = prefetchedData[iconURL]
+          if let data = prefetchedData[iconURL] {
+            feed.faviconData = data
+          }
           updated += 1
         }
       }
@@ -225,7 +244,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
-      entry.publishedDay = startOfDay(for: dto.published)
+
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -272,7 +291,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
-      entry.publishedDay = startOfDay(for: dto.published)
+
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -632,7 +651,7 @@ actor DataWriter: ModelActor {
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
-      entry.publishedDay = startOfDay(for: entry.publishedAt)
+
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
       entry.summaryPlainText = "Sample article \(index)"
@@ -657,7 +676,6 @@ actor DataWriter: ModelActor {
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
-    worldEntry.publishedDay = startOfDay(for: worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
     worldEntry.summaryPlainText = "EU finalizes AI transparency framework."

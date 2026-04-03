@@ -178,14 +178,15 @@ final class SyncEngine {
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
-      // Fetch and store favicon icons — data download happens here, not in DataWriter
+      // Fetch and store favicon icons — only download icons that actually need updating
       let icons = try await client.fetchIcons()
+      let needed = try await writer.iconURLsNeedingFetch(icons)
       var iconData: [String: Data] = [:]
-      for icon in icons {
-        if let url = URL(string: icon.url),
+      for urlString in needed {
+        if let url = URL(string: urlString),
           let (data, _) = try? await URLSession.shared.data(from: url)
         {
-          iconData[icon.url] = data
+          iconData[urlString] = data
         }
       }
       try await writer.syncIcons(icons, prefetchedData: iconData)
