@@ -153,7 +153,9 @@ actor DataWriter: ModelActor {
 
   // MARK: - Icon persistence
 
-  func syncIcons(_ icons: [FeedbinIcon]) async throws {
+  /// Persist favicon URLs and pre-fetched image data for feeds.
+  /// Icon data fetching is done externally (SyncEngine) to keep DataWriter free of network I/O.
+  func syncIcons(_ icons: [FeedbinIcon], prefetchedData: [String: Data]) throws {
     guard !icons.isEmpty else { return }
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
 
@@ -167,11 +169,7 @@ actor DataWriter: ModelActor {
       if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
         if feed.faviconURL != iconURL || feed.faviconData == nil {
           feed.faviconURL = iconURL
-          if let url = URL(string: iconURL),
-            let (data, _) = try? await URLSession.shared.data(from: url)
-          {
-            feed.faviconData = data
-          }
+          feed.faviconData = prefetchedData[iconURL]
           updated += 1
         }
       }
@@ -307,6 +305,21 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  /// Batch mark multiple entries as read in a single save.
+  func markEntriesRead(feedbinEntryIDs ids: Set<Int>) throws {
+    guard !ids.isEmpty else { return }
+    let idArray = Array(ids)
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { idArray.contains($0.feedbinEntryID) && !$0.isRead }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    guard !entries.isEmpty else { return }
+    for entry in entries {
+      entry.isRead = true
+    }
+    try modelContext.save()
+  }
+
   /// Mark all unread classified entries in a category as read. Returns the feedbin entry IDs that were marked.
   func markAllAsRead(category: String, cutoffDate: Date) throws -> Set<Int> {
     let descriptor = FetchDescriptor<Entry>(
@@ -355,6 +368,7 @@ actor DataWriter: ModelActor {
         let blocks = parseHTMLToBlocks(content)
         entry.articleBlocksData = blocks.toJSONData()
         entry.plainText = blocks.classificationText
+        entry.invalidateBlocksCache()
       }
     }
     try modelContext.save()

@@ -58,6 +58,11 @@ final class Entry {
   @Transient
   private var _cachedBlocks: [ArticleBlock]?
 
+  /// Clear the transient block cache so the next `parsedBlocks` access re-decodes from `articleBlocksData`.
+  func invalidateBlocksCache() {
+    _cachedBlocks = nil
+  }
+
   /// Decoded article blocks for display. Falls back to plain text paragraph.
   /// Cached after first decode to avoid JSON parsing on every re-render.
   var parsedBlocks: [ArticleBlock] {
