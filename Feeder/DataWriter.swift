@@ -4,16 +4,6 @@ import SwiftData
 
 // MARK: - Sendable DTOs for crossing actor boundaries
 
-/// Lightweight snapshot of an Entry for verification without crossing actor boundaries with @Model objects.
-nonisolated struct EntrySnapshot: Sendable {
-  let feedbinEntryID: Int
-  let isRead: Bool
-  let isClassified: Bool
-  let categoryLabels: [String]
-  let primaryCategory: String
-  let plainText: String
-}
-
 /// Input data for classification — extracted from Entry on background actor, consumed by FM inference.
 nonisolated struct ClassificationInput: Sendable {
   let entryID: Int
@@ -306,21 +296,6 @@ actor DataWriter: ModelActor {
       try modelContext.save()
       Self.logger.info("Updated read state for \(updatedCount) entries")
     }
-  }
-
-  func fetchEntrySnapshot(feedbinEntryID: Int) throws -> EntrySnapshot? {
-    let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.feedbinEntryID == feedbinEntryID }
-    )
-    guard let entry = try modelContext.fetch(descriptor).first else { return nil }
-    return EntrySnapshot(
-      feedbinEntryID: entry.feedbinEntryID,
-      isRead: entry.isRead,
-      isClassified: entry.isClassified,
-      categoryLabels: entry.categoryLabels,
-      primaryCategory: entry.primaryCategory,
-      plainText: entry.plainText
-    )
   }
 
   func markEntryRead(feedbinEntryID: Int) throws {
