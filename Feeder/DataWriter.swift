@@ -303,15 +303,6 @@ actor DataWriter: ModelActor {
     }
   }
 
-  func markEntryRead(feedbinEntryID: Int) throws {
-    let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.feedbinEntryID == feedbinEntryID }
-    )
-    guard let entry = try modelContext.fetch(descriptor).first, !entry.isRead else { return }
-    entry.isRead = true
-    try modelContext.save()
-  }
-
   /// Batch mark multiple entries as read in a single save.
   func markEntriesRead(feedbinEntryIDs ids: Set<Int>) throws {
     guard !ids.isEmpty else { return }

@@ -525,8 +525,7 @@ struct ContentView: View {
       }
     }
 
-    let storedInterval = UserDefaults.standard.double(forKey: "sync_interval")
-    let syncInterval = storedInterval > 0 ? storedInterval : 300
+    let syncInterval = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
     syncEngine.startPeriodicSync(interval: syncInterval)
     if let writer = syncEngine.writer {
       classificationEngine.startContinuousClassification(writer: writer)

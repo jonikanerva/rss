@@ -23,6 +23,43 @@ nonisolated func articleCutoffDate() -> Date {
   Date().addingTimeInterval(-maxArticleAge)
 }
 
+/// Fetch extracted content for a batch of entries with a concurrency limit of 8.
+nonisolated func fetchExtractedContentBatch(
+  requests: [(entryID: Int, url: String)],
+  using client: FeedbinClient
+) async -> [(entryID: Int, content: String)] {
+  await withTaskGroup(
+    of: (Int, String?).self,
+    returning: [(entryID: Int, content: String)].self
+  ) { group in
+    var active = 0
+    var collected: [(entryID: Int, content: String)] = []
+
+    for request in requests {
+      if active >= 8 {
+        if let result = await group.next(), let content = result.1 {
+          collected.append((entryID: result.0, content: content))
+        }
+        active -= 1
+      }
+      let reqClient = client
+      group.addTask {
+        let content = try? await reqClient.fetchExtractedContent(from: request.url)
+        return (request.entryID, content?.content)
+      }
+      active += 1
+    }
+
+    for await result in group {
+      if let content = result.1 {
+        collected.append((entryID: result.0, content: content))
+      }
+    }
+
+    return collected
+  }
+}
+
 /// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
 /// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
 @MainActor
@@ -280,39 +317,7 @@ final class SyncEngine {
 
         logger.info("Fetching extracted content for \(requests.count) entries")
 
-        // Fetch in parallel with concurrency limit of 8
-        let results = await withTaskGroup(
-          of: (Int, String?).self,
-          returning: [(entryID: Int, content: String)].self
-        ) { group in
-          var active = 0
-          var collected: [(entryID: Int, content: String)] = []
-
-          for request in requests {
-            if active >= 8 {
-              if let result = await group.next(),
-                let content = result.1
-              {
-                collected.append((entryID: result.0, content: content))
-              }
-              active -= 1
-            }
-            let reqClient = client
-            group.addTask {
-              let content = try? await reqClient.fetchExtractedContent(from: request.url)
-              return (request.entryID, content?.content)
-            }
-            active += 1
-          }
-
-          for await result in group {
-            if let content = result.1 {
-              collected.append((entryID: result.0, content: content))
-            }
-          }
-
-          return collected
-        }
+        let results = await fetchExtractedContentBatch(requests: requests, using: client)
 
         if !results.isEmpty {
           try await writer.applyExtractedContent(results: results)
@@ -355,33 +360,7 @@ final class SyncEngine {
         // Fetch extracted content for backfilled entries
         let requests = try await writer.fetchExtractedContentRequests()
         if !requests.isEmpty {
-          let results = await withTaskGroup(
-            of: (Int, String?).self,
-            returning: [(entryID: Int, content: String)].self
-          ) { group in
-            var active = 0
-            var collected: [(entryID: Int, content: String)] = []
-            for request in requests {
-              if active >= 8 {
-                if let result = await group.next(), let content = result.1 {
-                  collected.append((entryID: result.0, content: content))
-                }
-                active -= 1
-              }
-              let reqClient = client
-              group.addTask {
-                let content = try? await reqClient.fetchExtractedContent(from: request.url)
-                return (request.entryID, content?.content)
-              }
-              active += 1
-            }
-            for await result in group {
-              if let content = result.1 {
-                collected.append((entryID: result.0, content: content))
-              }
-            }
-            return collected
-          }
+          let results = await fetchExtractedContentBatch(requests: requests, using: client)
           if !results.isEmpty {
             try await writer.applyExtractedContent(results: results)
           }
