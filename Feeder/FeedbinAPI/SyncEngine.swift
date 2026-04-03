@@ -55,7 +55,17 @@ final class SyncEngine {
   private var backfillTask: Task<Void, Never>?
   private var extractedContentTask: Task<Void, Never>?
   private var lastProgressUpdate: ContinuousClock.Instant = .now
-  private var pendingReadIDsToSync: Set<Int> = []
+
+  private static let pendingReadKey = "pendingReadIDsToSync"
+
+  private var pendingReadIDsToSync: Set<Int> {
+    get {
+      Set(UserDefaults.standard.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
+    }
+    set {
+      UserDefaults.standard.set(Array(newValue), forKey: Self.pendingReadKey)
+    }
+  }
 
   /// Configure the sync engine with credentials and model container.
   func configure(username: String, password: String, modelContainer: ModelContainer) {
@@ -73,9 +83,9 @@ final class SyncEngine {
   func pushPendingReads() async {
     guard let client, !pendingReadIDsToSync.isEmpty else { return }
     let ids = Array(pendingReadIDsToSync)
-    pendingReadIDsToSync.removeAll()
     do {
       try await client.deleteUnreadEntries(ids)
+      pendingReadIDsToSync.removeAll()
     } catch {
       logger.error("Failed to push read state: \(error.localizedDescription)")
     }
