@@ -298,4 +298,55 @@ struct DataWriterEntryTests {
     // No entries exist — should not crash
     try await writer.purgeEntriesOlderThan(cutoff)
   }
+
+  // MARK: - markAllAsRead
+
+  @Test
+  func markAllAsReadMarksOnlyCategoryEntries() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+
+    let entry1 = try Self.makeFeedbinEntry(id: 2001, title: "Tech 1")
+    let entry2 = try Self.makeFeedbinEntry(id: 2002, title: "Tech 2")
+    let entry3 = try Self.makeFeedbinEntry(id: 2003, title: "World 1")
+    _ = try await writer.persistEntries([entry1, entry2, entry3], markAsRead: false)
+
+    try await writer.addCategory(
+      label: "technology", displayName: "Technology",
+      description: "Tech news", sortOrder: 0, parentLabel: nil)
+    try await writer.addCategory(
+      label: "world_news", displayName: "World News",
+      description: "World news", sortOrder: 1, parentLabel: nil)
+
+    // Classify entries into different categories
+    for (id, cat) in [(2001, "technology"), (2002, "technology"), (2003, "world_news")] {
+      let result = ClassificationResult(
+        entryID: id, categoryLabels: [cat], storyKey: "story-\(id)",
+        detectedLanguage: "en", confidence: 0.9)
+      try await writer.applyClassification(entryID: id, result: result)
+    }
+
+    let markedIDs = try await writer.markAllAsRead(
+      category: "technology", cutoffDate: .distantPast)
+
+    #expect(markedIDs == [2001, 2002])
+
+    // Verify technology entries are now all read — second pass should return empty
+    let secondPass = try await writer.markAllAsRead(
+      category: "technology", cutoffDate: .distantPast)
+    #expect(secondPass.isEmpty)
+
+    // World entry should still be unread
+    let worldIDs = try await writer.markAllAsRead(
+      category: "world_news", cutoffDate: .distantPast)
+    #expect(worldIDs == [2003])
+  }
+
+  @Test
+  func markAllAsReadWithNoUnreadReturnsEmpty() async throws {
+    let writer = try await makeWriter()
+    let result = try await writer.markAllAsRead(
+      category: "technology", cutoffDate: .distantPast)
+    #expect(result.isEmpty)
+  }
 }
