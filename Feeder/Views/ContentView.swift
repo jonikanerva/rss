@@ -242,9 +242,13 @@ struct ContentView: View {
       if let category = selectedCategory {
         EntryListView(category: category, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
           .environment(\.pendingReadIDs, pendingReadIDs)
-          .navigationTitle(navigationTitle)
-          .toolbar {
-            ToolbarItem(placement: .automatic) {
+          .navigationTitle("")
+          .safeAreaInset(edge: .top) {
+            HStack {
+              Text(navigationTitle)
+                .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
+                .foregroundStyle(.primary)
+              Spacer()
               Picker("Filter", selection: $articleFilter) {
                 ForEach(ArticleFilter.allCases, id: \.self) { filter in
                   Text(filter.rawValue).tag(filter)
@@ -253,17 +257,18 @@ struct ContentView: View {
               .pickerStyle(.segmented)
               .labelsHidden()
               .accessibilityIdentifier("article.filter")
-            }
-            ToolbarItem(placement: .automatic) {
+              .frame(width: 140)
               Button {
                 markAllAsRead()
               } label: {
-                Label("Mark All as Read", systemImage: "checkmark")
+                Image(systemName: "checkmark")
               }
               .disabled(articleFilter == .read)
               .help("Mark all as read (⇧A)")
               .accessibilityIdentifier("toolbar.markAllRead")
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
           }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
