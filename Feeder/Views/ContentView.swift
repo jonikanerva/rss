@@ -350,9 +350,7 @@ struct ContentView: View {
     syncEngine.queueReadIDs(ids)
     Task {
       guard let writer = syncEngine.writer else { return }
-      for entryID in ids {
-        try? await writer.markEntryRead(feedbinEntryID: entryID)
-      }
+      try? await writer.markEntriesRead(feedbinEntryIDs: ids)
     }
   }
 
@@ -528,7 +526,9 @@ struct ContentView: View {
       }
     }
 
-    syncEngine.startPeriodicSync()
+    let storedInterval = UserDefaults.standard.double(forKey: "sync_interval")
+    let syncInterval = storedInterval > 0 ? storedInterval : 300
+    syncEngine.startPeriodicSync(interval: syncInterval)
     if let writer = syncEngine.writer {
       classificationEngine.startContinuousClassification(writer: writer)
     }
