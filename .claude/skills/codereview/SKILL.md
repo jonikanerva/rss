@@ -22,7 +22,7 @@ Analyze the PR and evaluate:
 4. **Code style** — compliance with code style section in `docs/swift-code-rules.md`.
 5. **Swift best practices** — modern Swift 6 patterns, proper actor isolation, correct Sendable conformance.
 6. **Architecture compliance** — two-layer rule, no computation in views, predicates pushed to @Query.
-7. **App behavior rules** — read `docs/app-rules.md` and verify changes do not violate any locked-down behavioral specs.
+7. **Design principles** — read `docs/app-rules.md` and verify changes respect all four design principles (performance, keyboard navigation, vanilla macOS, readability).
 
 ## Output
 

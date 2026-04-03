@@ -83,7 +83,7 @@ For research and analysis, spawn focused subagents in parallel when multiple dom
 
 ## Swift 6 Strict Concurrency and Code Style (Non-Negotiable)
 
-Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`. App behavior rules: `docs/app-rules.md`.
+Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`. Design principles: `docs/app-rules.md`.
 
 ### Two-Layer Architecture
 
@@ -126,7 +126,7 @@ make build
 ## Decision Rights
 
 - **Auto-allow**: read-only commands, local builds/tests, feature branch ops, PR creation.
-- **Ask first**: writes outside feature branch, edits to `docs/vision/VISION.md`, secrets/auth/billing.
+- **Ask first**: writes outside feature branch, edits to `docs/vision.md`, secrets/auth/billing.
 - **Never**: force push, `rm -rf`, push to main, bypass hooks, weaken concurrency settings.
 
 ## SwiftData Schema Versioning

@@ -1,49 +1,42 @@
 # App Rules — Feeder
 
-Locked-down behavioral specifications. These rules must never be violated. Any change to this file requires explicit human approval.
+Design principles that guide every UI and UX decision. All code changes must respect these principles. Any change to this file requires explicit human approval.
 
 ---
 
-## Status Display (Sidebar)
+## 1. Performance
 
-The status display is the two-line area below "News" in the sidebar section header. It communicates sync and classification progress to the user.
+The app must always feel instant and responsive. The MainActor is sacred.
 
-### Line 1: Sync Status
+- All database writes go through `DataWriter` (background actor). Never write via `ModelContext` on MainActor.
+- `@Query` predicates must be pushed to SQLite. Never filter `@Query` results in Swift.
+- No expensive computation during view rendering — no regex, no loops, no calendar math in `body`.
+- Pre-compute display fields (`plainText`, `formattedDate`, `primaryCategory`) at write time in `DataWriter`.
 
-Exactly three states. No other text may appear on this line.
+## 2. Keyboard Navigation
 
-| State | Text | When |
-|---|---|---|
-| Connecting | `Syncing...` | `isSyncing == true` and `totalToFetch == 0` |
-| Fetching | `Fetching xxx/yyy` | `isSyncing == true` and `totalToFetch > 0` |
-| Idle | `Synced today HH:mm` | `isSyncing == false` and `lastSyncDate` is set |
+The app must be fully operable via keyboard alone, without a mouse.
 
-- When `lastSyncDate` is nil (never synced), line 1 is hidden.
-- For non-today dates, use "Synced yesterday HH:mm" or "Synced MMM d HH:mm".
+- All core actions must have keyboard shortcuts.
+- Focus behavior must be predictable and consistent across views.
+- Navigation between sidebar, article list, and detail pane must work with keyboard.
+- Keyboard shortcuts must be discoverable in menus.
 
-### Line 2: Classification Status
+## 3. Vanilla macOS
 
-Exactly two states. No other text may appear on this line.
+The app must look and feel like a native Mac app built by Apple. No custom design language.
 
-| State | Text | When |
-|---|---|---|
-| Active | `Categorizing xxx/yyy` | `isClassifying == true` and `totalToClassify > 0` |
-| Idle | *(hidden)* | `isClassifying == false` |
+- Use SwiftUI standard components: `List`, `NavigationSplitView`, `Table`, `Form`, `Toggle`, etc.
+- No custom controls when Apple provides an equivalent.
+- Follow Apple Human Interface Guidelines. Use system colors (`Color.primary`, `Color.secondary`, `.background`) and system fonts (`.body`, `.headline`, `.caption`).
+- Target the newest macOS version. Prefer the latest Apple platform APIs.
+- No private API calls. No third-party UI frameworks.
 
-- Line 2 must be completely hidden when classification is idle — not empty, not a blank line.
+## 4. Readability
 
-### Prohibited Content
+This is a reader app. Reading comfort is the primary UX goal.
 
-The following must **never** appear on either status line:
-
-- Provider names (e.g., "Apple FM", "OpenAI GPT-5.4-nano")
-- Sync phase details (e.g., "Syncing feeds...", "Fetching icons...", "Checking unread state...")
-- Error messages or failure states
-- Article counts, summary text, or any other informational content
-- Progress spinners or animations (these belong in the toolbar, not the status text)
-
-### Implementation Contract
-
-- Status text is computed in `SyncStatusView` (defined in `ContentView.swift`) — as computed properties over engine counters.
-- `SyncEngine` and `ClassificationEngine` expose raw numeric counters (`fetchedCount`, `totalToFetch`, `classifiedCount`, `totalToClassify`) and boolean flags (`isSyncing`, `isClassifying`).
-- The sidebar status display must **never** read `syncProgress` or `progress` strings from the engines.
+- Good contrast at all times — never sacrifice contrast for aesthetics.
+- Readable font sizes — no tiny text. Body text must be comfortable to read for extended periods.
+- Clear information hierarchy at a glance — the most important content stands out.
+- Visual quality: premium, modern, harmonious, calm. Reduce noise, not information.
