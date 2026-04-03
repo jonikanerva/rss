@@ -453,7 +453,7 @@ struct ContentView: View {
       }
     }
     .toolbar {
-      ToolbarItem(placement: .automatic) {
+      ToolbarItem(placement: .primaryAction) {
         Button {
           articleViewMode = articleViewMode == .web ? .reader : .web
         } label: {
@@ -465,7 +465,7 @@ struct ContentView: View {
         .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
         .disabled(selectedEntry == nil)
       }
-      ToolbarItem(placement: .automatic) {
+      ToolbarItem(placement: .primaryAction) {
         Button {
           openInBackground()
         } label: {
