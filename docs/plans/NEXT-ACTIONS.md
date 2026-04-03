@@ -33,13 +33,9 @@ Status: Active
    - Owner: Agent
    - Implement read state sync back to Feedbin API.
 
-5. **Codereview skill: enforce dead code and duplication checks**
-   - Owner: Agent
-   - Update `/codereview` to flag dead code, duplication, and leftover TODOs/placeholders.
-   - Policy: no "do later" debt — fix everything before merge.
-
 ## Completed history
 
+- **2026-04-03**: Codereview skill: added premium quality standard, zero-tolerance policy, and 4 new checks (dead code, duplication, leftover markers, naming & clarity).
 - **2026-04-03**: Review and align app-rules.md and swift-code-rules.md — audited both files, rewrote app-rules.md as design principles, moved vision.md to docs/, unified naming.
 
 See merged pull requests on GitHub for full audit trail.
