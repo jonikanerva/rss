@@ -2,6 +2,7 @@
 /* Inspired by NetNewsWire — system fonts, dark mode, constrained width */
 
 :root {
+  color-scheme: light dark;
   --accent: #C0463A;
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
