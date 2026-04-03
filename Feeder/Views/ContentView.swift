@@ -54,15 +54,14 @@ private func sectionLabel(for date: Date) -> String {
   }
 }
 
-/// Group entries by calendar day (start of day), preserving order.
+/// Group entries by pre-computed `publishedDay`, preserving order.
 private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, entries: [Entry])] {
-  let calendar = Calendar.current
   var groups: [(date: Date, label: String, entries: [Entry])] = []
   var currentDay: Date?
   var currentEntries: [Entry] = []
 
   for entry in entries {
-    let day = calendar.startOfDay(for: entry.publishedAt)
+    let day = entry.publishedDay
     if day != currentDay {
       if let prevDay = currentDay, !currentEntries.isEmpty {
         groups.append((date: prevDay, label: sectionLabel(for: prevDay), entries: currentEntries))

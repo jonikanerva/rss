@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
 /// Bump this when the SwiftData schema changes. On mismatch, articles
 /// and feeds are deleted (categories preserved) and a fresh sync runs.
-private let currentSchemaVersion = 13
+private let currentSchemaVersion = 14
 
 @main
 struct FeederApp: App {

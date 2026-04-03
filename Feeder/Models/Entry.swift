@@ -38,6 +38,8 @@ final class Entry {
   var formattedDate: String = ""
   /// Pre-computed display domain (e.g., "theverge.com") — stripped of www. prefix
   var displayDomain: String?
+  /// Pre-computed start-of-day for publishedAt — used for efficient date-section grouping in the timeline
+  var publishedDay: Date = Date.distantPast
   /// First assigned category label — denormalized for @Query predicate filtering
   var primaryCategory: String = ""
 

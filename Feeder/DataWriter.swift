@@ -81,6 +81,11 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
   }
 }
 
+/// Compute start-of-day for a date — used for pre-computing Entry.publishedDay.
+nonisolated func startOfDay(for date: Date) -> Date {
+  Calendar.current.startOfDay(for: date)
+}
+
 /// Extract display domain from a URL string, stripping the `www.` prefix.
 /// e.g., "https://www.theverge.com/rss" → "theverge.com"
 nonisolated func extractDomain(from urlString: String) -> String {
@@ -220,6 +225,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.publishedDay = startOfDay(for: dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -266,6 +272,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.publishedDay = startOfDay(for: dto.published)
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -634,6 +641,7 @@ actor DataWriter: ModelActor {
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
+      entry.publishedDay = startOfDay(for: entry.publishedAt)
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
       entry.summaryPlainText = "Sample article \(index)"
@@ -658,6 +666,7 @@ actor DataWriter: ModelActor {
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
+    worldEntry.publishedDay = startOfDay(for: worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
     worldEntry.summaryPlainText = "EU finalizes AI transparency framework."
