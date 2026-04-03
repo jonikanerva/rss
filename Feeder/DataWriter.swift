@@ -153,27 +153,40 @@ actor DataWriter: ModelActor {
 
   // MARK: - Icon persistence
 
-  func syncIcons(_ icons: [FeedbinIcon]) async throws {
-    guard !icons.isEmpty else { return }
-    let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
+  /// Identify icon URLs that need downloading — URL changed or cached data is missing.
+  /// Returns the set of distinct icon URLs that need fetching, without modifying any feeds.
+  func iconURLsNeedingFetch(_ icons: [FeedbinIcon]) throws -> Set<String> {
+    guard !icons.isEmpty else { return [] }
+    let (iconsByHost, feeds) = try resolveIconMapping(icons)
 
-    let descriptor = FetchDescriptor<Feed>()
-    let feeds = try modelContext.fetch(descriptor)
+    var needed: Set<String> = []
+    for feed in feeds {
+      if let iconURL = matchIconURL(feed: feed, iconsByHost: iconsByHost),
+        feed.faviconURL != iconURL || feed.faviconData == nil
+      {
+        needed.insert(iconURL)
+      }
+    }
+    return needed
+  }
+
+  /// Persist favicon URLs and pre-fetched image data for feeds.
+  /// Only updates feeds whose icon URL changed or whose data was missing.
+  /// Preserves existing faviconData when the replacement download failed.
+  func syncIcons(_ icons: [FeedbinIcon], prefetchedData: [String: Data]) throws {
+    guard !icons.isEmpty else { return }
+    let (iconsByHost, feeds) = try resolveIconMapping(icons)
 
     var updated = 0
     for feed in feeds {
-      guard let host = URL(string: feed.siteURL)?.host() else { continue }
-      let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-      if let iconURL = iconsByHost[lookupHost] ?? iconsByHost[host] {
-        if feed.faviconURL != iconURL || feed.faviconData == nil {
-          feed.faviconURL = iconURL
-          if let url = URL(string: iconURL),
-            let (data, _) = try? await URLSession.shared.data(from: url)
-          {
-            feed.faviconData = data
-          }
-          updated += 1
+      if let iconURL = matchIconURL(feed: feed, iconsByHost: iconsByHost),
+        feed.faviconURL != iconURL || feed.faviconData == nil
+      {
+        feed.faviconURL = iconURL
+        if let data = prefetchedData[iconURL] {
+          feed.faviconData = data
         }
+        updated += 1
       }
     }
 
@@ -181,6 +194,20 @@ actor DataWriter: ModelActor {
       try modelContext.save()
       Self.logger.info("Updated favicon URLs for \(updated) feeds")
     }
+  }
+
+  /// Shared: build icon-host lookup and fetch all feeds once.
+  private func resolveIconMapping(_ icons: [FeedbinIcon]) throws -> ([String: String], [Feed]) {
+    let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
+    let feeds = try modelContext.fetch(FetchDescriptor<Feed>())
+    return (iconsByHost, feeds)
+  }
+
+  /// Shared: match a feed's site host to an icon URL.
+  private func matchIconURL(feed: Feed, iconsByHost: [String: String]) -> String? {
+    guard let host = URL(string: feed.siteURL)?.host() else { return nil }
+    let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    return iconsByHost[lookupHost] ?? iconsByHost[host]
   }
 
   // MARK: - Entry persistence
@@ -222,6 +249,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -268,6 +296,7 @@ actor DataWriter: ModelActor {
       entry.plainText = blocks.classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
       newCount += 1
@@ -298,12 +327,18 @@ actor DataWriter: ModelActor {
     }
   }
 
-  func markEntryRead(feedbinEntryID: Int) throws {
+  /// Batch mark multiple entries as read in a single save.
+  func markEntriesRead(feedbinEntryIDs ids: Set<Int>) throws {
+    guard !ids.isEmpty else { return }
+    let idArray = Array(ids)
     let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.feedbinEntryID == feedbinEntryID }
+      predicate: #Predicate<Entry> { idArray.contains($0.feedbinEntryID) && !$0.isRead }
     )
-    guard let entry = try modelContext.fetch(descriptor).first, !entry.isRead else { return }
-    entry.isRead = true
+    let entries = try modelContext.fetch(descriptor)
+    guard !entries.isEmpty else { return }
+    for entry in entries {
+      entry.isRead = true
+    }
     try modelContext.save()
   }
 
@@ -355,6 +390,7 @@ actor DataWriter: ModelActor {
         let blocks = parseHTMLToBlocks(content)
         entry.articleBlocksData = blocks.toJSONData()
         entry.plainText = blocks.classificationText
+        entry.invalidateBlocksCache()
       }
     }
     try modelContext.save()
@@ -620,6 +656,7 @@ actor DataWriter: ModelActor {
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
+
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
       entry.summaryPlainText = "Sample article \(index)"

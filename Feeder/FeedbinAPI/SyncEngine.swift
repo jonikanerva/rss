@@ -23,6 +23,42 @@ nonisolated func articleCutoffDate() -> Date {
   Date().addingTimeInterval(-maxArticleAge)
 }
 
+/// Fetch extracted content for a batch of entries with a concurrency limit of 8.
+nonisolated func fetchExtractedContentBatch(
+  requests: [(entryID: Int, url: String)],
+  using client: FeedbinClient
+) async -> [(entryID: Int, content: String)] {
+  await withTaskGroup(
+    of: (Int, String?).self,
+    returning: [(entryID: Int, content: String)].self
+  ) { group in
+    var active = 0
+    var collected: [(entryID: Int, content: String)] = []
+
+    for request in requests {
+      if active >= 8 {
+        if let result = await group.next(), let content = result.1 {
+          collected.append((entryID: result.0, content: content))
+        }
+        active -= 1
+      }
+      group.addTask {
+        let content = try? await client.fetchExtractedContent(from: request.url)
+        return (request.entryID, content?.content)
+      }
+      active += 1
+    }
+
+    for await result in group {
+      if let content = result.1 {
+        collected.append((entryID: result.0, content: content))
+      }
+    }
+
+    return collected
+  }
+}
+
 /// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
 /// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
 @MainActor
@@ -142,10 +178,18 @@ final class SyncEngine {
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
-      // Fetch and store favicon icons
-
+      // Fetch and store favicon icons — only download icons that actually need updating
       let icons = try await client.fetchIcons()
-      try await writer.syncIcons(icons)
+      let needed = try await writer.iconURLsNeedingFetch(icons)
+      var iconData: [String: Data] = [:]
+      for urlString in needed {
+        if let url = URL(string: urlString),
+          let (data, _) = try? await URLSession.shared.data(from: url)
+        {
+          iconData[urlString] = data
+        }
+      }
+      try await writer.syncIcons(icons, prefetchedData: iconData)
 
       if lastSyncDate != nil {
         try await syncIncremental(using: client, writer: writer)
@@ -231,24 +275,24 @@ final class SyncEngine {
 
     logger.info("Fetching entries since \(sinceClamped.description)")
 
-    var allEntries: [FeedbinEntry] = []
+    var totalNew = 0
+    var totalFetched = 0
     for try await page in client.fetchAllEntryPages(since: sinceClamped) {
       if let total = page.totalCount { totalToFetch = total }
-      allEntries.append(contentsOf: page.entries)
+      let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
+      totalNew += newCount
+      totalFetched += page.entries.count
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
-        fetchedCount = allEntries.count
+        fetchedCount = totalFetched
         lastProgressUpdate = now
       }
-      logger.info("Incremental page: \(page.entries.count) entries (\(allEntries.count) total)")
+      logger.info("Incremental page: \(page.entries.count) entries (\(totalFetched) total)")
     }
-    // Ensure final count is published after loop
-    fetchedCount = allEntries.count
+    fetchedCount = totalFetched
 
-    if !allEntries.isEmpty {
-      let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)
-
-      logger.info("Incremental sync: \(newCount) new entries")
+    if totalNew > 0 {
+      logger.info("Incremental sync: \(totalNew) new entries")
     }
 
     try await writer.updateReadState(unreadIDs: unreadIDSet)
@@ -273,39 +317,7 @@ final class SyncEngine {
 
         logger.info("Fetching extracted content for \(requests.count) entries")
 
-        // Fetch in parallel with concurrency limit of 8
-        let results = await withTaskGroup(
-          of: (Int, String?).self,
-          returning: [(entryID: Int, content: String)].self
-        ) { group in
-          var active = 0
-          var collected: [(entryID: Int, content: String)] = []
-
-          for request in requests {
-            if active >= 8 {
-              if let result = await group.next(),
-                let content = result.1
-              {
-                collected.append((entryID: result.0, content: content))
-              }
-              active -= 1
-            }
-            let reqClient = client
-            group.addTask {
-              let content = try? await reqClient.fetchExtractedContent(from: request.url)
-              return (request.entryID, content?.content)
-            }
-            active += 1
-          }
-
-          for await result in group {
-            if let content = result.1 {
-              collected.append((entryID: result.0, content: content))
-            }
-          }
-
-          return collected
-        }
+        let results = await fetchExtractedContentBatch(requests: requests, using: client)
 
         if !results.isEmpty {
           try await writer.applyExtractedContent(results: results)
@@ -348,25 +360,7 @@ final class SyncEngine {
         // Fetch extracted content for backfilled entries
         let requests = try await writer.fetchExtractedContentRequests()
         if !requests.isEmpty {
-          let results = await withTaskGroup(
-            of: (Int, String?).self,
-            returning: [(entryID: Int, content: String)].self
-          ) { group in
-            var collected: [(entryID: Int, content: String)] = []
-            for request in requests {
-              let reqClient = client
-              group.addTask {
-                let content = try? await reqClient.fetchExtractedContent(from: request.url)
-                return (request.entryID, content?.content)
-              }
-            }
-            for await result in group {
-              if let content = result.1 {
-                collected.append((entryID: result.0, content: content))
-              }
-            }
-            return collected
-          }
+          let results = await fetchExtractedContentBatch(requests: requests, using: client)
           if !results.isEmpty {
             try await writer.applyExtractedContent(results: results)
           }

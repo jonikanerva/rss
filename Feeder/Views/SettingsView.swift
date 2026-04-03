@@ -301,7 +301,7 @@ private struct AccountEditSheet: View {
 // MARK: - Helper extension
 
 extension Double {
-  fileprivate func clamped(to range: ClosedRange<Double>, default defaultValue: Double) -> Double {
+  func clamped(to range: ClosedRange<Double>, default defaultValue: Double) -> Double {
     if self == 0 { return defaultValue }
     return min(max(self, range.lowerBound), range.upperBound)
   }
