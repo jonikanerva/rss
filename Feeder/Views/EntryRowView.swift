@@ -19,10 +19,6 @@ struct EntryRowView: View {
 
   private var isRead: Bool { entry.isRead || pendingReadIDs.contains(entry.feedbinEntryID) }
 
-  private var feedName: String {
-    entry.feed?.title ?? entry.displayDomain ?? ""
-  }
-
   private var summaryText: String {
     let summary = entry.summaryPlainText
     return summary.isEmpty ? entry.plainText : summary
