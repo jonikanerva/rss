@@ -56,11 +56,39 @@ final class SyncEngine {
   private var extractedContentTask: Task<Void, Never>?
   private var lastProgressUpdate: ContinuousClock.Instant = .now
 
+  private static let pendingReadKey = "pendingReadIDsToSync"
+
+  private var pendingReadIDsToSync: Set<Int> {
+    get {
+      Set(UserDefaults.standard.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
+    }
+    set {
+      UserDefaults.standard.set(Array(newValue), forKey: Self.pendingReadKey)
+    }
+  }
+
   /// Configure the sync engine with credentials and model container.
   func configure(username: String, password: String, modelContainer: ModelContainer) {
     self.client = FeedbinClient(username: username, password: password)
     self.writer = DataWriter(modelContainer: modelContainer)
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
+  }
+
+  /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
+  func queueReadIDs(_ ids: Set<Int>) {
+    pendingReadIDsToSync.formUnion(ids)
+  }
+
+  /// Push any queued read IDs to Feedbin, then clear them.
+  func pushPendingReads() async {
+    guard let client, !pendingReadIDsToSync.isEmpty else { return }
+    let ids = Array(pendingReadIDsToSync)
+    do {
+      try await client.deleteUnreadEntries(ids)
+      pendingReadIDsToSync.removeAll()
+    } catch {
+      logger.error("Failed to push read state: \(error.localizedDescription)")
+    }
   }
 
   /// Verify that the configured credentials are valid.
@@ -194,6 +222,7 @@ final class SyncEngine {
   // MARK: - Incremental sync
 
   private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws {
+    await pushPendingReads()
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 
