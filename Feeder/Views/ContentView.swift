@@ -299,6 +299,7 @@ struct ContentView: View {
     .onChange(of: scenePhase) {
       if scenePhase != .active {
         flushPendingReads()
+        Task { await syncEngine.pushPendingReads() }
       }
     }
     // Keyboard navigation
@@ -331,6 +332,7 @@ struct ContentView: View {
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return }
     pendingReadIDs.removeAll()
+    syncEngine.queueReadIDs(ids)
     Task {
       guard let writer = syncEngine.writer else { return }
       for entryID in ids {
