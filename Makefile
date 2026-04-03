@@ -5,7 +5,8 @@
 #   make build      — build for testing
 #   make test       — unit tests (builds first)
 #   make test-ui    — UI smoke tests (builds first)
-#   make test-all   — full gate: lint + build + unit + UI
+#   make test-all   — quick gate: lint + build + unit (no UI)
+#   make test-full  — full gate: lint + build + unit + UI
 #   make clean      — remove derived data and artifacts
 
 SHELL          := /bin/bash
@@ -26,12 +27,11 @@ XCODEBUILD_FLAGS = \
 	-configuration $(CONFIGURATION) \
 	-derivedDataPath $(DERIVED_DATA) \
 	-destination '$(DESTINATION)' \
-	CODE_SIGN_IDENTITY=- \
-	CODE_SIGNING_REQUIRED=NO \
+	CODE_SIGNING_ALLOWED=NO \
 	ENABLE_APP_SANDBOX=NO \
 	ENABLE_HARDENED_RUNTIME=NO
 
-.PHONY: lint lint-fix build test test-ui test-all clean artifacts help
+.PHONY: lint lint-fix build test test-ui test-all test-full clean artifacts help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -83,7 +83,9 @@ test-ui: build ## Run UI smoke tests (FeederUITests)
 # Full gate
 # ---------------------------------------------------------------------------
 
-test-all: lint build test test-ui ## Full test gate: lint + build + unit + UI
+test-all: lint build test ## Quick gate: lint + build + unit (no UI)
+
+test-full: lint build test test-ui ## Full gate: lint + build + unit + UI
 
 # ---------------------------------------------------------------------------
 # Artifacts

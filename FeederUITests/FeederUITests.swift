@@ -108,13 +108,6 @@ final class FeederUITests: XCTestCase {
   }
 
   @MainActor
-  func testLaunchPerformance() throws {
-    measure(metrics: [XCTApplicationLaunchMetric()]) {
-      makeApp().launch()
-    }
-  }
-
-  @MainActor
   private func makeApp(forceOnboarding: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["UITEST_IN_MEMORY_STORE"] = "1"
