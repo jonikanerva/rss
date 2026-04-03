@@ -142,10 +142,17 @@ final class SyncEngine {
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
-      // Fetch and store favicon icons
-
+      // Fetch and store favicon icons — data download happens here, not in DataWriter
       let icons = try await client.fetchIcons()
-      try await writer.syncIcons(icons)
+      var iconData: [String: Data] = [:]
+      for icon in icons {
+        if let url = URL(string: icon.url),
+          let (data, _) = try? await URLSession.shared.data(from: url)
+        {
+          iconData[icon.url] = data
+        }
+      }
+      try await writer.syncIcons(icons, prefetchedData: iconData)
 
       if lastSyncDate != nil {
         try await syncIncremental(using: client, writer: writer)
@@ -231,24 +238,24 @@ final class SyncEngine {
 
     logger.info("Fetching entries since \(sinceClamped.description)")
 
-    var allEntries: [FeedbinEntry] = []
+    var totalNew = 0
+    var totalFetched = 0
     for try await page in client.fetchAllEntryPages(since: sinceClamped) {
       if let total = page.totalCount { totalToFetch = total }
-      allEntries.append(contentsOf: page.entries)
+      let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
+      totalNew += newCount
+      totalFetched += page.entries.count
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
-        fetchedCount = allEntries.count
+        fetchedCount = totalFetched
         lastProgressUpdate = now
       }
-      logger.info("Incremental page: \(page.entries.count) entries (\(allEntries.count) total)")
+      logger.info("Incremental page: \(page.entries.count) entries (\(totalFetched) total)")
     }
-    // Ensure final count is published after loop
-    fetchedCount = allEntries.count
+    fetchedCount = totalFetched
 
-    if !allEntries.isEmpty {
-      let newCount = try await writer.persistEntries(allEntries, unreadIDs: unreadIDSet)
-
-      logger.info("Incremental sync: \(newCount) new entries")
+    if totalNew > 0 {
+      logger.info("Incremental sync: \(totalNew) new entries")
     }
 
     try await writer.updateReadState(unreadIDs: unreadIDSet)
@@ -352,13 +359,21 @@ final class SyncEngine {
             of: (Int, String?).self,
             returning: [(entryID: Int, content: String)].self
           ) { group in
+            var active = 0
             var collected: [(entryID: Int, content: String)] = []
             for request in requests {
+              if active >= 8 {
+                if let result = await group.next(), let content = result.1 {
+                  collected.append((entryID: result.0, content: content))
+                }
+                active -= 1
+              }
               let reqClient = client
               group.addTask {
                 let content = try? await reqClient.fetchExtractedContent(from: request.url)
                 return (request.entryID, content?.content)
               }
+              active += 1
             }
             for await result in group {
               if let content = result.1 {
