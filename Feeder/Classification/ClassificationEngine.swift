@@ -41,7 +41,8 @@ final class ClassificationEngine {
     classificationTask?.cancel()
     classificationTask = Task {
       while !Task.isCancelled {
-        await classifyNextBatch(writer: writer)
+        let cutoff = articleCutoffDate()
+        await classifyNextBatch(writer: writer, cutoffDate: cutoff)
         if Task.isCancelled { break }
         try? await Task.sleep(for: .seconds(2))
       }
@@ -58,12 +59,14 @@ final class ClassificationEngine {
   // MARK: - One-shot classification
 
   func classifyUnclassified(writer: DataWriter) async {
-    await classifyNextBatch(writer: writer)
+    let cutoff = articleCutoffDate()
+    await classifyNextBatch(writer: writer, cutoffDate: cutoff)
   }
 
   func reclassifyAll(writer: DataWriter) async {
     try? await writer.resetClassification()
-    await classifyNextBatch(writer: writer)
+    let cutoff = articleCutoffDate()
+    await classifyNextBatch(writer: writer, cutoffDate: cutoff)
   }
 
   // MARK: - Provider factory
@@ -81,13 +84,13 @@ final class ClassificationEngine {
 
   // MARK: - Core classification logic
 
-  private func classifyNextBatch(writer: DataWriter) async {
+  private func classifyNextBatch(writer: DataWriter, cutoffDate: Date) async {
     // Fetch data from background actor — zero MainActor SwiftData work
     guard let categories = try? await writer.fetchCategoryDefinitions(),
       !categories.isEmpty
     else { return }
 
-    guard let inputs = try? await writer.fetchUnclassifiedInputs(),
+    guard let inputs = try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate),
       !inputs.isEmpty
     else {
       if isClassifying {

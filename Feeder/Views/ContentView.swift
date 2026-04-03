@@ -88,11 +88,12 @@ struct EntryListView: View {
   var selectedEntry: Entry?
   private let filter: ArticleFilter
 
-  init(category: String, filter: ArticleFilter, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
         $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+          && $0.publishedAt >= cutoffDate
       },
       sort: \Entry.publishedAt,
       order: .reverse
@@ -239,7 +240,7 @@ struct ContentView: View {
       sidebarView
     } content: {
       if let category = selectedCategory {
-        EntryListView(category: category, filter: articleFilter, selectedEntry: $selectedEntry)
+        EntryListView(category: category, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .safeAreaInset(edge: .top) {
             Picker("Filter", selection: $articleFilter) {
@@ -485,10 +486,10 @@ struct ContentView: View {
 
     syncEngine.configure(username: username, password: password, modelContainer: modelContext.container)
 
-    // Purge old entries via background DataWriter
+    // Purge entries older than 30 days (max setting) — @Query date filter handles visibility
     Task {
       if let writer = syncEngine.writer {
-        let cutoff = Date().addingTimeInterval(-maxArticleAge)
+        let cutoff = Date().addingTimeInterval(-maxRetentionAge)
         try? await writer.purgeEntriesOlderThan(cutoff)
       }
     }

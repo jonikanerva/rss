@@ -120,6 +120,11 @@ struct SettingsView: View {
         }
         .onChange(of: keepDays) { oldValue, newValue in
           UserDefaults.standard.set(newValue, forKey: "article_keep_days")
+          syncEngine.refreshArticleCutoff()
+          if let writer = syncEngine.writer {
+            classificationEngine.stopContinuousClassification()
+            classificationEngine.startContinuousClassification(writer: writer)
+          }
           if newValue > oldValue {
             syncEngine.refetchHistory()
           }

@@ -342,9 +342,9 @@ actor DataWriter: ModelActor {
 
   // MARK: - Classification
 
-  func fetchUnclassifiedInputs() throws -> [ClassificationInput] {
+  func fetchUnclassifiedInputs(cutoffDate: Date) throws -> [ClassificationInput] {
     let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { !$0.isClassified },
+      predicate: #Predicate<Entry> { !$0.isClassified && $0.publishedAt >= cutoffDate },
       sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
     )
     return try modelContext.fetch(descriptor).map { entry in
