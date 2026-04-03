@@ -42,9 +42,8 @@ nonisolated func fetchExtractedContentBatch(
         }
         active -= 1
       }
-      let reqClient = client
       group.addTask {
-        let content = try? await reqClient.fetchExtractedContent(from: request.url)
+        let content = try? await client.fetchExtractedContent(from: request.url)
         return (request.entryID, content?.content)
       }
       active += 1
