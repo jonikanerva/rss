@@ -277,6 +277,29 @@ struct ContentView: View {
     } detail: {
       detailView
     }
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          articleViewMode = articleViewMode == .web ? .reader : .web
+        } label: {
+          Label(
+            articleViewMode == .web ? "Reader Mode" : "Web Mode",
+            systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
+          )
+        }
+        .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
+        .disabled(selectedEntry == nil)
+      }
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          openInBackground()
+        } label: {
+          Label("Open in Browser", systemImage: "safari")
+        }
+        .help("Open in browser (B)")
+        .disabled(selectedEntry == nil)
+      }
+    }
     .onAppear {
       checkCredentials()
     }
@@ -441,38 +464,13 @@ struct ContentView: View {
 
   @ViewBuilder
   private var detailView: some View {
-    Group {
-      if let selectedEntry {
-        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
-      } else {
-        ContentUnavailableView {
-          Label("Select an Article", systemImage: "doc.text")
-        } description: {
-          Text("Choose an article from the list to read it.")
-        }
-      }
-    }
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          articleViewMode = articleViewMode == .web ? .reader : .web
-        } label: {
-          Label(
-            articleViewMode == .web ? "Reader Mode" : "Web Mode",
-            systemImage: articleViewMode == .web ? "doc.plaintext" : "doc.richtext"
-          )
-        }
-        .help(articleViewMode == .web ? "Switch to reader mode (R)" : "Switch to web mode (R)")
-        .disabled(selectedEntry == nil)
-      }
-      ToolbarItem(placement: .primaryAction) {
-        Button {
-          openInBackground()
-        } label: {
-          Label("Open in Browser", systemImage: "safari")
-        }
-        .help("Open in browser (B)")
-        .disabled(selectedEntry == nil)
+    if let selectedEntry {
+      EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+    } else {
+      ContentUnavailableView {
+        Label("Select an Article", systemImage: "doc.text")
+      } description: {
+        Text("Choose an article from the list to read it.")
       }
     }
   }
