@@ -63,6 +63,8 @@ final class Entry {
     _cachedBlocks = nil
   }
 
+  private static let emptyContentMessage = "This article has no inline content."
+
   /// Decoded article blocks for reader view. Uses extracted content (from Mercury Parser)
   /// when available, falls back to feed content, then to an "Open in browser" link.
   /// Cached after first decode to avoid JSON parsing on every re-render.
@@ -74,7 +76,7 @@ final class Entry {
     } else if !plainText.isEmpty {
       blocks = [.paragraph(text: plainText)]
     } else {
-      blocks = [.paragraph(text: "This article has no inline content. [Open in browser \u{2192}](\(url))")]
+      blocks = [.paragraph(text: "\(Self.emptyContentMessage) [Open in browser \u{2192}](\(url))")]
     }
     _cachedBlocks = blocks
     return blocks
@@ -86,7 +88,7 @@ final class Entry {
     if let content, !content.isEmpty { return content }
     if let summary, !summary.isEmpty { return summary }
     return
-      "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
+      "<p class=\"empty-fallback\">\(Self.emptyContentMessage) <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
   }
 
   init(
