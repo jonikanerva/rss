@@ -1,6 +1,6 @@
 # Next Actions (Execution Queue)
 
-Date: 2026-04-03
+Date: 2026-04-04
 Owner: Repository Owner + Agent
 Status: Active
 
@@ -11,12 +11,21 @@ Status: Active
 
 ## Active queue
 
-1. **Category model redesign: folders + categories** — PR #46 (in review)
+1. **UI/UX tweaks**
    - Owner: Owner + Agent
-   - Folder (optional UI grouping) + Category (flat classification label). Single category per article. Drag-and-drop management.
+   - **Settings → Classification: API key edit modal** — Open API key edit should work like Feedbin user/pass editing: show an Edit button that opens a modal where user can change the key and Save, or Remove Key.
+   - **Settings → Classification: remove Reclassify All button** — it already exists in Settings → Categories, which is the more natural place.
+   - **Panel 1 keyboard navigation: J/K for folders/categories** — J moves down one category/folder, K moves up.
+   - **macOS HIG menu bar commands** — all keyboard shortcuts and on-screen buttons should also appear in the menu bar (accessible via mouse, showing shortcut key).
+
+2. **Article content tweaks**
+   - Owner: Owner + Agent
+   - **Empty article content** — many articles (e.g. YouTube videos) have empty content. Must find a solution so no article shows blank.
+   - **"If you trust this content" placeholder text** — some articles show this instead of real content. Investigate whether this comes from Feedbin or is introduced in our pipeline, and fix so articles show readable content.
 
 ## Completed history
 
+- **2026-04-04**: Category model redesign: folders + categories — PR #46 merged. Folder (optional UI grouping) + Category (flat classification label), single category per article, drag-and-drop management.
 - **2026-04-03**: Sync read status to Feedbin — fire-and-forget push via DELETE /v2/unread_entries.json, push-before-pull in incremental sync, eager push on app background. PR #42.
 - **2026-04-03**: Keep days runtime — date-based @Query filtering hides articles outside retention window without deletion, classification cancel/restart on setting change, fixed 30-day startup purge. PR #41.
 - **2026-04-03**: Test suite quality review — fixed Keychain prompt (CODE_SIGNING_ALLOWED=NO), split test gates, removed 19 low-value tests, added 13 DataWriter entry integration tests, deleted launch tests. PR #39.
