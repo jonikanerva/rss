@@ -11,12 +11,11 @@ Status: Active
 
 ## Active queue
 
-1. **Embedded video/iframe content**
-   - Owner: Owner + Agent
-   - **iframes don't render in web view** — `allowsContentJavaScript = false` prevents YouTube, Vimeo, and other iframe embeds from loading. Feedbin wraps YouTube videos as `<iframe src="youtube.com/embed/VIDEO_ID">`. Reader view skips iframes entirely (`knownSkipTags`).
-   - **Solution**: detect video iframe URLs (YouTube, Vimeo, etc.), replace with a clickable thumbnail image that opens the video in the system browser. YouTube thumbnails: `https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg`. Apply in both web view (HTML transform) and reader view (new `ArticleBlock` case or image+link).
+*(Queue empty)*
 
 ## Completed history
+
+- **2026-04-04**: Embedded video/iframe thumbnails — PR #49. YouTube iframes replaced with clickable thumbnail images in both web and reader view. Extensible to other platforms.
 
 - **2026-04-04**: UI/UX tweaks — PR #48. API key edit modal, removed standalone Reclassify button, J/K sidebar navigation, menu bar commands (Sync, Mark All Read, Reader/Web, Open in Browser, Navigate).
 - **2026-04-04**: Article content tweaks — PR #47. Web view now shows feed content (content > summary), reader view shows extracted content (extractedContent > content > summary). Empty articles show "Open in browser" fallback. Root cause of "if you trust this content" was Mercury Parser overriding good feed content.
