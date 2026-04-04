@@ -23,6 +23,11 @@ Status: Active
    - **Empty article content** — many articles (e.g. YouTube videos) have empty content. Must find a solution so no article shows blank.
    - **"If you trust this content" placeholder text** — some articles show this instead of real content. Investigate whether this comes from Feedbin or is introduced in our pipeline, and fix so articles show readable content.
 
+3. **Embedded video/iframe content**
+   - Owner: Owner + Agent
+   - **iframes don't render in web view** — `allowsContentJavaScript = false` prevents YouTube, Vimeo, and other iframe embeds from loading. Feedbin wraps YouTube videos as `<iframe src="youtube.com/embed/VIDEO_ID">`. Reader view skips iframes entirely (`knownSkipTags`).
+   - **Solution**: detect video iframe URLs (YouTube, Vimeo, etc.), replace with a clickable thumbnail image that opens the video in the system browser. YouTube thumbnails: `https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg`. Apply in both web view (HTML transform) and reader view (new `ArticleBlock` case or image+link).
+
 ## Completed history
 
 - **2026-04-04**: Category model redesign: folders + categories — PR #46 merged. Folder (optional UI grouping) + Category (flat classification label), single category per article, drag-and-drop management.
