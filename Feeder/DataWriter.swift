@@ -485,13 +485,17 @@ actor DataWriter: ModelActor {
     )
     guard let folder = try modelContext.fetch(folderDescriptor).first else { return }
 
-    // Move categories in this folder to root level
+    // Move categories in this folder to root level with fresh sort orders
     let catDescriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.folderLabel == label }
     )
     let categories = try modelContext.fetch(catDescriptor)
-    for category in categories {
+    let existingRootCount = try modelContext.fetchCount(
+      FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.folderLabel == nil })
+    )
+    for (index, category) in categories.enumerated() {
       category.folderLabel = nil
+      category.sortOrder = existingRootCount + index
     }
 
     // Clear primaryFolder on all entries that reference this folder (covers both

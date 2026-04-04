@@ -204,10 +204,10 @@ struct CategoryManagementView: View {
     guard let writer = syncEngine.writer else { return }
     if draggedLabel == uncategorizedLabel { return }
 
-    let childCount = allCategories.inFolder(folderLabel).count
+    let maxOrder = allCategories.inFolder(folderLabel).map(\.sortOrder).max() ?? -1
     Task {
       try? await writer.batchUpdateCategoryFolderAndSortOrders(
-        folderChanges: [(draggedLabel, folderLabel, childCount)],
+        folderChanges: [(draggedLabel, folderLabel, maxOrder + 1)],
         sortOrderUpdates: []
       )
     }
