@@ -72,11 +72,7 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   private func escapeHTML(_ string: String) -> String {
-    string
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "<", with: "&lt;")
-      .replacingOccurrences(of: ">", with: "&gt;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
+    string.htmlEscaped
   }
 
   /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.

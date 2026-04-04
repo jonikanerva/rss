@@ -255,3 +255,16 @@ nonisolated private func fallbackBlocks(_ html: String) -> [ArticleBlock] {
   guard !text.isEmpty else { return [] }
   return [.paragraph(text: text)]
 }
+
+// MARK: - HTML Escaping
+
+extension String {
+  /// Escape characters that are special in HTML to prevent injection.
+  nonisolated var htmlEscaped: String {
+    self
+      .replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "<", with: "&lt;")
+      .replacingOccurrences(of: ">", with: "&gt;")
+      .replacingOccurrences(of: "\"", with: "&quot;")
+  }
+}

@@ -104,12 +104,7 @@ final class Entry {
   }
 
   private var emptyContentFallbackHTML: String {
-    let safeURL =
-      url
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
-    return
-      "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(safeURL)\">Open in browser \u{2192}</a></p>"
+    "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
   }
 
   private static func isFeedbinPlaceholder(_ html: String) -> Bool {
