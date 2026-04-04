@@ -220,6 +220,13 @@ header {
   font-weight: 600;
 }
 
+/* iframes (unsupported embeds — constrain width) */
+.content iframe {
+  max-width: 100%;
+  border: none;
+  border-radius: 6px;
+}
+
 /* Video thumbnails (replaced iframes) */
 .video-thumbnail {
   display: block;
