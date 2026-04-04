@@ -66,7 +66,6 @@ struct CategoryManagementView: View {
       rootDropZone(position: 0)
       ForEach(Array(rootCategories.enumerated()), id: \.element.persistentModelID) { index, category in
         CategoryCompactRow(
-          label: category.label,
           displayName: category.displayName,
           descriptionPreview: category.categoryDescription,
           depth: 0,
@@ -83,7 +82,6 @@ struct CategoryManagementView: View {
   @ViewBuilder
   private func folderSection(folder: Folder) -> some View {
     FolderCompactRow(
-      label: folder.label,
       displayName: folder.displayName,
       isDropTarget: dropTargetLabel == folder.label,
       onEdit: { editingFolder = folder }
@@ -102,7 +100,6 @@ struct CategoryManagementView: View {
     }
     ForEach(Array(children.enumerated()), id: \.element.persistentModelID) { childIndex, child in
       CategoryCompactRow(
-        label: child.label,
         displayName: child.displayName,
         descriptionPreview: child.categoryDescription,
         depth: 1,
@@ -277,7 +274,6 @@ struct CategoryManagementView: View {
 // MARK: - Compact Row
 
 private struct CategoryCompactRow: View {
-  let label: String
   let displayName: String
   let descriptionPreview: String
   let depth: Int
@@ -317,7 +313,6 @@ private struct CategoryCompactRow: View {
 }
 
 private struct FolderCompactRow: View {
-  let label: String
   let displayName: String
   let isDropTarget: Bool
   let onEdit: () -> Void

@@ -109,7 +109,7 @@ struct DataWriterCategoryTests {
   }
 
   @Test
-  func deleteFolderMovesCategoriestoRoot() async throws {
+  func deleteFolderMovesCategoriesToRoot() async throws {
     let writer = try await makeWriter()
     try await seedFoldersAndCategories(writer)
 

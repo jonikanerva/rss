@@ -458,8 +458,6 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  // MARK: - Purge
-
   // MARK: - Folder management
 
   func addFolder(label: String, displayName: String, sortOrder: Int) throws {
