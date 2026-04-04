@@ -40,10 +40,10 @@ final class FeederUITests: XCTestCase {
     let app = makeApp()
     app.launch()
 
-    // Wait for sidebar category to appear (demo data seeded)
-    let technologyCategory = app.staticTexts["sidebar.category.technology"]
-    XCTAssertTrue(technologyCategory.waitForExistence(timeout: 10))
-    technologyCategory.click()
+    // Wait for sidebar folder to appear (demo data seeded)
+    let technologyFolder = app.staticTexts["sidebar.folder.technology"]
+    XCTAssertTrue(technologyFolder.waitForExistence(timeout: 10))
+    technologyFolder.click()
 
     // Wait for a known demo article to appear in the timeline (via accessibility identifier)
     let articleRow = app.descendants(matching: .any)["entry.row.1001"]
@@ -68,10 +68,10 @@ final class FeederUITests: XCTestCase {
     let app = makeApp()
     app.launch()
 
-    // Select a category
-    let technologyCategory = app.staticTexts["sidebar.category.technology"]
-    XCTAssertTrue(technologyCategory.waitForExistence(timeout: 10))
-    technologyCategory.click()
+    // Select the technology folder
+    let technologyFolder = app.staticTexts["sidebar.folder.technology"]
+    XCTAssertTrue(technologyFolder.waitForExistence(timeout: 10))
+    technologyFolder.click()
 
     // Verify filter picker exists with both segments
     let filterPicker = app.descendants(matching: .any)["article.filter"]

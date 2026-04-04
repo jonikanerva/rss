@@ -485,14 +485,23 @@ actor DataWriter: ModelActor {
     )
     guard let folder = try modelContext.fetch(folderDescriptor).first else { return }
 
-    // Move categories in this folder to root level and update their entries
+    // Move categories in this folder to root level
     let catDescriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.folderLabel == label }
     )
     let categories = try modelContext.fetch(catDescriptor)
     for category in categories {
       category.folderLabel = nil
-      try updatePrimaryFolderOnEntries(categoryLabel: category.label, newFolder: "")
+    }
+
+    // Clear primaryFolder on all entries that reference this folder (covers both
+    // current categories and orphaned entries from previously deleted categories)
+    let entryDescriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryFolder == label }
+    )
+    let entries = try modelContext.fetch(entryDescriptor)
+    for entry in entries {
+      entry.primaryFolder = ""
     }
 
     modelContext.delete(folder)
