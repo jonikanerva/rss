@@ -82,10 +82,12 @@ final class Entry {
     return blocks
   }
 
-  /// Feed-provided HTML for the default web view: content > summary.
-  /// Returns a fallback "Open in browser" link when the feed provides no content.
+  /// HTML for the default web view: feed content first, then extracted, then summary.
+  /// Feed content is preferred so feeds with good HTML (e.g. Mastodon) aren't overridden
+  /// by Mercury Parser. Extracted content is the fallback for truncated/summary-only feeds.
   var feedHTML: String {
     if let content, !content.isEmpty { return content }
+    if let extracted = extractedContent, !extracted.isEmpty { return extracted }
     if let summary, !summary.isEmpty { return summary }
     return
       "<p class=\"empty-fallback\">\(Self.emptyContentMessage) <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
