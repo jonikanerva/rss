@@ -83,7 +83,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     let classification = try JSONDecoder().decode(OpenAIClassification.self, from: Data(content.utf8))
 
     return ProviderClassificationResult(
-      categories: classification.categories,
+      category: classification.category,
       storyKey: classification.storyKey,
       confidence: classification.confidence
     )
@@ -145,14 +145,11 @@ private struct OpenAIRequest: Encodable {
     static let classificationSchema = SchemaDefinition(
       type: "object",
       properties: [
-        "categories": PropertyDefinition(
-          type: "array",
-          items: PropertyDefinition.Items(type: "string")
-        ),
+        "category": PropertyDefinition(type: "string", items: nil),
         "storyKey": PropertyDefinition(type: "string", items: nil),
         "confidence": PropertyDefinition(type: "number", items: nil),
       ],
-      required: ["categories", "storyKey", "confidence"],
+      required: ["category", "storyKey", "confidence"],
       additionalProperties: false
     )
   }
@@ -190,7 +187,7 @@ private struct OpenAIResponse: Decodable {
 }
 
 private struct OpenAIClassification: Decodable {
-  let categories: [String]
+  let category: String
   let storyKey: String
   let confidence: Double
 }

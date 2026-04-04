@@ -79,7 +79,14 @@ private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, en
   return groups
 }
 
-// MARK: - Entry List View (dynamic @Query filtered by category + read status in SQLite)
+// MARK: - Sidebar Selection
+
+enum SidebarSelection: Hashable {
+  case folder(String)
+  case category(String)
+}
+
+// MARK: - Entry List View (dynamic @Query filtered by category/folder + read status in SQLite)
 
 struct EntryListView: View {
   @Query
@@ -93,6 +100,20 @@ struct EntryListView: View {
     _entries = Query(
       filter: #Predicate<Entry> {
         $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+          && $0.publishedAt >= cutoffDate
+      },
+      sort: \Entry.publishedAt,
+      order: .reverse
+    )
+    self.filter = filter
+    _selectedEntry = selectedEntry
+  }
+
+  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
+    let showRead = filter == .read
+    _entries = Query(
+      filter: #Predicate<Entry> {
+        $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
           && $0.publishedAt >= cutoffDate
       },
       sort: \Entry.publishedAt,
@@ -212,14 +233,14 @@ struct ContentView: View {
   private var modelContext
   @Environment(\.scenePhase)
   private var scenePhase
-  @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
-  private var topLevelCategories: [Category]
+  @Query(sort: \Folder.sortOrder)
+  private var folders: [Folder]
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
   @State
   private var selectedEntry: Entry?
   @State
-  private var selectedCategory: String?
+  private var selection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
@@ -239,8 +260,8 @@ struct ContentView: View {
     NavigationSplitView {
       sidebarView
     } content: {
-      if let category = selectedCategory {
-        EntryListView(category: category, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+      if let selection {
+        entryListForSelection(selection)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
           .toolbar {
@@ -266,7 +287,7 @@ struct ContentView: View {
             }
           }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
-          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedCategory)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selection)
       } else {
         ContentUnavailableView {
           Label("No Category", systemImage: "newspaper")
@@ -297,14 +318,15 @@ struct ContentView: View {
       flushPendingReads()
       selectedEntry = nil
     }
-    .onChange(of: selectedCategory) {
+    .onChange(of: selection) {
       flushPendingReads()
       selectedEntry = nil
     }
-    .onChange(of: topLevelCategories.count) {
-      if selectedCategory == nil, let first = topLevelCategories.first {
-        selectedCategory = first.label
-      }
+    .onChange(of: allCategories.count) {
+      revalidateSelection()
+    }
+    .onChange(of: folders.count) {
+      revalidateSelection()
     }
     .onChange(of: scenePhase) {
       if scenePhase != .active {
@@ -327,18 +349,44 @@ struct ContentView: View {
       return .handled
     }
     .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-      guard articleFilter == .unread, selectedCategory != nil else { return .ignored }
+      guard articleFilter == .unread, selection != nil else { return .ignored }
       markAllAsRead()
       return .handled
     }
   }
 
-  // MARK: - Child lookup (small category count, acceptable in-memory filter)
+  // MARK: - Category lookups (small count, acceptable in-memory filter)
 
-  private func childCategories(of parentLabel: String) -> [Category] {
-    allCategories
-      .filter { $0.parentLabel == parentLabel }
-      .sorted { $0.sortOrder < $1.sortOrder }
+  private var rootCategories: [Category] { allCategories.atRoot }
+
+  @ViewBuilder
+  private func entryListForSelection(_ sel: SidebarSelection) -> some View {
+    switch sel {
+    case .folder(let label):
+      EntryListView(folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+    case .category(let label):
+      EntryListView(category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+    }
+  }
+
+  // MARK: - Selection
+
+  private func revalidateSelection() {
+    switch selection {
+    case .folder(let label) where !folders.contains(where: { $0.label == label }):
+      selection = nil
+    case .category(let label) where !allCategories.contains(where: { $0.label == label }):
+      selection = nil
+    default:
+      break
+    }
+    if selection == nil {
+      if let firstFolder = folders.first {
+        selection = .folder(firstFolder.label)
+      } else if let firstCategory = rootCategories.first {
+        selection = .category(firstCategory.label)
+      }
+    }
   }
 
   // MARK: - Actions
@@ -355,15 +403,18 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    guard let category = selectedCategory, let writer = syncEngine.writer else { return }
+    guard let selection, let writer = syncEngine.writer else { return }
     selectedEntry = nil
     Task {
-      guard
-        let markedIDs = try? await writer.markAllAsRead(
-          category: category, cutoffDate: syncEngine.queryCutoffDate),
-        !markedIDs.isEmpty
-      else { return }
-      syncEngine.queueReadIDs(markedIDs)
+      let markedIDs: Set<Int>?
+      switch selection {
+      case .folder(let label):
+        markedIDs = try? await writer.markAllAsRead(folder: label, cutoffDate: syncEngine.queryCutoffDate)
+      case .category(let label):
+        markedIDs = try? await writer.markAllAsRead(category: label, cutoffDate: syncEngine.queryCutoffDate)
+      }
+      guard let ids = markedIDs, !ids.isEmpty else { return }
+      syncEngine.queueReadIDs(ids)
     }
   }
 
@@ -387,20 +438,26 @@ struct ContentView: View {
 
   @ViewBuilder
   private var sidebarView: some View {
-    List(selection: $selectedCategory) {
+    List(selection: $selection) {
       Section {
-        ForEach(topLevelCategories) { parent in
-          Text(parent.displayName)
-            .font(.system(size: FontTheme.metadataSize))
-            .tag(parent.label)
-            .accessibilityIdentifier("sidebar.category.\(parent.label)")
-          ForEach(childCategories(of: parent.label)) { child in
-            Text(child.displayName)
+        ForEach(folders) { folder in
+          Text(folder.displayName)
+            .font(.system(size: FontTheme.metadataSize, weight: .semibold))
+            .tag(SidebarSelection.folder(folder.label))
+            .accessibilityIdentifier("sidebar.folder.\(folder.label)")
+          ForEach(allCategories.inFolder(folder.label)) { category in
+            Text(category.displayName)
               .font(.system(size: FontTheme.metadataSize))
               .padding(.leading, 16)
-              .tag(child.label)
-              .accessibilityIdentifier("sidebar.category.\(child.label)")
+              .tag(SidebarSelection.category(category.label))
+              .accessibilityIdentifier("sidebar.category.\(category.label)")
           }
+        }
+        ForEach(rootCategories) { category in
+          Text(category.displayName)
+            .font(.system(size: FontTheme.metadataSize))
+            .tag(SidebarSelection.category(category.label))
+            .accessibilityIdentifier("sidebar.category.\(category.label)")
         }
       } header: {
         SyncStatusView()
@@ -428,12 +485,14 @@ struct ContentView: View {
   }
 
   private var navigationTitle: String {
-    if let category = selectedCategory,
-      let cat = allCategories.first(where: { $0.label == category })
-    {
-      return cat.displayName
+    switch selection {
+    case .folder(let label):
+      return folders.first { $0.label == label }?.displayName ?? "Articles"
+    case .category(let label):
+      return allCategories.first { $0.label == label }?.displayName ?? "Articles"
+    case nil:
+      return "Articles"
     }
-    return "Articles"
   }
 
   // MARK: - Detail
@@ -486,8 +545,10 @@ struct ContentView: View {
     }
     if isUITestDemoMode {
       seedUITestDataIfNeeded()
-      if selectedCategory == nil {
-        selectedCategory = topLevelCategories.first?.label
+      if selection == nil {
+        if let firstFolder = folders.first {
+          selection = .folder(firstFolder.label)
+        }
       }
       return
     }
@@ -506,7 +567,7 @@ struct ContentView: View {
     Task {
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
-        selectedCategory = "technology"
+        selection = .folder("technology")
       }
     }
   }
@@ -550,17 +611,17 @@ struct ContentView: View {
 @MainActor
 private func timelineSeededDemoPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config) else {
+  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, Folder.self, configurations: config) else {
     fatalError("Preview ModelContainer failed")
   }
   let context = container.mainContext
 
-  let technology = Category(
-    label: "technology", displayName: "Technology", categoryDescription: "Technology coverage for preview", sortOrder: 0)
+  let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+  context.insert(techFolder)
+
   let apple = Category(
-    label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, parentLabel: "technology")
-  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "World coverage for preview", sortOrder: 1)
-  context.insert(technology)
+    label: "apple", displayName: "Apple", categoryDescription: "Apple preview", sortOrder: 0, folderLabel: "technology")
+  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "World coverage for preview", sortOrder: 0)
   context.insert(apple)
   context.insert(world)
 
@@ -575,8 +636,8 @@ private func timelineSeededDemoPreview() -> some View {
       content: "<p>Sample article \(i).</p>", summary: "Sample \(i)", extractedContentURL: nil,
       publishedAt: .now.addingTimeInterval(-Double(i) * 900), createdAt: .now.addingTimeInterval(-Double(i) * 850))
     entry.feed = feed1
-    entry.categoryLabels = ["technology"]
-    entry.primaryCategory = "technology"
+    entry.primaryCategory = "apple"
+    entry.primaryFolder = "technology"
     entry.isClassified = true
     entry.isRead = i > 3
     entry.formattedDate = "Today, \(i)th Mar, 12:0\(i)"

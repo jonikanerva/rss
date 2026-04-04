@@ -9,8 +9,8 @@ struct CategoryManagementView: View {
   @Environment(SyncEngine.self)
   private var syncEngine
 
-  @Query(filter: #Predicate<Category> { $0.isTopLevel == true }, sort: \Category.sortOrder)
-  private var topLevelCategories: [Category]
+  @Query(sort: \Folder.sortOrder)
+  private var folders: [Folder]
 
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
@@ -18,11 +18,15 @@ struct CategoryManagementView: View {
   @State
   private var editingCategory: Category?
   @State
+  private var editingFolder: Folder?
+  @State
   private var showNewCategorySheet = false
+  @State
+  private var showNewFolderSheet = false
   @State
   private var dropTargetLabel: String?
   @State
-  private var dropAsTopLevelPosition: Int?
+  private var dropRootPosition: Int?
   @State
   private var dropChildPosition: String?
 
@@ -32,7 +36,7 @@ struct CategoryManagementView: View {
         actionButtons
       }
 
-      if allCategories.isEmpty {
+      if allCategories.isEmpty && folders.isEmpty {
         Section("Categories") {
           ContentUnavailableView {
             Label("No Categories", systemImage: "tag")
@@ -49,92 +53,87 @@ struct CategoryManagementView: View {
     .formStyle(.grouped)
   }
 
-  // MARK: - Category list (drag-and-drop hierarchy)
+  // MARK: - Category list (drag-and-drop with folders)
 
   private var categoryList: some View {
     VStack(spacing: 0) {
-      topLevelDropZone(position: 0)
+      // Folders with their categories
+      ForEach(folders) { folder in
+        folderSection(folder: folder)
+      }
 
-      ForEach(Array(topLevelCategories.enumerated()), id: \.element.persistentModelID) {
-        topIndex,
-        parent in
-        parentCategorySection(parent: parent, topIndex: topIndex)
+      // Root-level categories (no folder)
+      rootDropZone(position: 0)
+      ForEach(Array(rootCategories.enumerated()), id: \.element.persistentModelID) { index, category in
+        CategoryCompactRow(
+          displayName: category.displayName,
+          descriptionPreview: category.categoryDescription,
+          depth: 0,
+          isSystem: category.isSystem,
+          isDropTarget: false,
+          onEdit: { editingCategory = category }
+        )
+        .draggable(category.label)
+        rootDropZone(position: index + 1)
       }
     }
   }
 
   @ViewBuilder
-  private func parentCategorySection(parent: Category, topIndex: Int) -> some View {
-    if parent.isSystem {
-      CategoryCompactRow(
-        label: parent.label,
-        displayName: parent.displayName,
-        descriptionPreview: parent.categoryDescription,
-        depth: 0,
-        isDropTarget: false,
-        onEdit: { editingCategory = parent }
-      )
-    } else {
-      CategoryCompactRow(
-        label: parent.label,
-        displayName: parent.displayName,
-        descriptionPreview: parent.categoryDescription,
-        depth: 0,
-        isDropTarget: dropTargetLabel == parent.label,
-        onEdit: { editingCategory = parent }
-      )
-      .draggable(parent.label)
-      .dropDestination(for: String.self) { labels, _ in
-        guard let draggedLabel = labels.first, draggedLabel != parent.label else { return false }
-        handleMakeChild(draggedLabel, of: parent.label)
-        return true
-      } isTargeted: { targeted in
-        dropTargetLabel = targeted ? parent.label : (dropTargetLabel == parent.label ? nil : dropTargetLabel)
-      }
+  private func folderSection(folder: Folder) -> some View {
+    FolderCompactRow(
+      displayName: folder.displayName,
+      isDropTarget: dropTargetLabel == folder.label,
+      onEdit: { editingFolder = folder }
+    )
+    .dropDestination(for: String.self) { labels, _ in
+      guard let draggedLabel = labels.first else { return false }
+      handleMoveToFolder(draggedLabel, folderLabel: folder.label)
+      return true
+    } isTargeted: { targeted in
+      dropTargetLabel = targeted ? folder.label : (dropTargetLabel == folder.label ? nil : dropTargetLabel)
     }
 
-    let children = childCategories(of: parent.label)
+    let children = allCategories.inFolder(folder.label)
     if !children.isEmpty {
-      childDropZone(parentLabel: parent.label, position: 0)
+      childDropZone(folderLabel: folder.label, position: 0)
     }
     ForEach(Array(children.enumerated()), id: \.element.persistentModelID) { childIndex, child in
       CategoryCompactRow(
-        label: child.label,
         displayName: child.displayName,
         descriptionPreview: child.categoryDescription,
         depth: 1,
+        isSystem: child.isSystem,
         isDropTarget: false,
         onEdit: { editingCategory = child }
       )
       .draggable(child.label)
-      childDropZone(parentLabel: parent.label, position: childIndex + 1)
+      childDropZone(folderLabel: folder.label, position: childIndex + 1)
     }
-
-    topLevelDropZone(position: topIndex + 1)
   }
 
-  // MARK: - Top-level drop zone
+  // MARK: - Root drop zone (for moving categories out of folders to root)
 
   @ViewBuilder
-  private func topLevelDropZone(position: Int) -> some View {
-    let isTargeted = dropAsTopLevelPosition == position
+  private func rootDropZone(position: Int) -> some View {
+    let isTargeted = dropRootPosition == position
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
       .frame(height: 8)
       .dropDestination(for: String.self) { labels, _ in
         guard let draggedLabel = labels.first else { return false }
-        handleMakeTopLevel(draggedLabel, at: position)
+        handleMoveToRoot(draggedLabel, at: position)
         return true
       } isTargeted: { targeted in
-        dropAsTopLevelPosition = targeted ? position : (dropAsTopLevelPosition == position ? nil : dropAsTopLevelPosition)
+        dropRootPosition = targeted ? position : (dropRootPosition == position ? nil : dropRootPosition)
       }
   }
 
-  // MARK: - Child drop zone
+  // MARK: - Child drop zone (within a folder)
 
   @ViewBuilder
-  private func childDropZone(parentLabel: String, position: Int) -> some View {
-    let key = "\(parentLabel):\(position)"
+  private func childDropZone(folderLabel: String, position: Int) -> some View {
+    let key = "\(folderLabel):\(position)"
     let isTargeted = dropChildPosition == key
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
@@ -142,7 +141,7 @@ struct CategoryManagementView: View {
       .padding(.leading, 20)
       .dropDestination(for: String.self) { labels, _ in
         guard let draggedLabel = labels.first else { return false }
-        handleInsertChild(draggedLabel, in: parentLabel, at: position)
+        handleInsertInFolder(draggedLabel, folderLabel: folderLabel, at: position)
         return true
       } isTargeted: { targeted in
         dropChildPosition = targeted ? key : (dropChildPosition == key ? nil : dropChildPosition)
@@ -172,65 +171,53 @@ struct CategoryManagementView: View {
         .accessibilityIdentifier("categories.reclassify")
       }
       Spacer()
+      Button("New Folder...") {
+        showNewFolderSheet = true
+      }
+      .accessibilityIdentifier("folders.add")
       Button("New Category...") {
         showNewCategorySheet = true
       }
       .accessibilityIdentifier("categories.add")
     }
     .sheet(isPresented: $showNewCategorySheet) {
-      CategoryEditSheet(category: nil, allTopLevel: topLevelCategories)
+      CategoryEditSheet(category: nil, folders: folders)
+    }
+    .sheet(isPresented: $showNewFolderSheet) {
+      FolderEditSheet(folder: nil)
     }
     .sheet(item: $editingCategory) { category in
-      CategoryEditSheet(category: category, allTopLevel: topLevelCategories)
+      CategoryEditSheet(category: category, folders: folders)
+    }
+    .sheet(item: $editingFolder) { folder in
+      FolderEditSheet(folder: folder)
     }
   }
 
-  // MARK: - Child lookup (small category count, acceptable in-memory filter)
+  // MARK: - Lookups
 
-  private func childCategories(of parentLabel: String) -> [Category] {
-    allCategories
-      .filter { $0.parentLabel == parentLabel }
-      .sorted { $0.sortOrder < $1.sortOrder }
-  }
+  private var rootCategories: [Category] { allCategories.atRoot }
 
   // MARK: - Drop handlers
 
-  private func handleMakeChild(_ draggedLabel: String, of parentLabel: String) {
+  private func handleMoveToFolder(_ draggedLabel: String, folderLabel: String) {
     guard let writer = syncEngine.writer else { return }
-    if draggedLabel == uncategorizedLabel || parentLabel == uncategorizedLabel { return }
+    if draggedLabel == uncategorizedLabel { return }
 
-    let targetParent = allCategories.first { $0.label == parentLabel }
-    if targetParent?.parentLabel == draggedLabel { return }
-    if draggedLabel == parentLabel { return }
-
-    let childCount = childCategories(of: parentLabel).count
-    let orphans = childCategories(of: draggedLabel)
-
-    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = [
-      (draggedLabel, parentLabel, 1, false, childCount)
-    ]
-    for (index, orphan) in orphans.enumerated() {
-      hierarchyChanges.append((orphan.label, nil, 0, true, topLevelCategories.count + index))
-    }
-
+    let maxOrder = allCategories.inFolder(folderLabel).map(\.sortOrder).max() ?? -1
     Task {
-      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
-        hierarchyChanges: hierarchyChanges, sortOrderUpdates: []
+      try? await writer.batchUpdateCategoryFolderAndSortOrders(
+        folderChanges: [(draggedLabel, folderLabel, maxOrder + 1)],
+        sortOrderUpdates: []
       )
     }
   }
 
-  private func handleInsertChild(_ draggedLabel: String, in parentLabel: String, at position: Int) {
+  private func handleInsertInFolder(_ draggedLabel: String, folderLabel: String, at position: Int) {
     guard let writer = syncEngine.writer else { return }
-    if draggedLabel == uncategorizedLabel || parentLabel == uncategorizedLabel { return }
+    if draggedLabel == uncategorizedLabel { return }
 
-    let draggedCategory = allCategories.first { $0.label == draggedLabel }
-    let needsReparent = draggedCategory?.parentLabel != parentLabel
-
-    let targetParent = allCategories.first { $0.label == parentLabel }
-    if targetParent?.parentLabel == draggedLabel { return }
-
-    var children = childCategories(of: parentLabel).map(\.label)
+    var children = allCategories.inFolder(folderLabel).map(\.label)
     children.removeAll { $0 == draggedLabel }
     let insertAt = min(position, children.count)
     children.insert(draggedLabel, at: insertAt)
@@ -239,41 +226,42 @@ struct CategoryManagementView: View {
       (label: label, sortOrder: index)
     }
 
-    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = []
-    if needsReparent {
-      hierarchyChanges.append((draggedLabel, parentLabel, 1, false, insertAt))
-      for (index, orphan) in childCategories(of: draggedLabel).enumerated() {
-        hierarchyChanges.append((orphan.label, nil, 0, true, topLevelCategories.count + index))
-      }
+    let draggedCategory = allCategories.first { $0.label == draggedLabel }
+    let needsMove = draggedCategory?.folderLabel != folderLabel
+    var folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)] = []
+    if needsMove {
+      folderChanges.append((draggedLabel, folderLabel, insertAt))
     }
 
     Task {
-      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
-        hierarchyChanges: hierarchyChanges, sortOrderUpdates: sortOrderUpdates
+      try? await writer.batchUpdateCategoryFolderAndSortOrders(
+        folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates
       )
     }
   }
 
-  private func handleMakeTopLevel(_ draggedLabel: String, at position: Int) {
+  private func handleMoveToRoot(_ draggedLabel: String, at position: Int) {
     guard let writer = syncEngine.writer else { return }
-    var ordered = topLevelCategories.map(\.label)
-    ordered.removeAll { $0 == draggedLabel }
-    let insertAt = min(position, ordered.count)
-    ordered.insert(draggedLabel, at: insertAt)
+    if draggedLabel == uncategorizedLabel { return }
 
-    let sortOrderUpdates = ordered.enumerated().map { (index, label) in
+    var rootLabels = rootCategories.map(\.label)
+    rootLabels.removeAll { $0 == draggedLabel }
+    let insertAt = min(position, rootLabels.count)
+    rootLabels.insert(draggedLabel, at: insertAt)
+
+    let sortOrderUpdates = rootLabels.enumerated().map { (index, label) in
       (label: label, sortOrder: index)
     }
 
     let draggedCategory = allCategories.first { $0.label == draggedLabel }
-    var hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)] = []
-    if draggedCategory?.isTopLevel == false {
-      hierarchyChanges.append((draggedLabel, nil, 0, true, insertAt))
+    var folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)] = []
+    if draggedCategory?.folderLabel != nil {
+      folderChanges.append((draggedLabel, nil, insertAt))
     }
 
     Task {
-      try? await writer.batchUpdateCategoryHierarchyAndSortOrders(
-        hierarchyChanges: hierarchyChanges, sortOrderUpdates: sortOrderUpdates
+      try? await writer.batchUpdateCategoryFolderAndSortOrders(
+        folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates
       )
     }
   }
@@ -282,10 +270,10 @@ struct CategoryManagementView: View {
 // MARK: - Compact Row
 
 private struct CategoryCompactRow: View {
-  let label: String
   let displayName: String
   let descriptionPreview: String
   let depth: Int
+  let isSystem: Bool
   let isDropTarget: Bool
   let onEdit: () -> Void
 
@@ -300,8 +288,10 @@ private struct CategoryCompactRow: View {
           .lineLimit(1)
       }
       Spacer()
-      Button("Edit") {
-        onEdit()
+      if !isSystem {
+        Button("Edit") {
+          onEdit()
+        }
       }
     }
     .padding(.leading, CGFloat(depth) * 20)
@@ -318,10 +308,39 @@ private struct CategoryCompactRow: View {
   }
 }
 
+private struct FolderCompactRow: View {
+  let displayName: String
+  let isDropTarget: Bool
+  let onEdit: () -> Void
+
+  var body: some View {
+    HStack {
+      Image(systemName: "folder")
+        .foregroundStyle(.secondary)
+      Text(displayName)
+        .font(FontTheme.bodyMedium)
+      Spacer()
+      Button("Edit") {
+        onEdit()
+      }
+    }
+    .padding(.vertical, 4)
+    .padding(.horizontal, 8)
+    .background(
+      RoundedRectangle(cornerRadius: 6)
+        .fill(isDropTarget ? Color.accentColor.opacity(0.15) : Color.clear)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 6)
+        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
+    )
+  }
+}
+
 // MARK: - Preview
 
-#Preview("Category Management - Hierarchical") {
-  categoryManagementHierarchicalPreview()
+#Preview("Category Management") {
+  categoryManagementPreview()
 }
 
 #Preview("Category Management - Empty") {
@@ -329,11 +348,11 @@ private struct CategoryCompactRow: View {
 }
 
 @MainActor
-private func categoryManagementHierarchicalPreview() -> some View {
+private func categoryManagementPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
   guard
     let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self,
+      for: Entry.self, Feed.self, Category.self, Folder.self,
       configurations: config
     )
   else {
@@ -341,16 +360,16 @@ private func categoryManagementHierarchicalPreview() -> some View {
   }
   let context = container.mainContext
 
-  let technology = Category(
-    label: "technology", displayName: "Technology", categoryDescription: "Technology coverage.", sortOrder: 0)
+  let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+  context.insert(techFolder)
+
   let apple = Category(
     label: "apple", displayName: "Apple", categoryDescription: "Apple company news.", sortOrder: 0,
-    parentLabel: "technology")
+    folderLabel: "technology")
   let ai = Category(
-    label: "ai", displayName: "AI", categoryDescription: "AI and ML news.", sortOrder: 1, parentLabel: "technology")
-  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "Global policy news.", sortOrder: 1)
+    label: "ai", displayName: "AI", categoryDescription: "AI and ML news.", sortOrder: 1, folderLabel: "technology")
+  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "Global policy news.", sortOrder: 0)
 
-  context.insert(technology)
   context.insert(apple)
   context.insert(ai)
   context.insert(world)
@@ -368,7 +387,7 @@ private func categoryManagementEmptyPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
   guard
     let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self,
+      for: Entry.self, Feed.self, Category.self, Folder.self,
       configurations: config
     )
   else {

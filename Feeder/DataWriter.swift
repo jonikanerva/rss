@@ -14,7 +14,7 @@ nonisolated struct ClassificationInput: Sendable {
 /// Classification result — produced by FM inference, applied to Entry on background actor.
 nonisolated struct ClassificationResult: Sendable {
   let entryID: Int
-  let categoryLabels: [String]
+  let categoryLabel: String
   let storyKey: String
   let detectedLanguage: String
   let confidence: Double
@@ -24,15 +24,13 @@ nonisolated struct ClassificationResult: Sendable {
 nonisolated struct CategoryDefinition: Sendable {
   let label: String
   let description: String
-  let parentLabel: String?
-  let isTopLevel: Bool
+  let folderLabel: String?
   let keywords: [String]
 
-  init(label: String, description: String, parentLabel: String?, isTopLevel: Bool, keywords: [String] = []) {
+  init(label: String, description: String, folderLabel: String? = nil, keywords: [String] = []) {
     self.label = label
     self.description = description
-    self.parentLabel = parentLabel
-    self.isTopLevel = isTopLevel
+    self.folderLabel = folderLabel
     self.keywords = keywords
   }
 }
@@ -86,22 +84,6 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
 nonisolated func extractDomain(from urlString: String) -> String {
   guard let host = URL(string: urlString)?.host() else { return "" }
   return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-}
-
-/// Safety net: strip parent labels when a more specific child label is present.
-/// Given ["technology", "apple"] with apple being a child of technology, returns ["apple"].
-nonisolated func enforceDeepestMatch(
-  labels: [String],
-  childrenByParent: [String: [CategoryDefinition]]
-) -> [String] {
-  var result = labels
-  for (parentLabel, children) in childrenByParent {
-    let childLabels = Set(children.map(\.label))
-    if result.contains(parentLabel), result.contains(where: { childLabels.contains($0) }) {
-      result.removeAll { $0 == parentLabel }
-    }
-  }
-  return result.isEmpty ? [uncategorizedLabel] : result
 }
 
 // MARK: - DataWriter Actor
@@ -342,6 +324,26 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  /// Mark all unread classified entries in a folder as read. Returns the feedbin entry IDs that were marked.
+  func markAllAsRead(folder: String, cutoffDate: Date) throws -> Set<Int> {
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> {
+        $0.isClassified && $0.primaryFolder == folder && !$0.isRead
+          && $0.publishedAt >= cutoffDate
+      }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    guard !entries.isEmpty else { return [] }
+    var markedIDs = Set<Int>()
+    for entry in entries {
+      entry.isRead = true
+      markedIDs.insert(entry.feedbinEntryID)
+    }
+    try modelContext.save()
+    Self.logger.info("Marked \(markedIDs.count) entries as read in folder '\(folder)'")
+    return markedIDs
+  }
+
   /// Mark all unread classified entries in a category as read. Returns the feedbin entry IDs that were marked.
   func markAllAsRead(category: String, cutoffDate: Date) throws -> Set<Int> {
     let descriptor = FetchDescriptor<Entry>(
@@ -419,8 +421,7 @@ actor DataWriter: ModelActor {
       CategoryDefinition(
         label: cat.label,
         description: cat.categoryDescription,
-        parentLabel: cat.parentLabel,
-        isTopLevel: cat.isTopLevel,
+        folderLabel: cat.folderLabel,
         keywords: cat.keywords
       )
     }
@@ -432,19 +433,15 @@ actor DataWriter: ModelActor {
     )
     guard let entry = try modelContext.fetch(descriptor).first else { return }
 
-    // Safety net: strip parent labels when a child label is also present (deepest-match rule)
     let categories = try fetchCategoryDefinitions()
-    let childrenByParent = Dictionary(
-      grouping: categories.filter { !$0.isTopLevel },
-      by: { $0.parentLabel ?? "" }
-    )
-    let labels = enforceDeepestMatch(labels: result.categoryLabels, childrenByParent: childrenByParent)
+    let validLabels = Set(categories.map(\.label))
+    let label = validLabels.contains(result.categoryLabel) ? result.categoryLabel : uncategorizedLabel
 
     entry.detectedLanguage = result.detectedLanguage
-    entry.categoryLabels = labels
     entry.storyKey = result.storyKey
     entry.isClassified = true
-    entry.primaryCategory = labels.first ?? uncategorizedLabel
+    entry.primaryCategory = label
+    entry.primaryFolder = categories.first { $0.label == label }?.folderLabel ?? ""
     try modelContext.save()
   }
 
@@ -452,26 +449,87 @@ actor DataWriter: ModelActor {
     let descriptor = FetchDescriptor<Entry>()
     let entries = try modelContext.fetch(descriptor)
     for entry in entries {
-      entry.categoryLabels = []
       entry.storyKey = nil
       entry.detectedLanguage = nil
       entry.isClassified = false
       entry.primaryCategory = ""
+      entry.primaryFolder = ""
     }
     try modelContext.save()
   }
 
-  // MARK: - Purge
+  // MARK: - Entry folder backfill
+
+  /// Update primaryFolder on all entries assigned to a category when that category's folder changes.
+  private func updatePrimaryFolderOnEntries(categoryLabel: String, newFolder: String) throws {
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryCategory == categoryLabel }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    for entry in entries {
+      entry.primaryFolder = newFolder
+    }
+  }
+
+  // MARK: - Folder management
+
+  func addFolder(label: String, displayName: String, sortOrder: Int) throws {
+    let folder = Folder(label: label, displayName: displayName, sortOrder: sortOrder)
+    modelContext.insert(folder)
+    try modelContext.save()
+  }
+
+  func deleteFolder(label: String) throws {
+    let folderDescriptor = FetchDescriptor<Folder>(
+      predicate: #Predicate<Folder> { $0.label == label }
+    )
+    guard let folder = try modelContext.fetch(folderDescriptor).first else { return }
+
+    // Move categories in this folder to root level with fresh sort orders
+    let catDescriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.folderLabel == label }
+    )
+    let categories = try modelContext.fetch(catDescriptor)
+    let existingRootCount = try modelContext.fetchCount(
+      FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.folderLabel == nil })
+    )
+    for (index, category) in categories.enumerated() {
+      category.folderLabel = nil
+      category.sortOrder = existingRootCount + index
+    }
+
+    // Clear primaryFolder on all entries that reference this folder (covers both
+    // current categories and orphaned entries from previously deleted categories)
+    let entryDescriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryFolder == label }
+    )
+    let entries = try modelContext.fetch(entryDescriptor)
+    for entry in entries {
+      entry.primaryFolder = ""
+    }
+
+    modelContext.delete(folder)
+    try modelContext.save()
+  }
+
+  func updateFolderFields(label: String, displayName: String) throws {
+    let descriptor = FetchDescriptor<Folder>(
+      predicate: #Predicate<Folder> { $0.label == label }
+    )
+    guard let folder = try modelContext.fetch(descriptor).first else { return }
+    folder.displayName = displayName
+    try modelContext.save()
+  }
 
   // MARK: - Category management
 
-  func addCategory(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String? = nil) throws {
+  func addCategory(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String? = nil) throws {
     let category = Category(
       label: label,
       displayName: displayName,
       categoryDescription: description,
       sortOrder: sortOrder,
-      parentLabel: parentLabel
+      folderLabel: folderLabel
     )
     modelContext.insert(category)
     try modelContext.save()
@@ -483,16 +541,6 @@ actor DataWriter: ModelActor {
     )
     guard let category = try modelContext.fetch(descriptor).first else { return }
     guard !category.isSystem else { return }
-
-    if category.isTopLevel {
-      let childDescriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.parentLabel == label }
-      )
-      let kids = try modelContext.fetch(childDescriptor)
-      for child in kids {
-        modelContext.delete(child)
-      }
-    }
     modelContext.delete(category)
     try modelContext.save()
   }
@@ -504,12 +552,15 @@ actor DataWriter: ModelActor {
     return try modelContext.fetch(descriptor).first?.sortOrder
   }
 
-  func childCategoryNames(for parentLabel: String) throws -> [String] {
+  func moveCategoryToFolder(label: String, folderLabel: String?, sortOrder: Int) throws {
     let descriptor = FetchDescriptor<Category>(
-      predicate: #Predicate<Category> { $0.parentLabel == parentLabel },
-      sortBy: [SortDescriptor(\Category.sortOrder)]
+      predicate: #Predicate<Category> { $0.label == label }
     )
-    return try modelContext.fetch(descriptor).map(\.displayName)
+    guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { return }
+    category.folderLabel = folderLabel
+    category.sortOrder = sortOrder
+    try updatePrimaryFolderOnEntries(categoryLabel: label, newFolder: folderLabel ?? "")
+    try modelContext.save()
   }
 
   func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
@@ -524,44 +575,19 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  func updateCategoryHierarchy(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int) throws {
-    let descriptor = FetchDescriptor<Category>(
-      predicate: #Predicate<Category> { $0.label == label }
-    )
-    guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { return }
-    if let parentLabel {
-      let parentDescriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.label == parentLabel }
-      )
-      if let parent = try modelContext.fetch(parentDescriptor).first, parent.isSystem { return }
-    }
-    category.parentLabel = parentLabel
-    category.depth = depth
-    category.isTopLevel = isTopLevel
-    category.sortOrder = sortOrder
-    try modelContext.save()
-  }
-
-  func batchUpdateCategoryHierarchyAndSortOrders(
-    hierarchyChanges: [(label: String, parentLabel: String?, depth: Int, isTopLevel: Bool, sortOrder: Int)],
+  func batchUpdateCategoryFolderAndSortOrders(
+    folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)],
     sortOrderUpdates: [(label: String, sortOrder: Int)]
   ) throws {
-    for change in hierarchyChanges {
+    for change in folderChanges {
       let targetLabel = change.label
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == targetLabel }
       )
       guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { continue }
-      if let parentLabel = change.parentLabel {
-        let parentDescriptor = FetchDescriptor<Category>(
-          predicate: #Predicate<Category> { $0.label == parentLabel }
-        )
-        if let parent = try modelContext.fetch(parentDescriptor).first, parent.isSystem { continue }
-      }
-      category.parentLabel = change.parentLabel
-      category.depth = change.depth
-      category.isTopLevel = change.isTopLevel
+      category.folderLabel = change.folderLabel
       category.sortOrder = change.sortOrder
+      try updatePrimaryFolderOnEntries(categoryLabel: change.label, newFolder: change.folderLabel ?? "")
     }
     for (label, sortOrder) in sortOrderUpdates {
       let descriptor = FetchDescriptor<Category>(
@@ -594,15 +620,15 @@ actor DataWriter: ModelActor {
   }
 
   func seedDefaultCategories(
-    _ definitions: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)]
+    _ definitions: [(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String?)]
   ) throws {
-    for (label, displayName, description, sortOrder, parentLabel) in definitions {
+    for (label, displayName, description, sortOrder, folderLabel) in definitions {
       let category = Category(
         label: label,
         displayName: displayName,
         categoryDescription: description,
         sortOrder: sortOrder,
-        parentLabel: parentLabel
+        folderLabel: folderLabel
       )
       modelContext.insert(category)
     }
@@ -615,17 +641,16 @@ actor DataWriter: ModelActor {
     let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
     guard existingCount == 0 else { return false }
 
-    let technology = Category(
-      label: "technology", displayName: "Technology",
-      categoryDescription: "Technology coverage for local UI testing", sortOrder: 0)
+    let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+    modelContext.insert(techFolder)
+
     let apple = Category(
       label: "apple", displayName: "Apple",
       categoryDescription: "Apple news for local UI testing", sortOrder: 0,
-      parentLabel: "technology")
+      folderLabel: "technology")
     let world = Category(
       label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
-    modelContext.insert(technology)
     modelContext.insert(apple)
     modelContext.insert(world)
 
@@ -651,8 +676,8 @@ actor DataWriter: ModelActor {
         createdAt: .now.addingTimeInterval(-Double(index) * 850)
       )
       entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
-      entry.categoryLabels = ["technology"]
-      entry.primaryCategory = "technology"
+      entry.primaryCategory = "apple"
+      entry.primaryFolder = "technology"
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
@@ -676,8 +701,8 @@ actor DataWriter: ModelActor {
       createdAt: .now.addingTimeInterval(-7100)
     )
     worldEntry.feed = feed1
-    worldEntry.categoryLabels = ["world_news", "technology"]
     worldEntry.primaryCategory = "world_news"
+    worldEntry.primaryFolder = ""
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)

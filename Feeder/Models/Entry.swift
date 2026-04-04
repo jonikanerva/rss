@@ -38,18 +38,18 @@ final class Entry {
   var formattedDate: String = ""
   /// Pre-computed display domain (e.g., "theverge.com") — stripped of www. prefix
   var displayDomain: String?
-  /// First assigned category label — denormalized for @Query predicate filtering
+  /// Assigned category label — denormalized for @Query predicate filtering
   var primaryCategory: String = ""
+  /// Folder that contains the assigned category — denormalized for @Query folder aggregate views
+  var primaryFolder: String = ""
 
   // MARK: - Relationships
 
   var feed: Feed?
 
-  // MARK: - Classification (M2 will populate these)
+  // MARK: - Classification
 
-  /// Assigned category labels (e.g., ["technology", "apple"])
-  var categoryLabels: [String] = []
-  /// Generated story key for grouping (M3)
+  /// Generated story key for grouping
   var storyKey: String?
   /// Detected language code (e.g., "en", "fi")
   var detectedLanguage: String?

@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class Category {
-  /// Unique label key (kebab-case, e.g., "gaming_industry")
+  /// Unique label key (e.g., "playstation_5")
   @Attribute(.unique)
   var label: String
   /// User-visible display name
@@ -12,30 +12,40 @@ final class Category {
   var categoryDescription: String
   /// Sort order for sidebar display
   var sortOrder: Int
-  /// Parent category label. nil = top-level.
-  var parentLabel: String?
-  /// Hierarchy depth: 0 = top-level, 1 = child.
-  var depth: Int
-  /// Whether this is a top-level category (pre-computed for @Query).
-  var isTopLevel: Bool
+  /// Folder this category belongs to. nil = root-level category (no folder).
+  var folderLabel: String?
   /// System categories cannot be deleted, moved, or renamed.
   var isSystem: Bool
-  /// Keywords for keyword-match classification signal. Editable in Settings UI (future).
+  /// Keywords for keyword-match classification signal.
   var keywords: [String]
 
   init(
     label: String, displayName: String, categoryDescription: String,
-    sortOrder: Int = 0, parentLabel: String? = nil, isSystem: Bool = false,
+    sortOrder: Int = 0, folderLabel: String? = nil, isSystem: Bool = false,
     keywords: [String] = []
   ) {
     self.label = label
     self.displayName = displayName
     self.categoryDescription = categoryDescription
     self.sortOrder = sortOrder
-    self.parentLabel = parentLabel
-    self.depth = parentLabel == nil ? 0 : 1
-    self.isTopLevel = parentLabel == nil
+    self.folderLabel = folderLabel
     self.isSystem = isSystem
     self.keywords = keywords
+  }
+}
+
+// MARK: - Collection helpers
+
+extension [Category] {
+  /// Filter categories belonging to a specific folder, sorted by sortOrder.
+  func inFolder(_ folderLabel: String) -> [Category] {
+    filter { $0.folderLabel == folderLabel }
+      .sorted { $0.sortOrder < $1.sortOrder }
+  }
+
+  /// Root-level categories (no folder), sorted by sortOrder.
+  var atRoot: [Category] {
+    filter { $0.folderLabel == nil }
+      .sorted { $0.sortOrder < $1.sortOrder }
   }
 }

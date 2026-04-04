@@ -126,7 +126,7 @@ final class ClassificationEngine {
       if shouldSkipClassification(title: input.title, body: input.body) {
         let emptyResult = ClassificationResult(
           entryID: input.entryID,
-          categoryLabels: [uncategorizedLabel],
+          categoryLabel: uncategorizedLabel,
           storyKey: normalizeStoryKey(input.title),
           detectedLanguage: "unknown",
           confidence: 0.0
@@ -154,7 +154,7 @@ final class ClassificationEngine {
         if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: [uncategorizedLabel],
+            categoryLabel: uncategorizedLabel,
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang,
             confidence: 0.0
@@ -168,18 +168,20 @@ final class ClassificationEngine {
             instructions: instructions,
             validLabels: validLabels
           )
-          let rawLabels = filterValidLabels(providerResult.categories, validSet: validLabels)
+          let rawLabel =
+            validLabels.contains(providerResult.category)
+            ? providerResult.category : uncategorizedLabel
 
           // Apply confidence gate: combine LLM confidence with keyword scores
-          let gatedLabels = applyConfidenceGate(
-            labels: rawLabels,
+          let gatedLabel = applyConfidenceGate(
+            label: rawLabel,
             llmConfidence: providerResult.confidence,
             keywordScores: keywordScores
           )
 
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: gatedLabels,
+            categoryLabel: gatedLabel,
             storyKey: normalizeStoryKey(providerResult.storyKey),
             detectedLanguage: lang,
             confidence: providerResult.confidence
@@ -187,7 +189,7 @@ final class ClassificationEngine {
         } catch {
           return ClassificationResult(
             entryID: input.entryID,
-            categoryLabels: [uncategorizedLabel],
+            categoryLabel: uncategorizedLabel,
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang,
             confidence: 0.0
@@ -197,9 +199,9 @@ final class ClassificationEngine {
 
       // Log keyword/LLM disagreements for diagnostics (MainActor context)
       for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
-        if !result.categoryLabels.contains(kwCategory) {
+        if result.categoryLabel != kwCategory {
           logger.info(
-            "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabels)"
+            "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabel)"
           )
         }
       }
@@ -236,36 +238,23 @@ final class ClassificationEngine {
 
 /// Build LLM system instructions from category definitions.
 nonisolated func buildClassificationInstructions(from categories: [CategoryDefinition]) -> String {
-  let topLevel = categories.filter { $0.isTopLevel }
-  let children = categories.filter { !$0.isTopLevel }
-
   var lines: [String] = []
-  for parent in topLevel {
-    lines.append("- \(parent.label): \(parent.description)")
-    for child in children where child.parentLabel == parent.label {
-      lines.append("  - \(child.label): \(child.description)")
-    }
+  for category in categories {
+    lines.append("- \(category.label): \(category.description)")
   }
   lines.append(
-    "- \(uncategorizedLabel): Use only when no other category clearly matches. Never combine with another category."
+    "- \(uncategorizedLabel): Use only when no other category clearly matches."
   )
   let categoryDescriptions = lines.joined(separator: "\n")
 
   return """
-    Categorize the article into the most specific matching categories below. \
-    Assign subcategories over parents when both match. \
-    Only assign categories with clear evidence in the article. \
-    Prefer fewer categories — assign 1 unless multiple clearly apply.
+    Assign the single best matching category to this article. \
+    Choose exactly one category — the most specific match with clear evidence. \
+    Only use uncategorized when no other category fits.
 
     Categories:
     \(categoryDescriptions)
     """
-}
-
-/// Filter labels to only valid category labels. Defaults to [uncategorizedLabel] if none valid.
-nonisolated func filterValidLabels(_ labels: [String], validSet: Set<String>) -> [String] {
-  let filtered = labels.filter { validSet.contains($0) }
-  return filtered.isEmpty ? [uncategorizedLabel] : filtered
 }
 
 /// Returns true when an article has no meaningful content to classify.
@@ -282,27 +271,26 @@ nonisolated let keywordOverrideThreshold = 0.8
 /// Apply confidence gate: if LLM chose uncategorized and keywords have a strong match, use keywords.
 /// If LLM chose a real category but confidence is too low, fall back to uncategorized.
 nonisolated func applyConfidenceGate(
-  labels: [String],
+  label: String,
   llmConfidence: Double,
   keywordScores: [String: Double]
-) -> [String] {
-  // If LLM chose only uncategorized, check if keywords can override
-  let isUncategorized = labels == [uncategorizedLabel]
-  if isUncategorized {
+) -> String {
+  // If LLM chose uncategorized, check if keywords can override
+  if label == uncategorizedLabel {
     let bestKeyword = keywordScores.max(by: { $0.value < $1.value })
     if let best = bestKeyword, best.value >= keywordOverrideThreshold {
-      return [best.key]
+      return best.key
     }
-    return labels
+    return label
   }
 
   // LLM chose a real category — apply confidence threshold
-  let bestKeywordScore = labels.compactMap { keywordScores[$0] }.max() ?? 0.0
-  let finalConfidence = max(llmConfidence, bestKeywordScore)
+  let keywordScore = keywordScores[label] ?? 0.0
+  let finalConfidence = max(llmConfidence, keywordScore)
   if finalConfidence < confidenceThreshold {
-    return [uncategorizedLabel]
+    return uncategorizedLabel
   }
-  return labels
+  return label
 }
 
 /// Compute keyword match confidence per category. Title matches weigh more than body matches.

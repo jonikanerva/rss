@@ -13,33 +13,31 @@ struct DataWriterCategoryTests {
     try await DataWriterTestSupport.makeWriter()
   }
 
-  private func seedHierarchy(_ writer: DataWriter) async throws {
-    try await writer.addCategory(
-      label: "technology", displayName: "Technology",
-      description: "Tech news", sortOrder: 0
-    )
+  private func seedFoldersAndCategories(_ writer: DataWriter) async throws {
+    try await writer.addFolder(label: "technology", displayName: "Technology", sortOrder: 0)
+    try await writer.addFolder(label: "gaming", displayName: "Gaming", sortOrder: 1)
     try await writer.addCategory(
       label: "apple", displayName: "Apple",
-      description: "Apple news", sortOrder: 0, parentLabel: "technology"
+      description: "Apple news", sortOrder: 0, folderLabel: "technology"
     )
     try await writer.addCategory(
       label: "ai", displayName: "AI",
-      description: "AI news", sortOrder: 1, parentLabel: "technology"
-    )
-    try await writer.addCategory(
-      label: "gaming", displayName: "Gaming",
-      description: "Gaming news", sortOrder: 1
+      description: "AI news", sortOrder: 1, folderLabel: "technology"
     )
     try await writer.addCategory(
       label: "ps5", displayName: "PlayStation 5",
-      description: "PS5 news", sortOrder: 0, parentLabel: "gaming"
+      description: "PS5 news", sortOrder: 0, folderLabel: "gaming"
+    )
+    try await writer.addCategory(
+      label: "science", displayName: "Science",
+      description: "Science news", sortOrder: 0
     )
   }
 
   // MARK: - addCategory
 
   @Test
-  func addTopLevelCategory() async throws {
+  func addRootCategory() async throws {
     let writer = try await makeWriter()
     try await writer.addCategory(
       label: "tech", displayName: "Tech",
@@ -48,62 +46,42 @@ struct DataWriterCategoryTests {
     let defs = try await writer.fetchCategoryDefinitions()
     #expect(defs.count == 1)
     #expect(defs[0].label == "tech")
-    #expect(defs[0].isTopLevel == true)
-    #expect(defs[0].parentLabel == nil)
+    #expect(defs[0].folderLabel == nil)
   }
 
   @Test
-  func addChildCategory() async throws {
+  func addCategoryInFolder() async throws {
     let writer = try await makeWriter()
-    try await writer.addCategory(
-      label: "tech", displayName: "Tech",
-      description: "Tech news", sortOrder: 0
-    )
+    try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
     try await writer.addCategory(
       label: "apple", displayName: "Apple",
-      description: "Apple news", sortOrder: 0, parentLabel: "tech"
+      description: "Apple news", sortOrder: 0, folderLabel: "tech"
     )
     let defs = try await writer.fetchCategoryDefinitions()
     let child = defs.first { $0.label == "apple" }
     #expect(child != nil)
-    #expect(child?.parentLabel == "tech")
-    #expect(child?.isTopLevel == false)
+    #expect(child?.folderLabel == "tech")
   }
 
-  // MARK: - deleteCategory (cascade)
+  // MARK: - deleteCategory
 
   @Test
-  func deleteTopLevelCascadesChildren() async throws {
+  func deleteCategoryIsSimple() async throws {
     let writer = try await makeWriter()
-    try await seedHierarchy(writer)
-
-    try await writer.deleteCategory(label: "technology")
-
-    let defs = try await writer.fetchCategoryDefinitions()
-    let labels = Set(defs.map(\.label))
-    #expect(!labels.contains("technology"))
-    #expect(!labels.contains("apple"))
-    #expect(!labels.contains("ai"))
-    #expect(labels.contains("gaming"))
-    #expect(labels.contains("ps5"))
-  }
-
-  @Test
-  func deleteChildDoesNotAffectParentOrSiblings() async throws {
-    let writer = try await makeWriter()
-    try await seedHierarchy(writer)
+    try await seedFoldersAndCategories(writer)
 
     try await writer.deleteCategory(label: "apple")
 
     let defs = try await writer.fetchCategoryDefinitions()
     let labels = Set(defs.map(\.label))
-    #expect(labels.contains("technology"))
-    #expect(labels.contains("ai"))
     #expect(!labels.contains("apple"))
+    #expect(labels.contains("ai"))
+    #expect(labels.contains("ps5"))
+    #expect(labels.contains("science"))
   }
 
   @Test
-  func deleteTopLevelWithNoChildrenIsClean() async throws {
+  func deleteRootCategoryIsClean() async throws {
     let writer = try await makeWriter()
     try await writer.addCategory(
       label: "world", displayName: "World",
@@ -115,33 +93,78 @@ struct DataWriterCategoryTests {
     #expect(defs.isEmpty)
   }
 
-  // MARK: - childCategoryNames
+  // MARK: - Folder CRUD
 
   @Test
-  func childCategoryNamesReturnsCorrectNames() async throws {
+  func addFolder() async throws {
     let writer = try await makeWriter()
-    try await seedHierarchy(writer)
-
-    let names = try await writer.childCategoryNames(for: "technology")
-    #expect(names.count == 2)
-    #expect(names.contains("Apple"))
-    #expect(names.contains("AI"))
+    try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
+    // Verify folder exists by adding a category to it
+    try await writer.addCategory(
+      label: "apple", displayName: "Apple",
+      description: "Apple", sortOrder: 0, folderLabel: "tech"
+    )
+    let defs = try await writer.fetchCategoryDefinitions()
+    #expect(defs.first?.folderLabel == "tech")
   }
 
   @Test
-  func childCategoryNamesReturnsEmptyForLeaf() async throws {
+  func deleteFolderMovesCategoriesToRoot() async throws {
     let writer = try await makeWriter()
-    try await seedHierarchy(writer)
+    try await seedFoldersAndCategories(writer)
 
-    let names = try await writer.childCategoryNames(for: "apple")
-    #expect(names.isEmpty)
+    try await writer.deleteFolder(label: "technology")
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let apple = defs.first { $0.label == "apple" }
+    let ai = defs.first { $0.label == "ai" }
+    #expect(apple?.folderLabel == nil)
+    #expect(ai?.folderLabel == nil)
+    // Categories in gaming folder should be unaffected
+    let ps5 = defs.first { $0.label == "ps5" }
+    #expect(ps5?.folderLabel == "gaming")
   }
 
   @Test
-  func childCategoryNamesReturnsEmptyForNonexistent() async throws {
+  func updateFolderFields() async throws {
     let writer = try await makeWriter()
-    let names = try await writer.childCategoryNames(for: "nonexistent")
-    #expect(names.isEmpty)
+    try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
+    try await writer.updateFolderFields(label: "tech", displayName: "Technology")
+    // Indirectly verify — folder still usable
+    try await writer.addCategory(
+      label: "apple", displayName: "Apple",
+      description: "Apple", sortOrder: 0, folderLabel: "tech"
+    )
+    let defs = try await writer.fetchCategoryDefinitions()
+    #expect(defs.first?.folderLabel == "tech")
+  }
+
+  // MARK: - moveCategoryToFolder
+
+  @Test
+  func moveCategoryToFolder() async throws {
+    let writer = try await makeWriter()
+    try await seedFoldersAndCategories(writer)
+
+    // Move science (root) into gaming folder
+    try await writer.moveCategoryToFolder(label: "science", folderLabel: "gaming", sortOrder: 1)
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let science = defs.first { $0.label == "science" }
+    #expect(science?.folderLabel == "gaming")
+  }
+
+  @Test
+  func moveCategoryToRoot() async throws {
+    let writer = try await makeWriter()
+    try await seedFoldersAndCategories(writer)
+
+    // Move apple (in technology) to root
+    try await writer.moveCategoryToFolder(label: "apple", folderLabel: nil, sortOrder: 1)
+
+    let defs = try await writer.fetchCategoryDefinitions()
+    let apple = defs.first { $0.label == "apple" }
+    #expect(apple?.folderLabel == nil)
   }
 
   // MARK: - updateCategoryFields
@@ -189,89 +212,18 @@ struct DataWriterCategoryTests {
   @Test
   func seedDefaultCategoriesCreatesAll() async throws {
     let writer = try await makeWriter()
-    let defaults: [(label: String, displayName: String, description: String, sortOrder: Int, parentLabel: String?)] = [
-      ("tech", "Tech", "Tech news", 0, nil),
-      ("gaming", "Gaming", "Games", 1, nil),
+    let defaults: [(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String?)] = [
       ("apple", "Apple", "Apple news", 0, "tech"),
+      ("gaming", "Gaming", "Games", 0, nil),
+      ("ps5", "PS5", "PS5 news", 0, "gaming"),
     ]
     try await writer.seedDefaultCategories(defaults)
 
     let defs = try await writer.fetchCategoryDefinitions()
     #expect(defs.count == 3)
 
-    let topLevel = defs.filter(\.isTopLevel)
-    #expect(topLevel.count == 2)
-
-    let children = defs.filter { !$0.isTopLevel }
-    #expect(children.count == 1)
-    #expect(children[0].parentLabel == "tech")
-  }
-
-  // MARK: - updateCategoryHierarchy
-
-  @Test
-  func promoteChildToTopLevel() async throws {
-    let writer = try await makeWriter()
-    try await seedHierarchy(writer)
-
-    try await writer.updateCategoryHierarchy(
-      label: "apple", parentLabel: nil,
-      depth: 0, isTopLevel: true, sortOrder: 5
-    )
-
-    let defs = try await writer.fetchCategoryDefinitions()
-    let apple = defs.first { $0.label == "apple" }
-    #expect(apple?.isTopLevel == true)
-    #expect(apple?.parentLabel == nil)
-  }
-
-  @Test
-  func demoteTopLevelToChild() async throws {
-    let writer = try await makeWriter()
-    try await seedHierarchy(writer)
-
-    try await writer.updateCategoryHierarchy(
-      label: "gaming", parentLabel: "technology",
-      depth: 1, isTopLevel: false, sortOrder: 2
-    )
-
-    let defs = try await writer.fetchCategoryDefinitions()
-    let gaming = defs.first { $0.label == "gaming" }
-    #expect(gaming?.isTopLevel == false)
-    #expect(gaming?.parentLabel == "technology")
-  }
-
-  @Test
-  func demoteParentOrphansChildrenCanBePromoted() async throws {
-    let writer = try await makeWriter()
-    try await seedHierarchy(writer)
-    // Hierarchy: technology -> [apple, ai], gaming -> [ps5]
-
-    // Demote "technology" under "gaming" — simulating drag
-    try await writer.updateCategoryHierarchy(
-      label: "technology", parentLabel: "gaming",
-      depth: 1, isTopLevel: false, sortOrder: 1
-    )
-    // Promote orphaned children (apple, ai) to top-level
-    try await writer.updateCategoryHierarchy(
-      label: "apple", parentLabel: nil,
-      depth: 0, isTopLevel: true, sortOrder: 2
-    )
-    try await writer.updateCategoryHierarchy(
-      label: "ai", parentLabel: nil,
-      depth: 0, isTopLevel: true, sortOrder: 3
-    )
-
-    let defs = try await writer.fetchCategoryDefinitions()
-    let apple = defs.first { $0.label == "apple" }
-    let ai = defs.first { $0.label == "ai" }
-    let tech = defs.first { $0.label == "technology" }
-    #expect(apple?.isTopLevel == true)
-    #expect(apple?.parentLabel == nil)
-    #expect(ai?.isTopLevel == true)
-    #expect(ai?.parentLabel == nil)
-    #expect(tech?.isTopLevel == false)
-    #expect(tech?.parentLabel == "gaming")
+    let inFolder = defs.filter { $0.folderLabel != nil }
+    #expect(inFolder.count == 2)
   }
 
   // MARK: - System category protection
@@ -283,7 +235,6 @@ struct DataWriterCategoryTests {
       label: uncategorizedLabel, displayName: "Uncategorized",
       description: "Fallback", sortOrder: Int.max
     )
-    // Manually set isSystem since addCategory doesn't support it
     try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
 
     try await writer.deleteCategory(label: uncategorizedLabel)
@@ -293,50 +244,21 @@ struct DataWriterCategoryTests {
   }
 
   @Test
-  func systemCategoryCannotBecomeChild() async throws {
+  func systemCategoryCannotBeMoved() async throws {
     let writer = try await makeWriter()
-    try await writer.addCategory(
-      label: "tech", displayName: "Tech",
-      description: "Tech", sortOrder: 0
-    )
+    try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
     try await writer.addCategory(
       label: uncategorizedLabel, displayName: "Uncategorized",
       description: "Fallback", sortOrder: Int.max
     )
     try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
 
-    try await writer.updateCategoryHierarchy(
-      label: uncategorizedLabel, parentLabel: "tech",
-      depth: 1, isTopLevel: false, sortOrder: 0
+    try await writer.moveCategoryToFolder(
+      label: uncategorizedLabel, folderLabel: "tech", sortOrder: 0
     )
 
     let defs = try await writer.fetchCategoryDefinitions()
     let uncat = defs.first { $0.label == uncategorizedLabel }
-    #expect(uncat?.isTopLevel == true)
-    #expect(uncat?.parentLabel == nil)
-  }
-
-  @Test
-  func categoryCannotBecomeChildOfSystem() async throws {
-    let writer = try await makeWriter()
-    try await writer.addCategory(
-      label: "tech", displayName: "Tech",
-      description: "Tech", sortOrder: 0
-    )
-    try await writer.addCategory(
-      label: uncategorizedLabel, displayName: "Uncategorized",
-      description: "Fallback", sortOrder: Int.max
-    )
-    try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
-
-    try await writer.updateCategoryHierarchy(
-      label: "tech", parentLabel: uncategorizedLabel,
-      depth: 1, isTopLevel: false, sortOrder: 0
-    )
-
-    let defs = try await writer.fetchCategoryDefinitions()
-    let tech = defs.first { $0.label == "tech" }
-    #expect(tech?.isTopLevel == true)
-    #expect(tech?.parentLabel == nil)
+    #expect(uncat?.folderLabel == nil)
   }
 }
