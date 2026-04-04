@@ -11,12 +11,9 @@ Status: Active
 
 ## Active queue
 
-1. **Category model redesign: folders + categories**
+1. **Category model redesign: folders + categories** — PR #46 (in review)
    - Owner: Owner + Agent
-   - Replace hierarchical categories with a Folder → Category model. Folders (e.g. "Gaming", "Technology") group categories in the sidebar and show all their articles. Categories (e.g. "PlayStation 5", "Marathon") are the classification labels.
-   - Specific categories should not appear in their folder's generic feed — they are "narrower" and exist separately.
-   - Category management UI still needs a way to define the folder→category hierarchy, even if the main timeline UI only shows folders.
-   - Needs research and design discussion before implementation.
+   - Folder (optional UI grouping) + Category (flat classification label). Single category per article. Drag-and-drop management.
 
 ## Completed history
 
