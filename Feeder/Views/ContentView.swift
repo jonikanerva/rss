@@ -86,6 +86,21 @@ enum SidebarSelection: Hashable {
   case category(String)
 }
 
+// MARK: - Mark All Read Key Handler
+
+/// Intercepts Shift+A before List type-to-select can capture it.
+private struct MarkAllReadKeyHandler: ViewModifier {
+  let action: () -> Void
+
+  func body(content: Content) -> some View {
+    content
+      .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+        action()
+        return .handled
+      }
+  }
+}
+
 // MARK: - Entry List View (dynamic @Query filtered by category/folder + read status in SQLite)
 
 struct EntryListView: View {
@@ -94,8 +109,9 @@ struct EntryListView: View {
   @Binding
   var selectedEntry: Entry?
   private let filter: ArticleFilter
+  private let onMarkAllRead: () -> Void
 
-  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -107,9 +123,10 @@ struct EntryListView: View {
     )
     self.filter = filter
     _selectedEntry = selectedEntry
+    self.onMarkAllRead = onMarkAllRead
   }
 
-  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
+  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -121,6 +138,7 @@ struct EntryListView: View {
     )
     self.filter = filter
     _selectedEntry = selectedEntry
+    self.onMarkAllRead = onMarkAllRead
   }
 
   var body: some View {
@@ -142,6 +160,7 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
+    .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -411,9 +430,15 @@ struct ContentView: View {
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     switch sel {
     case .folder(let label):
-      EntryListView(folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+      EntryListView(
+        folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+      )
     case .category(let label):
-      EntryListView(category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+      EntryListView(
+        category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+      )
     }
   }
 
@@ -451,7 +476,7 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    guard let selection, let writer = syncEngine.writer else { return }
+    guard articleFilter == .unread, let selection, let writer = syncEngine.writer else { return }
     selectedEntry = nil
     Task {
       let markedIDs: Set<Int>?
@@ -512,6 +537,7 @@ struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
+    .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
       ToolbarItem {
@@ -558,6 +584,7 @@ struct ContentView: View {
         }
       }
     }
+    .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .toolbar {
       ToolbarItem(placement: .automatic) {
         Button {

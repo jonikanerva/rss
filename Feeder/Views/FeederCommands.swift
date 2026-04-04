@@ -178,10 +178,9 @@ struct FeederCommands: Commands {
     // Menu items show the key in the label for discoverability.
 
     CommandMenu("Article") {
-      Button("Mark All as Read") {
+      Button("Mark All as Read\t ⇧A") {
         markAllReadAction?()
       }
-      .keyboardShortcut("a", modifiers: .shift)
       .disabled(markAllReadAction == nil || canMarkAllRead != true)
 
       Divider()
