@@ -6,6 +6,8 @@ struct CategoryEditSheet: View {
   private var syncEngine
   @Environment(\.dismiss)
   private var dismiss
+  @Query(sort: \Category.sortOrder)
+  private var allCategories: [Category]
 
   let category: Category?
   let folders: [Folder]
@@ -126,6 +128,15 @@ struct CategoryEditSheet: View {
     .padding()
   }
 
+  // MARK: - Helpers
+
+  private func categoriesInTarget(_ folderLabel: String?) -> [Category] {
+    if let folderLabel {
+      return allCategories.inFolder(folderLabel)
+    }
+    return allCategories.filter { $0.folderLabel == nil }
+  }
+
   // MARK: - Actions
 
   private func save() {
@@ -141,7 +152,7 @@ struct CategoryEditSheet: View {
           label: label, displayName: trimmedName, description: trimmedDesc
         )
         if category.folderLabel != folder {
-          let sortOrder = category.sortOrder
+          let sortOrder = categoriesInTarget(folder).count
           try? await writer.moveCategoryToFolder(label: label, folderLabel: folder, sortOrder: sortOrder)
         }
         dismiss()
@@ -152,7 +163,7 @@ struct CategoryEditSheet: View {
         .filter { $0.isLetter || $0.isNumber || $0 == "_" }
       let label = (sanitized.isEmpty ? "category" : sanitized)
         .appending("_\(Int.random(in: 1000...9999))")
-      let sortOrder = 0
+      let sortOrder = categoriesInTarget(selectedFolderLabel).count
       let folder = selectedFolderLabel
       Task {
         try? await writer.addCategory(

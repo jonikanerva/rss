@@ -359,7 +359,7 @@ struct ContentView: View {
 
   private var rootCategories: [Category] {
     allCategories
-      .filter { $0.folderLabel == nil && !$0.isSystem }
+      .filter { $0.folderLabel == nil }
       .sorted { $0.sortOrder < $1.sortOrder }
   }
 
