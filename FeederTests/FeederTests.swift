@@ -603,6 +603,14 @@ struct VideoIframeTransformTests {
   }
 
   @Test
+  func handlesMixedCaseIframeTag() {
+    let html = #"<IFrame Src="https://www.youtube.com/embed/mix1" Width="640"></IFrame>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(result.contains("mix1"))
+  }
+
+  @Test
   func handlesIframeWithFallbackContent() {
     let html =
       #"<iframe src="https://www.youtube.com/embed/fb1">Your browser does not support iframes.</iframe>"#
