@@ -18,13 +18,14 @@ Status: Active
    - **Panel 1 keyboard navigation: J/K for folders/categories** — J moves down one category/folder, K moves up.
    - **macOS HIG menu bar commands** — all keyboard shortcuts and on-screen buttons should also appear in the menu bar (accessible via mouse, showing shortcut key).
 
-2. **Article content tweaks**
+2. **Embedded video/iframe content**
    - Owner: Owner + Agent
-   - **Empty article content** — many articles (e.g. YouTube videos) have empty content. Must find a solution so no article shows blank.
-   - **"If you trust this content" placeholder text** — some articles show this instead of real content. Investigate whether this comes from Feedbin or is introduced in our pipeline, and fix so articles show readable content.
+   - **iframes don't render in web view** — `allowsContentJavaScript = false` prevents YouTube, Vimeo, and other iframe embeds from loading. Feedbin wraps YouTube videos as `<iframe src="youtube.com/embed/VIDEO_ID">`. Reader view skips iframes entirely (`knownSkipTags`).
+   - **Solution**: detect video iframe URLs (YouTube, Vimeo, etc.), replace with a clickable thumbnail image that opens the video in the system browser. YouTube thumbnails: `https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg`. Apply in both web view (HTML transform) and reader view (new `ArticleBlock` case or image+link).
 
 ## Completed history
 
+- **2026-04-04**: Article content tweaks — PR #47. Web view now shows feed content (content > summary), reader view shows extracted content (extractedContent > content > summary). Empty articles show "Open in browser" fallback. Root cause of "if you trust this content" was Mercury Parser overriding good feed content.
 - **2026-04-04**: Category model redesign: folders + categories — PR #46 merged. Folder (optional UI grouping) + Category (flat classification label), single category per article, drag-and-drop management.
 - **2026-04-03**: Sync read status to Feedbin — fire-and-forget push via DELETE /v2/unread_entries.json, push-before-pull in incremental sync, eager push on app background. PR #42.
 - **2026-04-03**: Keep days runtime — date-based @Query filtering hides articles outside retention window without deletion, classification cancel/restart on setting change, fixed 30-day startup purge. PR #41.

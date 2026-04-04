@@ -227,6 +227,22 @@ header {
   border-radius: 6px;
 }
 
+/* Empty content fallback */
+.empty-fallback {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2em 0;
+}
+
+.empty-fallback a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.empty-fallback a:hover {
+  text-decoration: underline;
+}
+
 /* Dividers */
 .content hr {
   border: none;
