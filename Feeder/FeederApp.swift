@@ -72,6 +72,7 @@ struct FeederApp: App {
         .environment(classificationEngine)
     }
     .modelContainer(modelContainer)
+    .commands { FeederCommands() }
 
     Settings {
       SettingsView()
