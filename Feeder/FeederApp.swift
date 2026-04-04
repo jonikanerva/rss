@@ -149,6 +149,11 @@ struct FeederApp: App {
           4, "technology",
           ["homekit", "home assistant", "matter", "alexa", "google home", "smart home", "zigbee", "thread", "z-wave"]
         ),
+        (
+          "technology_general", "Technology",
+          "All other technology articles that do not fit a more specific technology category (Apple, Tesla, Rivian, AI, Home Automation). Use this as the fallback within technology topics.",
+          5, "technology", ["tech"]
+        ),
         // Root-level categories (no folder)
         (
           "science", "Science",
