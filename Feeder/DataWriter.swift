@@ -225,10 +225,10 @@ actor DataWriter: ModelActor {
       )
       entry.feed = feedsByFeedbinID[dto.feedId]
       entry.isRead = markAsRead
-      let html = replaceVideoIframes(dto.content ?? dto.summary ?? "")
-      let blocks = parseHTMLToBlocks(html)
+      let rawHTML = dto.content ?? dto.summary ?? ""
+      let blocks = parseHTMLToBlocks(replaceVideoIframes(rawHTML))
       entry.articleBlocksData = blocks.toJSONData()
-      entry.plainText = blocks.classificationText
+      entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
 
@@ -272,10 +272,10 @@ actor DataWriter: ModelActor {
       )
       entry.feed = feedsByFeedbinID[dto.feedId]
       entry.isRead = !unreadIDs.contains(dto.id)
-      let html = replaceVideoIframes(dto.content ?? dto.summary ?? "")
-      let blocks = parseHTMLToBlocks(html)
+      let rawHTML = dto.content ?? dto.summary ?? ""
+      let blocks = parseHTMLToBlocks(replaceVideoIframes(rawHTML))
       entry.articleBlocksData = blocks.toJSONData()
-      entry.plainText = blocks.classificationText
+      entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
 
@@ -391,7 +391,7 @@ actor DataWriter: ModelActor {
         entry.extractedContent = content
         let blocks = parseHTMLToBlocks(replaceVideoIframes(content))
         entry.articleBlocksData = blocks.toJSONData()
-        entry.plainText = blocks.classificationText
+        entry.plainText = parseHTMLToBlocks(content).classificationText
         entry.invalidateBlocksCache()
       }
     }

@@ -611,12 +611,22 @@ struct VideoIframeTransformTests {
   }
 
   @Test
-  func handlesIframeWithFallbackContent() {
+  func handlesIframeWithTextFallbackContent() {
     let html =
       #"<iframe src="https://www.youtube.com/embed/fb1">Your browser does not support iframes.</iframe>"#
     let result = replaceVideoIframes(html)
     #expect(result.contains("video-thumbnail"))
     #expect(!result.contains("does not support"))
+    #expect(!result.contains("</iframe>"))
+  }
+
+  @Test
+  func handlesIframeWithHTMLFallbackContent() {
+    let html =
+      #"<iframe src="https://www.youtube.com/embed/fb2"><p>Please <a href="https://example.com">click here</a>.</p></iframe>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("click here"))
     #expect(!result.contains("</iframe>"))
   }
 

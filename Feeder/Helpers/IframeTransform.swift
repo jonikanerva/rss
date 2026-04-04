@@ -6,7 +6,7 @@ import Foundation
 /// Unknown iframes are left untouched (stripped later by HTMLToBlocks or ignored by disabled JS).
 nonisolated func replaceVideoIframes(_ html: String) -> String {
   guard html.range(of: "<iframe", options: .caseInsensitive) != nil else { return html }
-  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>[^<]*(?:<\/iframe>)?)/
+  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>(?:.|[\n\r])*?<\/iframe>|>)/
   return html.replacing(pattern) { match in
     let src = String(match.output.1)
     if let replacement = youTubeThumbnailHTML(from: src) {
