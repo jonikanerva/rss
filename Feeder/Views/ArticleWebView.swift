@@ -36,10 +36,10 @@ struct ArticleWebView: NSViewRepresentable {
     let css = loadResource("article-style", ext: "css")
 
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
-    let title = escapeHTML(entry.title ?? "Untitled")
-    let author = escapeHTML(entry.author ?? "")
-    let domain = escapeHTML((entry.displayDomain ?? "").lowercased())
-    let body = stripFeedStyles(entry.bestHTML)
+    let title = (entry.title ?? "Untitled").htmlEscaped
+    let author = (entry.author ?? "").htmlEscaped
+    let domain = (entry.displayDomain ?? "").lowercased().htmlEscaped
+    let body = stripFeedStyles(entry.feedHTML)
 
     let favicon: String
     if let data = entry.feed?.faviconData {
@@ -47,7 +47,7 @@ struct ArticleWebView: NSViewRepresentable {
       favicon = "<img class=\"favicon\" src=\"data:image/png;base64,\(base64)\" alt=\"\">"
     } else {
       let firstChar = entry.feed?.title.first ?? Character("?")
-      let letter = escapeHTML(String(firstChar))
+      let letter = String(firstChar).htmlEscaped
       favicon = "<div class=\"favicon-placeholder\">\(letter)</div>"
     }
 
@@ -69,14 +69,6 @@ struct ArticleWebView: NSViewRepresentable {
       return ""
     }
     return contents
-  }
-
-  private func escapeHTML(_ string: String) -> String {
-    string
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "<", with: "&lt;")
-      .replacingOccurrences(of: ">", with: "&gt;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
   }
 
   /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.

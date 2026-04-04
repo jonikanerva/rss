@@ -63,29 +63,32 @@ final class Entry {
     _cachedBlocks = nil
   }
 
-  /// Decoded article blocks for display. Falls back to plain text paragraph.
+  private static let emptyContentMessage = "This article has no inline content."
+
+  /// Decoded article blocks for reader view. Uses extracted content (from Mercury Parser)
+  /// when available, falls back to feed content, then to an "Open in browser" link.
   /// Cached after first decode to avoid JSON parsing on every re-render.
   var parsedBlocks: [ArticleBlock] {
     if let cached = _cachedBlocks { return cached }
     let blocks: [ArticleBlock]
     if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
       blocks = decoded
+    } else if !plainText.isEmpty {
+      blocks = [.paragraph(text: plainText)]
     } else {
-      blocks = plainText.isEmpty ? [] : [.paragraph(text: plainText)]
+      blocks = [.paragraph(text: "\(Self.emptyContentMessage) [Open in browser \u{2192}](\(url))")]
     }
     _cachedBlocks = blocks
     return blocks
   }
 
-  /// Best available HTML body: extracted > content > summary
-  var bestHTML: String {
-    if let extracted = extractedContent, !extracted.isEmpty {
-      return extracted
-    }
-    if let content = content, !content.isEmpty {
-      return content
-    }
-    return summary ?? ""
+  /// Feed-provided HTML for the default web view: content > summary.
+  /// Always shows what the feed provides — extracted content belongs in reader view.
+  var feedHTML: String {
+    if let content, !content.isEmpty { return content }
+    if let summary, !summary.isEmpty { return summary }
+    return
+      "<p class=\"empty-fallback\">\(Self.emptyContentMessage) <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
   }
 
   init(
