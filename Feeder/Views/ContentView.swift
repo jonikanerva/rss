@@ -94,8 +94,9 @@ struct EntryListView: View {
   @Binding
   var selectedEntry: Entry?
   private let filter: ArticleFilter
+  private let onMarkAllRead: () -> Void
 
-  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
+  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -107,9 +108,10 @@ struct EntryListView: View {
     )
     self.filter = filter
     _selectedEntry = selectedEntry
+    self.onMarkAllRead = onMarkAllRead
   }
 
-  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>) {
+  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
     let showRead = filter == .read
     _entries = Query(
       filter: #Predicate<Entry> {
@@ -121,6 +123,7 @@ struct EntryListView: View {
     )
     self.filter = filter
     _selectedEntry = selectedEntry
+    self.onMarkAllRead = onMarkAllRead
   }
 
   var body: some View {
@@ -142,6 +145,10 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
+    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+      onMarkAllRead()
+      return .handled
+    }
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -411,9 +418,15 @@ struct ContentView: View {
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     switch sel {
     case .folder(let label):
-      EntryListView(folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+      EntryListView(
+        folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+      )
     case .category(let label):
-      EntryListView(category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+      EntryListView(
+        category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+      )
     }
   }
 
@@ -512,6 +525,10 @@ struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
+    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+      markAllAsRead()
+      return .handled
+    }
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
       ToolbarItem {
@@ -557,6 +574,10 @@ struct ContentView: View {
           Text("Choose an article from the list to read it.")
         }
       }
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+      markAllAsRead()
+      return .handled
     }
     .toolbar {
       ToolbarItem(placement: .automatic) {
