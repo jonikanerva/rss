@@ -86,6 +86,21 @@ enum SidebarSelection: Hashable {
   case category(String)
 }
 
+// MARK: - Mark All Read Key Handler
+
+/// Intercepts Shift+A before List type-to-select can capture it.
+private struct MarkAllReadKeyHandler: ViewModifier {
+  let action: () -> Void
+
+  func body(content: Content) -> some View {
+    content
+      .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+        action()
+        return .handled
+      }
+  }
+}
+
 // MARK: - Entry List View (dynamic @Query filtered by category/folder + read status in SQLite)
 
 struct EntryListView: View {
@@ -145,10 +160,7 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
-    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-      onMarkAllRead()
-      return .handled
-    }
+    .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -525,10 +537,7 @@ struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
-    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-      markAllAsRead()
-      return .handled
-    }
+    .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
       ToolbarItem {
@@ -575,10 +584,7 @@ struct ContentView: View {
         }
       }
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-      markAllAsRead()
-      return .handled
-    }
+    .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .toolbar {
       ToolbarItem(placement: .automatic) {
         Button {
