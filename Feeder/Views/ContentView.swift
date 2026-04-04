@@ -360,12 +360,6 @@ struct ContentView: View {
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
 
-  private func categoriesInFolder(_ folderLabel: String) -> [Category] {
-    allCategories
-      .filter { $0.folderLabel == folderLabel }
-      .sorted { $0.sortOrder < $1.sortOrder }
-  }
-
   private var rootCategories: [Category] {
     allCategories
       .filter { $0.folderLabel == nil && !$0.isSystem }
@@ -438,7 +432,7 @@ struct ContentView: View {
             .font(.system(size: FontTheme.metadataSize, weight: .semibold))
             .tag(SidebarSelection.folder(folder.label))
             .accessibilityIdentifier("sidebar.folder.\(folder.label)")
-          ForEach(categoriesInFolder(folder.label)) { category in
+          ForEach(allCategories.inFolder(folder.label)) { category in
             Text(category.displayName)
               .font(.system(size: FontTheme.metadataSize))
               .padding(.leading, 16)

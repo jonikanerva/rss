@@ -26,8 +26,6 @@ struct CategoryManagementView: View {
   @State
   private var dropTargetLabel: String?
   @State
-  private var dropFolderPosition: Int?
-  @State
   private var dropRootPosition: Int?
   @State
   private var dropChildPosition: String?
@@ -60,8 +58,8 @@ struct CategoryManagementView: View {
   private var categoryList: some View {
     VStack(spacing: 0) {
       // Folders with their categories
-      ForEach(Array(folders.enumerated()), id: \.element.persistentModelID) { folderIndex, folder in
-        folderSection(folder: folder, folderIndex: folderIndex)
+      ForEach(folders) { folder in
+        folderSection(folder: folder)
       }
 
       // Root-level categories (no folder)
@@ -83,7 +81,7 @@ struct CategoryManagementView: View {
   }
 
   @ViewBuilder
-  private func folderSection(folder: Folder, folderIndex: Int) -> some View {
+  private func folderSection(folder: Folder) -> some View {
     FolderCompactRow(
       label: folder.label,
       displayName: folder.displayName,
@@ -98,7 +96,7 @@ struct CategoryManagementView: View {
       dropTargetLabel = targeted ? folder.label : (dropTargetLabel == folder.label ? nil : dropTargetLabel)
     }
 
-    let children = categoriesInFolder(folder.label)
+    let children = allCategories.inFolder(folder.label)
     if !children.isEmpty {
       childDropZone(folderLabel: folder.label, position: 0)
     }
@@ -201,12 +199,6 @@ struct CategoryManagementView: View {
 
   // MARK: - Lookups
 
-  private func categoriesInFolder(_ folderLabel: String) -> [Category] {
-    allCategories
-      .filter { $0.folderLabel == folderLabel }
-      .sorted { $0.sortOrder < $1.sortOrder }
-  }
-
   private var rootCategories: [Category] {
     allCategories
       .filter { $0.folderLabel == nil }
@@ -219,7 +211,7 @@ struct CategoryManagementView: View {
     guard let writer = syncEngine.writer else { return }
     if draggedLabel == uncategorizedLabel { return }
 
-    let childCount = categoriesInFolder(folderLabel).count
+    let childCount = allCategories.inFolder(folderLabel).count
     Task {
       try? await writer.batchUpdateCategoryFolderAndSortOrders(
         folderChanges: [(draggedLabel, folderLabel, childCount)],
@@ -232,7 +224,7 @@ struct CategoryManagementView: View {
     guard let writer = syncEngine.writer else { return }
     if draggedLabel == uncategorizedLabel { return }
 
-    var children = categoriesInFolder(folderLabel).map(\.label)
+    var children = allCategories.inFolder(folderLabel).map(\.label)
     children.removeAll { $0 == draggedLabel }
     let insertAt = min(position, children.count)
     children.insert(draggedLabel, at: insertAt)

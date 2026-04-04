@@ -33,3 +33,13 @@ final class Category {
     self.keywords = keywords
   }
 }
+
+// MARK: - Collection helpers
+
+extension [Category] {
+  /// Filter categories belonging to a specific folder, sorted by sortOrder.
+  func inFolder(_ folderLabel: String) -> [Category] {
+    filter { $0.folderLabel == folderLabel }
+      .sorted { $0.sortOrder < $1.sortOrder }
+  }
+}
