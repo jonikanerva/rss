@@ -15,6 +15,8 @@ struct ClassificationSettingsView: View {
   private var showReclassifyAlert = false
   @State
   private var showAPIKeyEditor = false
+  @State
+  private var hadKeyBeforeEdit = false
 
   var body: some View {
     Form {
@@ -65,8 +67,9 @@ struct ClassificationSettingsView: View {
       APIKeyEditSheet(hasStoredKey: $hasStoredKey)
     }
     .onChange(of: showAPIKeyEditor) { _, isPresented in
-      // Prompt reclassification after saving a key while OpenAI is selected
-      if !isPresented, hasStoredKey, selectedProvider == "openai" {
+      if isPresented {
+        hadKeyBeforeEdit = hasStoredKey
+      } else if hasStoredKey != hadKeyBeforeEdit, selectedProvider == "openai" {
         showReclassifyAlert = true
       }
     }
