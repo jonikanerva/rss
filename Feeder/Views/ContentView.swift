@@ -334,7 +334,8 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Keyboard navigation
+    // Bare-key shortcuts via .onKeyPress — respects focus hierarchy,
+    // won't fire inside modal text fields (sheets, onboarding, etc.)
     .onKeyPress(.escape) {
       selectedEntry = nil
       return .handled
@@ -348,16 +349,63 @@ struct ContentView: View {
       articleViewMode = articleViewMode == .web ? .reader : .web
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-      guard articleFilter == .unread, selection != nil else { return .ignored }
-      markAllAsRead()
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
+      moveSidebarSelection(by: 1)
       return .handled
     }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
+      moveSidebarSelection(by: -1)
+      return .handled
+    }
+    .modifier(menuBarValues)
+  }
+
+  // Separated to keep body type-checkable
+  private var menuBarValues: some ViewModifier {
+    FocusedValuesModifier(
+      syncAction: { Task { await syncAndClassify() } },
+      markAllReadAction: markAllAsRead,
+      toggleViewModeAction: { articleViewMode = articleViewMode == .web ? .reader : .web },
+      openInBrowserAction: openInBackground,
+      moveSelectionDownAction: { moveSidebarSelection(by: 1) },
+      moveSelectionUpAction: { moveSidebarSelection(by: -1) },
+      canMarkAllRead: articleFilter == .unread && selection != nil,
+      canOpenInBrowser: selectedEntry != nil,
+      hasSelectedEntry: selectedEntry != nil,
+      isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
+      currentViewMode: articleViewMode
+    )
   }
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
 
   private var rootCategories: [Category] { allCategories.atRoot }
+
+  /// Flat ordered sidebar items matching visual display order.
+  private var sidebarItems: [SidebarSelection] {
+    var items: [SidebarSelection] = []
+    for folder in folders {
+      items.append(.folder(folder.label))
+      for category in allCategories.inFolder(folder.label) {
+        items.append(.category(category.label))
+      }
+    }
+    for category in rootCategories {
+      items.append(.category(category.label))
+    }
+    return items
+  }
+
+  private func moveSidebarSelection(by offset: Int) {
+    let items = sidebarItems
+    guard !items.isEmpty else { return }
+    guard let current = selection, let index = items.firstIndex(of: current) else {
+      selection = offset > 0 ? items.first : items.last
+      return
+    }
+    let newIndex = min(max(index + offset, 0), items.count - 1)
+    selection = items[newIndex]
+  }
 
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {

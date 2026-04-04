@@ -10,11 +10,13 @@ struct ClassificationSettingsView: View {
   @State
   private var selectedProvider: String = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
   @State
-  private var apiKeyInput: String = ""
-  @State
   private var hasStoredKey: Bool = KeychainHelper.load(key: "openai_api_key") != nil
   @State
   private var showReclassifyAlert = false
+  @State
+  private var showAPIKeyEditor = false
+  @State
+  private var hadKeyBeforeEdit = false
 
   var body: some View {
     Form {
@@ -41,77 +43,37 @@ struct ClassificationSettingsView: View {
 
       if selectedProvider == "openai" {
         Section("OpenAI API Key") {
-          if hasStoredKey {
-            HStack {
+          HStack {
+            if hasStoredKey {
               Label("API key is saved", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
-
-              Spacer()
-
-              Button("Clear Key") {
-                KeychainHelper.delete(key: "openai_api_key")
-                apiKeyInput = ""
-                hasStoredKey = false
-              }
-              .controlSize(.small)
+            } else {
+              Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
             }
 
-            SecureField("Enter new key to replace", text: $apiKeyInput)
-              .textFieldStyle(.roundedBorder)
-              .onSubmit {
-                saveAPIKey()
-              }
+            Spacer()
 
-            if !apiKeyInput.isEmpty {
-              Button("Update Key") {
-                saveAPIKey()
-              }
-              .buttonStyle(.borderedProminent)
-              .controlSize(.small)
+            Button(hasStoredKey ? "Edit" : "Add Key") {
+              showAPIKeyEditor = true
             }
-          } else {
-            Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
-
-            SecureField("sk-...", text: $apiKeyInput)
-              .textFieldStyle(.roundedBorder)
-              .onSubmit {
-                saveAPIKey()
-              }
-
-            if !apiKeyInput.isEmpty {
-              Button("Save Key") {
-                saveAPIKey()
-              }
-              .buttonStyle(.borderedProminent)
-              .controlSize(.small)
-            }
-          }
-        }
-      }
-
-      Section {
-        Button("Reclassify All Articles") {
-          Task {
-            if let writer = syncEngine.writer {
-              await classificationEngine.reclassifyAll(writer: writer)
-            }
-          }
-        }
-        .disabled(classificationEngine.isClassifying)
-
-        if classificationEngine.isClassifying {
-          HStack {
-            ProgressView()
-              .scaleEffect(0.7)
-            Text(classificationEngine.progress)
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            .controlSize(.small)
           }
         }
       }
     }
     .formStyle(.grouped)
+    .sheet(isPresented: $showAPIKeyEditor) {
+      APIKeyEditSheet(hasStoredKey: $hasStoredKey)
+    }
+    .onChange(of: showAPIKeyEditor) { _, isPresented in
+      if isPresented {
+        hadKeyBeforeEdit = hasStoredKey
+      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == "openai" {
+        // Prompt only when a key was added (not removed)
+        showReclassifyAlert = true
+      }
+    }
     .alert("Reclassify Articles?", isPresented: $showReclassifyAlert) {
       Button("Reclassify") {
         Task {
@@ -156,11 +118,73 @@ struct ClassificationSettingsView: View {
       }
     }
   }
+}
 
-  private func saveAPIKey() {
-    guard !apiKeyInput.isEmpty else { return }
-    KeychainHelper.save(key: "openai_api_key", value: apiKeyInput)
-    hasStoredKey = true
-    apiKeyInput = ""
+// MARK: - API Key Edit Sheet
+
+private struct APIKeyEditSheet: View {
+  @Binding
+  var hasStoredKey: Bool
+
+  @Environment(\.dismiss)
+  private var dismiss
+  @State
+  private var editKey: String = ""
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text("OpenAI API Key")
+          .font(FontTheme.headline)
+        Spacer()
+      }
+      .padding()
+      Divider()
+
+      VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("API Key")
+            .font(FontTheme.caption)
+            .foregroundStyle(.secondary)
+          SecureField(hasStoredKey ? "Enter new key to replace" : "sk-...", text: $editKey)
+            .textFieldStyle(.roundedBorder)
+        }
+
+        if hasStoredKey {
+          Label("A key is currently saved", systemImage: "checkmark.circle.fill")
+            .font(FontTheme.caption)
+            .foregroundStyle(.green)
+        }
+      }
+      .padding()
+
+      Divider()
+      HStack {
+        if hasStoredKey {
+          Button("Remove Key", role: .destructive) {
+            KeychainHelper.delete(key: "openai_api_key")
+            hasStoredKey = false
+            dismiss()
+          }
+        }
+
+        Spacer()
+
+        Button("Cancel") {
+          dismiss()
+        }
+        .keyboardShortcut(.cancelAction)
+
+        Button("Save") {
+          KeychainHelper.save(key: "openai_api_key", value: editKey)
+          hasStoredKey = true
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(editKey.isEmpty)
+      }
+      .padding()
+    }
+    .frame(width: 400)
   }
 }
