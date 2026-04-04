@@ -6,6 +6,8 @@ struct FolderEditSheet: View {
   private var syncEngine
   @Environment(\.dismiss)
   private var dismiss
+  @Query(sort: \Folder.sortOrder)
+  private var allFolders: [Folder]
 
   let folder: Folder?
 
@@ -108,7 +110,7 @@ struct FolderEditSheet: View {
       let label = (sanitized.isEmpty ? "folder" : sanitized)
         .appending("_\(Int.random(in: 1000...9999))")
       Task {
-        try? await writer.addFolder(label: label, displayName: trimmedName, sortOrder: 0)
+        try? await writer.addFolder(label: label, displayName: trimmedName, sortOrder: allFolders.count)
         dismiss()
       }
     }

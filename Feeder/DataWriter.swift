@@ -458,6 +458,19 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  // MARK: - Entry folder backfill
+
+  /// Update primaryFolder on all entries assigned to a category when that category's folder changes.
+  private func updatePrimaryFolderOnEntries(categoryLabel: String, newFolder: String) throws {
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryCategory == categoryLabel }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    for entry in entries {
+      entry.primaryFolder = newFolder
+    }
+  }
+
   // MARK: - Folder management
 
   func addFolder(label: String, displayName: String, sortOrder: Int) throws {
@@ -472,13 +485,14 @@ actor DataWriter: ModelActor {
     )
     guard let folder = try modelContext.fetch(folderDescriptor).first else { return }
 
-    // Move categories in this folder to root level
+    // Move categories in this folder to root level and update their entries
     let catDescriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.folderLabel == label }
     )
     let categories = try modelContext.fetch(catDescriptor)
     for category in categories {
       category.folderLabel = nil
+      try updatePrimaryFolderOnEntries(categoryLabel: category.label, newFolder: "")
     }
 
     modelContext.delete(folder)
@@ -544,6 +558,7 @@ actor DataWriter: ModelActor {
     guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { return }
     category.folderLabel = folderLabel
     category.sortOrder = sortOrder
+    try updatePrimaryFolderOnEntries(categoryLabel: label, newFolder: folderLabel ?? "")
     try modelContext.save()
   }
 
@@ -571,6 +586,7 @@ actor DataWriter: ModelActor {
       guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { continue }
       category.folderLabel = change.folderLabel
       category.sortOrder = change.sortOrder
+      try updatePrimaryFolderOnEntries(categoryLabel: change.label, newFolder: change.folderLabel ?? "")
     }
     for (label, sortOrder) in sortOrderUpdates {
       let descriptor = FetchDescriptor<Category>(

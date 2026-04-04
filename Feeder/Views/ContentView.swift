@@ -323,13 +323,10 @@ struct ContentView: View {
       selectedEntry = nil
     }
     .onChange(of: allCategories.count) {
-      if selection == nil {
-        if let firstFolder = folders.first {
-          selection = .folder(firstFolder.label)
-        } else if let firstCategory = rootCategories.first {
-          selection = .category(firstCategory.label)
-        }
-      }
+      revalidateSelection()
+    }
+    .onChange(of: folders.count) {
+      revalidateSelection()
     }
     .onChange(of: scenePhase) {
       if scenePhase != .active {
@@ -373,6 +370,26 @@ struct ContentView: View {
       EntryListView(folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
     case .category(let label):
       EntryListView(category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate, selectedEntry: $selectedEntry)
+    }
+  }
+
+  // MARK: - Selection
+
+  private func revalidateSelection() {
+    switch selection {
+    case .folder(let label) where !folders.contains(where: { $0.label == label }):
+      selection = nil
+    case .category(let label) where !allCategories.contains(where: { $0.label == label }):
+      selection = nil
+    default:
+      break
+    }
+    if selection == nil {
+      if let firstFolder = folders.first {
+        selection = .folder(firstFolder.label)
+      } else if let firstCategory = rootCategories.first {
+        selection = .category(firstCategory.label)
+      }
     }
   }
 
