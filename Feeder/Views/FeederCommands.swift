@@ -173,6 +173,10 @@ struct FeederCommands: Commands {
       .disabled(syncAction == nil || isSyncing == true)
     }
 
+    // Bare-key shortcuts (R, B, J, K) are handled by .onKeyPress in ContentView
+    // so they respect focus hierarchy and don't fire inside modal text fields.
+    // Menu items show the key in the label for discoverability.
+
     CommandMenu("Article") {
       Button("Mark All as Read") {
         markAllReadAction?()
@@ -182,30 +186,26 @@ struct FeederCommands: Commands {
 
       Divider()
 
-      Button(currentViewMode == .web ? "Reader Mode" : "Web Mode") {
+      Button("\(currentViewMode == .web ? "Reader Mode" : "Web Mode")\t R") {
         toggleViewModeAction?()
       }
-      .keyboardShortcut("r", modifiers: [])
       .disabled(toggleViewModeAction == nil || hasSelectedEntry != true)
 
-      Button("Open in Browser") {
+      Button("Open in Browser\t B") {
         openInBrowserAction?()
       }
-      .keyboardShortcut("b", modifiers: [])
       .disabled(openInBrowserAction == nil || canOpenInBrowser != true)
     }
 
     CommandMenu("Navigate") {
-      Button("Next Category") {
+      Button("Next Category\t J") {
         moveSelectionDown?()
       }
-      .keyboardShortcut("j", modifiers: [])
       .disabled(moveSelectionDown == nil)
 
-      Button("Previous Category") {
+      Button("Previous Category\t K") {
         moveSelectionUp?()
       }
-      .keyboardShortcut("k", modifiers: [])
       .disabled(moveSelectionUp == nil)
     }
   }

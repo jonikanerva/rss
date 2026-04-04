@@ -64,6 +64,12 @@ struct ClassificationSettingsView: View {
     .sheet(isPresented: $showAPIKeyEditor) {
       APIKeyEditSheet(hasStoredKey: $hasStoredKey)
     }
+    .onChange(of: showAPIKeyEditor) { _, isPresented in
+      // Prompt reclassification after saving a key while OpenAI is selected
+      if !isPresented, hasStoredKey, selectedProvider == "openai" {
+        showReclassifyAlert = true
+      }
+    }
     .alert("Reclassify Articles?", isPresented: $showReclassifyAlert) {
       Button("Reclassify") {
         Task {

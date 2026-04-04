@@ -334,9 +334,27 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Escape clears selection — not a menu command
+    // Bare-key shortcuts via .onKeyPress — respects focus hierarchy,
+    // won't fire inside modal text fields (sheets, onboarding, etc.)
     .onKeyPress(.escape) {
       selectedEntry = nil
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
+      openInBackground()
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
+      guard selectedEntry != nil else { return .ignored }
+      articleViewMode = articleViewMode == .web ? .reader : .web
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
+      moveSidebarSelection(by: 1)
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
+      moveSidebarSelection(by: -1)
       return .handled
     }
     .modifier(menuBarValues)
