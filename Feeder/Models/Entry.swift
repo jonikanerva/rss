@@ -64,28 +64,56 @@ final class Entry {
   }
 
   /// Decoded article blocks for display. Falls back to plain text paragraph.
+  /// Returns a fallback "Open in browser" link when content is empty or a Feedbin placeholder.
   /// Cached after first decode to avoid JSON parsing on every re-render.
   var parsedBlocks: [ArticleBlock] {
     if let cached = _cachedBlocks { return cached }
     let blocks: [ArticleBlock]
     if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
-      blocks = decoded
+      let text = decoded.classificationText
+      if Self.isFeedbinPlaceholder(text) {
+        blocks = emptyContentFallbackBlocks
+      } else {
+        blocks = decoded
+      }
+    } else if !plainText.isEmpty, !Self.isFeedbinPlaceholder(plainText) {
+      blocks = [.paragraph(text: plainText)]
     } else {
-      blocks = plainText.isEmpty ? [] : [.paragraph(text: plainText)]
+      blocks = emptyContentFallbackBlocks
     }
     _cachedBlocks = blocks
     return blocks
   }
 
-  /// Best available HTML body: extracted > content > summary
+  private var emptyContentFallbackBlocks: [ArticleBlock] {
+    [.paragraph(text: "This article has no inline content. [Open in browser \u{2192}](\(url))")]
+  }
+
+  /// Best available HTML body: extracted > content > summary.
+  /// Returns a fallback "Open in browser" link when no real content is available
+  /// or when the content is a known Feedbin placeholder (e.g. stripped iframes).
   var bestHTML: String {
-    if let extracted = extractedContent, !extracted.isEmpty {
-      return extracted
+    let candidate =
+      [extractedContent, content, summary]
+      .compactMap { $0 }
+      .first(where: { !$0.isEmpty }) ?? ""
+    if candidate.isEmpty || Self.isFeedbinPlaceholder(candidate) {
+      return emptyContentFallbackHTML
     }
-    if let content = content, !content.isEmpty {
-      return content
-    }
-    return summary ?? ""
+    return candidate
+  }
+
+  private var emptyContentFallbackHTML: String {
+    let safeURL =
+      url
+      .replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "\"", with: "&quot;")
+    return
+      "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(safeURL)\">Open in browser \u{2192}</a></p>"
+  }
+
+  private static func isFeedbinPlaceholder(_ html: String) -> Bool {
+    html.localizedCaseInsensitiveContains("if you trust this content")
   }
 
   init(

@@ -503,3 +503,81 @@ struct ArticleBlockTests {
     #expect(text.contains("three"))
   }
 }
+
+// MARK: - Entry Content Fallback Tests
+
+@MainActor
+struct EntryContentFallbackTests {
+  private func makeEntry(
+    content: String? = nil,
+    summary: String? = nil,
+    extractedContent: String? = nil
+  ) -> Entry {
+    let entry = Entry(
+      feedbinEntryID: 1,
+      title: "Test",
+      author: nil,
+      url: "https://example.com/article",
+      content: content,
+      summary: summary,
+      extractedContentURL: nil,
+      publishedAt: .now,
+      createdAt: .now
+    )
+    if let extracted = extractedContent {
+      entry.extractedContent = extracted
+    }
+    return entry
+  }
+
+  @Test
+  func bestHTMLReturnsExtractedContentFirst() {
+    let entry = makeEntry(content: "<p>feed</p>", extractedContent: "<p>extracted</p>")
+    #expect(entry.bestHTML == "<p>extracted</p>")
+  }
+
+  @Test
+  func bestHTMLReturnsFeedContent() {
+    let entry = makeEntry(content: "<p>feed content</p>")
+    #expect(entry.bestHTML == "<p>feed content</p>")
+  }
+
+  @Test
+  func bestHTMLReturnsSummaryAsFallback() {
+    let entry = makeEntry(summary: "A summary")
+    #expect(entry.bestHTML == "A summary")
+  }
+
+  @Test
+  func bestHTMLReturnsFallbackWhenAllEmpty() {
+    let entry = makeEntry()
+    #expect(entry.bestHTML.contains("no inline content"))
+    #expect(entry.bestHTML.contains("https://example.com/article"))
+  }
+
+  @Test
+  func bestHTMLReturnsFallbackForFeedbinPlaceholder() {
+    let entry = makeEntry(content: "<p>If you trust this content, view it on the original site.</p>")
+    #expect(entry.bestHTML.contains("no inline content"))
+    #expect(entry.bestHTML.contains("Open in browser"))
+  }
+
+  @Test
+  func bestHTMLDoesNotFalsePositiveOnNormalContent() {
+    let entry = makeEntry(content: "<p>Apple announced new AI features today.</p>")
+    #expect(entry.bestHTML == "<p>Apple announced new AI features today.</p>")
+  }
+
+  @Test
+  func parsedBlocksReturnsFallbackWhenEmpty() {
+    let entry = makeEntry()
+    let blocks = entry.parsedBlocks
+    #expect(blocks.count == 1)
+    if case .paragraph(let text) = blocks.first {
+      #expect(text.contains("no inline content"))
+      #expect(text.contains("example.com/article"))
+    } else {
+      Issue.record("Expected paragraph block")
+    }
+  }
+}
