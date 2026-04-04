@@ -69,7 +69,8 @@ struct ClassificationSettingsView: View {
     .onChange(of: showAPIKeyEditor) { _, isPresented in
       if isPresented {
         hadKeyBeforeEdit = hasStoredKey
-      } else if hasStoredKey != hadKeyBeforeEdit, selectedProvider == "openai" {
+      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == "openai" {
+        // Prompt only when a key was added (not removed)
         showReclassifyAlert = true
       }
     }
