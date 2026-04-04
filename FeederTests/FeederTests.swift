@@ -597,22 +597,33 @@ struct VideoIframeTransformTests {
   func extractsYouTubeVideoID() {
     #expect(extractYouTubeVideoID(from: "https://www.youtube.com/embed/abc123") == "abc123")
     #expect(extractYouTubeVideoID(from: "https://youtube.com/embed/xyz?rel=0") == "xyz")
+    #expect(extractYouTubeVideoID(from: "https://www.youtube-nocookie.com/embed/priv1") == "priv1")
     #expect(extractYouTubeVideoID(from: "https://vimeo.com/123") == nil)
     #expect(extractYouTubeVideoID(from: "https://www.youtube.com/watch?v=abc") == nil)
   }
 
   @Test
-  func parseHTMLToBlocksHandlesYouTubeIframe() {
+  func matchesSelfClosingIframe() {
+    let html = #"<iframe src="https://www.youtube.com/embed/sc1" />"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("<iframe"))
+  }
+
+  @Test
+  func transformThenParseProducesBlocks() {
     let html = """
       <iframe src="https://www.youtube.com/embed/test123" width="640" height="360"></iframe>
       <p>Video description</p>
       """
-    let blocks = parseHTMLToBlocks(html)
-    #expect(blocks.count >= 2)
-    if case .image(let url, _) = blocks.first {
-      #expect(url.contains("test123"))
-    } else {
-      Issue.record("Expected image block for video thumbnail")
-    }
+    let transformed = replaceVideoIframes(html)
+    let blocks = parseHTMLToBlocks(transformed)
+    // The transformed HTML contains <a><img>...</a> which parses as inline markdown with image
+    #expect(!blocks.isEmpty)
+    let allText = blocks.compactMap { block -> String? in
+      guard case .paragraph(let text) = block else { return nil }
+      return text
+    }.joined()
+    #expect(allText.contains("ytimg.com"))
   }
 }

@@ -6,7 +6,7 @@ import Foundation
 /// Unknown iframes are left untouched (stripped later by HTMLToBlocks or ignored by disabled JS).
 nonisolated func replaceVideoIframes(_ html: String) -> String {
   guard html.contains("<iframe") || html.contains("<IFRAME") else { return html }
-  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*>(?:<\/iframe>)?/
+  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>(?:<\/iframe>)?)/
   return html.replacing(pattern) { match in
     let src = String(match.output.1)
     if let replacement = youTubeThumbnailHTML(from: src) {
@@ -27,13 +27,20 @@ nonisolated private func youTubeThumbnailHTML(from src: String) -> String? {
     "<a href=\"\(watchURL)\" class=\"video-thumbnail\"><img src=\"\(thumbnailURL)\" alt=\"Video\"><span class=\"play-icon\">\u{25B6}</span></a>"
 }
 
+private enum YouTubeConstants {
+  nonisolated static let embedHosts: Set<String> = [
+    "www.youtube.com", "youtube.com",
+    "www.youtube-nocookie.com", "youtube-nocookie.com",
+  ]
+}
+
 /// Extract video ID from YouTube embed URLs:
 /// - https://www.youtube.com/embed/VIDEO_ID
-/// - https://youtube.com/embed/VIDEO_ID?...
+/// - https://youtube-nocookie.com/embed/VIDEO_ID?...
 nonisolated func extractYouTubeVideoID(from src: String) -> String? {
   guard let url = URL(string: src),
     let host = url.host?.lowercased(),
-    host == "www.youtube.com" || host == "youtube.com",
+    YouTubeConstants.embedHosts.contains(host),
     url.pathComponents.count >= 3,
     url.pathComponents[1] == "embed"
   else { return nil }

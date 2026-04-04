@@ -9,7 +9,7 @@ private enum HTMLConstants {
   /// Tags that are known-safe to skip silently (no content loss).
   nonisolated static let knownSkipTags: Set<String> = [
     "script", "style", "noscript", "nav", "footer", "header",
-    "aside", "form", "svg", "video", "audio", "button",
+    "aside", "form", "iframe", "svg", "video", "audio", "button",
     "input", "select", "textarea", "label", "fieldset", "legend",
     "meta", "link", "head", "title", "colgroup", "col", "caption",
     "table", "thead", "tbody", "tfoot", "tr", "td", "th",
@@ -137,16 +137,6 @@ nonisolated private func processElement(_ element: XMLElement, into blocks: inou
 
   case "br":
     break
-
-  case "iframe":
-    if let src = element.attribute(forName: "src")?.stringValue,
-      let videoID = extractYouTubeVideoID(from: src)
-    {
-      let thumbnailURL = "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg"
-      let watchURL = "https://www.youtube.com/watch?v=\(videoID)"
-      blocks.append(.image(url: thumbnailURL, alt: "Video"))
-      blocks.append(.paragraph(text: "[Watch video \u{2192}](\(watchURL))"))
-    }
 
   default:
     // Containers — recurse into children
