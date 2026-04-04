@@ -531,41 +531,22 @@ struct EntryContentFallbackTests {
   }
 
   @Test
-  func bestHTMLReturnsExtractedContentFirst() {
+  func feedHTMLReturnsFeedContentIgnoringExtracted() {
     let entry = makeEntry(content: "<p>feed</p>", extractedContent: "<p>extracted</p>")
-    #expect(entry.bestHTML == "<p>extracted</p>")
+    #expect(entry.feedHTML == "<p>feed</p>")
   }
 
   @Test
-  func bestHTMLReturnsFeedContent() {
-    let entry = makeEntry(content: "<p>feed content</p>")
-    #expect(entry.bestHTML == "<p>feed content</p>")
-  }
-
-  @Test
-  func bestHTMLReturnsSummaryAsFallback() {
+  func feedHTMLReturnsSummaryAsFallback() {
     let entry = makeEntry(summary: "A summary")
-    #expect(entry.bestHTML == "A summary")
+    #expect(entry.feedHTML == "A summary")
   }
 
   @Test
-  func bestHTMLReturnsFallbackWhenAllEmpty() {
+  func feedHTMLReturnsFallbackWhenAllEmpty() {
     let entry = makeEntry()
-    #expect(entry.bestHTML.contains("no inline content"))
-    #expect(entry.bestHTML.contains("https://example.com/article"))
-  }
-
-  @Test
-  func bestHTMLReturnsFallbackForFeedbinPlaceholder() {
-    let entry = makeEntry(content: "<p>If you trust this content, view it on the original site.</p>")
-    #expect(entry.bestHTML.contains("no inline content"))
-    #expect(entry.bestHTML.contains("Open in browser"))
-  }
-
-  @Test
-  func bestHTMLDoesNotFalsePositiveOnNormalContent() {
-    let entry = makeEntry(content: "<p>Apple announced new AI features today.</p>")
-    #expect(entry.bestHTML == "<p>Apple announced new AI features today.</p>")
+    #expect(entry.feedHTML.contains("no inline content"))
+    #expect(entry.feedHTML.contains("https://example.com/article"))
   }
 
   @Test

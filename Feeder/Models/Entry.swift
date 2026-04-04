@@ -63,52 +63,30 @@ final class Entry {
     _cachedBlocks = nil
   }
 
-  /// Decoded article blocks for display. Falls back to plain text paragraph.
-  /// Returns a fallback "Open in browser" link when content is empty or a Feedbin placeholder.
+  /// Decoded article blocks for reader view. Uses extracted content (from Mercury Parser)
+  /// when available, falls back to feed content, then to an "Open in browser" link.
   /// Cached after first decode to avoid JSON parsing on every re-render.
   var parsedBlocks: [ArticleBlock] {
     if let cached = _cachedBlocks { return cached }
     let blocks: [ArticleBlock]
     if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
-      let text = decoded.classificationText
-      if Self.isFeedbinPlaceholder(text) {
-        blocks = emptyContentFallbackBlocks
-      } else {
-        blocks = decoded
-      }
-    } else if !plainText.isEmpty, !Self.isFeedbinPlaceholder(plainText) {
+      blocks = decoded
+    } else if !plainText.isEmpty {
       blocks = [.paragraph(text: plainText)]
     } else {
-      blocks = emptyContentFallbackBlocks
+      blocks = [.paragraph(text: "This article has no inline content. [Open in browser \u{2192}](\(url))")]
     }
     _cachedBlocks = blocks
     return blocks
   }
 
-  private var emptyContentFallbackBlocks: [ArticleBlock] {
-    [.paragraph(text: "This article has no inline content. [Open in browser \u{2192}](\(url))")]
-  }
-
-  /// Best available HTML body: extracted > content > summary.
-  /// Returns a fallback "Open in browser" link when no real content is available
-  /// or when the content is a known Feedbin placeholder (e.g. stripped iframes).
-  var bestHTML: String {
-    let candidate =
-      [extractedContent, content, summary]
-      .compactMap { $0 }
-      .first(where: { !$0.isEmpty }) ?? ""
-    if candidate.isEmpty || Self.isFeedbinPlaceholder(candidate) {
-      return emptyContentFallbackHTML
-    }
-    return candidate
-  }
-
-  private var emptyContentFallbackHTML: String {
-    "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
-  }
-
-  private static func isFeedbinPlaceholder(_ html: String) -> Bool {
-    html.range(of: "if you trust this content", options: .caseInsensitive) != nil
+  /// Feed-provided HTML for the default web view: content > summary.
+  /// Returns a fallback "Open in browser" link when the feed provides no content.
+  var feedHTML: String {
+    if let content, !content.isEmpty { return content }
+    if let summary, !summary.isEmpty { return summary }
+    return
+      "<p class=\"empty-fallback\">This article has no inline content. <a href=\"\(url.htmlEscaped)\">Open in browser \u{2192}</a></p>"
   }
 
   init(
