@@ -328,7 +328,7 @@ private func settingsSeededPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
   guard
     let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self,
+      for: Entry.self, Feed.self, Category.self, Folder.self,
       configurations: config
     )
   else {
@@ -346,10 +346,11 @@ private func settingsSeededPreview() -> some View {
   )
   context.insert(feed)
 
-  let technology = Category(label: "technology", displayName: "Technology", categoryDescription: "Technology news", sortOrder: 0)
-  let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news", sortOrder: 0, parentLabel: "technology")
-  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "World policy news", sortOrder: 1)
-  context.insert(technology)
+  let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+  context.insert(techFolder)
+
+  let apple = Category(label: "apple", displayName: "Apple", categoryDescription: "Apple news", sortOrder: 0, folderLabel: "technology")
+  let world = Category(label: "world_news", displayName: "World News", categoryDescription: "World policy news", sortOrder: 0)
   context.insert(apple)
   context.insert(world)
 
@@ -365,8 +366,8 @@ private func settingsSeededPreview() -> some View {
     createdAt: .now
   )
   entry.feed = feed
-  entry.categoryLabels = ["apple"]
   entry.primaryCategory = "apple"
+  entry.primaryFolder = "technology"
   entry.storyKey = "apple-m5-ultra"
   context.insert(entry)
   try? context.save()

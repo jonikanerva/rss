@@ -8,7 +8,7 @@ enum DataWriterTestSupport {
   static func makeWriter() async throws -> DataWriter {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(
-      for: Category.self, Entry.self, Feed.self,
+      for: Category.self, Entry.self, Feed.self, Folder.self,
       configurations: config
     )
     return DataWriter(modelContainer: container)
@@ -20,8 +20,8 @@ struct EntrySnapshot: Sendable {
   let feedbinEntryID: Int
   let isRead: Bool
   let isClassified: Bool
-  let categoryLabels: [String]
   let primaryCategory: String
+  let primaryFolder: String
   let plainText: String
 }
 
@@ -35,8 +35,8 @@ extension DataWriter {
       feedbinEntryID: entry.feedbinEntryID,
       isRead: entry.isRead,
       isClassified: entry.isClassified,
-      categoryLabels: entry.categoryLabels,
       primaryCategory: entry.primaryCategory,
+      primaryFolder: entry.primaryFolder,
       plainText: entry.plainText
     )
   }

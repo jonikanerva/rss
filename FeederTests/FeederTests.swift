@@ -8,105 +8,21 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - Deepest-Match Logic Tests (uses extracted enforceDeepestMatch function)
-
-struct DeepestMatchTests {
-  private var sampleCategories: [CategoryDefinition] {
-    [
-      CategoryDefinition(label: "technology", description: "Tech", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "gaming", description: "Gaming", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "world", description: "World", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: uncategorizedLabel, description: "Uncategorized", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "apple", description: "Apple", parentLabel: "technology", isTopLevel: false),
-      CategoryDefinition(label: "ai", description: "AI", parentLabel: "technology", isTopLevel: false),
-      CategoryDefinition(label: "gaming_industry", description: "Gaming biz", parentLabel: "gaming", isTopLevel: false),
-    ]
-  }
-
-  private var childrenByParent: [String: [CategoryDefinition]] {
-    Dictionary(
-      grouping: sampleCategories.filter { !$0.isTopLevel },
-      by: { $0.parentLabel ?? "" }
-    )
-  }
-
-  @Test
-  func parentStrippedWhenChildPresent() {
-    let result = enforceDeepestMatch(labels: ["technology", "apple"], childrenByParent: childrenByParent)
-    #expect(result == ["apple"])
-  }
-
-  @Test
-  func parentKeptWhenNoChildPresent() {
-    let result = enforceDeepestMatch(labels: ["technology"], childrenByParent: childrenByParent)
-    #expect(result == ["technology"])
-  }
-
-  @Test
-  func multipleChildrenKeptParentStripped() {
-    let result = enforceDeepestMatch(labels: ["technology", "apple", "ai"], childrenByParent: childrenByParent)
-    #expect(result == ["apple", "ai"])
-  }
-
-  @Test
-  func crossParentChildrenBothKept() {
-    let result = enforceDeepestMatch(labels: ["apple", "gaming_industry"], childrenByParent: childrenByParent)
-    #expect(result == ["apple", "gaming_industry"])
-  }
-
-  @Test
-  func parentFromDifferentBranchNotStripped() {
-    let result = enforceDeepestMatch(labels: ["world", "apple"], childrenByParent: childrenByParent)
-    #expect(result == ["world", "apple"])
-  }
-
-  @Test
-  func emptyLabelsDefaultToUncategorized() {
-    let result = enforceDeepestMatch(labels: [], childrenByParent: childrenByParent)
-    #expect(result == [uncategorizedLabel])
-  }
-
-  @Test
-  func onlyUncategorizedStaysAsIs() {
-    let result = enforceDeepestMatch(labels: [uncategorizedLabel], childrenByParent: childrenByParent)
-    #expect(result == [uncategorizedLabel])
-  }
-}
-
 // MARK: - Classification Instructions Tests (uses extracted buildClassificationInstructions)
 
 struct ClassificationInstructionsTests {
   @Test
-  func promptShowsHierarchicalIndentation() {
+  func promptShowsFlatList() {
     let categories = [
-      CategoryDefinition(label: "technology", description: "Tech news", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "apple", description: "Apple news", parentLabel: "technology", isTopLevel: false),
-      CategoryDefinition(label: "world", description: "World news", parentLabel: nil, isTopLevel: true),
+      CategoryDefinition(label: "apple", description: "Apple news", folderLabel: "technology"),
+      CategoryDefinition(label: "world", description: "World news"),
     ]
     let instructions = buildClassificationInstructions(from: categories)
 
-    #expect(instructions.contains("- technology: Tech news"))
-    #expect(instructions.contains("  - apple: Apple news"))
+    #expect(instructions.contains("- apple: Apple news"))
     #expect(instructions.contains("- world: World news"))
-  }
-
-  @Test
-  func childAppearsUnderCorrectParent() {
-    let categories = [
-      CategoryDefinition(label: "gaming", description: "Games", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "technology", description: "Tech", parentLabel: nil, isTopLevel: true),
-      CategoryDefinition(label: "ps5", description: "PS5", parentLabel: "gaming", isTopLevel: false),
-    ]
-    let instructions = buildClassificationInstructions(from: categories)
-    let lines = instructions.components(separatedBy: "\n")
-
-    if let gamingIndex = lines.firstIndex(where: { $0.contains("gaming:") }),
-      let ps5Index = lines.firstIndex(where: { $0.contains("ps5:") })
-    {
-      #expect(ps5Index == gamingIndex + 1)
-    } else {
-      Issue.record("gaming or ps5 not found in instructions")
-    }
+    // No indentation — flat list
+    #expect(!instructions.contains("  - "))
   }
 
   @Test
@@ -116,75 +32,31 @@ struct ClassificationInstructionsTests {
   }
 
   @Test
-  func instructionsContainSystemDirective() {
+  func instructionsContainSingleCategoryDirective() {
     let categories = [
-      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+      CategoryDefinition(label: "tech", description: "Tech")
     ]
     let instructions = buildClassificationInstructions(from: categories)
-    #expect(instructions.contains("Categorize the article into the most specific matching categories"))
+    #expect(instructions.contains("Assign the single best matching category"))
   }
 
   @Test
   func instructionsIncludeUncategorized() {
     let categories = [
-      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+      CategoryDefinition(label: "tech", description: "Tech")
     ]
     let instructions = buildClassificationInstructions(from: categories)
     #expect(instructions.contains("- uncategorized:"))
   }
 
   @Test
-  func instructionsDoNotOverpushUncategorized() {
+  func instructionsDoNotMentionMultipleCategories() {
     let categories = [
-      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
+      CategoryDefinition(label: "tech", description: "Tech")
     ]
     let instructions = buildClassificationInstructions(from: categories)
-    #expect(!instructions.contains("assign only \"uncategorized\""))
-  }
-
-  @Test
-  func instructionsPreferFewerCategories() {
-    let categories = [
-      CategoryDefinition(label: "tech", description: "Tech", parentLabel: nil, isTopLevel: true)
-    ]
-    let instructions = buildClassificationInstructions(from: categories)
-    #expect(instructions.contains("Prefer fewer categories"))
-  }
-}
-
-// MARK: - Filter Valid Labels Tests (uses extracted filterValidLabels)
-
-struct FilterValidLabelsTests {
-  private let validSet: Set<String> = ["technology", "apple", "gaming", "world", uncategorizedLabel]
-
-  @Test
-  func allValidLabelsKept() {
-    let result = filterValidLabels(["technology", "apple"], validSet: validSet)
-    #expect(result == ["technology", "apple"])
-  }
-
-  @Test
-  func invalidLabelsRemoved() {
-    let result = filterValidLabels(["technology", "nonexistent"], validSet: validSet)
-    #expect(result == ["technology"])
-  }
-
-  @Test
-  func allInvalidDefaultsToUncategorized() {
-    let result = filterValidLabels(["bogus", "fake"], validSet: validSet)
-    #expect(result == [uncategorizedLabel])
-  }
-
-  @Test
-  func emptyLabelsDefaultToUncategorized() {
-    let result = filterValidLabels([], validSet: validSet)
-    #expect(result == [uncategorizedLabel])
-  }
-
-  @Test
-  func singleValidLabel() {
-    let result = filterValidLabels(["gaming"], validSet: validSet)
-    #expect(result == ["gaming"])
+    #expect(!instructions.contains("Prefer fewer categories"))
+    #expect(!instructions.contains("subcategories over parents"))
   }
 }
 
@@ -312,68 +184,68 @@ struct StoryKeyTests {
 
 struct ConfidenceGateTests {
   @Test
-  func highLLMConfidenceKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.8, keywordScores: [:])
-    #expect(result == ["apple"])
+  func highLLMConfidenceKeepsLabel() {
+    let result = applyConfidenceGate(label: "apple", llmConfidence: 0.8, keywordScores: [:])
+    #expect(result == "apple")
   }
 
   @Test
-  func lowLLMButHighKeywordKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.8])
-    #expect(result == ["apple"])
+  func lowLLMButHighKeywordKeepsLabel() {
+    let result = applyConfidenceGate(label: "apple", llmConfidence: 0.1, keywordScores: ["apple": 0.8])
+    #expect(result == "apple")
   }
 
   @Test
   func bothLowDefaultsToUncategorized() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.1, keywordScores: ["apple": 0.2])
-    #expect(result == [uncategorizedLabel])
+    let result = applyConfidenceGate(label: "apple", llmConfidence: 0.1, keywordScores: ["apple": 0.2])
+    #expect(result == uncategorizedLabel)
   }
 
   @Test
-  func bothHighKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["apple"], llmConfidence: 0.9, keywordScores: ["apple": 0.8])
-    #expect(result == ["apple"])
+  func bothHighKeepsLabel() {
+    let result = applyConfidenceGate(label: "apple", llmConfidence: 0.9, keywordScores: ["apple": 0.8])
+    #expect(result == "apple")
   }
 
   @Test
-  func atThresholdKeepsLabels() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.3, keywordScores: [:])
-    #expect(result == ["gaming"])
+  func atThresholdKeepsLabel() {
+    let result = applyConfidenceGate(label: "gaming", llmConfidence: 0.3, keywordScores: [:])
+    #expect(result == "gaming")
   }
 
   @Test
   func justBelowThresholdGates() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.29, keywordScores: [:])
-    #expect(result == [uncategorizedLabel])
+    let result = applyConfidenceGate(label: "gaming", llmConfidence: 0.29, keywordScores: [:])
+    #expect(result == uncategorizedLabel)
   }
 
   @Test
   func keywordScoreForDifferentCategoryIgnored() {
-    let result = applyConfidenceGate(labels: ["gaming"], llmConfidence: 0.1, keywordScores: ["apple": 0.9])
-    #expect(result == [uncategorizedLabel])
+    let result = applyConfidenceGate(label: "gaming", llmConfidence: 0.1, keywordScores: ["apple": 0.9])
+    #expect(result == uncategorizedLabel)
   }
 
   // Keyword override tests — when LLM chose uncategorized but keywords are strong
   @Test
   func keywordOverridesUncategorized() {
     let result = applyConfidenceGate(
-      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.8])
-    #expect(result == ["apple"])
+      label: uncategorizedLabel, llmConfidence: 0.2, keywordScores: ["apple": 0.8])
+    #expect(result == "apple")
   }
 
   @Test
   func keywordDoesNotOverrideIfBelowThreshold() {
     let result = applyConfidenceGate(
-      labels: [uncategorizedLabel], llmConfidence: 0.2, keywordScores: ["apple": 0.6])
-    #expect(result == [uncategorizedLabel])
+      label: uncategorizedLabel, llmConfidence: 0.2, keywordScores: ["apple": 0.6])
+    #expect(result == uncategorizedLabel)
   }
 
   @Test
   func keywordOverridePicksHighestScore() {
     let result = applyConfidenceGate(
-      labels: [uncategorizedLabel], llmConfidence: 0.1,
+      label: uncategorizedLabel, llmConfidence: 0.1,
       keywordScores: ["apple": 0.8, "gaming": 1.0])
-    #expect(result == ["gaming"])
+    #expect(result == "gaming")
   }
 }
 
@@ -382,17 +254,15 @@ struct ConfidenceGateTests {
 struct KeywordMatchConfidenceTests {
   private let categories: [CategoryDefinition] = [
     CategoryDefinition(
-      label: "apple", description: "Apple", parentLabel: "technology",
-      isTopLevel: false, keywords: ["apple", "iphone", "macbook"]),
+      label: "apple", description: "Apple", folderLabel: "technology",
+      keywords: ["apple", "iphone", "macbook"]),
     CategoryDefinition(
-      label: "gaming", description: "Gaming", parentLabel: nil,
-      isTopLevel: true, keywords: ["xbox", "nintendo"]),
+      label: "gaming", description: "Gaming",
+      keywords: ["xbox", "nintendo"]),
     CategoryDefinition(
-      label: "world_news", description: "World", parentLabel: nil,
-      isTopLevel: true, keywords: []),
+      label: "world_news", description: "World"),
     CategoryDefinition(
-      label: uncategorizedLabel, description: "Uncategorized",
-      parentLabel: nil, isTopLevel: true),
+      label: uncategorizedLabel, description: "Uncategorized"),
   ]
 
   @Test

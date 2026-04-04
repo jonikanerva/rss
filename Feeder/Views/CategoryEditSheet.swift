@@ -8,16 +8,16 @@ struct CategoryEditSheet: View {
   private var dismiss
 
   let category: Category?
-  let allTopLevel: [Category]
+  let folders: [Folder]
 
   @State
   private var name: String = ""
   @State
   private var description: String = ""
   @State
-  private var showDeleteConfirmation = false
+  private var selectedFolderLabel: String?
   @State
-  private var childNamesToDelete: [String] = []
+  private var showDeleteConfirmation = false
 
   private var isNew: Bool { category == nil }
 
@@ -35,6 +35,7 @@ struct CategoryEditSheet: View {
       if let category {
         name = category.displayName
         description = category.categoryDescription
+        selectedFolderLabel = category.folderLabel
       }
     }
     .alert("Delete Category?", isPresented: $showDeleteConfirmation) {
@@ -43,13 +44,7 @@ struct CategoryEditSheet: View {
         performDelete()
       }
     } message: {
-      if childNamesToDelete.isEmpty {
-        Text("Are you sure you want to delete \"\(category?.displayName ?? "")\"?")
-      } else {
-        Text(
-          "This will also delete subcategories: \(childNamesToDelete.joined(separator: ", ")). Are you sure?"
-        )
-      }
+      Text("Are you sure you want to delete \"\(category?.displayName ?? "")\"?")
     }
   }
 
@@ -79,6 +74,20 @@ struct CategoryEditSheet: View {
       }
 
       VStack(alignment: .leading, spacing: 4) {
+        Text("Folder")
+          .font(FontTheme.caption)
+          .foregroundStyle(.secondary)
+        Picker("Folder", selection: $selectedFolderLabel) {
+          Text("None (root level)").tag(String?.none)
+          ForEach(folders) { folder in
+            Text(folder.displayName).tag(Optional(folder.label))
+          }
+        }
+        .labelsHidden()
+        .disabled(category?.isSystem ?? false)
+      }
+
+      VStack(alignment: .leading, spacing: 4) {
         Text("Description")
           .font(FontTheme.caption)
           .foregroundStyle(.secondary)
@@ -100,7 +109,7 @@ struct CategoryEditSheet: View {
     HStack {
       if !isNew && !(category?.isSystem ?? false) {
         Button("Delete Category", role: .destructive) {
-          prepareDelete()
+          showDeleteConfirmation = true
         }
       }
       Spacer()
@@ -126,10 +135,15 @@ struct CategoryEditSheet: View {
 
     if let category {
       let label = category.label
+      let folder = selectedFolderLabel
       Task {
         try? await writer.updateCategoryFields(
           label: label, displayName: trimmedName, description: trimmedDesc
         )
+        if category.folderLabel != folder {
+          let sortOrder = category.sortOrder
+          try? await writer.moveCategoryToFolder(label: label, folderLabel: folder, sortOrder: sortOrder)
+        }
         dismiss()
       }
     } else {
@@ -138,29 +152,16 @@ struct CategoryEditSheet: View {
         .filter { $0.isLetter || $0.isNumber || $0 == "_" }
       let label = (sanitized.isEmpty ? "category" : sanitized)
         .appending("_\(Int.random(in: 1000...9999))")
-      let sortOrder = allTopLevel.count
+      let sortOrder = 0
+      let folder = selectedFolderLabel
       Task {
         try? await writer.addCategory(
           label: label, displayName: trimmedName,
-          description: trimmedDesc, sortOrder: sortOrder
+          description: trimmedDesc, sortOrder: sortOrder,
+          folderLabel: folder
         )
         dismiss()
       }
-    }
-  }
-
-  private func prepareDelete() {
-    guard let writer = syncEngine.writer, let category else { return }
-    if category.isTopLevel {
-      let label = category.label
-      Task {
-        let names = (try? await writer.childCategoryNames(for: label)) ?? []
-        childNamesToDelete = names
-        showDeleteConfirmation = true
-      }
-    } else {
-      childNamesToDelete = []
-      showDeleteConfirmation = true
     }
   }
 
@@ -189,7 +190,7 @@ private func categoryEditExistingPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
   guard
     let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self,
+      for: Entry.self, Feed.self, Category.self, Folder.self,
       configurations: config
     )
   else {
@@ -197,21 +198,18 @@ private func categoryEditExistingPreview() -> some View {
   }
   let context = container.mainContext
 
-  let technology = Category(
-    label: "technology", displayName: "Technology",
-    categoryDescription: "A broad category for all news about technology companies, products, platforms, and innovations.",
-    sortOrder: 0
-  )
+  let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+  context.insert(techFolder)
+
   let apple = Category(
     label: "apple", displayName: "Apple",
     categoryDescription: "All news about Apple company and products.",
-    sortOrder: 0, parentLabel: "technology"
+    sortOrder: 0, folderLabel: "technology"
   )
-  context.insert(technology)
   context.insert(apple)
   try? context.save()
 
-  return CategoryEditSheet(category: technology, allTopLevel: [technology])
+  return CategoryEditSheet(category: apple, folders: [techFolder])
     .environment(SyncEngine())
     .modelContainer(container)
 }
@@ -221,14 +219,14 @@ private func categoryEditNewPreview() -> some View {
   let config = ModelConfiguration(isStoredInMemoryOnly: true)
   guard
     let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self,
+      for: Entry.self, Feed.self, Category.self, Folder.self,
       configurations: config
     )
   else {
     fatalError("Preview ModelContainer failed")
   }
 
-  return CategoryEditSheet(category: nil, allTopLevel: [])
+  return CategoryEditSheet(category: nil, folders: [])
     .environment(SyncEngine())
     .modelContainer(container)
 }

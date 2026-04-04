@@ -159,13 +159,14 @@ struct DataWriterEntryTests {
     let entry = try Self.makeFeedbinEntry(id: 1001)
     _ = try await writer.persistEntries([entry], markAsRead: false)
 
+    try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
     try await writer.addCategory(
-      label: "technology", displayName: "Technology",
-      description: "Tech news", sortOrder: 0)
+      label: "apple", displayName: "Apple",
+      description: "Apple news", sortOrder: 0, folderLabel: "tech")
 
     let result = ClassificationResult(
       entryID: 1001,
-      categoryLabels: ["technology"],
+      categoryLabel: "apple",
       storyKey: "test-story",
       detectedLanguage: "en",
       confidence: 0.9
@@ -174,12 +175,12 @@ struct DataWriterEntryTests {
 
     let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
     #expect(snapshot?.isClassified == true)
-    #expect(snapshot?.categoryLabels == ["technology"])
-    #expect(snapshot?.primaryCategory == "technology")
+    #expect(snapshot?.primaryCategory == "apple")
+    #expect(snapshot?.primaryFolder == "tech")
   }
 
   @Test
-  func applyClassificationEnforcesDeepestMatch() async throws {
+  func applyClassificationSetsPrimaryFolderForRootCategory() async throws {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
@@ -187,27 +188,42 @@ struct DataWriterEntryTests {
     _ = try await writer.persistEntries([entry], markAsRead: false)
 
     try await writer.addCategory(
-      label: "technology", displayName: "Technology",
-      description: "Tech", sortOrder: 0)
-    try await writer.addCategory(
-      label: "apple", displayName: "Apple",
-      description: "Apple", sortOrder: 0, parentLabel: "technology")
+      label: "science", displayName: "Science",
+      description: "Science", sortOrder: 0)
 
-    // Classify with both parent and child — parent should be stripped
     let result = ClassificationResult(
       entryID: 1001,
-      categoryLabels: ["technology", "apple"],
-      storyKey: "apple-story",
+      categoryLabel: "science",
+      storyKey: "science-story",
       detectedLanguage: "en",
       confidence: 0.8
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
-    // Parent "technology" should be stripped, only child "apple" remains
     let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
-    #expect(snapshot?.isClassified == true)
-    #expect(snapshot?.categoryLabels == ["apple"])
-    #expect(snapshot?.primaryCategory == "apple")
+    #expect(snapshot?.primaryCategory == "science")
+    #expect(snapshot?.primaryFolder == "")
+  }
+
+  @Test
+  func applyClassificationFallsBackToUncategorized() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+
+    let entry = try Self.makeFeedbinEntry(id: 1001)
+    _ = try await writer.persistEntries([entry], markAsRead: false)
+
+    let result = ClassificationResult(
+      entryID: 1001,
+      categoryLabel: "nonexistent",
+      storyKey: "story",
+      detectedLanguage: "en",
+      confidence: 0.9
+    )
+    try await writer.applyClassification(entryID: 1001, result: result)
+
+    let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
+    #expect(snapshot?.primaryCategory == uncategorizedLabel)
   }
 
   @Test
@@ -216,7 +232,7 @@ struct DataWriterEntryTests {
 
     let result = ClassificationResult(
       entryID: 99999,
-      categoryLabels: ["technology"],
+      categoryLabel: "technology",
       storyKey: "missing-story",
       detectedLanguage: "en",
       confidence: 0.9
@@ -313,15 +329,15 @@ struct DataWriterEntryTests {
 
     try await writer.addCategory(
       label: "technology", displayName: "Technology",
-      description: "Tech news", sortOrder: 0, parentLabel: nil)
+      description: "Tech news", sortOrder: 0)
     try await writer.addCategory(
       label: "world_news", displayName: "World News",
-      description: "World news", sortOrder: 1, parentLabel: nil)
+      description: "World news", sortOrder: 1)
 
     // Classify entries into different categories
     for (id, cat) in [(2001, "technology"), (2002, "technology"), (2003, "world_news")] {
       let result = ClassificationResult(
-        entryID: id, categoryLabels: [cat], storyKey: "story-\(id)",
+        entryID: id, categoryLabel: cat, storyKey: "story-\(id)",
         detectedLanguage: "en", confidence: 0.9)
       try await writer.applyClassification(entryID: id, result: result)
     }
