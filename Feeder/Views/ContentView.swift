@@ -464,7 +464,7 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    guard let selection, let writer = syncEngine.writer else { return }
+    guard articleFilter == .unread, let selection, let writer = syncEngine.writer else { return }
     selectedEntry = nil
     Task {
       let markedIDs: Set<Int>?
