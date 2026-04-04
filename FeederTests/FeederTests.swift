@@ -562,3 +562,57 @@ struct EntryContentFallbackTests {
     }
   }
 }
+
+// MARK: - Video Iframe Transform Tests
+
+struct VideoIframeTransformTests {
+  @Test
+  func replacesYouTubeIframe() {
+    let html = """
+      <iframe src="https://www.youtube.com/embed/abc123?rel=0" width="1280" height="720"></iframe>
+      <p>Description</p>
+      """
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("i.ytimg.com/vi/abc123/hqdefault.jpg"))
+    #expect(result.contains("youtube.com/watch?v=abc123"))
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("<iframe"))
+  }
+
+  @Test
+  func leavesNonVideoIframeUnchanged() {
+    let html = #"<iframe src="https://example.com/widget"></iframe>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("<iframe"))
+  }
+
+  @Test
+  func returnsUnchangedWithoutIframes() {
+    let html = "<p>Just text</p>"
+    let result = replaceVideoIframes(html)
+    #expect(result == html)
+  }
+
+  @Test
+  func extractsYouTubeVideoID() {
+    #expect(extractYouTubeVideoID(from: "https://www.youtube.com/embed/abc123") == "abc123")
+    #expect(extractYouTubeVideoID(from: "https://youtube.com/embed/xyz?rel=0") == "xyz")
+    #expect(extractYouTubeVideoID(from: "https://vimeo.com/123") == nil)
+    #expect(extractYouTubeVideoID(from: "https://www.youtube.com/watch?v=abc") == nil)
+  }
+
+  @Test
+  func parseHTMLToBlocksHandlesYouTubeIframe() {
+    let html = """
+      <iframe src="https://www.youtube.com/embed/test123" width="640" height="360"></iframe>
+      <p>Video description</p>
+      """
+    let blocks = parseHTMLToBlocks(html)
+    #expect(blocks.count >= 2)
+    if case .image(let url, _) = blocks.first {
+      #expect(url.contains("test123"))
+    } else {
+      Issue.record("Expected image block for video thumbnail")
+    }
+  }
+}

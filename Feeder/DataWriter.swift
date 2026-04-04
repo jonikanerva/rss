@@ -225,7 +225,7 @@ actor DataWriter: ModelActor {
       )
       entry.feed = feedsByFeedbinID[dto.feedId]
       entry.isRead = markAsRead
-      let html = dto.content ?? dto.summary ?? ""
+      let html = replaceVideoIframes(dto.content ?? dto.summary ?? "")
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
@@ -272,7 +272,7 @@ actor DataWriter: ModelActor {
       )
       entry.feed = feedsByFeedbinID[dto.feedId]
       entry.isRead = !unreadIDs.contains(dto.id)
-      let html = dto.content ?? dto.summary ?? ""
+      let html = replaceVideoIframes(dto.content ?? dto.summary ?? "")
       let blocks = parseHTMLToBlocks(html)
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = blocks.classificationText
@@ -389,7 +389,7 @@ actor DataWriter: ModelActor {
     for entry in entries {
       if let content = resultsByID[entry.feedbinEntryID] {
         entry.extractedContent = content
-        let blocks = parseHTMLToBlocks(content)
+        let blocks = parseHTMLToBlocks(replaceVideoIframes(content))
         entry.articleBlocksData = blocks.toJSONData()
         entry.plainText = blocks.classificationText
         entry.invalidateBlocksCache()
