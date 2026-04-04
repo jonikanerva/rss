@@ -6,7 +6,7 @@ import Foundation
 /// Unknown iframes are left untouched (stripped later by HTMLToBlocks or ignored by disabled JS).
 nonisolated func replaceVideoIframes(_ html: String) -> String {
   guard html.contains("<iframe") || html.contains("<IFRAME") else { return html }
-  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>(?:<\/iframe>)?)/
+  let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>[^<]*(?:<\/iframe>)?)/
   return html.replacing(pattern) { match in
     let src = String(match.output.1)
     if let replacement = youTubeThumbnailHTML(from: src) {
@@ -39,7 +39,7 @@ private enum YouTubeConstants {
 /// - https://youtube-nocookie.com/embed/VIDEO_ID?...
 nonisolated func extractYouTubeVideoID(from src: String) -> String? {
   guard let url = URL(string: src),
-    let host = url.host?.lowercased(),
+    let host = url.host(percentEncoded: false)?.lowercased(),
     YouTubeConstants.embedHosts.contains(host),
     url.pathComponents.count >= 3,
     url.pathComponents[1] == "embed"
