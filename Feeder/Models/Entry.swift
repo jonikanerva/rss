@@ -108,7 +108,7 @@ final class Entry {
   }
 
   private static func isFeedbinPlaceholder(_ html: String) -> Bool {
-    html.localizedCaseInsensitiveContains("if you trust this content")
+    html.range(of: "if you trust this content", options: .caseInsensitive) != nil
   }
 
   init(
