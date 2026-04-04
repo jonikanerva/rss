@@ -517,18 +517,6 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  func updateFolderSortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
-    for (label, sortOrder) in updates {
-      let descriptor = FetchDescriptor<Folder>(
-        predicate: #Predicate<Folder> { $0.label == label }
-      )
-      if let folder = try modelContext.fetch(descriptor).first {
-        folder.sortOrder = sortOrder
-      }
-    }
-    try modelContext.save()
-  }
-
   // MARK: - Category management
 
   func addCategory(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String? = nil) throws {
