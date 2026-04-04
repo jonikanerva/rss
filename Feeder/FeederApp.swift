@@ -117,6 +117,11 @@ struct FeederApp: App {
           "Business and industry news about the gaming sector: studio layoffs, closures, acquisitions, insolvency, market analysis, financial results, and workforce changes.",
           2, "gaming", ["layoffs", "acquisition", "studio closure"]
         ),
+        (
+          "video_games", "Video Games",
+          "All other articles about video games, PC games, console games, or other gaming topics that do not fit PlayStation 5, Marathon, or Gaming Industry categories.",
+          3, "gaming", ["xbox", "nintendo", "steam", "epic games"]
+        ),
         // Technology folder categories
         (
           "apple", "Apple",
