@@ -39,7 +39,7 @@ struct ArticleWebView: NSViewRepresentable {
     let title = (entry.title ?? "Untitled").htmlEscaped
     let author = (entry.author ?? "").htmlEscaped
     let domain = (entry.displayDomain ?? "").lowercased().htmlEscaped
-    let body = stripFeedStyles(entry.feedHTML)
+    let body = stripFeedStyles(replaceVideoIframes(entry.feedHTML))
 
     let favicon: String
     if let data = entry.feed?.faviconData {

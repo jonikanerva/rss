@@ -562,3 +562,96 @@ struct EntryContentFallbackTests {
     }
   }
 }
+
+// MARK: - Video Iframe Transform Tests
+
+struct VideoIframeTransformTests {
+  @Test
+  func replacesYouTubeIframe() {
+    let html = """
+      <iframe src="https://www.youtube.com/embed/abc123?rel=0" width="1280" height="720"></iframe>
+      <p>Description</p>
+      """
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("i.ytimg.com/vi/abc123/hqdefault.jpg"))
+    #expect(result.contains("youtube.com/watch?v=abc123"))
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("<iframe"))
+  }
+
+  @Test
+  func leavesNonVideoIframeUnchanged() {
+    let html = #"<iframe src="https://example.com/widget"></iframe>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("<iframe"))
+  }
+
+  @Test
+  func returnsUnchangedWithoutIframes() {
+    let html = "<p>Just text</p>"
+    let result = replaceVideoIframes(html)
+    #expect(result == html)
+  }
+
+  @Test
+  func extractsYouTubeVideoID() {
+    #expect(extractYouTubeVideoID(from: "https://www.youtube.com/embed/abc123") == "abc123")
+    #expect(extractYouTubeVideoID(from: "https://youtube.com/embed/xyz?rel=0") == "xyz")
+    #expect(extractYouTubeVideoID(from: "https://www.youtube-nocookie.com/embed/priv1") == "priv1")
+    #expect(extractYouTubeVideoID(from: "https://vimeo.com/123") == nil)
+    #expect(extractYouTubeVideoID(from: "https://www.youtube.com/watch?v=abc") == nil)
+  }
+
+  @Test
+  func handlesMixedCaseIframeTag() {
+    let html = #"<IFrame Src="https://www.youtube.com/embed/mix1" Width="640"></IFrame>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(result.contains("mix1"))
+  }
+
+  @Test
+  func handlesIframeWithTextFallbackContent() {
+    let html =
+      #"<iframe src="https://www.youtube.com/embed/fb1">Your browser does not support iframes.</iframe>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("does not support"))
+    #expect(!result.contains("</iframe>"))
+  }
+
+  @Test
+  func handlesIframeWithHTMLFallbackContent() {
+    let html =
+      #"<iframe src="https://www.youtube.com/embed/fb2"><p>Please <a href="https://example.com">click here</a>.</p></iframe>"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("click here"))
+    #expect(!result.contains("</iframe>"))
+  }
+
+  @Test
+  func matchesSelfClosingIframe() {
+    let html = #"<iframe src="https://www.youtube.com/embed/sc1" />"#
+    let result = replaceVideoIframes(html)
+    #expect(result.contains("video-thumbnail"))
+    #expect(!result.contains("<iframe"))
+  }
+
+  @Test
+  func transformThenParseProducesBlocks() {
+    let html = """
+      <iframe src="https://www.youtube.com/embed/test123" width="640" height="360"></iframe>
+      <p>Video description</p>
+      """
+    let transformed = replaceVideoIframes(html)
+    let blocks = parseHTMLToBlocks(transformed)
+    // The transformed HTML contains <a><img>...</a> which parses as inline markdown with image
+    #expect(!blocks.isEmpty)
+    let allText = blocks.compactMap { block -> String? in
+      guard case .paragraph(let text) = block else { return nil }
+      return text
+    }.joined()
+    #expect(allText.contains("ytimg.com"))
+  }
+}
