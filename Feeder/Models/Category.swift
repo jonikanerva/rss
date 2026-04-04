@@ -42,4 +42,10 @@ extension [Category] {
     filter { $0.folderLabel == folderLabel }
       .sorted { $0.sortOrder < $1.sortOrder }
   }
+
+  /// Root-level categories (no folder), sorted by sortOrder.
+  var atRoot: [Category] {
+    filter { $0.folderLabel == nil }
+      .sorted { $0.sortOrder < $1.sortOrder }
+  }
 }

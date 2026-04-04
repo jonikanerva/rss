@@ -134,7 +134,7 @@ struct CategoryEditSheet: View {
     if let folderLabel {
       return allCategories.inFolder(folderLabel)
     }
-    return allCategories.filter { $0.folderLabel == nil }
+    return allCategories.atRoot
   }
 
   // MARK: - Actions

@@ -357,11 +357,7 @@ struct ContentView: View {
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
 
-  private var rootCategories: [Category] {
-    allCategories
-      .filter { $0.folderLabel == nil }
-      .sorted { $0.sortOrder < $1.sortOrder }
-  }
+  private var rootCategories: [Category] { allCategories.atRoot }
 
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
