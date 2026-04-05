@@ -84,6 +84,18 @@ private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, en
 enum SidebarSelection: Hashable {
   case folder(String)
   case category(String)
+
+  var isCategory: Bool {
+    if case .category = self { return true }
+    return false
+  }
+}
+
+// MARK: - Panel Focus
+
+enum PanelFocus: Hashable {
+  case sidebar
+  case articleList
 }
 
 // MARK: - Mark All Read Key Handler
@@ -136,6 +148,17 @@ private struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+  }
+}
+
+// MARK: - Visible Entries Preference Key
+
+/// Bubbles the current entries list from EntryListView up to ContentView
+/// so Tab can select the first article when switching to the article list.
+private struct VisibleEntriesKey: PreferenceKey {
+  static let defaultValue: [Entry] = []
+  static func reduce(value: inout [Entry], nextValue: () -> [Entry]) {
+    value = nextValue()
   }
 }
 
@@ -200,6 +223,7 @@ struct EntryListView: View {
     .listStyle(.inset(alternatesRowBackgrounds: false))
     .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+    .preference(key: VisibleEntriesKey.self, value: entries)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -307,6 +331,10 @@ struct ContentView: View {
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
+  @State
+  private var currentEntries: [Entry] = []
+  @FocusState
+  private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -317,9 +345,11 @@ struct ContentView: View {
   var body: some View {
     NavigationSplitView {
       sidebarView
+        .focused($panelFocus, equals: .sidebar)
     } content: {
       if let selection {
         entryListForSelection(selection)
+          .focused($panelFocus, equals: .articleList)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
           .toolbar {
@@ -357,9 +387,11 @@ struct ContentView: View {
       detailView
     }
     .environment(\.bareKeyActions, bareKeyActions)
+    .onPreferenceChange(VisibleEntriesKey.self) { currentEntries = $0 }
     .onAppear {
       checkCredentials()
       revalidateSelection()
+      panelFocus = .sidebar
     }
     .sheet(isPresented: $needsSetup) {
       OnboardingView {
@@ -394,10 +426,44 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Escape stays at NavigationSplitView level — not consumed by List type-to-select.
-    // All letter keys (J/K/R/B) are handled via BareKeyHandler on each panel's List.
+    // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
+    // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
+    // as fallback for when no List has focus (e.g. after programmatic selection change).
     .onKeyPress(.escape) {
       selectedEntry = nil
+      panelFocus = .sidebar
+      return .handled
+    }
+    .onKeyPress(.tab) {
+      switch panelFocus {
+      case .sidebar, .none:
+        if let first = currentEntries.first {
+          selectedEntry = first
+        }
+        panelFocus = .articleList
+      case .articleList:
+        panelFocus = .sidebar
+      }
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
+      moveSidebarSelection(by: 1)
+      panelFocus = .sidebar
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
+      moveSidebarSelection(by: -1)
+      panelFocus = .sidebar
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
+      guard selectedEntry != nil else { return .ignored }
+      toggleArticleViewMode()
+      return .handled
+    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
+      guard selectedEntry != nil else { return .ignored }
+      openInBackground()
       return .handled
     }
     .modifier(menuBarValues)
@@ -458,10 +524,12 @@ struct ContentView: View {
     BareKeyActions(
       onJ: {
         moveSidebarSelection(by: 1)
+        panelFocus = .sidebar
         return .handled
       },
       onK: {
         moveSidebarSelection(by: -1)
+        panelFocus = .sidebar
         return .handled
       },
       onR: {
@@ -505,11 +573,7 @@ struct ContentView: View {
       break
     }
     if selection == nil {
-      if let firstFolder = folders.first {
-        selection = .folder(firstFolder.label)
-      } else if let firstCategory = rootCategories.first {
-        selection = .category(firstCategory.label)
-      }
+      selection = sidebarItems.first { $0.isCategory }
     }
   }
 
