@@ -173,7 +173,7 @@ struct FeederCommands: Commands {
       .disabled(syncAction == nil || isSyncing == true)
     }
 
-    // Bare-key shortcuts (R, B, J, K, arrows) are handled via BareKeyHandler
+    // Bare-key shortcuts (R, B, J, K) are handled via BareKeyHandler
     // applied on each panel's List, so they intercept before type-to-select and
     // don't fire inside modal text fields. Menu items show the key for discoverability.
 
