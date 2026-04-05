@@ -93,7 +93,7 @@ enum SidebarSelection: Hashable {
 
 // MARK: - Panel Focus
 
-enum PanelFocus: Hashable {
+private enum PanelFocus: Hashable {
   case sidebar
   case articleList
 }
@@ -446,26 +446,10 @@ struct ContentView: View {
       }
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
-      moveSidebarSelection(by: 1)
-      panelFocus = .sidebar
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
-      moveSidebarSelection(by: -1)
-      panelFocus = .sidebar
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
-      guard selectedEntry != nil else { return .ignored }
-      toggleArticleViewMode()
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
-      guard selectedEntry != nil else { return .ignored }
-      openInBackground()
-      return .handled
-    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
     .modifier(menuBarValues)
   }
 
