@@ -101,6 +101,76 @@ private struct MarkAllReadKeyHandler: ViewModifier {
   }
 }
 
+// MARK: - Bare Key Actions Environment
+
+/// Actions for bare-key shortcuts that must fire from any panel,
+/// intercepting before List type-to-select consumes letter keys.
+struct BareKeyActions {
+  var onJ: () -> Void = {}
+  var onK: () -> Void = {}
+  var onR: () -> Void = {}
+  var onB: () -> Void = {}
+  var onUpArrow: () -> Void = {}
+  var onDownArrow: () -> Void = {}
+}
+
+private struct BareKeyActionsKey: EnvironmentKey {
+  static let defaultValue = BareKeyActions()
+}
+
+extension EnvironmentValues {
+  var bareKeyActions: BareKeyActions {
+    get { self[BareKeyActionsKey.self] }
+    set { self[BareKeyActionsKey.self] = newValue }
+  }
+}
+
+/// Intercepts bare-key shortcuts on each panel's List/view, preventing
+/// List type-to-select from consuming them.
+private struct BareKeyHandler: ViewModifier {
+  @Environment(\.bareKeyActions)
+  private var actions
+
+  func body(content: Content) -> some View {
+    content
+      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
+        actions.onJ()
+        return .handled
+      }
+      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
+        actions.onK()
+        return .handled
+      }
+      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
+        actions.onR()
+        return .handled
+      }
+      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
+        actions.onB()
+        return .handled
+      }
+      .onKeyPress(.upArrow) {
+        actions.onUpArrow()
+        return .handled
+      }
+      .onKeyPress(.downArrow) {
+        actions.onDownArrow()
+        return .handled
+      }
+  }
+}
+
+// MARK: - Visible Entries Preference Key
+
+/// Bubbles the current entries list from EntryListView up to ContentView
+/// for arrow-key article navigation.
+private struct VisibleEntriesKey: PreferenceKey {
+  static let defaultValue: [Entry] = []
+  static func reduce(value: inout [Entry], nextValue: () -> [Entry]) {
+    value = nextValue()
+  }
+}
+
 // MARK: - Entry List View (dynamic @Query filtered by category/folder + read status in SQLite)
 
 struct EntryListView: View {
@@ -160,7 +230,9 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+    .preference(key: VisibleEntriesKey.self, value: entries)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -268,6 +340,8 @@ struct ContentView: View {
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
+  @State
+  private var currentEntries: [Entry] = []
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -317,8 +391,11 @@ struct ContentView: View {
     } detail: {
       detailView
     }
+    .environment(\.bareKeyActions, bareKeyActions)
+    .onPreferenceChange(VisibleEntriesKey.self) { currentEntries = $0 }
     .onAppear {
       checkCredentials()
+      revalidateSelection()
     }
     .sheet(isPresented: $needsSetup) {
       OnboardingView {
@@ -353,27 +430,10 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Bare-key shortcuts via .onKeyPress — respects focus hierarchy,
-    // won't fire inside modal text fields (sheets, onboarding, etc.)
+    // Escape stays at NavigationSplitView level — not consumed by List type-to-select.
+    // All letter keys (J/K/R/B) are handled via BareKeyHandler on each panel's List.
     .onKeyPress(.escape) {
       selectedEntry = nil
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
-      openInBackground()
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
-      guard selectedEntry != nil else { return .ignored }
-      articleViewMode = articleViewMode == .web ? .reader : .web
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
-      moveSidebarSelection(by: 1)
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
-      moveSidebarSelection(by: -1)
       return .handled
     }
     .modifier(menuBarValues)
@@ -424,6 +484,30 @@ struct ContentView: View {
     }
     let newIndex = min(max(index + offset, 0), items.count - 1)
     selection = items[newIndex]
+  }
+
+  private func moveArticleSelection(by offset: Int) {
+    guard !currentEntries.isEmpty, selection != nil else { return }
+    guard let current = selectedEntry, let index = currentEntries.firstIndex(of: current) else {
+      selectedEntry = offset > 0 ? currentEntries.first : currentEntries.last
+      return
+    }
+    let newIndex = min(max(index + offset, 0), currentEntries.count - 1)
+    selectedEntry = currentEntries[newIndex]
+  }
+
+  private var bareKeyActions: BareKeyActions {
+    BareKeyActions(
+      onJ: { moveSidebarSelection(by: 1) },
+      onK: { moveSidebarSelection(by: -1) },
+      onR: {
+        guard selectedEntry != nil else { return }
+        articleViewMode = articleViewMode == .web ? .reader : .web
+      },
+      onB: { openInBackground() },
+      onUpArrow: { moveArticleSelection(by: -1) },
+      onDownArrow: { moveArticleSelection(by: 1) }
+    )
   }
 
   @ViewBuilder
@@ -537,6 +621,7 @@ struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
@@ -584,6 +669,7 @@ struct ContentView: View {
         }
       }
     }
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .toolbar {
       ToolbarItem(placement: .automatic) {
