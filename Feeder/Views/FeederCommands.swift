@@ -26,14 +26,6 @@ private struct MoveSelectionUpActionKey: FocusedValueKey {
   typealias Value = () -> Void
 }
 
-private struct MoveArticleDownActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-private struct MoveArticleUpActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
 private struct CanMarkAllReadKey: FocusedValueKey {
   typealias Value = Bool
 }
@@ -85,16 +77,6 @@ extension FocusedValues {
     set { self[MoveSelectionUpActionKey.self] = newValue }
   }
 
-  var moveArticleDownAction: (() -> Void)? {
-    get { self[MoveArticleDownActionKey.self] }
-    set { self[MoveArticleDownActionKey.self] = newValue }
-  }
-
-  var moveArticleUpAction: (() -> Void)? {
-    get { self[MoveArticleUpActionKey.self] }
-    set { self[MoveArticleUpActionKey.self] = newValue }
-  }
-
   var canMarkAllRead: Bool? {
     get { self[CanMarkAllReadKey.self] }
     set { self[CanMarkAllReadKey.self] = newValue }
@@ -132,8 +114,6 @@ struct FocusedValuesModifier: ViewModifier {
   let openInBrowserAction: () -> Void
   let moveSelectionDownAction: () -> Void
   let moveSelectionUpAction: () -> Void
-  let moveArticleDownAction: () -> Void
-  let moveArticleUpAction: () -> Void
   let canMarkAllRead: Bool
   let canOpenInBrowser: Bool
   let hasSelectedEntry: Bool
@@ -148,8 +128,6 @@ struct FocusedValuesModifier: ViewModifier {
       .focusedSceneValue(\.openInBrowserAction, openInBrowserAction)
       .focusedSceneValue(\.moveSelectionDownAction, moveSelectionDownAction)
       .focusedSceneValue(\.moveSelectionUpAction, moveSelectionUpAction)
-      .focusedSceneValue(\.moveArticleDownAction, moveArticleDownAction)
-      .focusedSceneValue(\.moveArticleUpAction, moveArticleUpAction)
       .focusedSceneValue(\.canMarkAllRead, canMarkAllRead)
       .focusedSceneValue(\.canOpenInBrowser, canOpenInBrowser)
       .focusedSceneValue(\.hasSelectedEntry, hasSelectedEntry)
@@ -173,10 +151,6 @@ struct FeederCommands: Commands {
   private var moveSelectionDown
   @FocusedValue(\.moveSelectionUpAction)
   private var moveSelectionUp
-  @FocusedValue(\.moveArticleDownAction)
-  private var moveArticleDown
-  @FocusedValue(\.moveArticleUpAction)
-  private var moveArticleUp
   @FocusedValue(\.canMarkAllRead)
   private var canMarkAllRead
   @FocusedValue(\.canOpenInBrowser)
@@ -232,18 +206,6 @@ struct FeederCommands: Commands {
         moveSelectionUp?()
       }
       .disabled(moveSelectionUp == nil)
-
-      Divider()
-
-      Button("Next Article\t ↓") {
-        moveArticleDown?()
-      }
-      .disabled(moveArticleDown == nil)
-
-      Button("Previous Article\t ↑") {
-        moveArticleUp?()
-      }
-      .disabled(moveArticleUp == nil)
     }
   }
 }

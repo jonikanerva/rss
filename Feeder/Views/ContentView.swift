@@ -111,8 +111,6 @@ private struct BareKeyActions {
   var onK: () -> KeyPress.Result = { .handled }
   var onR: () -> KeyPress.Result = { .handled }
   var onB: () -> KeyPress.Result = { .handled }
-  var onUpArrow: () -> KeyPress.Result = { .handled }
-  var onDownArrow: () -> KeyPress.Result = { .handled }
 }
 
 private struct BareKeyActionsKey: EnvironmentKey {
@@ -138,19 +136,6 @@ private struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
-      .onKeyPress(.upArrow) { actions.onUpArrow() }
-      .onKeyPress(.downArrow) { actions.onDownArrow() }
-  }
-}
-
-// MARK: - Visible Entries Preference Key
-
-/// Bubbles the current entries list from EntryListView up to ContentView
-/// for arrow-key article navigation.
-private struct VisibleEntriesKey: PreferenceKey {
-  static let defaultValue: [Entry] = []
-  static func reduce(value: inout [Entry], nextValue: () -> [Entry]) {
-    value = nextValue()
   }
 }
 
@@ -215,7 +200,6 @@ struct EntryListView: View {
     .listStyle(.inset(alternatesRowBackgrounds: false))
     .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-    .preference(key: VisibleEntriesKey.self, value: entries)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -323,8 +307,6 @@ struct ContentView: View {
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
-  @State
-  private var currentEntries: [Entry] = []
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -375,7 +357,6 @@ struct ContentView: View {
       detailView
     }
     .environment(\.bareKeyActions, bareKeyActions)
-    .onPreferenceChange(VisibleEntriesKey.self) { currentEntries = $0 }
     .onAppear {
       checkCredentials()
       revalidateSelection()
@@ -431,8 +412,6 @@ struct ContentView: View {
       openInBrowserAction: openInBackground,
       moveSelectionDownAction: { moveSidebarSelection(by: 1) },
       moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-      moveArticleDownAction: { moveArticleSelection(by: 1) },
-      moveArticleUpAction: { moveArticleSelection(by: -1) },
       canMarkAllRead: articleFilter == .unread && selection != nil,
       canOpenInBrowser: selectedEntry != nil,
       hasSelectedEntry: selectedEntry != nil,
@@ -475,16 +454,6 @@ struct ContentView: View {
     articleViewMode = articleViewMode == .web ? .reader : .web
   }
 
-  private func moveArticleSelection(by offset: Int) {
-    guard !currentEntries.isEmpty, selection != nil else { return }
-    guard let current = selectedEntry, let index = currentEntries.firstIndex(of: current) else {
-      selectedEntry = offset > 0 ? currentEntries.first : currentEntries.last
-      return
-    }
-    let newIndex = min(max(index + offset, 0), currentEntries.count - 1)
-    selectedEntry = currentEntries[newIndex]
-  }
-
   private var bareKeyActions: BareKeyActions {
     BareKeyActions(
       onJ: {
@@ -501,15 +470,8 @@ struct ContentView: View {
         return .handled
       },
       onB: {
+        guard selectedEntry != nil else { return .ignored }
         openInBackground()
-        return .handled
-      },
-      onUpArrow: {
-        moveArticleSelection(by: -1)
-        return .handled
-      },
-      onDownArrow: {
-        moveArticleSelection(by: 1)
         return .handled
       }
     )
