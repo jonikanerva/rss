@@ -426,7 +426,6 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
     // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
     // as fallback for when no List has focus (e.g. after programmatic selection change).
     .onKeyPress(.escape) {
@@ -434,17 +433,10 @@ struct ContentView: View {
       panelFocus = .sidebar
       return .handled
     }
-    .onKeyPress(.tab) {
-      switch panelFocus {
-      case .sidebar, .none:
-        if let first = currentEntries.first {
-          selectedEntry = first
-        }
-        panelFocus = .articleList
-      case .articleList:
-        panelFocus = .sidebar
+    .onChange(of: panelFocus) {
+      if panelFocus == .articleList, selectedEntry == nil, let first = currentEntries.first {
+        selectedEntry = first
       }
-      return .handled
     }
     .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
       moveSidebarSelection(by: 1)
