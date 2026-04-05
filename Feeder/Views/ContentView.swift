@@ -105,13 +105,14 @@ private struct MarkAllReadKeyHandler: ViewModifier {
 
 /// Actions for bare-key shortcuts that must fire from any panel,
 /// intercepting before List type-to-select consumes letter keys.
-struct BareKeyActions {
-  var onJ: () -> Void = {}
-  var onK: () -> Void = {}
-  var onR: () -> Void = {}
-  var onB: () -> Void = {}
-  var onUpArrow: () -> Void = {}
-  var onDownArrow: () -> Void = {}
+/// Returns `KeyPress.Result` so individual actions can decline handling.
+private struct BareKeyActions {
+  var onJ: () -> KeyPress.Result = { .handled }
+  var onK: () -> KeyPress.Result = { .handled }
+  var onR: () -> KeyPress.Result = { .handled }
+  var onB: () -> KeyPress.Result = { .handled }
+  var onUpArrow: () -> KeyPress.Result = { .handled }
+  var onDownArrow: () -> KeyPress.Result = { .handled }
 }
 
 private struct BareKeyActionsKey: EnvironmentKey {
@@ -119,7 +120,7 @@ private struct BareKeyActionsKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-  var bareKeyActions: BareKeyActions {
+  fileprivate var bareKeyActions: BareKeyActions {
     get { self[BareKeyActionsKey.self] }
     set { self[BareKeyActionsKey.self] = newValue }
   }
@@ -133,30 +134,12 @@ private struct BareKeyHandler: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
-        actions.onJ()
-        return .handled
-      }
-      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
-        actions.onK()
-        return .handled
-      }
-      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
-        actions.onR()
-        return .handled
-      }
-      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
-        actions.onB()
-        return .handled
-      }
-      .onKeyPress(.upArrow) {
-        actions.onUpArrow()
-        return .handled
-      }
-      .onKeyPress(.downArrow) {
-        actions.onDownArrow()
-        return .handled
-      }
+      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in actions.onJ() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+      .onKeyPress(.upArrow) { actions.onUpArrow() }
+      .onKeyPress(.downArrow) { actions.onDownArrow() }
   }
 }
 
@@ -444,10 +427,12 @@ struct ContentView: View {
     FocusedValuesModifier(
       syncAction: { Task { await syncAndClassify() } },
       markAllReadAction: markAllAsRead,
-      toggleViewModeAction: { articleViewMode = articleViewMode == .web ? .reader : .web },
+      toggleViewModeAction: toggleArticleViewMode,
       openInBrowserAction: openInBackground,
       moveSelectionDownAction: { moveSidebarSelection(by: 1) },
       moveSelectionUpAction: { moveSidebarSelection(by: -1) },
+      moveArticleDownAction: { moveArticleSelection(by: 1) },
+      moveArticleUpAction: { moveArticleSelection(by: -1) },
       canMarkAllRead: articleFilter == .unread && selection != nil,
       canOpenInBrowser: selectedEntry != nil,
       hasSelectedEntry: selectedEntry != nil,
@@ -486,6 +471,10 @@ struct ContentView: View {
     selection = items[newIndex]
   }
 
+  private func toggleArticleViewMode() {
+    articleViewMode = articleViewMode == .web ? .reader : .web
+  }
+
   private func moveArticleSelection(by offset: Int) {
     guard !currentEntries.isEmpty, selection != nil else { return }
     guard let current = selectedEntry, let index = currentEntries.firstIndex(of: current) else {
@@ -498,15 +487,31 @@ struct ContentView: View {
 
   private var bareKeyActions: BareKeyActions {
     BareKeyActions(
-      onJ: { moveSidebarSelection(by: 1) },
-      onK: { moveSidebarSelection(by: -1) },
-      onR: {
-        guard selectedEntry != nil else { return }
-        articleViewMode = articleViewMode == .web ? .reader : .web
+      onJ: {
+        moveSidebarSelection(by: 1)
+        return .handled
       },
-      onB: { openInBackground() },
-      onUpArrow: { moveArticleSelection(by: -1) },
-      onDownArrow: { moveArticleSelection(by: 1) }
+      onK: {
+        moveSidebarSelection(by: -1)
+        return .handled
+      },
+      onR: {
+        guard selectedEntry != nil else { return .ignored }
+        toggleArticleViewMode()
+        return .handled
+      },
+      onB: {
+        openInBackground()
+        return .handled
+      },
+      onUpArrow: {
+        moveArticleSelection(by: -1)
+        return .handled
+      },
+      onDownArrow: {
+        moveArticleSelection(by: 1)
+        return .handled
+      }
     )
   }
 
@@ -674,7 +679,7 @@ struct ContentView: View {
     .toolbar {
       ToolbarItem(placement: .automatic) {
         Button {
-          articleViewMode = articleViewMode == .web ? .reader : .web
+          toggleArticleViewMode()
         } label: {
           Label(
             articleViewMode == .web ? "Reader Mode" : "Web Mode",
