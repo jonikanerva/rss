@@ -104,7 +104,7 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
 /// Fit as much article body as possible within the token budget.
 /// On macOS 26.4+ uses native token counting with binary search refinement.
 /// On earlier versions falls back to character-based estimation (~4 chars per token).
-private func fitBody(
+nonisolated private func fitBody(
   body: String,
   prefix: String,
   instructions: String,
@@ -124,7 +124,7 @@ private func fitBody(
 }
 
 @available(macOS 26.4, *)
-private func fitBodyWithTokenCounting(
+nonisolated private func fitBodyWithTokenCounting(
   body: String,
   prefix: String,
   instructions: String,
@@ -137,18 +137,9 @@ private func fitBodyWithTokenCounting(
     return body
   }
 
-  // Coarse estimate: ~4 chars per token, then refine around that point
-  let overageTokens = fullTokens - maxInputTokens
-  let estimatedCharsToRemove = overageTokens * 4
-  let roughEnd = max(0, body.count - estimatedCharsToRemove)
-
-  // Binary search within ±20% of the estimate; fall back to full range if estimate is off
-  var low = max(0, roughEnd - roughEnd / 5)
-  var high = min(body.count, roughEnd + roughEnd / 5)
-  if low > high {
-    low = 0
-    high = body.count
-  }
+  // Full-range binary search over the entire body for correctness across all scripts
+  var low = 0
+  var high = body.count
   var bestEnd = 0
 
   while low <= high {
@@ -166,7 +157,7 @@ private func fitBodyWithTokenCounting(
   return String(body.prefix(bestEnd))
 }
 
-private func fitBodyWithCharEstimate(
+nonisolated private func fitBodyWithCharEstimate(
   body: String,
   prefix: String,
   instructions: String,
