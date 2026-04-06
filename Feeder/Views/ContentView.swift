@@ -84,6 +84,18 @@ private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, en
 enum SidebarSelection: Hashable {
   case folder(String)
   case category(String)
+
+  var isCategory: Bool {
+    if case .category = self { return true }
+    return false
+  }
+}
+
+// MARK: - Panel Focus
+
+private enum PanelFocus: Hashable {
+  case sidebar
+  case articleList
 }
 
 // MARK: - Mark All Read Key Handler
@@ -98,6 +110,55 @@ private struct MarkAllReadKeyHandler: ViewModifier {
         action()
         return .handled
       }
+  }
+}
+
+// MARK: - Bare Key Actions Environment
+
+/// Actions for bare-key shortcuts that must fire from any panel,
+/// intercepting before List type-to-select consumes letter keys.
+/// Returns `KeyPress.Result` so individual actions can decline handling.
+private struct BareKeyActions {
+  var onJ: () -> KeyPress.Result = { .handled }
+  var onK: () -> KeyPress.Result = { .handled }
+  var onR: () -> KeyPress.Result = { .handled }
+  var onB: () -> KeyPress.Result = { .handled }
+}
+
+private struct BareKeyActionsKey: EnvironmentKey {
+  static let defaultValue = BareKeyActions()
+}
+
+extension EnvironmentValues {
+  fileprivate var bareKeyActions: BareKeyActions {
+    get { self[BareKeyActionsKey.self] }
+    set { self[BareKeyActionsKey.self] = newValue }
+  }
+}
+
+/// Intercepts bare-key shortcuts on each panel's List/view, preventing
+/// List type-to-select from consuming them.
+private struct BareKeyHandler: ViewModifier {
+  @Environment(\.bareKeyActions)
+  private var actions
+
+  func body(content: Content) -> some View {
+    content
+      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in actions.onJ() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+  }
+}
+
+// MARK: - Visible Entries Preference Key
+
+/// Bubbles the current entries list from EntryListView up to ContentView
+/// so Tab can select the first article when switching to the article list.
+private struct VisibleEntriesKey: PreferenceKey {
+  static let defaultValue: [Entry] = []
+  static func reduce(value: inout [Entry], nextValue: () -> [Entry]) {
+    value = nextValue()
   }
 }
 
@@ -160,7 +221,9 @@ struct EntryListView: View {
       }
     }
     .listStyle(.inset(alternatesRowBackgrounds: false))
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+    .preference(key: VisibleEntriesKey.self, value: entries)
     .accessibilityIdentifier("timeline.list")
     .overlay {
       if entries.isEmpty {
@@ -268,6 +331,10 @@ struct ContentView: View {
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
+  @State
+  private var currentEntries: [Entry] = []
+  @FocusState
+  private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -278,9 +345,11 @@ struct ContentView: View {
   var body: some View {
     NavigationSplitView {
       sidebarView
+        .focused($panelFocus, equals: .sidebar)
     } content: {
       if let selection {
         entryListForSelection(selection)
+          .focused($panelFocus, equals: .articleList)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
           .toolbar {
@@ -317,8 +386,12 @@ struct ContentView: View {
     } detail: {
       detailView
     }
+    .environment(\.bareKeyActions, bareKeyActions)
+    .onPreferenceChange(VisibleEntriesKey.self) { currentEntries = $0 }
     .onAppear {
       checkCredentials()
+      revalidateSelection()
+      panelFocus = .sidebar
     }
     .sheet(isPresented: $needsSetup) {
       OnboardingView {
@@ -353,29 +426,30 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Bare-key shortcuts via .onKeyPress — respects focus hierarchy,
-    // won't fire inside modal text fields (sheets, onboarding, etc.)
+    // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
+    // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
+    // as fallback for when no List has focus (e.g. after programmatic selection change).
     .onKeyPress(.escape) {
       selectedEntry = nil
+      panelFocus = .sidebar
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in
-      openInBackground()
+    .onKeyPress(.tab) {
+      switch panelFocus {
+      case .sidebar, .none:
+        if let first = currentEntries.first {
+          selectedEntry = first
+        }
+        panelFocus = .articleList
+      case .articleList:
+        panelFocus = .sidebar
+      }
       return .handled
     }
-    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
-      guard selectedEntry != nil else { return .ignored }
-      articleViewMode = articleViewMode == .web ? .reader : .web
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in
-      moveSidebarSelection(by: 1)
-      return .handled
-    }
-    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in
-      moveSidebarSelection(by: -1)
-      return .handled
-    }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
     .modifier(menuBarValues)
   }
 
@@ -384,7 +458,7 @@ struct ContentView: View {
     FocusedValuesModifier(
       syncAction: { Task { await syncAndClassify() } },
       markAllReadAction: markAllAsRead,
-      toggleViewModeAction: { articleViewMode = articleViewMode == .web ? .reader : .web },
+      toggleViewModeAction: toggleArticleViewMode,
       openInBrowserAction: openInBackground,
       moveSelectionDownAction: { moveSidebarSelection(by: 1) },
       moveSelectionUpAction: { moveSidebarSelection(by: -1) },
@@ -426,6 +500,35 @@ struct ContentView: View {
     selection = items[newIndex]
   }
 
+  private func toggleArticleViewMode() {
+    articleViewMode = articleViewMode == .web ? .reader : .web
+  }
+
+  private var bareKeyActions: BareKeyActions {
+    BareKeyActions(
+      onJ: {
+        moveSidebarSelection(by: 1)
+        panelFocus = .sidebar
+        return .handled
+      },
+      onK: {
+        moveSidebarSelection(by: -1)
+        panelFocus = .sidebar
+        return .handled
+      },
+      onR: {
+        guard selectedEntry != nil else { return .ignored }
+        toggleArticleViewMode()
+        return .handled
+      },
+      onB: {
+        guard selectedEntry != nil else { return .ignored }
+        openInBackground()
+        return .handled
+      }
+    )
+  }
+
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     switch sel {
@@ -454,11 +557,7 @@ struct ContentView: View {
       break
     }
     if selection == nil {
-      if let firstFolder = folders.first {
-        selection = .folder(firstFolder.label)
-      } else if let firstCategory = rootCategories.first {
-        selection = .category(firstCategory.label)
-      }
+      selection = sidebarItems.first { $0.isCategory }
     }
   }
 
@@ -537,6 +636,7 @@ struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
@@ -584,11 +684,12 @@ struct ContentView: View {
         }
       }
     }
+    .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .toolbar {
       ToolbarItem(placement: .automatic) {
         Button {
-          articleViewMode = articleViewMode == .web ? .reader : .web
+          toggleArticleViewMode()
         } label: {
           Label(
             articleViewMode == .web ? "Reader Mode" : "Web Mode",
