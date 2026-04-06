@@ -165,6 +165,7 @@ final class ClassificationEngine {
           let providerResult = try await provider.classify(
             title: input.title,
             body: input.body,
+            url: input.url,
             instructions: instructions,
             validLabels: validLabels
           )

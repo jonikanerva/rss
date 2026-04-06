@@ -34,6 +34,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   func classify(
     title: String,
     body: String,
+    url: String,
     instructions: String,
     validLabels: Set<String>
   ) async throws -> ProviderClassificationResult {
