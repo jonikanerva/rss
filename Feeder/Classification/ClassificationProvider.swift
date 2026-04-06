@@ -140,12 +140,16 @@ private func fitBodyWithTokenCounting(
   // Coarse estimate: ~4 chars per token, then refine around that point
   let overageTokens = fullTokens - maxInputTokens
   let estimatedCharsToRemove = overageTokens * 4
-  let roughEnd = max(500, body.count - estimatedCharsToRemove)
+  let roughEnd = max(0, body.count - estimatedCharsToRemove)
 
-  // Binary search within ±20% of the estimate
+  // Binary search within ±20% of the estimate; fall back to full range if estimate is off
   var low = max(0, roughEnd - roughEnd / 5)
   var high = min(body.count, roughEnd + roughEnd / 5)
-  var bestEnd = low
+  if low > high {
+    low = 0
+    high = body.count
+  }
+  var bestEnd = 0
 
   while low <= high {
     let mid = (low + high) / 2
