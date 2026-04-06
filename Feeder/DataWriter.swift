@@ -9,6 +9,7 @@ nonisolated struct ClassificationInput: Sendable {
   let entryID: Int
   let title: String
   let body: String
+  let url: String
 }
 
 /// Classification result — produced by FM inference, applied to Entry on background actor.
@@ -409,7 +410,8 @@ actor DataWriter: ModelActor {
       ClassificationInput(
         entryID: entry.feedbinEntryID,
         title: entry.title ?? "Untitled",
-        body: entry.plainText
+        body: entry.plainText,
+        url: entry.url
       )
     }
   }

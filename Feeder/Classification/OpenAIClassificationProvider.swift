@@ -34,11 +34,12 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   func classify(
     title: String,
     body: String,
+    url: String,
     instructions: String,
     validLabels: Set<String>
   ) async throws -> ProviderClassificationResult {
     let truncatedBody = String(body.prefix(60_000))
-    let userMessage = "title: \(title)\ncontent: \(truncatedBody)"
+    let userMessage = "title: \(title)\nurl: \(url)\ncontent: \(truncatedBody)"
 
     let requestBody = OpenAIRequest(
       model: model,
