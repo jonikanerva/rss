@@ -1,58 +1,27 @@
-import AppKit
 import SwiftUI
 
-/// A text label that simulates bold via negative `strokeWidth` on `NSAttributedString`,
-/// keeping glyph advance widths identical across bold/regular states so line-breaking
-/// never shifts when toggling read/unread.
-struct StrokedText: NSViewRepresentable {
-  let text: String
-  let size: CGFloat
-  let isBold: Bool
-  let color: NSColor
-  let lineLimit: Int
+/// A `TextRenderer` that simulates bold by drawing text multiple times with sub-pixel
+/// offsets, thickening glyphs visually without changing their advance widths.
+/// This keeps line-breaking identical between bold and regular states.
+struct FakeBoldRenderer: TextRenderer {
+  var isBold: Bool
 
-  init(
-    _ text: String,
-    size: CGFloat,
-    isBold: Bool,
-    color: NSColor,
-    lineLimit: Int = 1
-  ) {
-    self.text = text
-    self.size = size
-    self.isBold = isBold
-    self.color = color
-    self.lineLimit = lineLimit
-  }
-
-  func makeNSView(context: Context) -> NSTextField {
-    let field = NSTextField(wrappingLabelWithString: "")
-    field.isEditable = false
-    field.isSelectable = false
-    field.drawsBackground = false
-    field.isBordered = false
-    field.lineBreakMode = .byWordWrapping
-    field.maximumNumberOfLines = lineLimit
-    field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    return field
-  }
-
-  func updateNSView(_ field: NSTextField, context: Context) {
-    field.attributedStringValue = styledString
-    field.maximumNumberOfLines = lineLimit
-  }
-
-  private var styledString: NSAttributedString {
-    let font = NSFont.systemFont(ofSize: size, weight: .regular)
-    var attributes: [NSAttributedString.Key: Any] = [
-      .font: font,
-      .foregroundColor: color,
-    ]
+  func draw(layout: Text.Layout, in context: inout GraphicsContext) {
     if isBold {
-      attributes[.strokeWidth] = NSNumber(value: -3)
-      attributes[.strokeColor] = color
+      // Sub-pixel offset draws thicken glyphs without altering metrics
+      let offset: CGFloat = 0.25
+      let offsets: [(CGFloat, CGFloat)] = [(-offset, 0), (offset, 0)]
+      for (dx, dy) in offsets {
+        var shifted = context
+        shifted.translateBy(x: dx, y: dy)
+        for line in layout {
+          shifted.draw(line)
+        }
+      }
     }
-    return NSAttributedString(string: text, attributes: attributes)
+    // Always draw the base text
+    for line in layout {
+      context.draw(line)
+    }
   }
 }
