@@ -35,10 +35,13 @@ struct EntryRowView: View {
       VStack(alignment: .leading, spacing: 3) {
         // Feed name + time
         HStack(alignment: .top, spacing: 5) {
-          Text(entry.title ?? "Untitled")
-            .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
-            .lineLimit(2)
-            .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+          StrokedText(
+            entry.title ?? "Untitled",
+            size: FontTheme.rowTitleSize,
+            isBold: !isRead,
+            color: isRead ? .tertiaryLabelColor : .labelColor,
+            lineLimit: 2
+          )
 
           Spacer()
 
