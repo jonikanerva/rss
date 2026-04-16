@@ -3,7 +3,7 @@ import NaturalLanguage
 import OSLog
 import SwiftData
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
+nonisolated private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
 
 // MARK: - Pure helper functions (nonisolated)
 
@@ -20,10 +20,25 @@ nonisolated func normalizeStoryKey(_ value: String) -> String {
   return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
 }
 
+// MARK: - Progress snapshot (crosses actor boundary)
+
+/// Snapshot of classification progress, sent from the background runner to MainActor for UI update.
+nonisolated struct ProgressSnapshot: Sendable {
+  let isClassifying: Bool
+  let progress: String
+  let classifiedCount: Int
+  let totalToClassify: Int
+
+  static let terminal = ProgressSnapshot(
+    isClassifying: false, progress: "", classifiedCount: 0, totalToClassify: 0
+  )
+}
+
 // MARK: - Classification Engine
 
 /// Classifies articles using a pluggable ClassificationProvider.
-/// Stays @MainActor @Observable for progress UI only — all SwiftData operations via DataWriter.
+/// Stays @MainActor @Observable for progress UI only — all classification work runs in a
+/// detached `.utility` Task via ClassificationRunner so MainActor cannot be blocked.
 @MainActor
 @Observable
 final class ClassificationEngine {
@@ -33,21 +48,14 @@ final class ClassificationEngine {
   private(set) var totalToClassify = 0
 
   private var classificationTask: Task<Void, Never>?
-  private var lastProgressUpdate: ContinuousClock.Instant = .now
 
   // MARK: - Continuous classification (polling loop)
 
   func startContinuousClassification(writer: DataWriter) {
     classificationTask?.cancel()
-    classificationTask = Task {
-      while !Task.isCancelled {
-        let cutoff = articleCutoffDate()
-        await classifyNextBatch(writer: writer, cutoffDate: cutoff)
-        if Task.isCancelled { break }
-        try? await Task.sleep(for: .seconds(2))
-      }
-      isClassifying = false
-      progress = ""
+    let runner = makeRunner(writer: writer)
+    classificationTask = Task.detached(priority: .utility) {
+      await runner.runContinuousLoop()
     }
   }
 
@@ -59,14 +67,40 @@ final class ClassificationEngine {
   // MARK: - One-shot classification
 
   func classifyUnclassified(writer: DataWriter) async {
+    let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    await classifyNextBatch(writer: writer, cutoffDate: cutoff)
+    await Task.detached(priority: .utility) {
+      await runner.runOneBatch(cutoffDate: cutoff)
+    }.value
   }
 
   func reclassifyAll(writer: DataWriter) async {
-    try? await writer.resetClassification()
+    let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    await classifyNextBatch(writer: writer, cutoffDate: cutoff)
+    await Task.detached(priority: .utility) {
+      await runner.runResetAndOneBatch(cutoffDate: cutoff)
+    }.value
+  }
+
+  // MARK: - MainActor sink for progress snapshots
+
+  private func apply(_ snapshot: ProgressSnapshot) {
+    isClassifying = snapshot.isClassifying
+    progress = snapshot.progress
+    classifiedCount = snapshot.classifiedCount
+    totalToClassify = snapshot.totalToClassify
+  }
+
+  // MARK: - Runner factory
+
+  private func makeRunner(writer: DataWriter) -> ClassificationRunner {
+    let provider = makeProvider()
+    let reporter: @Sendable (ProgressSnapshot) async -> Void = { [weak self] snapshot in
+      await MainActor.run {
+        self?.apply(snapshot)
+      }
+    }
+    return ClassificationRunner(writer: writer, provider: provider, reportProgress: reporter)
   }
 
   // MARK: - Provider factory
@@ -81,11 +115,34 @@ final class ClassificationEngine {
       return AppleFMClassificationProvider()
     }
   }
+}
 
-  // MARK: - Core classification logic
+// MARK: - Classification Runner (nonisolated, runs on background task)
 
-  private func classifyNextBatch(writer: DataWriter, cutoffDate: Date) async {
-    // Fetch data from background actor — zero MainActor SwiftData work
+/// Executes the classification loop entirely off MainActor. Created per run by the engine and
+/// driven from a `.utility` priority detached Task. Reports progress back to MainActor via the
+/// Sendable `reportProgress` closure, throttled to once per 200ms.
+nonisolated struct ClassificationRunner: Sendable {
+  let writer: DataWriter
+  let provider: any ClassificationProvider
+  let reportProgress: @Sendable (ProgressSnapshot) async -> Void
+
+  func runContinuousLoop() async {
+    while !Task.isCancelled {
+      let cutoff = articleCutoffDate()
+      await runOneBatch(cutoffDate: cutoff)
+      if Task.isCancelled { break }
+      try? await Task.sleep(for: .seconds(2))
+    }
+    await reportProgress(.terminal)
+  }
+
+  func runResetAndOneBatch(cutoffDate: Date) async {
+    try? await writer.resetClassification()
+    await runOneBatch(cutoffDate: cutoffDate)
+  }
+
+  func runOneBatch(cutoffDate: Date) async {
     guard let categories = try? await writer.fetchCategoryDefinitions(),
       !categories.isEmpty
     else { return }
@@ -93,145 +150,124 @@ final class ClassificationEngine {
     guard let inputs = try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate),
       !inputs.isEmpty
     else {
-      if isClassifying {
-        isClassifying = false
-        progress = ""
-      }
+      await reportProgress(.terminal)
       return
     }
 
-    let provider = makeProvider()
     guard await provider.isAvailable else {
       logger.error("Classification provider '\(provider.name)' not available")
       return
     }
 
-    isClassifying = true
-    totalToClassify = inputs.count
-    classifiedCount = 0
+    let totalToClassify = inputs.count
     let providerName = provider.name
-    logger.info("Classifying \(inputs.count) entries with \(categories.count) categories using \(providerName)")
+    logger.info(
+      "Classifying \(inputs.count) entries with \(categories.count) categories using \(providerName)"
+    )
 
-    let instructions = buildInstructions(from: categories)
+    let instructions = buildClassificationInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
-
     let supportedLangCodes = await provider.supportedLanguageCodes
 
     var processedCount = 0
+    var lastProgressUpdate: ContinuousClock.Instant = .now
+    await reportProgress(
+      ProgressSnapshot(
+        isClassifying: true,
+        progress: "Categorizing 0/\(totalToClassify) (\(providerName))",
+        classifiedCount: 0,
+        totalToClassify: totalToClassify
+      )
+    )
 
     for input in inputs {
       if Task.isCancelled { break }
 
-      // Skip completely empty articles (no title AND no body)
+      let result: ClassificationResult
       if shouldSkipClassification(title: input.title, body: input.body) {
-        let emptyResult = ClassificationResult(
+        result = ClassificationResult(
           entryID: input.entryID,
           categoryLabel: uncategorizedLabel,
           storyKey: normalizeStoryKey(input.title),
           detectedLanguage: "unknown",
           confidence: 0.0
         )
-        try? await writer.applyClassification(entryID: emptyResult.entryID, result: emptyResult)
-        processedCount += 1
-        let now = ContinuousClock.now
-        if now - lastProgressUpdate >= .milliseconds(200) || processedCount == inputs.count {
-          classifiedCount = processedCount
-          progress = "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))"
-          lastProgressUpdate = now
-        }
-        continue
-      }
-
-      // Compute keyword match before LLM (cheap, deterministic)
-      let keywordScores = keywordMatchConfidence(
-        title: input.title, body: input.body, categories: categories)
-
-      // All heavy work on background thread — provider and langCodes are Sendable
-      let result = await Task.detached(priority: .utility) { [provider, supportedLangCodes] in
+      } else {
+        let keywordScores = keywordMatchConfidence(
+          title: input.title, body: input.body, categories: categories
+        )
         let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
 
-        // Skip languages not supported by the provider
         if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
-          return ClassificationResult(
+          result = ClassificationResult(
             entryID: input.entryID,
             categoryLabel: uncategorizedLabel,
             storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang,
             confidence: 0.0
           )
-        }
-
-        do {
-          let providerResult = try await provider.classify(
-            title: input.title,
-            body: input.body,
-            url: input.url,
-            instructions: instructions,
-            validLabels: validLabels
-          )
-          let rawLabel =
-            validLabels.contains(providerResult.category)
-            ? providerResult.category : uncategorizedLabel
-
-          // Apply confidence gate: combine LLM confidence with keyword scores
-          let gatedLabel = applyConfidenceGate(
-            label: rawLabel,
-            llmConfidence: providerResult.confidence,
-            keywordScores: keywordScores
-          )
-
-          return ClassificationResult(
-            entryID: input.entryID,
-            categoryLabel: gatedLabel,
-            storyKey: normalizeStoryKey(providerResult.storyKey),
-            detectedLanguage: lang,
-            confidence: providerResult.confidence
-          )
-        } catch {
-          return ClassificationResult(
-            entryID: input.entryID,
-            categoryLabel: uncategorizedLabel,
-            storyKey: normalizeStoryKey(input.title),
-            detectedLanguage: lang,
-            confidence: 0.0
-          )
-        }
-      }.value
-
-      // Log keyword/LLM disagreements for diagnostics (MainActor context)
-      for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
-        if result.categoryLabel != kwCategory {
-          logger.info(
-            "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(result.categoryLabel)"
-          )
+        } else {
+          do {
+            let providerResult = try await provider.classify(
+              title: input.title,
+              body: input.body,
+              url: input.url,
+              instructions: instructions,
+              validLabels: validLabels
+            )
+            let rawLabel =
+              validLabels.contains(providerResult.category)
+              ? providerResult.category : uncategorizedLabel
+            let gatedLabel = applyConfidenceGate(
+              label: rawLabel,
+              llmConfidence: providerResult.confidence,
+              keywordScores: keywordScores
+            )
+            for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
+              if gatedLabel != kwCategory {
+                logger.info(
+                  "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(gatedLabel)"
+                )
+              }
+            }
+            result = ClassificationResult(
+              entryID: input.entryID,
+              categoryLabel: gatedLabel,
+              storyKey: normalizeStoryKey(providerResult.storyKey),
+              detectedLanguage: lang,
+              confidence: providerResult.confidence
+            )
+          } catch {
+            result = ClassificationResult(
+              entryID: input.entryID,
+              categoryLabel: uncategorizedLabel,
+              storyKey: normalizeStoryKey(input.title),
+              detectedLanguage: lang,
+              confidence: 0.0
+            )
+          }
         }
       }
 
-      // Write result via background actor — zero MainActor SwiftData work
       try? await writer.applyClassification(entryID: result.entryID, result: result)
 
-      // Throttled progress UI update (at most once per 200ms)
       processedCount += 1
       let now = ContinuousClock.now
-      if now - lastProgressUpdate >= .milliseconds(200) || processedCount == inputs.count {
-        classifiedCount = processedCount
-        progress = "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))"
+      if now - lastProgressUpdate >= .milliseconds(200) || processedCount == totalToClassify {
+        await reportProgress(
+          ProgressSnapshot(
+            isClassifying: true,
+            progress: "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))",
+            classifiedCount: processedCount,
+            totalToClassify: totalToClassify
+          )
+        )
         lastProgressUpdate = now
       }
     }
 
-    // Ensure final count is published
-    classifiedCount = processedCount
-    let finalCount = classifiedCount
-    logger.info("Classification batch complete: \(finalCount) entries")
-    isClassifying = false
-    progress = ""
-  }
-
-  // MARK: - Private
-
-  private nonisolated func buildInstructions(from categories: [CategoryDefinition]) -> String {
-    buildClassificationInstructions(from: categories)
+    logger.info("Classification batch complete: \(processedCount) entries")
+    await reportProgress(.terminal)
   }
 }
 

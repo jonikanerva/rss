@@ -753,20 +753,21 @@ struct ContentView: View {
     let password = KeychainHelper.load(key: "feedbin_password") ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
-    syncEngine.configure(username: username, password: password, modelContainer: modelContext.container)
-
-    // Purge entries older than 30 days (max setting) — @Query date filter handles visibility
+    let container = modelContext.container
     Task {
+      await syncEngine.configure(username: username, password: password, modelContainer: container)
+
+      // Purge entries older than 30 days (max setting) — @Query date filter handles visibility
       if let writer = syncEngine.writer {
         let cutoff = Date().addingTimeInterval(-maxRetentionAge)
         try? await writer.purgeEntriesOlderThan(cutoff)
       }
-    }
 
-    let syncInterval = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
-    syncEngine.startPeriodicSync(interval: syncInterval)
-    if let writer = syncEngine.writer {
-      classificationEngine.startContinuousClassification(writer: writer)
+      let syncInterval = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
+      syncEngine.startPeriodicSync(interval: syncInterval)
+      if let writer = syncEngine.writer {
+        classificationEngine.startContinuousClassification(writer: writer)
+      }
     }
   }
 
