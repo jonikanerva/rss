@@ -38,46 +38,8 @@ extension EnvironmentValues {
 
 // MARK: - Date Section Helpers
 
-/// Format a section header label for a given date.
-private func sectionLabel(for date: Date) -> String {
-  let calendar = Calendar.current
-  if calendar.isDateInToday(date) {
-    return "Today"
-  } else if calendar.isDateInYesterday(date) {
-    return "Yesterday"
-  } else {
-    let weekday = date.formatted(.dateTime.weekday(.wide))
-    let day = calendar.component(.day, from: date)
-    let month = date.formatted(.dateTime.month(.wide))
-    let year = date.formatted(.dateTime.year())
-    return "\(weekday) \(day). \(month) \(year)"
-  }
-}
-
-/// Group entries by calendar day (start of day), preserving order.
-private func groupedByDay(_ entries: [Entry]) -> [(date: Date, label: String, entries: [Entry])] {
-  let calendar = Calendar.current
-  var groups: [(date: Date, label: String, entries: [Entry])] = []
-  var currentDay: Date?
-  var currentEntries: [Entry] = []
-
-  for entry in entries {
-    let day = calendar.startOfDay(for: entry.publishedAt)
-    if day != currentDay {
-      if let prevDay = currentDay, !currentEntries.isEmpty {
-        groups.append((date: prevDay, label: sectionLabel(for: prevDay), entries: currentEntries))
-      }
-      currentDay = day
-      currentEntries = [entry]
-    } else {
-      currentEntries.append(entry)
-    }
-  }
-  if let lastDay = currentDay, !currentEntries.isEmpty {
-    groups.append((date: lastDay, label: sectionLabel(for: lastDay), entries: currentEntries))
-  }
-  return groups
-}
+// Note: section label + day grouping moved to `DataWriter.swift` so the
+// heavy fetch + grouping work runs off MainActor.
 
 // MARK: - Sidebar Selection
 
@@ -151,82 +113,65 @@ private struct BareKeyHandler: ViewModifier {
   }
 }
 
-// MARK: - Visible Entries Preference Key
+// MARK: - Visible Entry IDs Preference Key
 
-/// Bubbles the current entries list from EntryListView up to ContentView
+/// Bubbles the current entry IDs from EntryListView up to ContentView
 /// so Tab can select the first article when switching to the article list.
-private struct VisibleEntriesKey: PreferenceKey {
-  static let defaultValue: [Entry] = []
-  static func reduce(value: inout [Entry], nextValue: () -> [Entry]) {
+/// Carries `PersistentIdentifier`s (Sendable, lightweight) — the Tab handler
+/// materializes the first Entry on demand via `modelContext.model(for:)`.
+private struct VisibleEntryIDsKey: PreferenceKey {
+  static let defaultValue: [PersistentIdentifier] = []
+  static func reduce(value: inout [PersistentIdentifier], nextValue: () -> [PersistentIdentifier]) {
     value = nextValue()
   }
 }
 
-// MARK: - Entry List View (dynamic @Query filtered by category/folder + read status in SQLite)
+// MARK: - Entry List View (background-fetched section snapshots, no MainActor @Query)
 
+/// Renders the article list for a given sidebar selection.
+///
+/// **Why not `@Query`**: SwiftData's `@Query` runs synchronously on MainActor
+/// during view init/body. For large categories (e.g. "uncategorized" with
+/// thousands of entries), the SQLite fetch + Entry materialization + day-grouping
+/// blocks the main thread for seconds — even a `ProgressView` placeholder
+/// can't paint because MainActor is busy.
+///
+/// Instead, the heavy fetch + grouping runs on `DataWriter` (a `@ModelActor`,
+/// so on a background thread). The view holds lightweight `[EntryListSection]`
+/// state (`PersistentIdentifier` arrays + section labels — Sendable DTOs) and
+/// shows `ProgressView` instantly while the fetch runs. Each row materializes
+/// its `Entry` lazily on MainActor via `modelContext.model(for:)` (cheap O(1)
+/// primary-key lookup, only for visible rows).
+///
+/// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
+/// explicit refresh-version triggers driven from `ContentView`'s `.onChange`
+/// handlers on `syncEngine.lastSyncDate` and `classificationEngine.isClassifying`.
 struct EntryListView: View {
-  @Query
-  private var entries: [Entry]
+  let category: String?
+  let folder: String?
+  let filter: ArticleFilter
+  let cutoffDate: Date
+  let writer: DataWriter
+  let refreshVersion: Int
   @Binding
   var selectedEntry: Entry?
-  private let filter: ArticleFilter
-  private let onMarkAllRead: () -> Void
+  let onMarkAllRead: () -> Void
 
-  init(category: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
-    let showRead = filter == .read
-    _entries = Query(
-      filter: #Predicate<Entry> {
-        $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
-          && $0.publishedAt >= cutoffDate
-      },
-      sort: \Entry.publishedAt,
-      order: .reverse
-    )
-    self.filter = filter
-    _selectedEntry = selectedEntry
-    self.onMarkAllRead = onMarkAllRead
-  }
-
-  init(folder: String, filter: ArticleFilter, cutoffDate: Date, selectedEntry: Binding<Entry?>, onMarkAllRead: @escaping () -> Void) {
-    let showRead = filter == .read
-    _entries = Query(
-      filter: #Predicate<Entry> {
-        $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
-          && $0.publishedAt >= cutoffDate
-      },
-      sort: \Entry.publishedAt,
-      order: .reverse
-    )
-    self.filter = filter
-    _selectedEntry = selectedEntry
-    self.onMarkAllRead = onMarkAllRead
-  }
+  @Environment(\.modelContext)
+  private var modelContext
+  @State
+  private var sections: [EntryListSection] = []
+  @State
+  private var hasLoaded = false
 
   var body: some View {
-    let sections = groupedByDay(entries)
-    List(selection: $selectedEntry) {
-      ForEach(sections, id: \.date) { section in
-        Section {
-          ForEach(section.entries) { entry in
-            EntryRowView(entry: entry)
-              .tag(entry)
-              .listRowSeparator(.hidden)
-          }
-        } header: {
-          Text(section.label)
-            .font(.system(size: FontTheme.captionSize, weight: .medium))
-            .foregroundStyle(.tertiary)
-            .textCase(nil)
-        }
-      }
-    }
-    .listStyle(.inset(alternatesRowBackgrounds: false))
-    .modifier(BareKeyHandler())
-    .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-    .preference(key: VisibleEntriesKey.self, value: entries)
-    .accessibilityIdentifier("timeline.list")
-    .overlay {
-      if entries.isEmpty {
+    Group {
+      if !hasLoaded {
+        ProgressView()
+          .controlSize(.regular)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .accessibilityIdentifier("timeline.loading")
+      } else if sections.isEmpty {
         ContentUnavailableView {
           Label("No Articles", systemImage: "newspaper")
         } description: {
@@ -236,8 +181,49 @@ struct EntryListView: View {
               : "No read articles in this category."
           )
         }
+      } else {
+        List(selection: $selectedEntry) {
+          ForEach(sections) { section in
+            Section {
+              ForEach(section.entryIDs, id: \.self) { id in
+                if let entry = modelContext.model(for: id) as? Entry {
+                  EntryRowView(entry: entry)
+                    .tag(entry)
+                    .listRowSeparator(.hidden)
+                }
+              }
+            } header: {
+              Text(section.label)
+                .font(.system(size: FontTheme.captionSize, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .textCase(nil)
+            }
+          }
+        }
+        .listStyle(.inset(alternatesRowBackgrounds: false))
+        .modifier(BareKeyHandler())
+        .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+        .preference(key: VisibleEntryIDsKey.self, value: sections.flatMap(\.entryIDs))
+        .accessibilityIdentifier("timeline.list")
       }
     }
+    .task(id: fetchKey) {
+      hasLoaded = false
+      let result =
+        (try? await writer.fetchEntrySections(
+          category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
+        )) ?? []
+      guard !Task.isCancelled else { return }
+      sections = result
+      hasLoaded = true
+    }
+  }
+
+  /// Keying the `.task` on this string causes SwiftUI to cancel the in-flight
+  /// fetch and start a fresh one whenever any input changes — including
+  /// `refreshVersion`, which `ContentView` bumps on sync/classification events.
+  private var fetchKey: String {
+    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(refreshVersion)"
   }
 }
 
@@ -344,7 +330,13 @@ struct ContentView: View {
   @State
   private var pendingReadIDs: Set<Int> = []
   @State
-  private var currentEntries: [Entry] = []
+  private var currentEntryIDs: [PersistentIdentifier] = []
+  /// Bumped whenever underlying article data may have changed (sync completed,
+  /// classification batch finished). `EntryListView` includes this in its
+  /// `.task(id:)` key, triggering a re-fetch — replaces SwiftData's `@Query`
+  /// auto-refresh now that the article list is fetched off MainActor.
+  @State
+  private var entryRefreshVersion: Int = 0
   @FocusState
   private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
@@ -399,7 +391,7 @@ struct ContentView: View {
       detailView
     }
     .environment(\.bareKeyActions, bareKeyActions)
-    .onPreferenceChange(VisibleEntriesKey.self) { currentEntries = $0 }
+    .onPreferenceChange(VisibleEntryIDsKey.self) { currentEntryIDs = $0 }
     .onAppear {
       checkCredentials()
       revalidateSelection()
@@ -469,6 +461,22 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
+    // Refresh the article list (re-fires `EntryListView.task`) whenever
+    // underlying article data may have changed. Replaces SwiftData's
+    // `@Query` auto-refresh now that the list is fetched off MainActor.
+    // Both triggers fire on the false transition (work just finished) —
+    // the per-tick progress properties (`fetchedCount`, `classifiedCount`)
+    // would cause excessive refetches if used as the trigger instead.
+    .onChange(of: syncEngine.isSyncing) { _, isSyncing in
+      if !isSyncing {
+        entryRefreshVersion &+= 1
+      }
+    }
+    .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
+      if !isClassifying {
+        entryRefreshVersion &+= 1
+      }
+    }
     // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
     // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
     // as fallback for when no List has focus (e.g. after programmatic selection change).
@@ -480,8 +488,12 @@ struct ContentView: View {
     .onKeyPress(.tab) {
       switch panelFocus {
       case .sidebar, .none:
-        if let first = currentEntries.first {
-          selectedEntry = first
+        // Materialize the first visible entry on demand (lazy primary-key
+        // lookup on MainActor — the list itself only carries `PersistentIdentifier`s).
+        if let firstID = currentEntryIDs.first,
+          let firstEntry = modelContext.model(for: firstID) as? Entry
+        {
+          selectedEntry = firstEntry
         }
         panelFocus = .articleList
       case .articleList:
@@ -574,17 +586,29 @@ struct ContentView: View {
 
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
-    switch sel {
-    case .folder(let label):
-      EntryListView(
-        folder: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
-        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
-      )
-    case .category(let label):
-      EntryListView(
-        category: label, filter: articleFilter, cutoffDate: syncEngine.queryCutoffDate,
-        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
-      )
+    if let writer = syncEngine.writer {
+      switch sel {
+      case .folder(let label):
+        EntryListView(
+          category: nil, folder: label, filter: articleFilter,
+          cutoffDate: syncEngine.queryCutoffDate, writer: writer,
+          refreshVersion: entryRefreshVersion,
+          selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+        )
+      case .category(let label):
+        EntryListView(
+          category: label, folder: nil, filter: articleFilter,
+          cutoffDate: syncEngine.queryCutoffDate, writer: writer,
+          refreshVersion: entryRefreshVersion,
+          selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+        )
+      }
+    } else {
+      // SyncEngine.configure hasn't completed yet (first launch path).
+      // Show a spinner — the configure Task will populate writer shortly.
+      ProgressView()
+        .controlSize(.regular)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
