@@ -329,6 +329,12 @@ struct ContentView: View {
   private var renderedEntry: Entry?
   @State
   private var selection: SidebarSelection?
+  /// Debounced mirror of `selection`. The article-list column reads this, not
+  /// `selection`, so rapid sidebar arrow scrubbing doesn't tear down + rebuild
+  /// `EntryListView` (and its `@Query` SQLite fetch + `groupedByDay` work) on
+  /// every keystroke. Driven by `.task(id: selection)` after a short dwell time.
+  @State
+  private var renderedSelection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
@@ -353,8 +359,8 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      if let selection {
-        entryListForSelection(selection)
+      if let renderedSelection {
+        entryListForSelection(renderedSelection)
           .focused($panelFocus, equals: .articleList)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
@@ -381,7 +387,7 @@ struct ContentView: View {
             }
           }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
-          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selection)
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: renderedSelection)
       } else {
         ContentUnavailableView {
           Label("No Category", systemImage: "newspaper")
@@ -431,9 +437,25 @@ struct ContentView: View {
       flushPendingReads()
       selectedEntry = nil
     }
-    .onChange(of: selection) {
+    .onChange(of: selection) { _, newSelection in
       flushPendingReads()
       selectedEntry = nil
+      // Clear the rendered article-list column immediately when no sidebar
+      // item is selected so the empty-state appears without delay.
+      if newSelection == nil {
+        renderedSelection = nil
+      }
+    }
+    .task(id: selection) {
+      // Debounce: the article-list `EntryListView` (with its `@Query` SQLite
+      // fetch + `groupedByDay` work on MainActor) is only created for sidebar
+      // selections the user dwells on for >150 ms. Holding Up/Down through
+      // 10 categories no longer triggers 10 sequential SwiftData fetches —
+      // only the final selection's list builds.
+      guard selection != nil else { return }
+      try? await Task.sleep(for: .milliseconds(150))
+      guard !Task.isCancelled else { return }
+      renderedSelection = selection
     }
     .onChange(of: allCategories.count) {
       revalidateSelection()
