@@ -47,13 +47,30 @@ final class ClassificationEngine {
   private(set) var classifiedCount = 0
   private(set) var totalToClassify = 0
 
+  /// The single-slot task that owns whatever classification work is in flight.
+  /// `startContinuousClassification`, `classifyUnclassified`, and `reclassifyAll`
+  /// all route through this slot — so only ever one runner is active, and manual
+  /// triggers cannot race with the polling loop to duplicate provider calls.
   private var classificationTask: Task<Void, Never>?
+  /// Unique ID per stored task, used to safely clear the slot from an awaiting
+  /// one-shot entry point without clobbering a newer task that may have
+  /// replaced it while we were awaiting. `Task` is a value type so `===`
+  /// isn't available.
+  private var classificationTaskID: UUID?
+
+  /// User-intent flag: true between `startContinuousClassification` and
+  /// `stopContinuousClassification`. `reclassifyAll` uses it to decide whether
+  /// to restart the polling loop after the reset+batch completes.
+  private var isContinuousModeActive = false
 
   // MARK: - Continuous classification (polling loop)
 
   func startContinuousClassification(writer: DataWriter) {
     classificationTask?.cancel()
+    isContinuousModeActive = true
     let runner = makeRunner(writer: writer)
+    let id = UUID()
+    classificationTaskID = id
     classificationTask = Task.detached(priority: .utility) {
       await runner.runContinuousLoop()
     }
@@ -62,24 +79,62 @@ final class ClassificationEngine {
   func stopContinuousClassification() {
     classificationTask?.cancel()
     classificationTask = nil
+    classificationTaskID = nil
+    isContinuousModeActive = false
   }
 
   // MARK: - One-shot classification
 
+  /// Manual trigger for classifying unclassified entries. If the continuous
+  /// polling loop is already running it handles unclassified entries within
+  /// 2 s, so this no-ops to avoid spawning a second runner that would race
+  /// the polling loop and duplicate provider calls.
   func classifyUnclassified(writer: DataWriter) async {
+    if isContinuousModeActive { return }
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    await Task.detached(priority: .utility) {
+    let id = UUID()
+    let task = Task.detached(priority: .utility) {
       await runner.runOneBatch(cutoffDate: cutoff)
-    }.value
+    }
+    classificationTask = task
+    classificationTaskID = id
+    await task.value
+    // Only clear the slot if no newer task has replaced ours (see `classificationTaskID` doc).
+    if classificationTaskID == id {
+      classificationTask = nil
+      classificationTaskID = nil
+    }
   }
 
+  /// Destructive one-shot: cancels the polling loop (if running), resets all
+  /// classifications, re-classifies from scratch, then restarts the polling
+  /// loop if it was previously active. Exclusive by construction.
   func reclassifyAll(writer: DataWriter) async {
+    let shouldRestartContinuous = isContinuousModeActive
+    classificationTask?.cancel()
+    await classificationTask?.value
+    classificationTask = nil
+    classificationTaskID = nil
+    isContinuousModeActive = false
+
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    await Task.detached(priority: .utility) {
+    let id = UUID()
+    let task = Task.detached(priority: .utility) {
       await runner.runResetAndOneBatch(cutoffDate: cutoff)
-    }.value
+    }
+    classificationTask = task
+    classificationTaskID = id
+    await task.value
+    if classificationTaskID == id {
+      classificationTask = nil
+      classificationTaskID = nil
+    }
+
+    if shouldRestartContinuous {
+      startContinuousClassification(writer: writer)
+    }
   }
 
   // MARK: - MainActor sink for progress snapshots

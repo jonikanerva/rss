@@ -533,7 +533,7 @@ struct ContentView: View {
       openInBrowserAction: openInBackground,
       moveSelectionDownAction: { moveSidebarSelection(by: 1) },
       moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-      canMarkAllRead: articleFilter == .unread && selection != nil,
+      canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
       canOpenInBrowser: selectedEntry != nil,
       hasSelectedEntry: selectedEntry != nil,
       isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
@@ -659,11 +659,17 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    guard articleFilter == .unread, let selection, let writer = syncEngine.writer else { return }
+    // Target the category the user currently *sees* (renderedSelection), not the
+    // sidebar's pending selection — these diverge for ~150 ms after a sidebar
+    // arrow press while the article list is debounced. Using `selection` here
+    // would mark the wrong category read during that window.
+    guard articleFilter == .unread, let target = renderedSelection,
+      let writer = syncEngine.writer
+    else { return }
     selectedEntry = nil
     Task {
       let markedIDs: Set<Int>?
-      switch selection {
+      switch target {
       case .folder(let label):
         markedIDs = try? await writer.markAllAsRead(folder: label, cutoffDate: syncEngine.queryCutoffDate)
       case .category(let label):
@@ -745,8 +751,12 @@ struct ContentView: View {
     }
   }
 
+  /// The navigation title reflects what the content column is currently rendering
+  /// (`renderedSelection`), not the sidebar's pending selection (`selection`).
+  /// During the 150 ms debounce window these differ — reading `renderedSelection`
+  /// keeps the title aligned with the list the user actually sees.
   private var navigationTitle: String {
-    switch selection {
+    switch renderedSelection {
     case .folder(let label):
       return folders.first { $0.label == label }?.displayName ?? "Articles"
     case .category(let label):
@@ -850,7 +860,9 @@ struct ContentView: View {
     Task {
       await syncEngine.configure(username: username, password: password, modelContainer: container)
 
-      // Purge entries older than 30 days (max setting) — @Query date filter handles visibility
+      // Purge entries older than 30 days (max setting). The article-list
+      // fetch also passes `cutoffDate` to `DataWriter.fetchEntrySections`
+      // so purged rows never appear in the UI even before the next refresh.
       if let writer = syncEngine.writer {
         let cutoff = Date().addingTimeInterval(-maxRetentionAge)
         try? await writer.purgeEntriesOlderThan(cutoff)
