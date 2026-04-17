@@ -36,7 +36,65 @@ nonisolated struct CategoryDefinition: Sendable {
   }
 }
 
+/// One day-grouped section of the article list. Built off-MainActor by
+/// `DataWriter.fetchEntrySections` and consumed by `EntryListView`.
+/// Only carries lightweight identifiers — the view materializes Entry objects
+/// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
+nonisolated struct EntryListSection: Sendable, Identifiable {
+  let id: Date  // start-of-day, used as ForEach identity
+  let label: String
+  let entryIDs: [PersistentIdentifier]
+}
+
 // MARK: - Pure helper functions
+
+/// Format a section header label for a given start-of-day date.
+/// Used by the article list to show "Today", "Yesterday", or a full weekday/date.
+nonisolated func entryListSectionLabel(for date: Date) -> String {
+  let calendar = Calendar.current
+  if calendar.isDateInToday(date) {
+    return "Today"
+  } else if calendar.isDateInYesterday(date) {
+    return "Yesterday"
+  } else {
+    let weekday = date.formatted(.dateTime.weekday(.wide))
+    let day = calendar.component(.day, from: date)
+    let month = date.formatted(.dateTime.month(.wide))
+    let year = date.formatted(.dateTime.year())
+    return "\(weekday) \(day). \(month) \(year)"
+  }
+}
+
+/// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
+/// Runs in whatever context calls it (typically `DataWriter` background actor).
+/// `Entry` reads are local to that context — no actor hops, no MainActor work.
+nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
+  let calendar = Calendar.current
+  var sections: [EntryListSection] = []
+  var currentDay: Date?
+  var currentIDs: [PersistentIdentifier] = []
+
+  for entry in entries {
+    let day = calendar.startOfDay(for: entry.publishedAt)
+    if day != currentDay {
+      if let prevDay = currentDay, !currentIDs.isEmpty {
+        sections.append(
+          EntryListSection(id: prevDay, label: entryListSectionLabel(for: prevDay), entryIDs: currentIDs)
+        )
+      }
+      currentDay = day
+      currentIDs = [entry.persistentModelID]
+    } else {
+      currentIDs.append(entry.persistentModelID)
+    }
+  }
+  if let lastDay = currentDay, !currentIDs.isEmpty {
+    sections.append(
+      EntryListSection(id: lastDay, label: entryListSectionLabel(for: lastDay), entryIDs: currentIDs)
+    )
+  }
+  return sections
+}
 
 /// Strip HTML tags and decode entities to produce plain text.
 nonisolated func stripHTMLToPlainText(_ html: String) -> String {
@@ -397,6 +455,42 @@ actor DataWriter: ModelActor {
       }
     }
     try modelContext.save()
+  }
+
+  // MARK: - Article list (background-fetched section snapshots)
+
+  /// Fetch entries for an article list selection and group them by calendar day.
+  /// Returns lightweight `EntryListSection` DTOs containing only persistent IDs +
+  /// a precomputed section label. The heavy SQLite fetch + Entry materialization
+  /// + grouping all happen on this background `ModelActor`, so MainActor stays
+  /// free to render the loading state immediately.
+  /// Pass either `category` or `folder`; the other should be nil. If both are nil,
+  /// returns an empty array.
+  func fetchEntrySections(
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date
+  ) throws -> [EntryListSection] {
+    let descriptor: FetchDescriptor<Entry>
+    if let category {
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+            && $0.publishedAt >= cutoffDate
+        },
+        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+      )
+    } else if let folder {
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
+            && $0.publishedAt >= cutoffDate
+        },
+        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+      )
+    } else {
+      return []
+    }
+    let entries = try modelContext.fetch(descriptor)
+    return groupEntriesByDay(entries)
   }
 
   // MARK: - Classification

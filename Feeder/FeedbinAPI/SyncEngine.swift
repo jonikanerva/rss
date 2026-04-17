@@ -104,10 +104,20 @@ final class SyncEngine {
   }
 
   /// Configure the sync engine with credentials and model container.
-  func configure(username: String, password: String, modelContainer: ModelContainer) {
+  /// DataWriter init is detached to a background task per CLAUDE.md ("DataWriter must init on a background thread").
+  func configure(username: String, password: String, modelContainer: ModelContainer) async {
     self.client = FeedbinClient(username: username, password: password)
-    self.writer = DataWriter(modelContainer: modelContainer)
+    await attachWriter(modelContainer: modelContainer)
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
+  }
+
+  /// Attach a DataWriter without configuring credentials. Used by UI-test demo mode and any
+  /// path that needs a writer without performing real sync. Also the shared helper used by
+  /// `configure` so the detached-init pattern isn't duplicated.
+  func attachWriter(modelContainer: ModelContainer) async {
+    self.writer = await Task.detached(priority: .utility) {
+      DataWriter(modelContainer: modelContainer)
+    }.value
   }
 
   /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.

@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "Classificati
 /// A classification backend that takes article text and returns structured classification.
 /// Implementations must be Sendable for use in detached Tasks.
 protocol ClassificationProvider: Sendable {
-  var name: String { get }
+  nonisolated var name: String { get }
   var isAvailable: Bool { get async }
 
   /// Language codes this provider supports, or nil if it supports all languages.

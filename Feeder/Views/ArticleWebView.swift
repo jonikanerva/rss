@@ -1,10 +1,32 @@
 import SwiftUI
 import WebKit
 
+// MARK: - Static resource loading
+
+/// Load a bundle resource as a UTF-8 string. Used at module init time to cache
+/// immutable template + CSS files in `ArticleWebView`.
+nonisolated private func loadStaticResource(_ name: String, ext: String) -> String {
+  guard let url = Bundle.main.url(forResource: name, withExtension: ext),
+    let contents = try? String(contentsOf: url, encoding: .utf8)
+  else {
+    return ""
+  }
+  return contents
+}
+
 // MARK: - Article Web View
 
 struct ArticleWebView: NSViewRepresentable {
   let entry: Entry
+
+  /// Bundle resources are immutable — load once on first access, reuse forever.
+  /// Avoids two disk reads per detail render.
+  nonisolated private static let articleTemplate: String = loadStaticResource(
+    "article-template", ext: "html"
+  )
+  nonisolated private static let articleCSS: String = loadStaticResource(
+    "article-style", ext: "css"
+  )
 
   func makeCoordinator() -> Coordinator {
     Coordinator()
@@ -32,8 +54,8 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   private func buildHTML(for entry: Entry) -> String {
-    let template = loadResource("article-template", ext: "html")
-    let css = loadResource("article-style", ext: "css")
+    let template = Self.articleTemplate
+    let css = Self.articleCSS
 
     let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
     let title = (entry.title ?? "Untitled").htmlEscaped
@@ -60,15 +82,6 @@ struct ArticleWebView: NSViewRepresentable {
       .replacingOccurrences(of: "[[domain]]", with: domain)
       .replacingOccurrences(of: "[[favicon]]", with: favicon)
       .replacingOccurrences(of: "[[body]]", with: body)
-  }
-
-  private func loadResource(_ name: String, ext: String) -> String {
-    guard let url = Bundle.main.url(forResource: name, withExtension: ext),
-      let contents = try? String(contentsOf: url, encoding: .utf8)
-    else {
-      return ""
-    }
-    return contents
   }
 
   /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.

@@ -40,7 +40,9 @@ struct EntryDetailView: View {
         readerView
       }
     }
-    .id(entry.feedbinEntryID)
+    // No .id(entry.feedbinEntryID) — let SwiftUI diff bindings instead of tearing
+    // down the WKWebView. ArticleWebView.updateNSView already guards against
+    // duplicate loads via the coordinator's currentEntryID.
     .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: viewMode)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
