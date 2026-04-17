@@ -93,19 +93,27 @@ final class ClassificationEngine {
 
   // MARK: - Runner factory
 
+  /// Build a runner. Captures `self` strongly for the progress reporter — the runner is owned
+  /// by the detached Task whose lifetime is bounded by `classificationTask?.cancel()` on stop,
+  /// so no retain cycle. CLAUDE.md prohibits `[weak self]` in Task closures.
   private func makeRunner(writer: DataWriter) -> ClassificationRunner {
-    let provider = makeProvider()
-    let reporter: @Sendable (ProgressSnapshot) async -> Void = { [weak self] snapshot in
-      await MainActor.run {
-        self?.apply(snapshot)
-      }
+    let reporter: @Sendable (ProgressSnapshot) async -> Void = { snapshot in
+      await MainActor.run { self.apply(snapshot) }
     }
-    return ClassificationRunner(writer: writer, provider: provider, reportProgress: reporter)
+    // Provider is built per-batch via this Sendable factory, so a Settings change
+    // (provider switch / OpenAI key entry) takes effect on the next polling cycle
+    // without requiring `stopContinuousClassification` + `start` round-trip.
+    let providerFactory: @Sendable () -> any ClassificationProvider = { Self.buildProvider() }
+    return ClassificationRunner(
+      writer: writer, providerFactory: providerFactory, reportProgress: reporter
+    )
   }
 
   // MARK: - Provider factory
 
-  private func makeProvider() -> any ClassificationProvider {
+  /// Resolve the configured classification provider from UserDefaults + Keychain.
+  /// Static + nonisolated so it can be invoked from background tasks per batch.
+  nonisolated static func buildProvider() -> any ClassificationProvider {
     let selection = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
     switch selection {
     case "openai":
@@ -124,7 +132,8 @@ final class ClassificationEngine {
 /// Sendable `reportProgress` closure, throttled to once per 200ms.
 nonisolated struct ClassificationRunner: Sendable {
   let writer: DataWriter
-  let provider: any ClassificationProvider
+  /// Resolved per batch so a provider/key change in Settings takes effect without restart.
+  let providerFactory: @Sendable () -> any ClassificationProvider
   let reportProgress: @Sendable (ProgressSnapshot) async -> Void
 
   func runContinuousLoop() async {
@@ -154,8 +163,11 @@ nonisolated struct ClassificationRunner: Sendable {
       return
     }
 
+    let provider = providerFactory()
     guard await provider.isAvailable else {
       logger.error("Classification provider '\(provider.name)' not available")
+      // Symmetry with the no-inputs early return: clear any leftover spinner state.
+      await reportProgress(.terminal)
       return
     }
 

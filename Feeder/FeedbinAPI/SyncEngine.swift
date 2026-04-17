@@ -113,6 +113,15 @@ final class SyncEngine {
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
   }
 
+  /// Attach a DataWriter without configuring credentials. Used by UI-test demo mode and any
+  /// path that needs a writer without performing real sync. Builds the writer on a background
+  /// task per the same rule as `configure`.
+  func attachWriter(modelContainer: ModelContainer) async {
+    self.writer = await Task.detached(priority: .utility) {
+      DataWriter(modelContainer: modelContainer)
+    }.value
+  }
+
   /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
   func queueReadIDs(_ ids: Set<Int>) {
     pendingReadIDsToSync.formUnion(ids)

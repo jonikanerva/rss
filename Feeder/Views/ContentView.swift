@@ -144,8 +144,10 @@ private struct VisibleEntryIDsKey: PreferenceKey {
 /// primary-key lookup, only for visible rows).
 ///
 /// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
-/// explicit refresh-version triggers driven from `ContentView`'s `.onChange`
-/// handlers on `syncEngine.lastSyncDate` and `classificationEngine.isClassifying`.
+/// explicit refresh-version triggers driven from `ContentView` — `.onChange`
+/// handlers on `syncEngine.isSyncing` / `classificationEngine.isClassifying`
+/// false-transitions, plus an explicit bump after `flushPendingReads` and
+/// `markAllAsRead` writes.
 struct EntryListView: View {
   let category: String?
   let folder: String?
@@ -161,6 +163,11 @@ struct EntryListView: View {
   private var modelContext
   @State
   private var sections: [EntryListSection] = []
+  /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
+  /// per fetch (in `.task`) instead of `sections.flatMap(\.entryIDs)` on every body
+  /// re-eval — meaningful for large categories ("uncategorized" with thousands of IDs).
+  @State
+  private var allVisibleEntryIDs: [PersistentIdentifier] = []
   @State
   private var hasLoaded = false
 
@@ -203,7 +210,7 @@ struct EntryListView: View {
         .listStyle(.inset(alternatesRowBackgrounds: false))
         .modifier(BareKeyHandler())
         .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-        .preference(key: VisibleEntryIDsKey.self, value: sections.flatMap(\.entryIDs))
+        .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
         .accessibilityIdentifier("timeline.list")
       }
     }
@@ -215,6 +222,7 @@ struct EntryListView: View {
         )) ?? []
       guard !Task.isCancelled else { return }
       sections = result
+      allVisibleEntryIDs = result.flatMap(\.entryIDs)
       hasLoaded = true
     }
   }
@@ -293,6 +301,12 @@ struct SyncStatusView: View {
 // MARK: - Content View
 
 struct ContentView: View {
+  /// Dwell time before propagating a keyboard-driven selection change to a heavy
+  /// downstream view (WebView render or article-list background fetch). Short
+  /// enough that single intentional taps still feel instant; long enough to
+  /// suppress per-keystroke work during arrow-key scrubbing.
+  fileprivate static let renderDwell: Duration = .milliseconds(150)
+
   @Environment(SyncEngine.self)
   private var syncEngine
   @Environment(ClassificationEngine.self)
@@ -316,9 +330,10 @@ struct ContentView: View {
   @State
   private var selection: SidebarSelection?
   /// Debounced mirror of `selection`. The article-list column reads this, not
-  /// `selection`, so rapid sidebar arrow scrubbing doesn't tear down + rebuild
-  /// `EntryListView` (and its `@Query` SQLite fetch + `groupedByDay` work) on
-  /// every keystroke. Driven by `.task(id: selection)` after a short dwell time.
+  /// `selection`, so rapid sidebar arrow scrubbing doesn't kick off a fresh
+  /// `DataWriter.fetchEntrySections` background fetch on every keystroke (each
+  /// cancelled fetch still wastes a small amount of background work). Driven
+  /// by `.task(id: selection)` after a short dwell time.
   @State
   private var renderedSelection: SidebarSelection?
   @State
@@ -416,12 +431,13 @@ struct ContentView: View {
       }
     }
     .task(id: selectedEntry?.feedbinEntryID) {
-      // Debounce: WebView only loads HTML for entries the user dwells on for >150 ms.
-      // When selectedEntry changes again before the sleep completes, this task is
-      // cancelled and the in-flight load is skipped — so holding Down arrow no
-      // longer triggers N WebKit reloads + buildHTML cycles on MainActor.
+      // Debounce: WebView only loads HTML for entries the user dwells on long
+      // enough to matter. When selectedEntry changes again before the sleep
+      // completes, this task is cancelled and the in-flight load is skipped —
+      // so holding Down arrow no longer triggers N WebKit reloads +
+      // buildHTML cycles on MainActor.
       guard selectedEntry != nil else { return }
-      try? await Task.sleep(for: .milliseconds(150))
+      try? await Task.sleep(for: Self.renderDwell)
       guard !Task.isCancelled else { return }
       renderedEntry = selectedEntry
     }
@@ -439,13 +455,13 @@ struct ContentView: View {
       }
     }
     .task(id: selection) {
-      // Debounce: the article-list `EntryListView` (with its `@Query` SQLite
-      // fetch + `groupedByDay` work on MainActor) is only created for sidebar
-      // selections the user dwells on for >150 ms. Holding Up/Down through
-      // 10 categories no longer triggers 10 sequential SwiftData fetches —
-      // only the final selection's list builds.
+      // Debounce: only fire `EntryListView` (and its background
+      // `DataWriter.fetchEntrySections` call) for sidebar selections the user
+      // dwells on for >150 ms. The fetch is cancellable and non-blocking, but
+      // each cancelled fetch still wastes a small amount of background work,
+      // so debouncing keeps fast scrubbing efficient.
       guard selection != nil else { return }
-      try? await Task.sleep(for: .milliseconds(150))
+      try? await Task.sleep(for: Self.renderDwell)
       guard !Task.isCancelled else { return }
       renderedSelection = selection
     }
@@ -587,25 +603,22 @@ struct ContentView: View {
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     if let writer = syncEngine.writer {
-      switch sel {
-      case .folder(let label):
-        EntryListView(
-          category: nil, folder: label, filter: articleFilter,
-          cutoffDate: syncEngine.queryCutoffDate, writer: writer,
-          refreshVersion: entryRefreshVersion,
-          selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
-        )
-      case .category(let label):
-        EntryListView(
-          category: label, folder: nil, filter: articleFilter,
-          cutoffDate: syncEngine.queryCutoffDate, writer: writer,
-          refreshVersion: entryRefreshVersion,
-          selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
-        )
-      }
+      let (category, folder): (String?, String?) =
+        switch sel {
+        case .category(let label): (label, nil)
+        case .folder(let label): (nil, label)
+        }
+      EntryListView(
+        category: category, folder: folder, filter: articleFilter,
+        cutoffDate: syncEngine.queryCutoffDate, writer: writer,
+        refreshVersion: entryRefreshVersion,
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+      )
     } else {
       // SyncEngine.configure hasn't completed yet (first launch path).
-      // Show a spinner — the configure Task will populate writer shortly.
+      // The .toolbar, .navigationTitle, .focused etc. modifiers from the
+      // call site still apply to this ProgressView since they're chained
+      // on the function's return value.
       ProgressView()
         .controlSize(.regular)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -638,6 +651,10 @@ struct ContentView: View {
     Task {
       guard let writer = syncEngine.writer else { return }
       try? await writer.markEntriesRead(feedbinEntryIDs: ids)
+      // Locally mutating isRead invalidates the article-list snapshot — refetch
+      // so unread filter shrinks. Without this, scrubbed-past entries linger
+      // (only dimmed via pendingReadIDs) until the next sync/classification.
+      entryRefreshVersion &+= 1
     }
   }
 
@@ -654,6 +671,9 @@ struct ContentView: View {
       }
       guard let ids = markedIDs, !ids.isEmpty else { return }
       syncEngine.queueReadIDs(ids)
+      // Same rationale as flushPendingReads — refetch so the now-empty unread
+      // list (or remaining unread items) appears immediately.
+      entryRefreshVersion &+= 1
     }
   }
 
@@ -806,8 +826,14 @@ struct ContentView: View {
   }
 
   private func seedUITestDataIfNeeded() {
-    let writer = DataWriter(modelContainer: modelContext.container)
+    let container = modelContext.container
     Task {
+      // Reuse the production writer-attach path — fixes the "DataWriter init on
+      // MainActor" violation and ensures `syncEngine.writer` is populated so
+      // `EntryListView` can render the seeded rows (without it the demo-mode
+      // launch sticks on `ProgressView`).
+      await syncEngine.attachWriter(modelContainer: container)
+      guard let writer = syncEngine.writer else { return }
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
         selection = .folder("technology")
