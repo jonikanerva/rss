@@ -36,11 +36,6 @@ extension EnvironmentValues {
   }
 }
 
-// MARK: - Date Section Helpers
-
-// Note: section label + day grouping moved to `DataWriter.swift` so the
-// heavy fetch + grouping work runs off MainActor.
-
 // MARK: - Sidebar Selection
 
 enum SidebarSelection: Hashable {
@@ -650,14 +645,14 @@ struct ContentView: View {
     allCategories.map(\.folderLabel)
   }
 
-  /// Tab from sidebar into the article-list column. Picks the first entry of
-  /// the currently rendered list when the sidebar and content columns are
-  /// aligned. During the `renderedSelection` debounce window the two diverge —
-  /// selecting then would land on an entry from the outgoing list that won't
-  /// appear in the newly-loaded list. In that case Tab only moves focus.
+  /// Tab from sidebar into the article-list column. No-ops entirely during
+  /// the `renderedSelection` debounce window — if focus moved to the outgoing
+  /// list, subsequent arrow-key navigation or Shift+A would act on the
+  /// previous category even though the sidebar already shows the new one.
+  /// The user waits ~150 ms or presses Tab again once alignment settles.
   private func tabIntoArticleList() {
-    panelFocus = .articleList
     guard selection == renderedSelection else { return }
+    panelFocus = .articleList
     guard let firstID = currentEntryIDs.first else { return }
     guard let firstEntry = modelContext.model(for: firstID) as? Entry else { return }
     selectedEntry = firstEntry
@@ -847,7 +842,15 @@ struct ContentView: View {
   // MARK: - Helpers
 
   private func checkCredentials() {
-    if isPreviewMode { return }
+    if isPreviewMode {
+      // Preview canvases seed their model container directly and never run
+      // `startSync`/`configure`, so `syncEngine.writer` stays nil and
+      // `EntryListView` would otherwise spin on `ProgressView` forever.
+      // Attach a writer so the preview renders its seeded rows.
+      let container = modelContext.container
+      Task { await syncEngine.attachWriter(modelContainer: container) }
+      return
+    }
     if isUITestForceOnboarding {
       needsSetup = true
       return

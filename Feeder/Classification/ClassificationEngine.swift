@@ -85,15 +85,16 @@ final class ClassificationEngine {
 
   // MARK: - One-shot classification
 
-  /// Manual trigger for classifying unclassified entries. If the continuous
-  /// polling loop is already running it handles unclassified entries within
-  /// 2 s, so this no-ops to avoid spawning a second runner that would race
-  /// the polling loop and duplicate provider calls.
+  /// Manual trigger for classifying unclassified entries. Briefly takes over
+  /// the `classificationTask` slot — cancels the polling loop (if running),
+  /// runs a one-shot batch inline, then restarts the polling loop if it was
+  /// active before. This gives manual "Sync Now" callers immediate feedback
+  /// instead of waiting up to 2 s for the next polling tick, without risking
+  /// duplicate provider calls from a parallel runner.
   func classifyUnclassified(writer: DataWriter) async {
-    if isContinuousModeActive { return }
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    await runExclusively {
+    await runReplacingContinuousLoop(writer: writer) {
       await runner.runOneBatch(cutoffDate: cutoff)
     }
   }
@@ -102,6 +103,20 @@ final class ClassificationEngine {
   /// classifications, re-classifies from scratch, then restarts the polling
   /// loop if it was previously active. Exclusive by construction.
   func reclassifyAll(writer: DataWriter) async {
+    let runner = makeRunner(writer: writer)
+    let cutoff = articleCutoffDate()
+    await runReplacingContinuousLoop(writer: writer) {
+      await runner.runResetAndOneBatch(cutoffDate: cutoff)
+    }
+  }
+
+  /// Cancel the polling loop (if active), run `work` exclusively in the
+  /// `classificationTask` slot, then restart the polling loop if it was
+  /// running before. Shared by `classifyUnclassified` and `reclassifyAll`.
+  private func runReplacingContinuousLoop(
+    writer: DataWriter,
+    _ work: @escaping @Sendable () async -> Void
+  ) async {
     let shouldRestartContinuous = isContinuousModeActive
     classificationTask?.cancel()
     await classificationTask?.value
@@ -109,11 +124,7 @@ final class ClassificationEngine {
     classificationTaskID = nil
     isContinuousModeActive = false
 
-    let runner = makeRunner(writer: writer)
-    let cutoff = articleCutoffDate()
-    await runExclusively {
-      await runner.runResetAndOneBatch(cutoffDate: cutoff)
-    }
+    await runExclusively(work)
 
     if shouldRestartContinuous {
       startContinuousClassification(writer: writer)
