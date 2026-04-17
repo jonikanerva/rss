@@ -113,6 +113,22 @@ private struct BareKeyHandler: ViewModifier {
   }
 }
 
+// MARK: - Category-Folder-Change Refresh Trigger
+
+/// Fires `onChange` when any category's `folderLabel` changes. Extracted into
+/// a modifier so the category-folder-move refetch trigger doesn't push
+/// ContentView.body past the type-checker's reasonable-time limit.
+private struct CategoryFolderChangeTrigger: ViewModifier {
+  let categoryFolderLabels: [String?]
+  let onChange: () -> Void
+
+  func body(content: Content) -> some View {
+    content.onChange(of: categoryFolderLabels) {
+      onChange()
+    }
+  }
+}
+
 // MARK: - Visible Entry IDs Preference Key
 
 /// Bubbles the current entry IDs from EntryListView up to ContentView
@@ -493,6 +509,12 @@ struct ContentView: View {
         entryRefreshVersion &+= 1
       }
     }
+    .modifier(
+      CategoryFolderChangeTrigger(
+        categoryFolderLabels: categoryFolderLabels,
+        onChange: { entryRefreshVersion &+= 1 }
+      )
+    )
     // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
     // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
     // as fallback for when no List has focus (e.g. after programmatic selection change).
@@ -504,14 +526,7 @@ struct ContentView: View {
     .onKeyPress(.tab) {
       switch panelFocus {
       case .sidebar, .none:
-        // Materialize the first visible entry on demand (lazy primary-key
-        // lookup on MainActor — the list itself only carries `PersistentIdentifier`s).
-        if let firstID = currentEntryIDs.first,
-          let firstEntry = modelContext.model(for: firstID) as? Entry
-        {
-          selectedEntry = firstEntry
-        }
-        panelFocus = .articleList
+        tabIntoArticleList()
       case .articleList:
         panelFocus = .sidebar
       }
@@ -626,6 +641,27 @@ struct ContentView: View {
   }
 
   // MARK: - Selection
+
+  /// Snapshot of every category's folder assignment. Watched by `.onChange` so
+  /// moving a category between folders (via DataWriter.moveCategoryToFolder /
+  /// batchUpdateCategoryFolderAndSortOrders) refreshes the article list.
+  /// Extracted from body to keep the type-checker happy.
+  private var categoryFolderLabels: [String?] {
+    allCategories.map(\.folderLabel)
+  }
+
+  /// Tab from sidebar into the article-list column. Picks the first entry of
+  /// the currently rendered list when the sidebar and content columns are
+  /// aligned. During the `renderedSelection` debounce window the two diverge —
+  /// selecting then would land on an entry from the outgoing list that won't
+  /// appear in the newly-loaded list. In that case Tab only moves focus.
+  private func tabIntoArticleList() {
+    panelFocus = .articleList
+    guard selection == renderedSelection else { return }
+    guard let firstID = currentEntryIDs.first else { return }
+    guard let firstEntry = modelContext.model(for: firstID) as? Entry else { return }
+    selectedEntry = firstEntry
+  }
 
   private func revalidateSelection() {
     switch selection {

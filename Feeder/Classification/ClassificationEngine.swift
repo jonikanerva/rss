@@ -93,17 +93,8 @@ final class ClassificationEngine {
     if isContinuousModeActive { return }
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
-    let id = UUID()
-    let task = Task.detached(priority: .utility) {
+    await runExclusively {
       await runner.runOneBatch(cutoffDate: cutoff)
-    }
-    classificationTask = task
-    classificationTaskID = id
-    await task.value
-    // Only clear the slot if no newer task has replaced ours (see `classificationTaskID` doc).
-    if classificationTaskID == id {
-      classificationTask = nil
-      classificationTaskID = nil
     }
   }
 
@@ -120,9 +111,23 @@ final class ClassificationEngine {
 
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
+    await runExclusively {
+      await runner.runResetAndOneBatch(cutoffDate: cutoff)
+    }
+
+    if shouldRestartContinuous {
+      startContinuousClassification(writer: writer)
+    }
+  }
+
+  /// Run classification work exclusively in the `classificationTask` slot.
+  /// UUID-tagged so the slot is only cleared if no newer task has replaced
+  /// ours while awaiting — prevents a stale one-shot from nil-ing out a
+  /// freshly-started continuous loop.
+  private func runExclusively(_ work: @escaping @Sendable () async -> Void) async {
     let id = UUID()
     let task = Task.detached(priority: .utility) {
-      await runner.runResetAndOneBatch(cutoffDate: cutoff)
+      await work()
     }
     classificationTask = task
     classificationTaskID = id
@@ -130,10 +135,6 @@ final class ClassificationEngine {
     if classificationTaskID == id {
       classificationTask = nil
       classificationTaskID = nil
-    }
-
-    if shouldRestartContinuous {
-      startContinuousClassification(writer: writer)
     }
   }
 
