@@ -321,6 +321,12 @@ struct ContentView: View {
   private var allCategories: [Category]
   @State
   private var selectedEntry: Entry?
+  /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
+  /// not `selectedEntry`, so rapid keyboard scrubbing doesn't trigger a WebKit
+  /// load + HTML rebuild for every intermediate article. See `.task(id:)` modifier
+  /// on `body` that drives this from `selectedEntry` after a short dwell time.
+  @State
+  private var renderedEntry: Entry?
   @State
   private var selection: SidebarSelection?
   @State
@@ -405,6 +411,21 @@ struct ContentView: View {
         pendingReadIDs.insert(entry.feedbinEntryID)
       }
       articleViewMode = .web
+      // Clear the rendered entry immediately when selection clears so the
+      // empty-state view appears without a delay.
+      if newEntry == nil {
+        renderedEntry = nil
+      }
+    }
+    .task(id: selectedEntry?.feedbinEntryID) {
+      // Debounce: WebView only loads HTML for entries the user dwells on for >150 ms.
+      // When selectedEntry changes again before the sleep completes, this task is
+      // cancelled and the in-flight load is skipped — so holding Down arrow no
+      // longer triggers N WebKit reloads + buildHTML cycles on MainActor.
+      guard selectedEntry != nil else { return }
+      try? await Task.sleep(for: .milliseconds(150))
+      guard !Task.isCancelled else { return }
+      renderedEntry = selectedEntry
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
@@ -674,8 +695,8 @@ struct ContentView: View {
   @ViewBuilder
   private var detailView: some View {
     Group {
-      if let selectedEntry {
-        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+      if let renderedEntry {
+        EntryDetailView(entry: renderedEntry, viewMode: articleViewMode)
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")
