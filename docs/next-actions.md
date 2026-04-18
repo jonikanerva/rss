@@ -15,7 +15,7 @@ Status: Active
 
 ## Completed history
 
-- **2026-04-18**: Article-list scroll preservation — PR #56. EntryListView split into structural + refresh tasks so sync/classification ticks diff in place instead of tearing down the List; refresh bumps gated on new-entry / classified counts; secondary sort on feedbinEntryID for deterministic ordering.
+- **2026-04-18**: Article-list scroll preservation + SyncEngine refactor — PR #56. EntryListView split into structural + refresh tasks so sync/classification ticks diff in place instead of tearing down the List; refresh bumps gated on new-entry / classified counts; secondary sort on feedbinEntryID for deterministic ordering. Also collapsed syncUnread / syncIncremental / refetchHistory's inline loop into a single fetchEntriesSince path (−49 lines net).
 - **2026-04-04**: Embedded video/iframe thumbnails — PR #49. YouTube iframes replaced with clickable thumbnail images in both web and reader view. Extensible to other platforms.
 
 - **2026-04-04**: UI/UX tweaks — PR #48. API key edit modal, removed standalone Reclassify button, J/K sidebar navigation, menu bar commands (Sync, Mark All Read, Reader/Web, Open in Browser, Navigate).
