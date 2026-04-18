@@ -344,18 +344,18 @@ struct DataWriterEntryTests {
     }
 
     let markedIDs = try await writer.markAllAsRead(
-      category: "technology", cutoffDate: .distantPast)
+      target: .category("technology"), cutoffDate: .distantPast)
 
     #expect(markedIDs == [2001, 2002])
 
     // Verify technology entries are now all read — second pass should return empty
     let secondPass = try await writer.markAllAsRead(
-      category: "technology", cutoffDate: .distantPast)
+      target: .category("technology"), cutoffDate: .distantPast)
     #expect(secondPass.isEmpty)
 
     // World entry should still be unread
     let worldIDs = try await writer.markAllAsRead(
-      category: "world_news", cutoffDate: .distantPast)
+      target: .category("world_news"), cutoffDate: .distantPast)
     #expect(worldIDs == [2003])
   }
 
@@ -363,7 +363,7 @@ struct DataWriterEntryTests {
   func markAllAsReadWithNoUnreadReturnsEmpty() async throws {
     let writer = try await makeWriter()
     let result = try await writer.markAllAsRead(
-      category: "technology", cutoffDate: .distantPast)
+      target: .category("technology"), cutoffDate: .distantPast)
     #expect(result.isEmpty)
   }
 }

@@ -723,14 +723,15 @@ struct ContentView: View {
       let writer = syncEngine.writer
     else { return }
     selectedEntry = nil
+    let markTarget: MarkReadTarget
+    switch target {
+    case .folder(let label): markTarget = .folder(label)
+    case .category(let label): markTarget = .category(label)
+    }
     Task {
-      let markedIDs: Set<Int>?
-      switch target {
-      case .folder(let label):
-        markedIDs = try? await writer.markAllAsRead(folder: label, cutoffDate: syncEngine.queryCutoffDate)
-      case .category(let label):
-        markedIDs = try? await writer.markAllAsRead(category: label, cutoffDate: syncEngine.queryCutoffDate)
-      }
+      let markedIDs = try? await writer.markAllAsRead(
+        target: markTarget, cutoffDate: syncEngine.queryCutoffDate
+      )
       guard let ids = markedIDs, !ids.isEmpty else { return }
       syncEngine.queueReadIDs(ids)
       // Same rationale as flushPendingReads — refetch so the now-empty unread
