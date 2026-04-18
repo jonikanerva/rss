@@ -19,8 +19,7 @@ protocol ClassificationProvider: Sendable {
     title: String,
     body: String,
     url: String,
-    instructions: String,
-    validLabels: Set<String>
+    instructions: String
   ) async throws -> ProviderClassificationResult
 }
 
@@ -60,8 +59,7 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     title: String,
     body: String,
     url: String,
-    instructions: String,
-    validLabels: Set<String>
+    instructions: String
   ) async throws -> ProviderClassificationResult {
     let model = SystemLanguageModel.default
     let session = LanguageModelSession(model: model, instructions: instructions)

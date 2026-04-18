@@ -303,8 +303,7 @@ nonisolated struct ClassificationRunner: Sendable {
               title: input.title,
               body: input.body,
               url: input.url,
-              instructions: instructions,
-              validLabels: validLabels
+              instructions: instructions
             )
             let rawLabel =
               validLabels.contains(providerResult.category)

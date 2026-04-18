@@ -35,8 +35,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     title: String,
     body: String,
     url: String,
-    instructions: String,
-    validLabels: Set<String>
+    instructions: String
   ) async throws -> ProviderClassificationResult {
     let truncatedBody = String(body.prefix(60_000))
     let userMessage = "title: \(title)\nurl: \(url)\ncontent: \(truncatedBody)"
