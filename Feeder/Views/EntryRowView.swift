@@ -2,14 +2,6 @@ import AppKit
 import SwiftData
 import SwiftUI
 
-// MARK: - Time Formatter
-
-private let timeOnlyFormatter: DateFormatter = {
-  let f = DateFormatter()
-  f.dateFormat = "HH.mm"
-  return f
-}()
-
 // MARK: - Entry Row View
 
 struct EntryRowView: View {
@@ -42,7 +34,7 @@ struct EntryRowView: View {
 
           Spacer()
 
-          Text(timeOnlyFormatter.string(from: entry.publishedAt))
+          Text(entry.formattedPublishedTime)
             .font(.system(size: FontTheme.rowFeedNameSize))
             .foregroundStyle(.tertiary)
         }
@@ -138,6 +130,7 @@ private func unreadEntryRowPreview() -> some View {
   entry.feed = feed
   entry.isRead = false
   entry.formattedDate = "Today, 15th Mar, 09:30"
+  entry.formattedPublishedTime = "09.30"
   entry.displayDomain = "mobilegamer.biz"
   entry.plainText = "Coffee Stain is closing its mobile development arm in Malmö, Sweden."
   entry.summaryPlainText = "Coffee Stain is closing its mobile development arm in Malmö, Sweden."
@@ -166,6 +159,7 @@ private func readEntryRowPreview() -> some View {
   )
   entry.isRead = true
   entry.formattedDate = "Yesterday, 14th Mar, 08:30"
+  entry.formattedPublishedTime = "08.30"
   entry.displayDomain = "arstechnica.com"
   entry.plainText = "The European Union has approved comprehensive AI legislation."
   entry.summaryPlainText = "The European Union has approved comprehensive AI legislation."

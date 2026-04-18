@@ -110,6 +110,19 @@ nonisolated func stripHTMLToPlainText(_ html: String) -> String {
   return text.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+/// Shared formatter for the time-of-day shown in article-list rows.
+nonisolated private let rowTimeFormatter: DateFormatter = {
+  let formatter = DateFormatter()
+  formatter.dateFormat = "HH.mm"
+  return formatter
+}()
+
+/// Format the time-of-day portion of an entry for the article-list row.
+/// Pre-computed at persist time so the row view doesn't invoke DateFormatter at render.
+nonisolated func formatEntryTime(_ date: Date) -> String {
+  rowTimeFormatter.string(from: date)
+}
+
 /// Format a date for display: "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar" / "Monday, 2nd Mar"
 nonisolated func formatEntryDate(_ date: Date) -> String {
   let calendar = Calendar.current
@@ -290,6 +303,7 @@ actor DataWriter: ModelActor {
       entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.formattedPublishedTime = formatEntryTime(dto.published)
 
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -743,6 +757,7 @@ actor DataWriter: ModelActor {
       entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
+      entry.formattedPublishedTime = formatEntryTime(entry.publishedAt)
 
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
       entry.plainText = "Sample article \(index) for local UX smoke testing."
@@ -768,6 +783,7 @@ actor DataWriter: ModelActor {
     worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
+    worldEntry.formattedPublishedTime = formatEntryTime(worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."
     worldEntry.summaryPlainText = "EU finalizes AI transparency framework."

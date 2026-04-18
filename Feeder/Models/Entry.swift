@@ -36,6 +36,9 @@ final class Entry {
   var articleBlocksData: Data?
   /// Pre-formatted date string for display (e.g., "Today, 5th Mar, 21:24")
   var formattedDate: String = ""
+  /// Pre-formatted publish-time string for row display (e.g., "21.24"). Computed at persist time
+  /// so the article list doesn't invoke DateFormatter per row at render time.
+  var formattedPublishedTime: String = ""
   /// Pre-computed display domain (e.g., "theverge.com") — stripped of www. prefix
   var displayDomain: String?
   /// Assigned category label — denormalized for @Query predicate filtering
