@@ -363,6 +363,13 @@ final class SyncEngine {
       isSyncing = true
       fetchedCount = 0
       totalToFetch = 0
+      // Reset on entry and assign on completion so the
+      // `isSyncing = false` edge always reports this backfill's count, not a
+      // stale value from the last primary `sync()`. `ContentView` reads this
+      // in its `isSyncing` onChange gate; leaving it stale would either block
+      // a legitimate refresh or trigger a bogus one.
+      lastSyncNewEntryCount = 0
+      var totalNew = 0
 
       logger.info("Starting Phase 2: recent history backfill")
 
@@ -373,6 +380,7 @@ final class SyncEngine {
           if Task.isCancelled { break }
           if let total = page.totalCount { totalToFetch = total }
           let newCount = try await writer.persistEntries(page.entries, markAsRead: true)
+          totalNew += newCount
           fetchedCount += page.entries.count
 
           logger.info("Backfill: \(page.entries.count) fetched, \(newCount) new (\(self.fetchedCount)/\(self.totalToFetch))")
@@ -390,8 +398,10 @@ final class SyncEngine {
         logger.info("Phase 2 backfill complete (\(self.fetchedCount) entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
+        totalNew = 0
       }
 
+      lastSyncNewEntryCount = totalNew
       isSyncing = false
     }
   }
