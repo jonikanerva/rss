@@ -225,19 +225,28 @@ struct EntryListView: View {
         .accessibilityIdentifier("timeline.list")
       }
     }
-    // Two separate tasks so refresh-only ticks (classification / sync completion)
-    // do not flip `hasLoaded` back to false and tear down the `List` — which
-    // would reset the scroll position every time. `structuralKey` captures the
-    // inputs whose change implies "user is now looking at a different list"
-    // (category / folder / filter / cutoff); only those warrant a loading view.
-    // `refreshVersion` fires silently in place and `reload()` skips the assign
-    // when the result is identical, so SwiftUI's diff keeps the scroll stable.
+    // Two tasks so refresh-only ticks (classification / sync completion) do
+    // not flip `hasLoaded` back to false and tear down the `List` — which
+    // would reset scroll every time. `structuralKey` captures inputs whose
+    // change means "user is looking at a different list" (category / folder
+    // / filter / cutoff); only those warrant a loading view. `refreshVersion`
+    // fires in place and `reload()` skips the assign when sections are
+    // equal, so SwiftUI's diff keeps the scroll stable.
+    //
+    // The refresh task's id intentionally includes `structuralKey`: a bare
+    // `refreshVersion` id would not be cancelled when the user switches
+    // category mid-refresh, and the in-flight fetch — which captured `self`
+    // with the old category — could race the structural task and overwrite
+    // `sections` with stale rows from the previous list. Including
+    // `structuralKey` cancels the stale refresh when context changes, and
+    // the `guard hasLoaded` check keeps the restarted refresh a no-op while
+    // the structural task owns the reload.
     .task(id: structuralKey) {
       hasLoaded = false
       await reload()
       hasLoaded = true
     }
-    .task(id: refreshVersion) {
+    .task(id: refreshTaskKey) {
       guard hasLoaded else { return }
       await reload()
     }
@@ -253,6 +262,15 @@ struct EntryListView: View {
       sections = result
       allVisibleEntryIDs = result.flatMap(\.entryIDs)
     }
+  }
+
+  /// Composed key for the refresh task so a structural change (category /
+  /// folder / filter / cutoff) cancels any in-flight refresh bound to the
+  /// previous context. Without the structural suffix, a refresh captured
+  /// against the old `self` could finish after the structural reload and
+  /// overwrite `sections` with stale rows.
+  private var refreshTaskKey: String {
+    "\(structuralKey)|\(refreshVersion)"
   }
 
   /// Key for "this is a different article list" — user-visible context change.

@@ -47,7 +47,7 @@ struct DataWriterEntryTests {
     try await writer.syncFeeds([sub])
   }
 
-  // MARK: - persistEntries (markAsRead overload)
+  // MARK: - persistEntries
 
   @Test
   func persistEntriesInsertsNewEntries() async throws {
@@ -58,7 +58,7 @@ struct DataWriterEntryTests {
       try Self.makeFeedbinEntry(id: 1001),
       try Self.makeFeedbinEntry(id: 1002, title: "Second Article"),
     ]
-    let count = try await writer.persistEntries(entries, markAsRead: false)
+    let count = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
     #expect(count == 2)
   }
@@ -69,8 +69,8 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entry = try Self.makeFeedbinEntry(id: 1001)
-    let first = try await writer.persistEntries([entry], markAsRead: false)
-    let second = try await writer.persistEntries([entry], markAsRead: false)
+    let first = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
+    let second = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     #expect(first == 1)
     #expect(second == 0)
@@ -83,7 +83,7 @@ struct DataWriterEntryTests {
 
     let entry = try Self.makeFeedbinEntry(
       id: 1001, content: "<p>Hello <b>world</b></p>")
-    _ = try await writer.persistEntries([entry], markAsRead: false)
+    _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
     let persisted = inputs.first { $0.entryID == 1001 }
@@ -103,7 +103,7 @@ struct DataWriterEntryTests {
     try await writer.syncFeeds([sub])
 
     let entry = try Self.makeFeedbinEntry(id: 1001, feedId: 100)
-    let count = try await writer.persistEntries([entry], markAsRead: false)
+    let count = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     #expect(count == 1)
     let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
@@ -118,16 +118,14 @@ struct DataWriterEntryTests {
 
     let unreadEntry = try Self.makeFeedbinEntry(id: 1001)
     let readEntry = try Self.makeFeedbinEntry(id: 1002, title: "Read One")
-    _ = try await writer.persistEntries([unreadEntry], markAsRead: false)
-    _ = try await writer.persistEntries([readEntry], markAsRead: true)
+    _ = try await writer.persistEntries([unreadEntry], unreadIDs: Set([1001]))
+    _ = try await writer.persistEntries([readEntry], unreadIDs: Set())
 
     let snap1 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
     let snap2 = try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)
     #expect(snap1?.isRead == false)
     #expect(snap2?.isRead == true)
   }
-
-  // MARK: - persistEntries (unreadIDs overload)
 
   @Test
   func persistEntriesWithUnreadIDsSetsReadState() async throws {
@@ -157,7 +155,7 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entry = try Self.makeFeedbinEntry(id: 1001)
-    _ = try await writer.persistEntries([entry], markAsRead: false)
+    _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
     try await writer.addCategory(
@@ -185,7 +183,7 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entry = try Self.makeFeedbinEntry(id: 1001)
-    _ = try await writer.persistEntries([entry], markAsRead: false)
+    _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     try await writer.addCategory(
       label: "science", displayName: "Science",
@@ -211,7 +209,7 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entry = try Self.makeFeedbinEntry(id: 1001)
-    _ = try await writer.persistEntries([entry], markAsRead: false)
+    _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     let result = ClassificationResult(
       entryID: 1001,
@@ -253,7 +251,7 @@ struct DataWriterEntryTests {
       try Self.makeFeedbinEntry(id: 1002, title: "Second"),
       try Self.makeFeedbinEntry(id: 1003, title: "Third"),
     ]
-    _ = try await writer.persistEntries(entries, markAsRead: false)
+    _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
     // Mark 1001 as unread, 1002 and 1003 become read
     try await writer.updateReadState(unreadIDs: Set([1001]))
@@ -291,7 +289,7 @@ struct DataWriterEntryTests {
     let newEntry = try Self.makeFeedbinEntry(
       id: 1002, title: "New",
       published: "2026-06-01T00:00:00.000000Z")
-    _ = try await writer.persistEntries([oldEntry, newEntry], markAsRead: false)
+    _ = try await writer.persistEntries([oldEntry, newEntry], unreadIDs: Set([1001, 1002]))
 
     // Purge entries older than 2025-01-01
     let formatter = ISO8601DateFormatter()
@@ -325,7 +323,7 @@ struct DataWriterEntryTests {
     let entry1 = try Self.makeFeedbinEntry(id: 2001, title: "Tech 1")
     let entry2 = try Self.makeFeedbinEntry(id: 2002, title: "Tech 2")
     let entry3 = try Self.makeFeedbinEntry(id: 2003, title: "World 1")
-    _ = try await writer.persistEntries([entry1, entry2, entry3], markAsRead: false)
+    _ = try await writer.persistEntries([entry1, entry2, entry3], unreadIDs: Set([2001, 2002, 2003]))
 
     try await writer.addCategory(
       label: "technology", displayName: "Technology",

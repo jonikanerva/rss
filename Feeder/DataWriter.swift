@@ -253,53 +253,6 @@ actor DataWriter: ModelActor {
 
   // MARK: - Entry persistence
 
-  func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {
-    guard !entries.isEmpty else { return 0 }
-
-    let entryIDs = entries.map(\.id)
-    let existingDescriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { entry in entryIDs.contains(entry.feedbinEntryID) }
-    )
-    let existingIDs = Set(try modelContext.fetch(existingDescriptor).map(\.feedbinEntryID))
-
-    let feedDescriptor = FetchDescriptor<Feed>()
-    let feedsByFeedbinID = Dictionary(
-      uniqueKeysWithValues: try modelContext.fetch(feedDescriptor).map { ($0.feedbinFeedID, $0) }
-    )
-
-    var newCount = 0
-    for dto in entries {
-      if existingIDs.contains(dto.id) { continue }
-
-      let entry = Entry(
-        feedbinEntryID: dto.id,
-        title: dto.title,
-        author: dto.author,
-        url: dto.url,
-        content: dto.content,
-        summary: dto.summary,
-        extractedContentURL: dto.extractedContentUrl,
-        publishedAt: dto.published,
-        createdAt: dto.createdAt
-      )
-      entry.feed = feedsByFeedbinID[dto.feedId]
-      entry.isRead = markAsRead
-      let rawHTML = dto.content ?? dto.summary ?? ""
-      let blocks = parseHTMLToBlocks(replaceVideoIframes(rawHTML))
-      entry.articleBlocksData = blocks.toJSONData()
-      entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
-      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
-      entry.formattedDate = formatEntryDate(dto.published)
-
-      entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
-      modelContext.insert(entry)
-      newCount += 1
-    }
-
-    try modelContext.save()
-    return newCount
-  }
-
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
     guard !entries.isEmpty else { return 0 }
 
