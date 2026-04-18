@@ -12,6 +12,6 @@ nonisolated func saveFeedbinCredentials(
   let valid = try await client.verifyCredentials()
   guard valid else { return false }
   UserDefaults.standard.set(username, forKey: "feedbin_username")
-  KeychainHelper.save(key: "feedbin_password", value: password)
+  try? KeychainHelper.save(key: "feedbin_password", value: password)
   return true
 }

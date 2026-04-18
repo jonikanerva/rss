@@ -162,7 +162,7 @@ private struct APIKeyEditSheet: View {
       HStack {
         if hasStoredKey {
           Button("Remove Key", role: .destructive) {
-            KeychainHelper.delete(key: "openai_api_key")
+            try? KeychainHelper.delete(key: "openai_api_key")
             hasStoredKey = false
             dismiss()
           }
@@ -176,7 +176,7 @@ private struct APIKeyEditSheet: View {
         .keyboardShortcut(.cancelAction)
 
         Button("Save") {
-          KeychainHelper.save(key: "openai_api_key", value: editKey)
+          try? KeychainHelper.save(key: "openai_api_key", value: editKey)
           hasStoredKey = true
           dismiss()
         }

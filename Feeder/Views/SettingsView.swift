@@ -194,7 +194,7 @@ struct SettingsView: View {
       let valid = try await client.verifyCredentials()
       if valid {
         UserDefaults.standard.set(username, forKey: "feedbin_username")
-        KeychainHelper.save(key: "feedbin_password", value: password)
+        try? KeychainHelper.save(key: "feedbin_password", value: password)
         statusMessage = "Saved"
       } else {
         statusMessage = "Error: Invalid credentials"
