@@ -4,12 +4,39 @@ import SwiftUI
 struct ArticleBlockView: View {
   let blocks: [ArticleBlock]
 
+  /// Cached Markdown→AttributedString parses, keyed by the raw Markdown string.
+  /// Avoids re-parsing on every re-render of this view for the reader pane.
+  @State
+  private var attributedCache: [String: AttributedString] = [:]
+
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
         renderBlock(block)
       }
     }
+    .onAppear { rebuildCache() }
+    .onChange(of: blocks.count) { rebuildCache() }
+  }
+
+  private func rebuildCache() {
+    var cache: [String: AttributedString] = [:]
+    let include: (String) -> Void = { text in
+      if cache[text] == nil {
+        cache[text] = (try? AttributedString(markdown: text)) ?? AttributedString(text)
+      }
+    }
+    for block in blocks {
+      switch block {
+      case .paragraph(let text), .heading(_, let text), .blockquote(let text):
+        include(text)
+      case .list(_, let items):
+        for item in items { include(item) }
+      case .image, .codeBlock, .divider:
+        continue
+      }
+    }
+    attributedCache = cache
   }
 
   @ViewBuilder
@@ -129,7 +156,8 @@ struct ArticleBlockView: View {
   // MARK: - Inline Markdown → AttributedString
 
   private func attributedInline(_ markdown: String) -> AttributedString {
-    (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    if let cached = attributedCache[markdown] { return cached }
+    return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
   }
 }
 
