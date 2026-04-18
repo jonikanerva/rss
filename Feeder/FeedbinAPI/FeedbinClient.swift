@@ -1,6 +1,11 @@
 import Foundation
 import OSLog
 
+// MARK: - Shared format styles (Sendable ISO8601 format styles, cached at module scope)
+
+nonisolated private let iso8601WithFractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+nonisolated private let iso8601WithoutFractional = Date.ISO8601FormatStyle(includingFractionalSeconds: false)
+
 // MARK: - Pure helpers (nonisolated, testable)
 
 /// Create a JSONDecoder configured for Feedbin API responses.
@@ -11,11 +16,8 @@ nonisolated func makeFeedbinDecoder() -> JSONDecoder {
   decoder.dateDecodingStrategy = .custom { decoder in
     let container = try decoder.singleValueContainer()
     let string = try container.decode(String.self)
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = formatter.date(from: string) { return date }
-    formatter.formatOptions = [.withInternetDateTime]
-    if let date = formatter.date(from: string) { return date }
+    if let date = try? iso8601WithFractional.parse(string) { return date }
+    if let date = try? iso8601WithoutFractional.parse(string) { return date }
     throw DecodingError.dataCorruptedError(
       in: container, debugDescription: "Cannot decode date: \(string)")
   }
@@ -30,9 +32,7 @@ nonisolated func hasNextPageInLinkHeader(_ headerValue: String?) -> Bool {
 
 /// Format a Date for the Feedbin API (ISO 8601 with fractional seconds).
 nonisolated func formatDateForFeedbin(_ date: Date) -> String {
-  let formatter = ISO8601DateFormatter()
-  formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-  return formatter.string(from: date)
+  iso8601WithFractional.format(date)
 }
 
 /// Map an HTTP status code to a FeedbinError, or nil if success.
