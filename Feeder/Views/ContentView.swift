@@ -242,17 +242,19 @@ struct ContentView: View {
   // Separated to keep body type-checkable
   private var menuBarValues: some ViewModifier {
     FocusedValuesModifier(
-      syncAction: { Task { await syncAndClassify() } },
-      markAllReadAction: markAllAsRead,
-      toggleViewModeAction: toggleArticleViewMode,
-      openInBrowserAction: openInBackground,
-      moveSelectionDownAction: { moveSidebarSelection(by: 1) },
-      moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-      canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
-      canOpenInBrowser: selectedEntry != nil,
-      hasSelectedEntry: selectedEntry != nil,
-      isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
-      currentViewMode: articleViewMode
+      context: FeederCommandContext(
+        syncAction: { Task { await syncAndClassify() } },
+        markAllReadAction: markAllAsRead,
+        toggleViewModeAction: toggleArticleViewMode,
+        openInBrowserAction: openInBackground,
+        moveSelectionDownAction: { moveSidebarSelection(by: 1) },
+        moveSelectionUpAction: { moveSidebarSelection(by: -1) },
+        canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
+        canOpenInBrowser: selectedEntry != nil,
+        hasSelectedEntry: selectedEntry != nil,
+        isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
+        currentViewMode: articleViewMode
+      )
     )
   }
 
