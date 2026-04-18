@@ -576,7 +576,7 @@ struct ContentView: View {
     }
 
     let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
-    let password = KeychainHelper.load(key: "feedbin_password") ?? ""
+    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     if username.isEmpty || password.isEmpty {
       needsSetup = true
     } else {
@@ -602,7 +602,7 @@ struct ContentView: View {
 
   private func startSync() {
     let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
-    let password = KeychainHelper.load(key: "feedbin_password") ?? ""
+    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
     let container = modelContext.container

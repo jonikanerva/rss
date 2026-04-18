@@ -56,7 +56,7 @@ struct FeederApp: App {
     let folderCount = (try? context.fetchCount(FetchDescriptor<Folder>())) ?? 0
 
     if categoryCount == 0 {
-      seedDefaultData(into: context)
+      DefaultCategoryData.seed(into: context)
     }
 
     let lastSync = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date
@@ -83,14 +83,12 @@ struct FeederApp: App {
     .windowResizability(.contentSize)
   }
 
-  // MARK: - First-launch seeding
-  // Bootstrap exception: writes directly to ModelContext during init(), before any views
-  // or @Query are active. DataWriter is not yet available (SyncEngine.configure() hasn't
-  // been called). This pattern matches resetArticlesIfSchemaChanged() above.
-
-  private func seedDefaultData(into context: ModelContext) {
-    DefaultCategoryData.seed(into: context)
-  }
+  // First-launch seeding is a bootstrap exception: writes directly to
+  // ModelContext during init(), before any views or @Query are active.
+  // DataWriter is not yet available (SyncEngine.configure() hasn't been
+  // called). This pattern matches resetArticlesIfSchemaChanged() below.
+  //
+  // See `Bootstrap/DefaultCategoryData.swift`.
 
   // MARK: - Schema versioning
 

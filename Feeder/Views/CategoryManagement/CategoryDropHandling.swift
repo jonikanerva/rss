@@ -4,10 +4,11 @@ import Foundation
 
 /// Sendable snapshot of the fields of `Category` we need to compute a drop plan.
 /// Pure-function callers hand these in so the plan helpers stay testable without
-/// involving SwiftData. Only `label` is needed: reorder math works on labels +
-/// positions, and the dragged category's current folder is passed separately.
+/// involving SwiftData. `sortOrder` is carried so `planMoveToFolder` can append
+/// past the real max even when sort indexes have gaps (e.g. after a delete).
 nonisolated struct CategorySnapshot: Sendable, Equatable {
   let label: String
+  let sortOrder: Int
 }
 
 /// Pending DataWriter call produced by a drop plan. Empty arrays indicate
@@ -37,10 +38,11 @@ nonisolated func planMoveToFolder(
   existingInFolder: [CategorySnapshot]
 ) -> CategoryDropPlan? {
   guard dragged != uncategorizedLabel else { return nil }
-  // Snapshots arrive in sortOrder order (caller sorts), so `count` = next sort position.
-  let appendOrder = existingInFolder.count
+  // Max-based, not count-based: tolerates gaps in peer sort orders (e.g. after
+  // a delete). Falls back to -1 + 1 = 0 when the folder is empty.
+  let maxOrder = existingInFolder.map(\.sortOrder).max() ?? -1
   return CategoryDropPlan(
-    folderChanges: [.init(label: dragged, folderLabel: targetFolder, sortOrder: appendOrder)],
+    folderChanges: [.init(label: dragged, folderLabel: targetFolder, sortOrder: maxOrder + 1)],
     sortOrderUpdates: []
   )
 }

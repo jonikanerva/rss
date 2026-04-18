@@ -82,7 +82,6 @@ struct CategoryManagementView: View {
           descriptionPreview: category.categoryDescription,
           depth: 0,
           isSystem: category.isSystem,
-          isDropTarget: false,
           onEdit: { editingCategory = category }
         )
         .draggable(category.label)
@@ -116,7 +115,6 @@ struct CategoryManagementView: View {
         descriptionPreview: child.categoryDescription,
         depth: 1,
         isSystem: child.isSystem,
-        isDropTarget: false,
         onEdit: { editingCategory = child }
       )
       .draggable(child.label)
@@ -208,11 +206,11 @@ struct CategoryManagementView: View {
   // MARK: - Lookups
 
   private func snapshotsInFolder(_ folderLabel: String) -> [CategorySnapshot] {
-    allCategories.inFolder(folderLabel).map { CategorySnapshot(label: $0.label) }
+    allCategories.inFolder(folderLabel).map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
   }
 
   private func rootSnapshots() -> [CategorySnapshot] {
-    rootCategories.map { CategorySnapshot(label: $0.label) }
+    rootCategories.map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
   }
 
   private func draggedCategoryFolder(label: String) -> String? {

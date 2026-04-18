@@ -123,7 +123,6 @@ enum DefaultCategoryData {
   /// Insert folders, categories, and the system `uncategorized` fallback into
   /// the given context, then save. Expected to run only on first launch when
   /// the categories table is empty — `FeederApp` guards that condition.
-  @MainActor
   static func seed(into context: ModelContext) {
     for folder in folders {
       context.insert(Folder(label: folder.label, displayName: folder.displayName, sortOrder: folder.sortOrder))

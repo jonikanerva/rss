@@ -15,7 +15,7 @@ struct SettingsView: View {
   @State
   private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
   @State
-  private var password = KeychainHelper.load(key: "feedbin_password") ?? ""
+  private var password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
   @State
   private var isSaving = false
   @State

@@ -18,6 +18,13 @@ nonisolated private let keychainLogger = Logger(subsystem: "com.feeder.app", cat
 nonisolated enum KeychainHelper {
   private static let service = "com.feeder.app"
 
+  // MARK: - Account keys
+
+  /// Keychain account key for the Feedbin password.
+  static let feedbinPasswordKey = "feedbin_password"
+  /// Keychain account key for the OpenAI API key.
+  static let openAIAPIKey = "openai_api_key"
+
   static func save(key: String, value: String) throws(KeychainError) {
     guard let data = value.data(using: .utf8) else {
       throw .encodingFailed

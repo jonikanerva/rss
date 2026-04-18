@@ -18,14 +18,28 @@ struct CategoryDropHandlingTests {
   @Test
   func moveToNonEmptyFolderAppendsAfterMax() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai"),
-      .init(label: "apple"),
+      .init(label: "ai", sortOrder: 0),
+      .init(label: "apple", sortOrder: 1),
     ]
     let plan = planMoveToFolder(
       dragged: "rivian", targetFolder: "tech", existingInFolder: existing
     )
-    // New category's sortOrder = count (2), since max of [0,1] is 1
     #expect(plan?.folderChanges.first?.sortOrder == 2)
+  }
+
+  @Test
+  func moveToFolderTolearatesGaps() {
+    // Deletes can leave gaps ([0, 2, 5]); append must land past the real max,
+    // not at `count`. Regression guard for the count-based shortcut.
+    let existing: [CategorySnapshot] = [
+      .init(label: "ai", sortOrder: 0),
+      .init(label: "apple", sortOrder: 2),
+      .init(label: "tesla", sortOrder: 5),
+    ]
+    let plan = planMoveToFolder(
+      dragged: "rivian", targetFolder: "tech", existingInFolder: existing
+    )
+    #expect(plan?.folderChanges.first?.sortOrder == 6)
   }
 
   @Test
@@ -41,8 +55,8 @@ struct CategoryDropHandlingTests {
   @Test
   func insertAtHeadOfFolderExcludesDraggedFromSortOrderUpdates() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai"),
-      .init(label: "apple"),
+      .init(label: "ai", sortOrder: 0),
+      .init(label: "apple", sortOrder: 1),
     ]
     let plan = planInsertInFolder(
       dragged: "rivian", draggedCurrentFolder: nil,
@@ -59,7 +73,7 @@ struct CategoryDropHandlingTests {
   @Test
   func insertPositionClampsToEnd() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai")
+      .init(label: "ai", sortOrder: 0)
     ]
     let plan = planInsertInFolder(
       dragged: "rivian", draggedCurrentFolder: nil,
@@ -73,8 +87,8 @@ struct CategoryDropHandlingTests {
   @Test
   func insertWithinSameFolderSkipsFolderChangeAndReordersAll() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai"),
-      .init(label: "apple"),
+      .init(label: "ai", sortOrder: 0),
+      .init(label: "apple", sortOrder: 1),
     ]
     // apple moves from position 1 to 0 within tech — no folder change, full re-order
     let plan = planInsertInFolder(
@@ -100,8 +114,8 @@ struct CategoryDropHandlingTests {
   @Test
   func moveToRootReordersPeersAndClearsFolder() {
     let existing: [CategorySnapshot] = [
-      .init(label: "science"),
-      .init(label: "world_news"),
+      .init(label: "science", sortOrder: 0),
+      .init(label: "world_news", sortOrder: 1),
     ]
     let plan = planMoveToRoot(
       dragged: "apple", draggedCurrentFolder: "tech",
@@ -118,8 +132,8 @@ struct CategoryDropHandlingTests {
   @Test
   func moveToRootFromRootSkipsFolderChange() {
     let existing: [CategorySnapshot] = [
-      .init(label: "science"),
-      .init(label: "world_news"),
+      .init(label: "science", sortOrder: 0),
+      .init(label: "world_news", sortOrder: 1),
     ]
     // science already at root — full re-order, no folder change
     let plan = planMoveToRoot(
