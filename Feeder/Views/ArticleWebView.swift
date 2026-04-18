@@ -86,56 +86,21 @@ struct ArticleWebView: NSViewRepresentable {
 
   /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.
   /// This replaces the JS-based stripping, ensuring it works even with JS disabled.
+  /// Each sanitizer is applied in order; results are chained via `reduce`.
+  private static let sanitizers: [(Regex<Substring>, String)] = [
+    (#/<style[^>]*>[\s\S]*?<\/style>/#, ""),
+    (#/<link[^>]*rel=["']stylesheet["'][^>]*\/?>/#, ""),
+    (#/<script[^>]*>[\s\S]*?<\/script>/#, ""),
+    (#/\s+on\w+\s*=\s*"[^"]*"/#, ""),
+    (#/\s+on\w+\s*=\s*'[^']*'/#, ""),
+    (#/\s+style\s*=\s*"[^"]*"/#, ""),
+    (#/\s+style\s*=\s*'[^']*'/#, ""),
+  ]
+
   private func stripFeedStyles(_ html: String) -> String {
-    var result = html
-
-    // Remove <style> tags and their content
-    result = result.replacingOccurrences(
-      of: "<style[^>]*>[\\s\\S]*?</style>",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Remove <link rel="stylesheet"> tags
-    result = result.replacingOccurrences(
-      of: "<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Remove <script> tags and their content
-    result = result.replacingOccurrences(
-      of: "<script[^>]*>[\\s\\S]*?</script>",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Remove event handler attributes (onclick, onerror, onload, etc.)
-    result = result.replacingOccurrences(
-      of: "\\s+on\\w+\\s*=\\s*\"[^\"]*\"",
-      with: "",
-      options: .regularExpression
-    )
-    result = result.replacingOccurrences(
-      of: "\\s+on\\w+\\s*=\\s*'[^']*'",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Strip inline style attributes entirely
-    // This is aggressive but matches our goal: only our CSS should apply
-    result = result.replacingOccurrences(
-      of: "\\s+style\\s*=\\s*\"[^\"]*\"",
-      with: "",
-      options: .regularExpression
-    )
-    result = result.replacingOccurrences(
-      of: "\\s+style\\s*=\\s*'[^']*'",
-      with: "",
-      options: .regularExpression
-    )
-
-    return result
+    Self.sanitizers.reduce(html) { result, pair in
+      result.replacing(pair.0, with: pair.1)
+    }
   }
 
   // MARK: - Coordinator
