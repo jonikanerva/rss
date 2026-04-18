@@ -6,10 +6,12 @@ struct SettingsView: View {
   private var syncEngine
   @Environment(ClassificationEngine.self)
   private var classificationEngine
-  @Query
-  private var entries: [Entry]
-  @Query
-  private var categories: [Category]
+  @Environment(\.modelContext)
+  private var modelContext
+  @State
+  private var entryCount: Int = 0
+  @State
+  private var categoryCount: Int = 0
   @State
   private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
   @State
@@ -52,7 +54,16 @@ struct SettingsView: View {
     }
     .frame(
       minWidth: 420, idealWidth: 480, maxWidth: 550,
-      minHeight: 450, idealHeight: 550, maxHeight: 700)
+      minHeight: 450, idealHeight: 550, maxHeight: 700
+    )
+    .task(id: syncEngine.isSyncing) {
+      refreshCounts()
+    }
+  }
+
+  private func refreshCounts() {
+    entryCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
+    categoryCount = (try? modelContext.fetchCount(FetchDescriptor<Category>())) ?? 0
   }
 
   // MARK: - Account Tab
@@ -76,11 +87,11 @@ struct SettingsView: View {
 
       Section("Data") {
         LabeledContent("Articles") {
-          Text("\(entries.count)")
+          Text("\(entryCount)")
             .monospacedDigit()
         }
         LabeledContent("Categories") {
-          Text("\(categories.count)")
+          Text("\(categoryCount)")
             .monospacedDigit()
         }
       }
@@ -189,16 +200,9 @@ struct SettingsView: View {
     isSaving = true
     statusMessage = nil
 
-    let client = FeedbinClient(username: username, password: password)
     do {
-      let valid = try await client.verifyCredentials()
-      if valid {
-        UserDefaults.standard.set(username, forKey: "feedbin_username")
-        try? KeychainHelper.save(key: "feedbin_password", value: password)
-        statusMessage = "Saved"
-      } else {
-        statusMessage = "Error: Invalid credentials"
-      }
+      let saved = try await saveFeedbinCredentials(username: username, password: password)
+      statusMessage = saved ? "Saved" : "Error: Invalid credentials"
     } catch {
       statusMessage = "Error: \(error.localizedDescription)"
     }
