@@ -18,12 +18,13 @@ struct CategoryDropHandlingTests {
   @Test
   func moveToNonEmptyFolderAppendsAfterMax() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai", folderLabel: "tech", sortOrder: 0),
-      .init(label: "apple", folderLabel: "tech", sortOrder: 1),
+      .init(label: "ai"),
+      .init(label: "apple"),
     ]
     let plan = planMoveToFolder(
       dragged: "rivian", targetFolder: "tech", existingInFolder: existing
     )
+    // New category's sortOrder = count (2), since max of [0,1] is 1
     #expect(plan?.folderChanges.first?.sortOrder == 2)
   }
 
@@ -38,40 +39,44 @@ struct CategoryDropHandlingTests {
   // MARK: - planInsertInFolder
 
   @Test
-  func insertAtHeadOfFolder() {
+  func insertAtHeadOfFolderExcludesDraggedFromSortOrderUpdates() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai", folderLabel: "tech", sortOrder: 0),
-      .init(label: "apple", folderLabel: "tech", sortOrder: 1),
+      .init(label: "ai"),
+      .init(label: "apple"),
     ]
     let plan = planInsertInFolder(
       dragged: "rivian", draggedCurrentFolder: nil,
       targetFolder: "tech", position: 0, existingInFolder: existing
     )
+    // Dragged label's sort order lives on folderChanges (insertAt = 0),
+    // so sortOrderUpdates only covers the peers at their shifted positions.
+    #expect(plan?.folderChanges.count == 1)
+    #expect(plan?.folderChanges.first?.sortOrder == 0)
     let order = plan?.sortOrderUpdates.map(\.label) ?? []
-    #expect(order == ["rivian", "ai", "apple"])
-    #expect(plan?.folderChanges.first?.folderLabel == "tech")
+    #expect(order == ["ai", "apple"])
   }
 
   @Test
   func insertPositionClampsToEnd() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai", folderLabel: "tech", sortOrder: 0)
+      .init(label: "ai")
     ]
     let plan = planInsertInFolder(
       dragged: "rivian", draggedCurrentFolder: nil,
       targetFolder: "tech", position: 999, existingInFolder: existing
     )
+    #expect(plan?.folderChanges.first?.sortOrder == 1)
     let order = plan?.sortOrderUpdates.map(\.label) ?? []
-    #expect(order == ["ai", "rivian"])
+    #expect(order == ["ai"])
   }
 
   @Test
-  func insertWithinSameFolderSkipsFolderChange() {
+  func insertWithinSameFolderSkipsFolderChangeAndReordersAll() {
     let existing: [CategorySnapshot] = [
-      .init(label: "ai", folderLabel: "tech", sortOrder: 0),
-      .init(label: "apple", folderLabel: "tech", sortOrder: 1),
+      .init(label: "ai"),
+      .init(label: "apple"),
     ]
-    // apple moves from position 1 to 0 within tech — no folder change expected
+    // apple moves from position 1 to 0 within tech — no folder change, full re-order
     let plan = planInsertInFolder(
       dragged: "apple", draggedCurrentFolder: "tech",
       targetFolder: "tech", position: 0, existingInFolder: existing
@@ -93,27 +98,30 @@ struct CategoryDropHandlingTests {
   // MARK: - planMoveToRoot
 
   @Test
-  func moveToRootReordersAndClearsFolder() {
+  func moveToRootReordersPeersAndClearsFolder() {
     let existing: [CategorySnapshot] = [
-      .init(label: "science", folderLabel: nil, sortOrder: 0),
-      .init(label: "world_news", folderLabel: nil, sortOrder: 1),
+      .init(label: "science"),
+      .init(label: "world_news"),
     ]
     let plan = planMoveToRoot(
       dragged: "apple", draggedCurrentFolder: "tech",
       position: 1, existingAtRoot: existing
     )
-    let order = plan?.sortOrderUpdates.map(\.label) ?? []
-    #expect(order == ["science", "apple", "world_news"])
+    // Dragged's sortOrder comes from folderChanges; updates exclude it.
+    #expect(plan?.folderChanges.count == 1)
+    #expect(plan?.folderChanges.first?.sortOrder == 1)
     #expect(plan?.folderChanges.first?.folderLabel == nil)
+    let order = plan?.sortOrderUpdates.map(\.label) ?? []
+    #expect(order == ["science", "world_news"])
   }
 
   @Test
   func moveToRootFromRootSkipsFolderChange() {
     let existing: [CategorySnapshot] = [
-      .init(label: "science", folderLabel: nil, sortOrder: 0),
-      .init(label: "world_news", folderLabel: nil, sortOrder: 1),
+      .init(label: "science"),
+      .init(label: "world_news"),
     ]
-    // science already at root — only reorder
+    // science already at root — full re-order, no folder change
     let plan = planMoveToRoot(
       dragged: "science", draggedCurrentFolder: nil,
       position: 1, existingAtRoot: existing

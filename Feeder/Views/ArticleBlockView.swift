@@ -16,7 +16,7 @@ struct ArticleBlockView: View {
       }
     }
     .onAppear { rebuildCache() }
-    .onChange(of: blocks.count) { rebuildCache() }
+    .onChange(of: blocks) { rebuildCache() }
   }
 
   private func rebuildCache() {

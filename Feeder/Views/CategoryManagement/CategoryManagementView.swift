@@ -208,15 +208,11 @@ struct CategoryManagementView: View {
   // MARK: - Lookups
 
   private func snapshotsInFolder(_ folderLabel: String) -> [CategorySnapshot] {
-    allCategories.inFolder(folderLabel).map { cat in
-      CategorySnapshot(label: cat.label, folderLabel: cat.folderLabel, sortOrder: cat.sortOrder)
-    }
+    allCategories.inFolder(folderLabel).map { CategorySnapshot(label: $0.label) }
   }
 
   private func rootSnapshots() -> [CategorySnapshot] {
-    rootCategories.map { cat in
-      CategorySnapshot(label: cat.label, folderLabel: cat.folderLabel, sortOrder: cat.sortOrder)
-    }
+    rootCategories.map { CategorySnapshot(label: $0.label) }
   }
 
   private func draggedCategoryFolder(label: String) -> String? {

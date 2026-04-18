@@ -53,7 +53,7 @@ actor DataWriter: ModelActor {
     self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
   }
 
-  static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
+  private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
   // MARK: - Feed persistence
 

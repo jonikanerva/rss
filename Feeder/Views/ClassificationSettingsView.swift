@@ -8,7 +8,7 @@ struct ClassificationSettingsView: View {
   private var syncEngine
 
   @State
-  private var selectedProvider: String = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
+  private var selectedProvider: ClassificationProviderKind = ClassificationProviderKind.current
   @State
   private var hasStoredKey: Bool = KeychainHelper.load(key: "openai_api_key") != nil
   @State
@@ -23,7 +23,7 @@ struct ClassificationSettingsView: View {
       Section("Classification Provider") {
         VStack(alignment: .leading, spacing: 12) {
           providerRow(
-            tag: "apple_fm",
+            tag: .appleFM,
             icon: "apple.logo",
             title: "Apple Foundation Models",
             subtitle: "Free \u{00B7} On-device \u{00B7} Private"
@@ -32,7 +32,7 @@ struct ClassificationSettingsView: View {
           Divider()
 
           providerRow(
-            tag: "openai",
+            tag: .openAI,
             icon: "cloud",
             title: "OpenAI GPT-5.4-nano",
             subtitle: "Requires API key \u{00B7} Cloud-based"
@@ -41,7 +41,7 @@ struct ClassificationSettingsView: View {
         .padding(.vertical, 4)
       }
 
-      if selectedProvider == "openai" {
+      if selectedProvider == .openAI {
         Section("OpenAI API Key") {
           HStack {
             if hasStoredKey {
@@ -69,7 +69,7 @@ struct ClassificationSettingsView: View {
     .onChange(of: showAPIKeyEditor) { _, isPresented in
       if isPresented {
         hadKeyBeforeEdit = hasStoredKey
-      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == "openai" {
+      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == .openAI {
         // Prompt only when a key was added (not removed)
         showReclassifyAlert = true
       }
@@ -90,7 +90,7 @@ struct ClassificationSettingsView: View {
 
   // MARK: - Provider row
 
-  private func providerRow(tag: String, icon: String, title: String, subtitle: String) -> some View {
+  private func providerRow(tag: ClassificationProviderKind, icon: String, title: String, subtitle: String) -> some View {
     HStack(spacing: 12) {
       Image(systemName: selectedProvider == tag ? "circle.inset.filled" : "circle")
         .foregroundStyle(selectedProvider == tag ? Color.accentColor : .secondary)
@@ -111,9 +111,9 @@ struct ClassificationSettingsView: View {
     .onTapGesture {
       guard selectedProvider != tag else { return }
       selectedProvider = tag
-      UserDefaults.standard.set(tag, forKey: "classification_provider")
+      ClassificationProviderKind.persist(tag)
       // Only prompt reclassify when switching to a provider that's ready to use
-      if tag == "apple_fm" || hasStoredKey {
+      if tag == .appleFM || hasStoredKey {
         showReclassifyAlert = true
       }
     }

@@ -4,11 +4,10 @@ import Foundation
 
 /// Sendable snapshot of the fields of `Category` we need to compute a drop plan.
 /// Pure-function callers hand these in so the plan helpers stay testable without
-/// involving SwiftData.
+/// involving SwiftData. Only `label` is needed: reorder math works on labels +
+/// positions, and the dragged category's current folder is passed separately.
 nonisolated struct CategorySnapshot: Sendable, Equatable {
   let label: String
-  let folderLabel: String?
-  let sortOrder: Int
 }
 
 /// Pending DataWriter call produced by a drop plan. Empty arrays indicate
@@ -26,8 +25,6 @@ nonisolated struct CategoryDropPlan: Sendable, Equatable {
 
   let folderChanges: [FolderChange]
   let sortOrderUpdates: [SortOrderUpdate]
-
-  static let empty = CategoryDropPlan(folderChanges: [], sortOrderUpdates: [])
 }
 
 // MARK: - Pure planners
@@ -40,15 +37,19 @@ nonisolated func planMoveToFolder(
   existingInFolder: [CategorySnapshot]
 ) -> CategoryDropPlan? {
   guard dragged != uncategorizedLabel else { return nil }
-  let maxOrder = existingInFolder.map(\.sortOrder).max() ?? -1
+  // Snapshots arrive in sortOrder order (caller sorts), so `count` = next sort position.
+  let appendOrder = existingInFolder.count
   return CategoryDropPlan(
-    folderChanges: [.init(label: dragged, folderLabel: targetFolder, sortOrder: maxOrder + 1)],
+    folderChanges: [.init(label: dragged, folderLabel: targetFolder, sortOrder: appendOrder)],
     sortOrderUpdates: []
   )
 }
 
 /// Plan for inserting a category at a specific position inside a folder's child list.
 /// Returns nil if the drop is disallowed (system category).
+/// The dragged label's sort order is set via `folderChanges` when its folder is
+/// changing, or via `sortOrderUpdates` when it stays in the same folder — never
+/// both, so `batchUpdateCategoryFolderAndSortOrders` doesn't write it twice.
 nonisolated func planInsertInFolder(
   dragged: String,
   draggedCurrentFolder: String?,
@@ -63,13 +64,18 @@ nonisolated func planInsertInFolder(
   let insertAt = min(position, children.count)
   children.insert(dragged, at: insertAt)
 
-  let sortOrderUpdates = children.enumerated().map { index, label in
-    CategoryDropPlan.SortOrderUpdate(label: label, sortOrder: index)
-  }
-
-  var folderChanges: [CategoryDropPlan.FolderChange] = []
+  let folderChanges: [CategoryDropPlan.FolderChange]
+  let sortOrderUpdates: [CategoryDropPlan.SortOrderUpdate]
   if draggedCurrentFolder != targetFolder {
-    folderChanges.append(.init(label: dragged, folderLabel: targetFolder, sortOrder: insertAt))
+    folderChanges = [.init(label: dragged, folderLabel: targetFolder, sortOrder: insertAt)]
+    sortOrderUpdates = children.enumerated().compactMap { index, label in
+      label == dragged ? nil : .init(label: label, sortOrder: index)
+    }
+  } else {
+    folderChanges = []
+    sortOrderUpdates = children.enumerated().map { index, label in
+      .init(label: label, sortOrder: index)
+    }
   }
 
   return CategoryDropPlan(folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates)
@@ -94,10 +100,15 @@ nonisolated func planMoveToRoot(
     CategoryDropPlan.SortOrderUpdate(label: label, sortOrder: index)
   }
 
-  var folderChanges: [CategoryDropPlan.FolderChange] = []
+  let folderChanges: [CategoryDropPlan.FolderChange]
+  let finalSortOrderUpdates: [CategoryDropPlan.SortOrderUpdate]
   if draggedCurrentFolder != nil {
-    folderChanges.append(.init(label: dragged, folderLabel: nil, sortOrder: insertAt))
+    folderChanges = [.init(label: dragged, folderLabel: nil, sortOrder: insertAt)]
+    finalSortOrderUpdates = sortOrderUpdates.filter { $0.label != dragged }
+  } else {
+    folderChanges = []
+    finalSortOrderUpdates = sortOrderUpdates
   }
 
-  return CategoryDropPlan(folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates)
+  return CategoryDropPlan(folderChanges: folderChanges, sortOrderUpdates: finalSortOrderUpdates)
 }
