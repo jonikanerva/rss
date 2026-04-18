@@ -31,6 +31,10 @@ struct ContentView: View {
   private var folders: [Folder]
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
+  /// Root-level categories fetched via a SQLite-level predicate. Replaces an
+  /// `allCategories.atRoot` in-memory filter on every render.
+  @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
+  private var rootCategories: [Category]
   @State
   private var selectedEntry: Entry?
   /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
@@ -259,8 +263,6 @@ struct ContentView: View {
   }
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
-
-  private var rootCategories: [Category] { allCategories.atRoot }
 
   /// Flat ordered sidebar items matching visual display order.
   private var sidebarItems: [SidebarSelection] {

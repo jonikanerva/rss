@@ -26,6 +26,11 @@ struct CategoryManagementView: View {
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
 
+  /// Root-level categories fetched via a SQLite-level predicate. Replaces an
+  /// `allCategories.atRoot` in-memory filter in the render path.
+  @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
+  private var rootCategories: [Category]
+
   @State
   private var editingCategory: Category?
   @State
@@ -201,8 +206,6 @@ struct CategoryManagementView: View {
   }
 
   // MARK: - Lookups
-
-  private var rootCategories: [Category] { allCategories.atRoot }
 
   private func snapshotsInFolder(_ folderLabel: String) -> [CategorySnapshot] {
     allCategories.inFolder(folderLabel).map { cat in
