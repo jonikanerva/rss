@@ -178,15 +178,11 @@ final class SyncEngine {
   }
 
   /// Perform a sync: pull subscriptions + icons, then fetch entries since the
-  /// last successful sync (clamped to the keepDays window on first run). On
-  /// first sync also kicks off a keepDays-window backfill so the timeline
-  /// shows already-read history alongside unread.
+  /// last successful sync. On the first run `since` falls back to the keepDays
+  /// cutoff, so the initial call already pulls the full window — no separate
+  /// backfill pass is needed.
   func sync() async {
     guard let client, let writer, !isSyncing else { return }
-
-    // Capture before any mutation so the post-fetch branch below can tell
-    // whether this is the first-ever sync.
-    let isFirstSync = lastSyncDate == nil
 
     isSyncing = true
     lastError = nil
@@ -230,9 +226,6 @@ final class SyncEngine {
       isSyncing = false
 
       startExtractedContentFetch()
-      if isFirstSync {
-        refetchHistory()
-      }
 
       logger.info("Primary sync complete")
     } catch {
@@ -318,10 +311,11 @@ final class SyncEngine {
 
   // MARK: - Background backfill
 
-  /// Full keepDays-window re-fetch. Called automatically after the first
-  /// `sync()` (so already-read history shows up, not just unread) and from
-  /// Settings when keepDays is raised (so the newly-included older window
-  /// gets populated without waiting for a full sync cycle).
+  /// Full keepDays-window re-fetch. Called from Settings when keepDays is
+  /// raised so the newly-included older window gets populated without waiting
+  /// for `lastSyncDate` to age out. `sync()` already covers the full window
+  /// on its first run via the cutoff fallback, so no post-first-sync trigger
+  /// is needed here.
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
