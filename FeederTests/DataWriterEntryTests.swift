@@ -253,15 +253,17 @@ struct DataWriterEntryTests {
     ]
     _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
-    // Mark 1001 as unread, 1002 and 1003 become read
-    try await writer.updateReadState(unreadIDs: Set([1001]))
+    // Mark 1001 as unread, 1002 and 1003 become read — 2 flips (1002, 1003)
+    let firstFlips = try await writer.updateReadState(unreadIDs: Set([1001]))
+    #expect(firstFlips == 2)
 
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == false)
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)?.isRead == true)
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1003)?.isRead == true)
 
-    // Flip: only 1002 unread, rest become read
-    try await writer.updateReadState(unreadIDs: Set([1002]))
+    // Flip: only 1002 unread, rest become read — 2 flips (1001 read, 1002 unread)
+    let secondFlips = try await writer.updateReadState(unreadIDs: Set([1002]))
+    #expect(secondFlips == 2)
 
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == true)
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1002)?.isRead == false)
@@ -272,8 +274,9 @@ struct DataWriterEntryTests {
   func updateReadStateNoChangesSkipsSave() async throws {
     let writer = try await makeWriter()
 
-    // No entries exist — should not crash
-    try await writer.updateReadState(unreadIDs: Set())
+    // No entries exist — should not crash, should report 0 flips
+    let flips = try await writer.updateReadState(unreadIDs: Set())
+    #expect(flips == 0)
   }
 
   // MARK: - purgeEntriesOlderThan

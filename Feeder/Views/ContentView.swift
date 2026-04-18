@@ -527,12 +527,14 @@ struct ContentView: View {
     // underlying article data may have changed. Replaces SwiftData's
     // `@Query` auto-refresh now that the list is fetched off MainActor.
     // Both triggers fire on the false transition (work just finished), and
-    // only when the batch that just finished actually wrote new entries /
-    // classifications — a sync that returned nothing new, or a classification
-    // tick that had no inputs, leaves the list untouched so the refresh-only
-    // task in `EntryListView` does not re-fetch and re-diff for nothing.
+    // only when the batch that just finished actually changed rows — sync
+    // counts inserts plus cross-device read-state flips so the article list
+    // stays in step with the sidebar unread counts when a user marks
+    // articles read on another device; classification counts rows that got
+    // a fresh category assignment. A quiet tick with zero changes leaves
+    // the list untouched so the refresh task does not re-fetch for nothing.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in
-      if !isSyncing && syncEngine.lastSyncNewEntryCount > 0 {
+      if !isSyncing && syncEngine.lastSyncChangedEntryCount > 0 {
         entryRefreshVersion &+= 1
       }
     }

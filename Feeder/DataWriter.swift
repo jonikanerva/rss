@@ -302,7 +302,11 @@ actor DataWriter: ModelActor {
 
   // MARK: - Read state
 
-  func updateReadState(unreadIDs: Set<Int>) throws {
+  /// Sync local `isRead` state to match the server's unread-IDs set for every
+  /// entry in the store. Returns the number of rows that actually flipped so
+  /// callers can tell whether a sync changed anything (cross-device read-state
+  /// propagation), not just whether new entries were inserted.
+  func updateReadState(unreadIDs: Set<Int>) throws -> Int {
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
@@ -319,6 +323,7 @@ actor DataWriter: ModelActor {
       try modelContext.save()
       Self.logger.info("Updated read state for \(updatedCount) entries")
     }
+    return updatedCount
   }
 
   /// Batch mark multiple entries as read in a single save.

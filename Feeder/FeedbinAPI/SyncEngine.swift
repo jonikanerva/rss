@@ -71,11 +71,14 @@ final class SyncEngine {
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
-  /// Number of new entries persisted during the most recent `sync()` call.
-  /// Used by `ContentView` to decide whether to refresh the article list — a
-  /// sync that fetched nothing new should not rebuild the off-MainActor
-  /// `EntryListSection` snapshot, because the underlying data is unchanged.
-  private(set) var lastSyncNewEntryCount: Int = 0
+  /// Number of entries that changed during the most recent sync / backfill —
+  /// inserts plus cross-device read-state flips. Used by `ContentView` to
+  /// decide whether the article list needs refreshing. Inserts alone are not
+  /// the full signal: `updateReadState` can flip `isRead` on existing rows
+  /// when the user marked articles read/unread on another device, and those
+  /// rows move in and out of the `isRead == showRead` predicate that backs
+  /// the list. Both count toward "the list snapshot may now be stale".
+  private(set) var lastSyncChangedEntryCount: Int = 0
 
   /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
   private(set) var queryCutoffDate: Date = articleCutoffDate()
@@ -217,12 +220,12 @@ final class SyncEngine {
       // intend to store. On the first sync lastSyncDate is nil and this
       // falls back to the cutoff directly.
       let since = max(lastSyncDate ?? queryCutoffDate, queryCutoffDate)
-      let totalNew = try await fetchEntriesSince(since, using: client, writer: writer)
+      let changed = try await fetchEntriesSince(since, using: client, writer: writer)
 
       lastSyncDate = Date()
       fetchedCount = 0
       totalToFetch = 0
-      lastSyncNewEntryCount = totalNew
+      lastSyncChangedEntryCount = changed
       isSyncing = false
 
       startExtractedContentFetch()
@@ -232,7 +235,7 @@ final class SyncEngine {
       lastError = error.localizedDescription
 
       logger.error("Sync failed: \(error.localizedDescription)")
-      lastSyncNewEntryCount = 0
+      lastSyncChangedEntryCount = 0
       isSyncing = false
     }
   }
@@ -244,7 +247,9 @@ final class SyncEngine {
   /// function pages through `/entries.json?since=...`, persists each page with
   /// the server's current unread-IDs set so read-state is accurate, and
   /// finally syncs the full read-state map so local rows outside this page
-  /// window converge too.
+  /// window converge too. Returns the total number of changed rows — inserts
+  /// plus cross-device read-state flips — so callers can gate UI refreshes
+  /// on the full "something actually changed" signal, not just inserts.
   private func fetchEntriesSince(_ since: Date, using client: FeedbinClient, writer: DataWriter) async throws -> Int {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
@@ -267,12 +272,13 @@ final class SyncEngine {
     }
     fetchedCount = totalFetched
 
-    if totalNew > 0 {
-      logger.info("Entry fetch: \(totalNew) new entries")
+    let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet)
+
+    if totalNew > 0 || readStateFlips > 0 {
+      logger.info("Entry fetch: \(totalNew) new + \(readStateFlips) read-state flips")
     }
 
-    try await writer.updateReadState(unreadIDs: unreadIDSet)
-    return totalNew
+    return totalNew + readStateFlips
   }
 
   // MARK: - Background: Extracted content fetching
@@ -329,20 +335,20 @@ final class SyncEngine {
       // the last primary `sync()`. `ContentView` reads this in its
       // `isSyncing` onChange gate; a stale value would either block a
       // legitimate refresh or trigger a bogus one.
-      lastSyncNewEntryCount = 0
-      var totalNew = 0
+      lastSyncChangedEntryCount = 0
+      var changed = 0
 
       logger.info("Starting keepDays-window backfill")
 
       do {
-        totalNew = try await fetchEntriesSince(queryCutoffDate, using: client, writer: writer)
-        logger.info("Backfill complete (\(totalNew) new entries)")
+        changed = try await fetchEntriesSince(queryCutoffDate, using: client, writer: writer)
+        logger.info("Backfill complete (\(changed) changed entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
-        totalNew = 0
+        changed = 0
       }
 
-      lastSyncNewEntryCount = totalNew
+      lastSyncChangedEntryCount = changed
       isSyncing = false
 
       // Extracted-content fetch rides the same post-sync pipeline sync()
