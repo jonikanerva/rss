@@ -146,9 +146,9 @@ private struct OpenAIRequest: Encodable {
     static let classificationSchema = SchemaDefinition(
       type: "object",
       properties: [
-        "category": PropertyDefinition(type: "string", items: nil),
-        "storyKey": PropertyDefinition(type: "string", items: nil),
-        "confidence": PropertyDefinition(type: "number", items: nil),
+        "category": PropertyDefinition(type: "string"),
+        "storyKey": PropertyDefinition(type: "string"),
+        "confidence": PropertyDefinition(type: "number"),
       ],
       required: ["category", "storyKey", "confidence"],
       additionalProperties: false
@@ -157,16 +157,6 @@ private struct OpenAIRequest: Encodable {
 
   struct PropertyDefinition: Encodable {
     let type: String
-    var items: Items?
-
-    struct Items: Encodable {
-      let type: String
-    }
-
-    init(type: String, items: Items? = nil) {
-      self.type = type
-      self.items = items
-    }
   }
 
   enum CodingKeys: String, CodingKey {

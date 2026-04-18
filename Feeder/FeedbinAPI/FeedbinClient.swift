@@ -54,14 +54,12 @@ actor FeedbinClient {
   // swift-format-ignore: NeverForceUnwrap
   private let baseURL = URL(string: "https://api.feedbin.com/v2/")!
   private let session: URLSession
-  private let credential: String  // Base64-encoded "user:password"
   private let decoder: JSONDecoder
 
   init(username: String, password: String) {
     guard let credentialData = "\(username):\(password)".data(using: .utf8) else {
       fatalError("Failed to encode credentials as UTF-8")
     }
-    self.credential = credentialData.base64EncodedString()
 
     let config = URLSessionConfiguration.default
     config.httpAdditionalHeaders = [
