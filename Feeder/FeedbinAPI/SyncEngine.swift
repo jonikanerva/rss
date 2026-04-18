@@ -71,6 +71,15 @@ final class SyncEngine {
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
+  /// Number of entries that changed during the most recent sync / backfill —
+  /// inserts plus cross-device read-state flips. Used by `ContentView` to
+  /// decide whether the article list needs refreshing. Inserts alone are not
+  /// the full signal: `updateReadState` can flip `isRead` on existing rows
+  /// when the user marked articles read/unread on another device, and those
+  /// rows move in and out of the `isRead == showRead` predicate that backs
+  /// the list. Both count toward "the list snapshot may now be stale".
+  private(set) var lastSyncChangedEntryCount: Int = 0
+
   /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
   private(set) var queryCutoffDate: Date = articleCutoffDate()
 
@@ -171,7 +180,10 @@ final class SyncEngine {
     extractedContentTask = nil
   }
 
-  /// Perform a phased sync.
+  /// Perform a sync: pull subscriptions + icons, then fetch entries since the
+  /// last successful sync. On the first run `since` falls back to the keepDays
+  /// cutoff, so the initial call already pulls the full window — no separate
+  /// backfill pass is needed.
   func sync() async {
     guard let client, let writer, !isSyncing else { return }
 
@@ -182,8 +194,6 @@ final class SyncEngine {
     logger.info("Starting sync")
 
     do {
-      // Sync subscriptions
-
       let subscriptions = try await client.fetchSubscriptions()
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
@@ -201,93 +211,54 @@ final class SyncEngine {
       }
       try await writer.syncIcons(icons, prefetchedData: iconData)
 
-      if lastSyncDate != nil {
-        try await syncIncremental(using: client, writer: writer)
-      } else {
-        try await syncUnread(using: client, writer: writer)
-      }
+      // Push queued local read-state changes before pulling entries back, so
+      // the `unreadIDs` set we're about to fetch reflects our intent.
+      await pushPendingReads()
 
-      let isFirstSync = lastSyncDate == nil
+      // `max` with the cutoff keeps a stale lastSyncDate (user was offline
+      // longer than the keepDays window) from reaching further back than we
+      // intend to store. On the first sync lastSyncDate is nil and this
+      // falls back to the cutoff directly.
+      let since = max(lastSyncDate ?? queryCutoffDate, queryCutoffDate)
+      let changed = try await fetchEntriesSince(since, using: client, writer: writer)
+
       lastSyncDate = Date()
       fetchedCount = 0
       totalToFetch = 0
+      lastSyncChangedEntryCount = changed
       isSyncing = false
 
       startExtractedContentFetch()
-      if isFirstSync {
-        refetchHistory()
-      }
 
       logger.info("Primary sync complete")
     } catch {
       lastError = error.localizedDescription
 
       logger.error("Sync failed: \(error.localizedDescription)")
+      lastSyncChangedEntryCount = 0
       isSyncing = false
     }
   }
 
-  // MARK: - Phase 1: Unread articles (streaming, newest first)
+  // MARK: - Entry fetch
 
-  private func syncUnread(using client: FeedbinClient, writer: DataWriter) async throws {
-    let unreadIDs = try await client.fetchUnreadEntryIDs()
-    logger.info("Found \(unreadIDs.count) unread entries")
-
-    guard !unreadIDs.isEmpty else {
-      return
-    }
-
-    let sortedIDs = unreadIDs.sorted(by: >)
-    let cutoff = Date().addingTimeInterval(-maxArticleAge)
-
-    totalToFetch = sortedIDs.count
-    fetchedCount = 0
-    var totalNew = 0
-    let batchSize = 100
-
-    for batchStart in stride(from: 0, to: sortedIDs.count, by: batchSize) {
-      let batchEnd = min(batchStart + batchSize, sortedIDs.count)
-      let batchIDs = Array(sortedIDs[batchStart..<batchEnd])
-
-      let entries = try await client.fetchEntriesByIDs(batchIDs)
-      let now = ContinuousClock.now
-      if now - lastProgressUpdate >= .milliseconds(200) || batchEnd == sortedIDs.count {
-        fetchedCount = batchEnd
-        lastProgressUpdate = now
-      }
-      let recent = entries.filter { $0.createdAt >= cutoff }
-
-      if recent.isEmpty && !entries.isEmpty {
-        logger.info("Reached entries older than 7 days at batch \(batchStart / batchSize + 1), stopping")
-        break
-      }
-
-      if !recent.isEmpty {
-        let newCount = try await writer.persistEntries(recent, markAsRead: false)
-        totalNew += newCount
-
-        logger.info("Batch \(batchStart / batchSize + 1): \(newCount) new entries persisted (\(totalNew) total)")
-      }
-    }
-
-    logger.info("Phase 1 complete: \(totalNew) unread entries persisted")
-  }
-
-  // MARK: - Incremental sync
-
-  private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws {
-    await pushPendingReads()
+  /// Single entry-fetch path used by both `sync()` (delta since last sync) and
+  /// `refetchHistory()` (full keepDays window). The caller picks `since`; this
+  /// function pages through `/entries.json?since=...`, persists each page with
+  /// the server's current unread-IDs set so read-state is accurate, and
+  /// finally syncs the full read-state map so local rows outside this page
+  /// window converge too. Returns the total number of changed rows — inserts
+  /// plus cross-device read-state flips — so callers can gate UI refreshes
+  /// on the full "something actually changed" signal, not just inserts.
+  private func fetchEntriesSince(_ since: Date, using client: FeedbinClient, writer: DataWriter) async throws -> Int {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 
-    let cutoff = Date().addingTimeInterval(-maxArticleAge)
-    let sinceClamped = max(lastSyncDate ?? cutoff, cutoff)
-
-    logger.info("Fetching entries since \(sinceClamped.description)")
+    logger.info("Fetching entries since \(since.description)")
 
     var totalNew = 0
     var totalFetched = 0
-    for try await page in client.fetchAllEntryPages(since: sinceClamped) {
+    for try await page in client.fetchAllEntryPages(since: since) {
       if let total = page.totalCount { totalToFetch = total }
       let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
       totalNew += newCount
@@ -297,15 +268,17 @@ final class SyncEngine {
         fetchedCount = totalFetched
         lastProgressUpdate = now
       }
-      logger.info("Incremental page: \(page.entries.count) entries (\(totalFetched) total)")
+      logger.info("Fetched page: \(page.entries.count) entries (\(totalFetched) total)")
     }
     fetchedCount = totalFetched
 
-    if totalNew > 0 {
-      logger.info("Incremental sync: \(totalNew) new entries")
+    let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet)
+
+    if totalNew > 0 || readStateFlips > 0 {
+      logger.info("Entry fetch: \(totalNew) new + \(readStateFlips) read-state flips")
     }
 
-    try await writer.updateReadState(unreadIDs: unreadIDSet)
+    return totalNew + readStateFlips
   }
 
   // MARK: - Background: Extracted content fetching
@@ -342,8 +315,13 @@ final class SyncEngine {
     }
   }
 
-  // MARK: - Background: Recent history backfill
+  // MARK: - Background backfill
 
+  /// Full keepDays-window re-fetch. Called from Settings when keepDays is
+  /// raised so the newly-included older window gets populated without waiting
+  /// for `lastSyncDate` to age out. `sync()` already covers the full window
+  /// on its first run via the cutoff fallback, so no post-first-sync trigger
+  /// is needed here.
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
@@ -352,36 +330,30 @@ final class SyncEngine {
       isSyncing = true
       fetchedCount = 0
       totalToFetch = 0
+      // Reset on entry and assign on completion so the `isSyncing = false`
+      // edge always reports this backfill's count, not a stale value from
+      // the last primary `sync()`. `ContentView` reads this in its
+      // `isSyncing` onChange gate; a stale value would either block a
+      // legitimate refresh or trigger a bogus one.
+      lastSyncChangedEntryCount = 0
+      var changed = 0
 
-      logger.info("Starting Phase 2: recent history backfill")
+      logger.info("Starting keepDays-window backfill")
 
       do {
-        let sevenDaysAgo = Date().addingTimeInterval(-maxArticleAge)
-
-        for try await page in client.fetchAllEntryPages(since: sevenDaysAgo) {
-          if Task.isCancelled { break }
-          if let total = page.totalCount { totalToFetch = total }
-          let newCount = try await writer.persistEntries(page.entries, markAsRead: true)
-          fetchedCount += page.entries.count
-
-          logger.info("Backfill: \(page.entries.count) fetched, \(newCount) new (\(self.fetchedCount)/\(self.totalToFetch))")
-        }
-
-        // Fetch extracted content for backfilled entries
-        let requests = try await writer.fetchExtractedContentRequests()
-        if !requests.isEmpty {
-          let results = await fetchExtractedContentBatch(requests: requests, using: client)
-          if !results.isEmpty {
-            try await writer.applyExtractedContent(results: results)
-          }
-        }
-
-        logger.info("Phase 2 backfill complete (\(self.fetchedCount) entries)")
+        changed = try await fetchEntriesSince(queryCutoffDate, using: client, writer: writer)
+        logger.info("Backfill complete (\(changed) changed entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
+        changed = 0
       }
 
+      lastSyncChangedEntryCount = changed
       isSyncing = false
+
+      // Extracted-content fetch rides the same post-sync pipeline sync()
+      // uses — no need to duplicate the fetch-and-apply loop here.
+      startExtractedContentFetch()
     }
   }
 }

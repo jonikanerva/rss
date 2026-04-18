@@ -40,7 +40,7 @@ nonisolated struct CategoryDefinition: Sendable {
 /// `DataWriter.fetchEntrySections` and consumed by `EntryListView`.
 /// Only carries lightweight identifiers — the view materializes Entry objects
 /// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
-nonisolated struct EntryListSection: Sendable, Identifiable {
+nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String
   let entryIDs: [PersistentIdentifier]
@@ -253,53 +253,6 @@ actor DataWriter: ModelActor {
 
   // MARK: - Entry persistence
 
-  func persistEntries(_ entries: [FeedbinEntry], markAsRead: Bool) throws -> Int {
-    guard !entries.isEmpty else { return 0 }
-
-    let entryIDs = entries.map(\.id)
-    let existingDescriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { entry in entryIDs.contains(entry.feedbinEntryID) }
-    )
-    let existingIDs = Set(try modelContext.fetch(existingDescriptor).map(\.feedbinEntryID))
-
-    let feedDescriptor = FetchDescriptor<Feed>()
-    let feedsByFeedbinID = Dictionary(
-      uniqueKeysWithValues: try modelContext.fetch(feedDescriptor).map { ($0.feedbinFeedID, $0) }
-    )
-
-    var newCount = 0
-    for dto in entries {
-      if existingIDs.contains(dto.id) { continue }
-
-      let entry = Entry(
-        feedbinEntryID: dto.id,
-        title: dto.title,
-        author: dto.author,
-        url: dto.url,
-        content: dto.content,
-        summary: dto.summary,
-        extractedContentURL: dto.extractedContentUrl,
-        publishedAt: dto.published,
-        createdAt: dto.createdAt
-      )
-      entry.feed = feedsByFeedbinID[dto.feedId]
-      entry.isRead = markAsRead
-      let rawHTML = dto.content ?? dto.summary ?? ""
-      let blocks = parseHTMLToBlocks(replaceVideoIframes(rawHTML))
-      entry.articleBlocksData = blocks.toJSONData()
-      entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
-      entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
-      entry.formattedDate = formatEntryDate(dto.published)
-
-      entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
-      modelContext.insert(entry)
-      newCount += 1
-    }
-
-    try modelContext.save()
-    return newCount
-  }
-
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
     guard !entries.isEmpty else { return 0 }
 
@@ -349,7 +302,11 @@ actor DataWriter: ModelActor {
 
   // MARK: - Read state
 
-  func updateReadState(unreadIDs: Set<Int>) throws {
+  /// Sync local `isRead` state to match the server's unread-IDs set for every
+  /// entry in the store. Returns the number of rows that actually flipped so
+  /// callers can tell whether a sync changed anything (cross-device read-state
+  /// propagation), not just whether new entries were inserted.
+  func updateReadState(unreadIDs: Set<Int>) throws -> Int {
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
@@ -366,6 +323,7 @@ actor DataWriter: ModelActor {
       try modelContext.save()
       Self.logger.info("Updated read state for \(updatedCount) entries")
     }
+    return updatedCount
   }
 
   /// Batch mark multiple entries as read in a single save.
@@ -470,13 +428,21 @@ actor DataWriter: ModelActor {
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date
   ) throws -> [EntryListSection] {
     let descriptor: FetchDescriptor<Entry>
+    // Secondary sort on feedbinEntryID keeps order deterministic when two entries
+    // share the same publishedAt timestamp. Without it, two equal-timestamp rows
+    // can swap places between fetches, which defeats the Equatable diff skip in
+    // EntryListView.reload() and can cause the list to reshuffle briefly.
+    let entrySort: [SortDescriptor<Entry>] = [
+      SortDescriptor(\Entry.publishedAt, order: .reverse),
+      SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
+    ]
     if let category {
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
           $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
             && $0.publishedAt >= cutoffDate
         },
-        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+        sortBy: entrySort
       )
     } else if let folder {
       descriptor = FetchDescriptor<Entry>(
@@ -484,7 +450,7 @@ actor DataWriter: ModelActor {
           $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
             && $0.publishedAt >= cutoffDate
         },
-        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+        sortBy: entrySort
       )
     } else {
       return []

@@ -225,24 +225,59 @@ struct EntryListView: View {
         .accessibilityIdentifier("timeline.list")
       }
     }
-    .task(id: fetchKey) {
+    // Two tasks so refresh-only ticks (classification / sync completion) do
+    // not flip `hasLoaded` back to false and tear down the `List` — which
+    // would reset scroll every time. `structuralKey` captures inputs whose
+    // change means "user is looking at a different list" (category / folder
+    // / filter / cutoff); only those warrant a loading view. `refreshVersion`
+    // fires in place and `reload()` skips the assign when sections are
+    // equal, so SwiftUI's diff keeps the scroll stable.
+    //
+    // The refresh task's id intentionally includes `structuralKey`: a bare
+    // `refreshVersion` id would not be cancelled when the user switches
+    // category mid-refresh, and the in-flight fetch — which captured `self`
+    // with the old category — could race the structural task and overwrite
+    // `sections` with stale rows from the previous list. Including
+    // `structuralKey` cancels the stale refresh when context changes, and
+    // the `guard hasLoaded` check keeps the restarted refresh a no-op while
+    // the structural task owns the reload.
+    .task(id: structuralKey) {
       hasLoaded = false
-      let result =
-        (try? await writer.fetchEntrySections(
-          category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
-        )) ?? []
-      guard !Task.isCancelled else { return }
-      sections = result
-      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+      await reload()
       hasLoaded = true
+    }
+    .task(id: refreshTaskKey) {
+      guard hasLoaded else { return }
+      await reload()
     }
   }
 
-  /// Keying the `.task` on this string causes SwiftUI to cancel the in-flight
-  /// fetch and start a fresh one whenever any input changes — including
-  /// `refreshVersion`, which `ContentView` bumps on sync/classification events.
-  private var fetchKey: String {
-    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(refreshVersion)"
+  private func reload() async {
+    let result =
+      (try? await writer.fetchEntrySections(
+        category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
+      )) ?? []
+    guard !Task.isCancelled else { return }
+    if result != sections {
+      sections = result
+      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    }
+  }
+
+  /// Composed key for the refresh task so a structural change (category /
+  /// folder / filter / cutoff) cancels any in-flight refresh bound to the
+  /// previous context. Without the structural suffix, a refresh captured
+  /// against the old `self` could finish after the structural reload and
+  /// overwrite `sections` with stale rows.
+  private var refreshTaskKey: String {
+    "\(structuralKey)|\(refreshVersion)"
+  }
+
+  /// Key for "this is a different article list" — user-visible context change.
+  /// Excludes `refreshVersion`, which rides on a separate task so in-place
+  /// refreshes do not tear down the `List` and drop the scroll position.
+  private var structuralKey: String {
+    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
   }
 }
 
@@ -491,16 +526,20 @@ struct ContentView: View {
     // Refresh the article list (re-fires `EntryListView.task`) whenever
     // underlying article data may have changed. Replaces SwiftData's
     // `@Query` auto-refresh now that the list is fetched off MainActor.
-    // Both triggers fire on the false transition (work just finished) —
-    // the per-tick progress properties (`fetchedCount`, `classifiedCount`)
-    // would cause excessive refetches if used as the trigger instead.
+    // Both triggers fire on the false transition (work just finished), and
+    // only when the batch that just finished actually changed rows — sync
+    // counts inserts plus cross-device read-state flips so the article list
+    // stays in step with the sidebar unread counts when a user marks
+    // articles read on another device; classification counts rows that got
+    // a fresh category assignment. A quiet tick with zero changes leaves
+    // the list untouched so the refresh task does not re-fetch for nothing.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in
-      if !isSyncing {
+      if !isSyncing && syncEngine.lastSyncChangedEntryCount > 0 {
         entryRefreshVersion &+= 1
       }
     }
     .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
-      if !isClassifying {
+      if !isClassifying && classificationEngine.lastBatchClassifiedCount > 0 {
         entryRefreshVersion &+= 1
       }
     }

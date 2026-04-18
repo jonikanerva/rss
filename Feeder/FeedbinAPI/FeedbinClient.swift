@@ -126,34 +126,6 @@ actor FeedbinClient {
 
   // MARK: - Entries
 
-  /// Fetch entries by specific IDs, in batches of 100.
-  /// GET /v2/entries.json?ids=1,2,3
-  func fetchEntriesByIDs(_ ids: [Int]) async throws -> [FeedbinEntry] {
-    guard !ids.isEmpty else { return [] }
-    var allEntries: [FeedbinEntry] = []
-
-    let batches = stride(from: 0, to: ids.count, by: 100).map {
-      Array(ids[$0..<min($0 + 100, ids.count)])
-    }
-
-    for batch in batches {
-      let idString = batch.map(String.init).joined(separator: ",")
-      guard var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false) else {
-        throw FeedbinError.invalidResponse
-      }
-      components.queryItems = [URLQueryItem(name: "ids", value: idString)]
-      guard let url = components.url else { throw FeedbinError.invalidResponse }
-
-      let (data, response) = try await session.data(from: url)
-      try checkResponse(response)
-      let entries = try decoder.decode([FeedbinEntry].self, from: data)
-      allEntries.append(contentsOf: entries)
-      FeedbinClient.logger.info("Fetched batch of \(entries.count) entries by ID (\(allEntries.count) total)")
-    }
-
-    return allEntries
-  }
-
   /// Fetch entries with optional `since` date for incremental sync.
   /// Returns entries and whether there are more pages.
   func fetchEntries(since: Date? = nil, page: Int = 1, perPage: Int = 100) async throws -> FeedbinEntriesPage {

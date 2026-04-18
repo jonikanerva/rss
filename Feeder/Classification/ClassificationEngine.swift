@@ -47,6 +47,12 @@ final class ClassificationEngine {
   private(set) var classifiedCount = 0
   private(set) var totalToClassify = 0
 
+  /// Number of entries classified in the most recently finished batch.
+  /// Captured from `classifiedCount` at the true→false transition of
+  /// `isClassifying` so `ContentView` can skip article-list refreshes for
+  /// polling ticks that had nothing to classify.
+  private(set) var lastBatchClassifiedCount = 0
+
   /// The single-slot task that owns whatever classification work is in flight.
   /// `startContinuousClassification`, `classifyUnclassified`, and `reclassifyAll`
   /// all route through this slot — so only ever one runner is active, and manual
@@ -152,6 +158,12 @@ final class ClassificationEngine {
   // MARK: - MainActor sink for progress snapshots
 
   private func apply(_ snapshot: ProgressSnapshot) {
+    // Capture the just-finished batch's classified count before the terminal
+    // snapshot resets `classifiedCount` to 0. `ContentView` reads this to
+    // decide whether a classification tick actually changed anything.
+    if isClassifying && !snapshot.isClassifying {
+      lastBatchClassifiedCount = classifiedCount
+    }
     isClassifying = snapshot.isClassifying
     progress = snapshot.progress
     classifiedCount = snapshot.classifiedCount
