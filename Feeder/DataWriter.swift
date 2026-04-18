@@ -40,7 +40,7 @@ nonisolated struct CategoryDefinition: Sendable {
 /// `DataWriter.fetchEntrySections` and consumed by `EntryListView`.
 /// Only carries lightweight identifiers — the view materializes Entry objects
 /// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
-nonisolated struct EntryListSection: Sendable, Identifiable {
+nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String
   let entryIDs: [PersistentIdentifier]
@@ -470,13 +470,21 @@ actor DataWriter: ModelActor {
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date
   ) throws -> [EntryListSection] {
     let descriptor: FetchDescriptor<Entry>
+    // Secondary sort on feedbinEntryID keeps order deterministic when two entries
+    // share the same publishedAt timestamp. Without it, two equal-timestamp rows
+    // can swap places between fetches, which defeats the Equatable diff skip in
+    // EntryListView.reload() and can cause the list to reshuffle briefly.
+    let entrySort: [SortDescriptor<Entry>] = [
+      SortDescriptor(\Entry.publishedAt, order: .reverse),
+      SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
+    ]
     if let category {
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
           $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
             && $0.publishedAt >= cutoffDate
         },
-        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+        sortBy: entrySort
       )
     } else if let folder {
       descriptor = FetchDescriptor<Entry>(
@@ -484,7 +492,7 @@ actor DataWriter: ModelActor {
           $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
             && $0.publishedAt >= cutoffDate
         },
-        sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)]
+        sortBy: entrySort
       )
     } else {
       return []

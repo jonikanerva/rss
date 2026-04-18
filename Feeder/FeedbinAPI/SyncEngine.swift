@@ -71,6 +71,12 @@ final class SyncEngine {
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
+  /// Number of new entries persisted during the most recent `sync()` call.
+  /// Used by `ContentView` to decide whether to refresh the article list — a
+  /// sync that fetched nothing new should not rebuild the off-MainActor
+  /// `EntryListSection` snapshot, because the underlying data is unchanged.
+  private(set) var lastSyncNewEntryCount: Int = 0
+
   /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
   private(set) var queryCutoffDate: Date = articleCutoffDate()
 
@@ -201,16 +207,18 @@ final class SyncEngine {
       }
       try await writer.syncIcons(icons, prefetchedData: iconData)
 
+      let totalNew: Int
       if lastSyncDate != nil {
-        try await syncIncremental(using: client, writer: writer)
+        totalNew = try await syncIncremental(using: client, writer: writer)
       } else {
-        try await syncUnread(using: client, writer: writer)
+        totalNew = try await syncUnread(using: client, writer: writer)
       }
 
       let isFirstSync = lastSyncDate == nil
       lastSyncDate = Date()
       fetchedCount = 0
       totalToFetch = 0
+      lastSyncNewEntryCount = totalNew
       isSyncing = false
 
       startExtractedContentFetch()
@@ -223,18 +231,19 @@ final class SyncEngine {
       lastError = error.localizedDescription
 
       logger.error("Sync failed: \(error.localizedDescription)")
+      lastSyncNewEntryCount = 0
       isSyncing = false
     }
   }
 
   // MARK: - Phase 1: Unread articles (streaming, newest first)
 
-  private func syncUnread(using client: FeedbinClient, writer: DataWriter) async throws {
+  private func syncUnread(using client: FeedbinClient, writer: DataWriter) async throws -> Int {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     logger.info("Found \(unreadIDs.count) unread entries")
 
     guard !unreadIDs.isEmpty else {
-      return
+      return 0
     }
 
     let sortedIDs = unreadIDs.sorted(by: >)
@@ -271,11 +280,12 @@ final class SyncEngine {
     }
 
     logger.info("Phase 1 complete: \(totalNew) unread entries persisted")
+    return totalNew
   }
 
   // MARK: - Incremental sync
 
-  private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws {
+  private func syncIncremental(using client: FeedbinClient, writer: DataWriter) async throws -> Int {
     await pushPendingReads()
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
@@ -306,6 +316,7 @@ final class SyncEngine {
     }
 
     try await writer.updateReadState(unreadIDs: unreadIDSet)
+    return totalNew
   }
 
   // MARK: - Background: Extracted content fetching

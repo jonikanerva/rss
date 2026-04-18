@@ -225,24 +225,41 @@ struct EntryListView: View {
         .accessibilityIdentifier("timeline.list")
       }
     }
-    .task(id: fetchKey) {
+    // Two separate tasks so refresh-only ticks (classification / sync completion)
+    // do not flip `hasLoaded` back to false and tear down the `List` — which
+    // would reset the scroll position every time. `structuralKey` captures the
+    // inputs whose change implies "user is now looking at a different list"
+    // (category / folder / filter / cutoff); only those warrant a loading view.
+    // `refreshVersion` fires silently in place and `reload()` skips the assign
+    // when the result is identical, so SwiftUI's diff keeps the scroll stable.
+    .task(id: structuralKey) {
       hasLoaded = false
-      let result =
-        (try? await writer.fetchEntrySections(
-          category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
-        )) ?? []
-      guard !Task.isCancelled else { return }
-      sections = result
-      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+      await reload()
       hasLoaded = true
+    }
+    .task(id: refreshVersion) {
+      guard hasLoaded else { return }
+      await reload()
     }
   }
 
-  /// Keying the `.task` on this string causes SwiftUI to cancel the in-flight
-  /// fetch and start a fresh one whenever any input changes — including
-  /// `refreshVersion`, which `ContentView` bumps on sync/classification events.
-  private var fetchKey: String {
-    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(refreshVersion)"
+  private func reload() async {
+    let result =
+      (try? await writer.fetchEntrySections(
+        category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
+      )) ?? []
+    guard !Task.isCancelled else { return }
+    if result != sections {
+      sections = result
+      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    }
+  }
+
+  /// Key for "this is a different article list" — user-visible context change.
+  /// Excludes `refreshVersion`, which rides on a separate task so in-place
+  /// refreshes do not tear down the `List` and drop the scroll position.
+  private var structuralKey: String {
+    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
   }
 }
 
@@ -491,16 +508,18 @@ struct ContentView: View {
     // Refresh the article list (re-fires `EntryListView.task`) whenever
     // underlying article data may have changed. Replaces SwiftData's
     // `@Query` auto-refresh now that the list is fetched off MainActor.
-    // Both triggers fire on the false transition (work just finished) —
-    // the per-tick progress properties (`fetchedCount`, `classifiedCount`)
-    // would cause excessive refetches if used as the trigger instead.
+    // Both triggers fire on the false transition (work just finished), and
+    // only when the batch that just finished actually wrote new entries /
+    // classifications — a sync that returned nothing new, or a classification
+    // tick that had no inputs, leaves the list untouched so the refresh-only
+    // task in `EntryListView` does not re-fetch and re-diff for nothing.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in
-      if !isSyncing {
+      if !isSyncing && syncEngine.lastSyncNewEntryCount > 0 {
         entryRefreshVersion &+= 1
       }
     }
     .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
-      if !isClassifying {
+      if !isClassifying && classificationEngine.lastBatchClassifiedCount > 0 {
         entryRefreshVersion &+= 1
       }
     }
