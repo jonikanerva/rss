@@ -20,10 +20,12 @@ nonisolated enum KeychainHelper {
 
   // MARK: - Account keys
 
-  /// Keychain account key for the Feedbin password.
+  /// Keychain account key under which the Feedbin password is stored.
   static let feedbinPasswordKey = "feedbin_password"
-  /// Keychain account key for the OpenAI API key.
-  static let openAIAPIKey = "openai_api_key"
+  /// Keychain account key under which the OpenAI API key value is stored.
+  /// Named `…KeychainKey` (not `APIKey`) so call sites read unambiguously as
+  /// "the keychain key" rather than "the API key value".
+  static let openAIAPIKeychainKey = "openai_api_key"
 
   static func save(key: String, value: String) throws(KeychainError) {
     guard let data = value.data(using: .utf8) else {

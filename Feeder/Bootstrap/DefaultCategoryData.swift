@@ -123,6 +123,11 @@ enum DefaultCategoryData {
   /// Insert folders, categories, and the system `uncategorized` fallback into
   /// the given context, then save. Expected to run only on first launch when
   /// the categories table is empty — `FeederApp` guards that condition.
+  ///
+  /// Bootstrap exception: writes directly to `ModelContext` during app
+  /// `init()`, before any views or `@Query` are active. `DataWriter` is not yet
+  /// available (SyncEngine.configure() hasn't been called). Parallel path to
+  /// `FeederApp.resetArticlesIfSchemaChanged()`, which uses the same pattern.
   static func seed(into context: ModelContext) {
     for folder in folders {
       context.insert(Folder(label: folder.label, displayName: folder.displayName, sortOrder: folder.sortOrder))

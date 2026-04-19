@@ -83,13 +83,6 @@ struct FeederApp: App {
     .windowResizability(.contentSize)
   }
 
-  // First-launch seeding is a bootstrap exception: writes directly to
-  // ModelContext during init(), before any views or @Query are active.
-  // DataWriter is not yet available (SyncEngine.configure() hasn't been
-  // called). This pattern matches resetArticlesIfSchemaChanged() below.
-  //
-  // See `Bootstrap/DefaultCategoryData.swift`.
-
   // MARK: - Schema versioning
 
   /// Clear all data when schema version changes (model shape may have changed).

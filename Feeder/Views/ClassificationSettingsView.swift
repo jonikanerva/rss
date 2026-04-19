@@ -10,7 +10,7 @@ struct ClassificationSettingsView: View {
   @State
   private var selectedProvider: ClassificationProviderKind = ClassificationProviderKind.current
   @State
-  private var hasStoredKey: Bool = KeychainHelper.load(key: KeychainHelper.openAIAPIKey) != nil
+  private var hasStoredKey: Bool = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) != nil
   @State
   private var showReclassifyAlert = false
   @State
@@ -162,7 +162,7 @@ private struct APIKeyEditSheet: View {
       HStack {
         if hasStoredKey {
           Button("Remove Key", role: .destructive) {
-            try? KeychainHelper.delete(key: KeychainHelper.openAIAPIKey)
+            try? KeychainHelper.delete(key: KeychainHelper.openAIAPIKeychainKey)
             hasStoredKey = false
             dismiss()
           }
@@ -176,7 +176,7 @@ private struct APIKeyEditSheet: View {
         .keyboardShortcut(.cancelAction)
 
         Button("Save") {
-          try? KeychainHelper.save(key: KeychainHelper.openAIAPIKey, value: editKey)
+          try? KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
           hasStoredKey = true
           dismiss()
         }

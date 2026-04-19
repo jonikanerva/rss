@@ -28,7 +28,7 @@ struct CategoryDropHandlingTests {
   }
 
   @Test
-  func moveToFolderTolearatesGaps() {
+  func moveToFolderToleratesGaps() {
     // Deletes can leave gaps ([0, 2, 5]); append must land past the real max,
     // not at `count`. Regression guard for the count-based shortcut.
     let existing: [CategorySnapshot] = [

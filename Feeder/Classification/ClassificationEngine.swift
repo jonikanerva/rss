@@ -195,7 +195,7 @@ final class ClassificationEngine {
   nonisolated static func buildProvider() -> any ClassificationProvider {
     switch ClassificationProviderKind.current {
     case .openAI:
-      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKey) ?? ""
+      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) ?? ""
       return OpenAIClassificationProvider(apiKey: apiKey)
     case .appleFM:
       return AppleFMClassificationProvider()
