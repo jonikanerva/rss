@@ -1,6 +1,17 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Drop target state
+
+/// Unified drop hover state. Replaces three parallel optionals
+/// (folder label / root position / child position) with a single enum so the
+/// "what is the drag currently over?" question has one answer.
+private enum DropTarget: Hashable {
+  case folder(String)
+  case rootPosition(Int)
+  case childPosition(folder: String, position: Int)
+}
+
 // MARK: - Category Management View
 
 struct CategoryManagementView: View {
@@ -15,6 +26,11 @@ struct CategoryManagementView: View {
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
 
+  /// Root-level categories fetched via a SQLite-level predicate. Replaces an
+  /// `allCategories.atRoot` in-memory filter in the render path.
+  @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
+  private var rootCategories: [Category]
+
   @State
   private var editingCategory: Category?
   @State
@@ -24,11 +40,7 @@ struct CategoryManagementView: View {
   @State
   private var showNewFolderSheet = false
   @State
-  private var dropTargetLabel: String?
-  @State
-  private var dropRootPosition: Int?
-  @State
-  private var dropChildPosition: String?
+  private var currentDropTarget: DropTarget?
 
   var body: some View {
     Form {
@@ -70,7 +82,6 @@ struct CategoryManagementView: View {
           descriptionPreview: category.categoryDescription,
           depth: 0,
           isSystem: category.isSystem,
-          isDropTarget: false,
           onEdit: { editingCategory = category }
         )
         .draggable(category.label)
@@ -83,7 +94,7 @@ struct CategoryManagementView: View {
   private func folderSection(folder: Folder) -> some View {
     FolderCompactRow(
       displayName: folder.displayName,
-      isDropTarget: dropTargetLabel == folder.label,
+      isDropTarget: currentDropTarget == .folder(folder.label),
       onEdit: { editingFolder = folder }
     )
     .dropDestination(for: String.self) { labels, _ in
@@ -91,7 +102,7 @@ struct CategoryManagementView: View {
       handleMoveToFolder(draggedLabel, folderLabel: folder.label)
       return true
     } isTargeted: { targeted in
-      dropTargetLabel = targeted ? folder.label : (dropTargetLabel == folder.label ? nil : dropTargetLabel)
+      updateHover(targeted ? .folder(folder.label) : nil, matching: .folder(folder.label))
     }
 
     let children = allCategories.inFolder(folder.label)
@@ -104,7 +115,6 @@ struct CategoryManagementView: View {
         descriptionPreview: child.categoryDescription,
         depth: 1,
         isSystem: child.isSystem,
-        isDropTarget: false,
         onEdit: { editingCategory = child }
       )
       .draggable(child.label)
@@ -112,11 +122,12 @@ struct CategoryManagementView: View {
     }
   }
 
-  // MARK: - Root drop zone (for moving categories out of folders to root)
+  // MARK: - Drop zones
 
   @ViewBuilder
   private func rootDropZone(position: Int) -> some View {
-    let isTargeted = dropRootPosition == position
+    let target = DropTarget.rootPosition(position)
+    let isTargeted = currentDropTarget == target
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
       .frame(height: 8)
@@ -125,16 +136,14 @@ struct CategoryManagementView: View {
         handleMoveToRoot(draggedLabel, at: position)
         return true
       } isTargeted: { targeted in
-        dropRootPosition = targeted ? position : (dropRootPosition == position ? nil : dropRootPosition)
+        updateHover(targeted ? target : nil, matching: target)
       }
   }
 
-  // MARK: - Child drop zone (within a folder)
-
   @ViewBuilder
   private func childDropZone(folderLabel: String, position: Int) -> some View {
-    let key = "\(folderLabel):\(position)"
-    let isTargeted = dropChildPosition == key
+    let target = DropTarget.childPosition(folder: folderLabel, position: position)
+    let isTargeted = currentDropTarget == target
     Rectangle()
       .fill(isTargeted ? Color.accentColor : Color.clear)
       .frame(height: 6)
@@ -144,7 +153,7 @@ struct CategoryManagementView: View {
         handleInsertInFolder(draggedLabel, folderLabel: folderLabel, at: position)
         return true
       } isTargeted: { targeted in
-        dropChildPosition = targeted ? key : (dropChildPosition == key ? nil : dropChildPosition)
+        updateHover(targeted ? target : nil, matching: target)
       }
   }
 
@@ -196,144 +205,81 @@ struct CategoryManagementView: View {
 
   // MARK: - Lookups
 
-  private var rootCategories: [Category] { allCategories.atRoot }
+  private func snapshotsInFolder(_ folderLabel: String) -> [CategorySnapshot] {
+    allCategories.inFolder(folderLabel).map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
+  }
+
+  private func rootSnapshots() -> [CategorySnapshot] {
+    rootCategories.map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
+  }
+
+  private func draggedCategoryFolder(label: String) -> String? {
+    allCategories.first { $0.label == label }?.folderLabel
+  }
 
   // MARK: - Drop handlers
 
   private func handleMoveToFolder(_ draggedLabel: String, folderLabel: String) {
-    guard let writer = syncEngine.writer else { return }
-    if draggedLabel == uncategorizedLabel { return }
-
-    let maxOrder = allCategories.inFolder(folderLabel).map(\.sortOrder).max() ?? -1
-    Task {
-      try? await writer.batchUpdateCategoryFolderAndSortOrders(
-        folderChanges: [(draggedLabel, folderLabel, maxOrder + 1)],
-        sortOrderUpdates: []
+    guard let writer = syncEngine.writer,
+      let plan = planMoveToFolder(
+        dragged: draggedLabel,
+        targetFolder: folderLabel,
+        existingInFolder: snapshotsInFolder(folderLabel)
       )
-    }
+    else { return }
+    apply(plan, using: writer)
   }
 
   private func handleInsertInFolder(_ draggedLabel: String, folderLabel: String, at position: Int) {
-    guard let writer = syncEngine.writer else { return }
-    if draggedLabel == uncategorizedLabel { return }
-
-    var children = allCategories.inFolder(folderLabel).map(\.label)
-    children.removeAll { $0 == draggedLabel }
-    let insertAt = min(position, children.count)
-    children.insert(draggedLabel, at: insertAt)
-
-    let sortOrderUpdates = children.enumerated().map { (index, label) in
-      (label: label, sortOrder: index)
-    }
-
-    let draggedCategory = allCategories.first { $0.label == draggedLabel }
-    let needsMove = draggedCategory?.folderLabel != folderLabel
-    var folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)] = []
-    if needsMove {
-      folderChanges.append((draggedLabel, folderLabel, insertAt))
-    }
-
-    Task {
-      try? await writer.batchUpdateCategoryFolderAndSortOrders(
-        folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates
+    guard let writer = syncEngine.writer,
+      let plan = planInsertInFolder(
+        dragged: draggedLabel,
+        draggedCurrentFolder: draggedCategoryFolder(label: draggedLabel),
+        targetFolder: folderLabel,
+        position: position,
+        existingInFolder: snapshotsInFolder(folderLabel)
       )
-    }
+    else { return }
+    apply(plan, using: writer)
   }
 
   private func handleMoveToRoot(_ draggedLabel: String, at position: Int) {
-    guard let writer = syncEngine.writer else { return }
-    if draggedLabel == uncategorizedLabel { return }
+    guard let writer = syncEngine.writer,
+      let plan = planMoveToRoot(
+        dragged: draggedLabel,
+        draggedCurrentFolder: draggedCategoryFolder(label: draggedLabel),
+        position: position,
+        existingAtRoot: rootSnapshots()
+      )
+    else { return }
+    apply(plan, using: writer)
+  }
 
-    var rootLabels = rootCategories.map(\.label)
-    rootLabels.removeAll { $0 == draggedLabel }
-    let insertAt = min(position, rootLabels.count)
-    rootLabels.insert(draggedLabel, at: insertAt)
-
-    let sortOrderUpdates = rootLabels.enumerated().map { (index, label) in
-      (label: label, sortOrder: index)
+  private func apply(_ plan: CategoryDropPlan, using writer: DataWriter) {
+    let folderChanges = plan.folderChanges.map { change in
+      (label: change.label, folderLabel: change.folderLabel, sortOrder: change.sortOrder)
     }
-
-    let draggedCategory = allCategories.first { $0.label == draggedLabel }
-    var folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)] = []
-    if draggedCategory?.folderLabel != nil {
-      folderChanges.append((draggedLabel, nil, insertAt))
+    let sortOrderUpdates = plan.sortOrderUpdates.map { update in
+      (label: update.label, sortOrder: update.sortOrder)
     }
-
     Task {
       try? await writer.batchUpdateCategoryFolderAndSortOrders(
         folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates
       )
     }
   }
-}
 
-// MARK: - Compact Row
+  // MARK: - Hover helpers
 
-private struct CategoryCompactRow: View {
-  let displayName: String
-  let descriptionPreview: String
-  let depth: Int
-  let isSystem: Bool
-  let isDropTarget: Bool
-  let onEdit: () -> Void
-
-  var body: some View {
-    HStack {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(displayName)
-          .font(FontTheme.bodyMedium)
-        Text(descriptionPreview.prefix(50) + (descriptionPreview.count > 50 ? "…" : ""))
-          .font(FontTheme.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
-      Spacer()
-      if !isSystem {
-        Button("Edit") {
-          onEdit()
-        }
-      }
+  /// Update `currentDropTarget` only when the incoming change actually affects
+  /// the requested target. Matches the "latch a single target at a time"
+  /// behavior the old three-optional layout had.
+  private func updateHover(_ newValue: DropTarget?, matching target: DropTarget) {
+    if let value = newValue {
+      currentDropTarget = value
+    } else if currentDropTarget == target {
+      currentDropTarget = nil
     }
-    .padding(.leading, CGFloat(depth) * 20)
-    .padding(.vertical, 4)
-    .padding(.horizontal, 8)
-    .background(
-      RoundedRectangle(cornerRadius: 6)
-        .fill(isDropTarget ? Color.accentColor.opacity(0.15) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 6)
-        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
-    )
-  }
-}
-
-private struct FolderCompactRow: View {
-  let displayName: String
-  let isDropTarget: Bool
-  let onEdit: () -> Void
-
-  var body: some View {
-    HStack {
-      Image(systemName: "folder")
-        .foregroundStyle(.secondary)
-      Text(displayName)
-        .font(FontTheme.bodyMedium)
-      Spacer()
-      Button("Edit") {
-        onEdit()
-      }
-    }
-    .padding(.vertical, 4)
-    .padding(.horizontal, 8)
-    .background(
-      RoundedRectangle(cornerRadius: 6)
-        .fill(isDropTarget ? Color.accentColor.opacity(0.15) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 6)
-        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
-    )
   }
 }
 

@@ -2,68 +2,7 @@ import Foundation
 import OSLog
 import SwiftData
 
-// MARK: - Sendable DTOs for crossing actor boundaries
-
-/// Input data for classification — extracted from Entry on background actor, consumed by FM inference.
-nonisolated struct ClassificationInput: Sendable {
-  let entryID: Int
-  let title: String
-  let body: String
-  let url: String
-}
-
-/// Classification result — produced by FM inference, applied to Entry on background actor.
-nonisolated struct ClassificationResult: Sendable {
-  let entryID: Int
-  let categoryLabel: String
-  let storyKey: String
-  let detectedLanguage: String
-  let confidence: Double
-}
-
-/// Category definition — read from SwiftData, passed to classification as Sendable.
-nonisolated struct CategoryDefinition: Sendable {
-  let label: String
-  let description: String
-  let folderLabel: String?
-  let keywords: [String]
-
-  init(label: String, description: String, folderLabel: String? = nil, keywords: [String] = []) {
-    self.label = label
-    self.description = description
-    self.folderLabel = folderLabel
-    self.keywords = keywords
-  }
-}
-
-/// One day-grouped section of the article list. Built off-MainActor by
-/// `DataWriter.fetchEntrySections` and consumed by `EntryListView`.
-/// Only carries lightweight identifiers — the view materializes Entry objects
-/// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
-nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
-  let id: Date  // start-of-day, used as ForEach identity
-  let label: String
-  let entryIDs: [PersistentIdentifier]
-}
-
-// MARK: - Pure helper functions
-
-/// Format a section header label for a given start-of-day date.
-/// Used by the article list to show "Today", "Yesterday", or a full weekday/date.
-nonisolated func entryListSectionLabel(for date: Date) -> String {
-  let calendar = Calendar.current
-  if calendar.isDateInToday(date) {
-    return "Today"
-  } else if calendar.isDateInYesterday(date) {
-    return "Yesterday"
-  } else {
-    let weekday = date.formatted(.dateTime.weekday(.wide))
-    let day = calendar.component(.day, from: date)
-    let month = date.formatted(.dateTime.month(.wide))
-    let year = date.formatted(.dateTime.year())
-    return "\(weekday) \(day). \(month) \(year)"
-  }
-}
+// MARK: - Entry grouping (lives here because it reads @Model Entry within the actor's context)
 
 /// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
 /// Runs in whatever context calls it (typically `DataWriter` background actor).
@@ -94,55 +33,6 @@ nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
     )
   }
   return sections
-}
-
-/// Strip HTML tags and decode entities to produce plain text.
-nonisolated func stripHTMLToPlainText(_ html: String) -> String {
-  guard !html.isEmpty else { return "" }
-  var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-  text = text.replacingOccurrences(of: "&amp;", with: "&")
-  text = text.replacingOccurrences(of: "&lt;", with: "<")
-  text = text.replacingOccurrences(of: "&gt;", with: ">")
-  text = text.replacingOccurrences(of: "&quot;", with: "\"")
-  text = text.replacingOccurrences(of: "&#39;", with: "'")
-  text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-  text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-  return text.trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
-/// Format a date for display: "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar" / "Monday, 2nd Mar"
-nonisolated func formatEntryDate(_ date: Date) -> String {
-  let calendar = Calendar.current
-  let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-  let day = calendar.component(.day, from: date)
-  let suffix: String =
-    switch day {
-    case 11, 12, 13: "th"
-    default:
-      switch day % 10 {
-      case 1: "st"
-      case 2: "nd"
-      case 3: "rd"
-      default: "th"
-      }
-    }
-  let month = date.formatted(.dateTime.month(.abbreviated))
-
-  if calendar.isDateInToday(date) {
-    return "Today, \(day)\(suffix) \(month), \(time)"
-  } else if calendar.isDateInYesterday(date) {
-    return "Yesterday, \(day)\(suffix) \(month), \(time)"
-  } else {
-    let weekday = date.formatted(.dateTime.weekday(.wide))
-    return "\(weekday), \(day)\(suffix) \(month), \(time)"
-  }
-}
-
-/// Extract display domain from a URL string, stripping the `www.` prefix.
-/// e.g., "https://www.theverge.com/rss" → "theverge.com"
-nonisolated func extractDomain(from urlString: String) -> String {
-  guard let host = URL(string: urlString)?.host() else { return "" }
-  return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
 }
 
 // MARK: - DataWriter Actor
@@ -290,6 +180,7 @@ actor DataWriter: ModelActor {
       entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
       entry.formattedDate = formatEntryDate(dto.published)
+      entry.formattedPublishedTime = formatEntryTime(dto.published)
 
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
       modelContext.insert(entry)
@@ -341,14 +232,26 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  /// Mark all unread classified entries in a folder as read. Returns the feedbin entry IDs that were marked.
-  func markAllAsRead(folder: String, cutoffDate: Date) throws -> Set<Int> {
-    let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> {
-        $0.isClassified && $0.primaryFolder == folder && !$0.isRead
-          && $0.publishedAt >= cutoffDate
-      }
-    )
+  /// Mark all unread classified entries in a folder or category as read.
+  /// Returns the feedbin entry IDs that were flipped from unread → read.
+  func markAllAsRead(target: MarkReadTarget, cutoffDate: Date) throws -> Set<Int> {
+    let descriptor: FetchDescriptor<Entry>
+    switch target {
+    case .folder(let label):
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryFolder == label && !$0.isRead
+            && $0.publishedAt >= cutoffDate
+        }
+      )
+    case .category(let label):
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryCategory == label && !$0.isRead
+            && $0.publishedAt >= cutoffDate
+        }
+      )
+    }
     let entries = try modelContext.fetch(descriptor)
     guard !entries.isEmpty else { return [] }
     var markedIDs = Set<Int>()
@@ -357,27 +260,7 @@ actor DataWriter: ModelActor {
       markedIDs.insert(entry.feedbinEntryID)
     }
     try modelContext.save()
-    Self.logger.info("Marked \(markedIDs.count) entries as read in folder '\(folder)'")
-    return markedIDs
-  }
-
-  /// Mark all unread classified entries in a category as read. Returns the feedbin entry IDs that were marked.
-  func markAllAsRead(category: String, cutoffDate: Date) throws -> Set<Int> {
-    let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> {
-        $0.isClassified && $0.primaryCategory == category && !$0.isRead
-          && $0.publishedAt >= cutoffDate
-      }
-    )
-    let entries = try modelContext.fetch(descriptor)
-    guard !entries.isEmpty else { return [] }
-    var markedIDs = Set<Int>()
-    for entry in entries {
-      entry.isRead = true
-      markedIDs.insert(entry.feedbinEntryID)
-    }
-    try modelContext.save()
-    Self.logger.info("Marked \(markedIDs.count) entries as read in category '\(category)'")
+    Self.logger.info("Marked \(markedIDs.count) entries as read in \(target.logDescription)")
     return markedIDs
   }
 
@@ -695,87 +578,6 @@ actor DataWriter: ModelActor {
       modelContext.insert(category)
     }
     try modelContext.save()
-  }
-
-  // MARK: - UI test seeding
-
-  func seedUITestData() throws -> Bool {
-    let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
-    guard existingCount == 0 else { return false }
-
-    let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
-    modelContext.insert(techFolder)
-
-    let apple = Category(
-      label: "apple", displayName: "Apple",
-      categoryDescription: "Apple news for local UI testing", sortOrder: 0,
-      folderLabel: "technology")
-    let world = Category(
-      label: "world_news", displayName: "World News",
-      categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
-    modelContext.insert(apple)
-    modelContext.insert(world)
-
-    let feed1 = Feed(
-      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge",
-      feedURL: "https://theverge.com/rss", siteURL: "https://theverge.com", createdAt: .now)
-    let feed2 = Feed(
-      feedbinSubscriptionID: 2, feedbinFeedID: 2, title: "Ars Technica",
-      feedURL: "https://arstechnica.com/rss", siteURL: "https://arstechnica.com", createdAt: .now)
-    modelContext.insert(feed1)
-    modelContext.insert(feed2)
-
-    for index in 1...12 {
-      let entry = Entry(
-        feedbinEntryID: 1000 + index,
-        title: "Sample Tech Story \(index)",
-        author: "Feeder Bot",
-        url: "https://example.com/story/\(1000 + index)",
-        content: "<p>Sample article \(index) for local UX smoke testing.</p>",
-        summary: "Sample article \(index)",
-        extractedContentURL: nil,
-        publishedAt: .now.addingTimeInterval(-Double(index) * 900),
-        createdAt: .now.addingTimeInterval(-Double(index) * 850)
-      )
-      entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
-      entry.primaryCategory = "apple"
-      entry.primaryFolder = "technology"
-      entry.storyKey = "sample-tech-story-\(index)"
-      entry.isClassified = true
-      entry.formattedDate = formatEntryDate(entry.publishedAt)
-
-      entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
-      entry.plainText = "Sample article \(index) for local UX smoke testing."
-      entry.summaryPlainText = "Sample article \(index)"
-      entry.isRead = index.isMultiple(of: 3)
-      modelContext.insert(entry)
-    }
-
-    let worldEntry = Entry(
-      feedbinEntryID: 2001,
-      title: "EU passes major AI transparency framework",
-      author: "Policy Desk",
-      url: "https://example.com/story/2001",
-      content: "<p>European lawmakers finalized a new AI framework.</p>",
-      summary: "EU finalizes AI transparency framework.",
-      extractedContentURL: nil,
-      publishedAt: .now.addingTimeInterval(-7200),
-      createdAt: .now.addingTimeInterval(-7100)
-    )
-    worldEntry.feed = feed1
-    worldEntry.primaryCategory = "world_news"
-    worldEntry.primaryFolder = ""
-    worldEntry.storyKey = "eu-ai-transparency-framework"
-    worldEntry.isClassified = true
-    worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
-    worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
-    worldEntry.plainText = "European lawmakers finalized a new AI framework."
-    worldEntry.summaryPlainText = "EU finalizes AI transparency framework."
-    worldEntry.isRead = false
-    modelContext.insert(worldEntry)
-
-    try modelContext.save()
-    return true
   }
 
   // MARK: - Purge

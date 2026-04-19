@@ -67,12 +67,9 @@ struct OnboardingView: View {
     isVerifying = true
     errorMessage = nil
 
-    let client = FeedbinClient(username: username, password: password)
     do {
-      let valid = try await client.verifyCredentials()
-      if valid {
-        UserDefaults.standard.set(username, forKey: "feedbin_username")
-        KeychainHelper.save(key: "feedbin_password", value: password)
+      let saved = try await saveFeedbinCredentials(username: username, password: password)
+      if saved {
         onComplete()
       } else {
         errorMessage = "Invalid credentials. Please try again."

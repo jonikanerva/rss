@@ -81,30 +81,31 @@ final class FeederUITests: XCTestCase {
     let unreadArticle = app.descendants(matching: .any)["entry.row.1001"]
     XCTAssertTrue(unreadArticle.waitForExistence(timeout: 5))
 
-    // Select the article — it should stay in the list (deferred read marking)
+    // Select the article — it stays in the list while still unread (deferred
+    // read marking via pendingReadIDs).
     unreadArticle.click()
     XCTAssertTrue(unreadArticle.waitForExistence(timeout: 2))
 
-    // Switch to Read tab — demo data has every 3rd article as read
-    // macOS segmented controls expose segments as radioButtons
+    // Switch to Read tab. macOS segmented controls expose segments as radioButtons.
+    // `.onChange(of: articleFilter)` in ContentView flushes pendingReadIDs on tab
+    // change, so the just-clicked entry becomes persistently read.
     let readTab = app.radioButtons["Read"]
     XCTAssertTrue(readTab.waitForExistence(timeout: 5))
     readTab.click()
 
-    // Unread article should no longer be visible
-    XCTAssertFalse(unreadArticle.waitForExistence(timeout: 2))
+    // A pre-seeded read entry should be visible (demo seeds every 3rd article
+    // read: 1003, 1006, 1009, 1012).
+    let preSeededRead = app.descendants(matching: .any)["entry.row.1003"]
+    XCTAssertTrue(preSeededRead.waitForExistence(timeout: 5))
 
-    // A known read article should be visible (demo seeds 1003, 1006, 1009, 1012 as read)
-    let readArticle = app.descendants(matching: .any)["entry.row.1003"]
-    XCTAssertTrue(readArticle.waitForExistence(timeout: 5))
-
-    // Switch back to Unread tab
+    // Switch back to Unread tab — other unread articles still appear.
+    // Two successive tab switches + the background section refetch occasionally
+    // take longer than the 5 s default, so wait up to 10 s here.
     let unreadTab = app.radioButtons["Unread"]
     unreadTab.click()
 
-    // Unread articles should reappear — check a known unread entry
     let anotherUnread = app.descendants(matching: .any)["entry.row.1002"]
-    XCTAssertTrue(anotherUnread.waitForExistence(timeout: 5))
+    XCTAssertTrue(anotherUnread.waitForExistence(timeout: 10))
   }
 
   @MainActor

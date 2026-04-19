@@ -6,14 +6,23 @@ struct SettingsView: View {
   private var syncEngine
   @Environment(ClassificationEngine.self)
   private var classificationEngine
-  @Query
-  private var entries: [Entry]
+  @Environment(\.modelContext)
+  private var modelContext
+  /// Category list used only for its `.count`. Small set (< 100 typical) so the full
+  /// `@Query` is effectively free, and keeping it reactive means the Data section
+  /// refreshes the moment the user adds or deletes a category in the Categories tab —
+  /// which a `fetchCount` on a sync-only trigger would leave stale.
   @Query
   private var categories: [Category]
+  /// Entries can grow into the thousands, so we avoid materializing them for a counter.
+  /// Refreshed from `fetchCount` on sync completion; the user can't mutate entries from
+  /// Settings, so sync is the only path that changes this number while Settings is open.
   @State
-  private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
+  private var entryCount: Int = 0
   @State
-  private var password = KeychainHelper.load(key: "feedbin_password") ?? ""
+  private var username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
+  @State
+  private var password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
   @State
   private var isSaving = false
   @State
@@ -21,10 +30,10 @@ struct SettingsView: View {
   @State
   private var showAccountEditor = false
   @State
-  private var syncInterval: Double = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
+  private var syncInterval: Double = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
   @State
   private var keepDays: Int = {
-    let stored = UserDefaults.standard.integer(forKey: "article_keep_days")
+    let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
     return stored > 0 ? stored : 7
   }()
 
@@ -52,7 +61,11 @@ struct SettingsView: View {
     }
     .frame(
       minWidth: 420, idealWidth: 480, maxWidth: 550,
-      minHeight: 450, idealHeight: 550, maxHeight: 700)
+      minHeight: 450, idealHeight: 550, maxHeight: 700
+    )
+    .task(id: syncEngine.isSyncing) {
+      entryCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
+    }
   }
 
   // MARK: - Account Tab
@@ -76,7 +89,7 @@ struct SettingsView: View {
 
       Section("Data") {
         LabeledContent("Articles") {
-          Text("\(entries.count)")
+          Text("\(entryCount)")
             .monospacedDigit()
         }
         LabeledContent("Categories") {
@@ -108,7 +121,7 @@ struct SettingsView: View {
           Text("1 hour").tag(3600.0)
         }
         .onChange(of: syncInterval) { _, newValue in
-          UserDefaults.standard.set(newValue, forKey: "sync_interval")
+          UserDefaults.standard.set(newValue, forKey: syncIntervalUserDefaultsKey)
         }
 
         Picker("Keep articles", selection: $keepDays) {
@@ -119,7 +132,7 @@ struct SettingsView: View {
           Text("30 days").tag(30)
         }
         .onChange(of: keepDays) { oldValue, newValue in
-          UserDefaults.standard.set(newValue, forKey: "article_keep_days")
+          UserDefaults.standard.set(newValue, forKey: articleKeepDaysUserDefaultsKey)
           syncEngine.refreshArticleCutoff()
           if let writer = syncEngine.writer {
             classificationEngine.stopContinuousClassification()
@@ -189,16 +202,9 @@ struct SettingsView: View {
     isSaving = true
     statusMessage = nil
 
-    let client = FeedbinClient(username: username, password: password)
     do {
-      let valid = try await client.verifyCredentials()
-      if valid {
-        UserDefaults.standard.set(username, forKey: "feedbin_username")
-        KeychainHelper.save(key: "feedbin_password", value: password)
-        statusMessage = "Saved"
-      } else {
-        statusMessage = "Error: Invalid credentials"
-      }
+      let saved = try await saveFeedbinCredentials(username: username, password: password)
+      statusMessage = saved ? "Saved" : "Error: Invalid credentials"
     } catch {
       statusMessage = "Error: \(error.localizedDescription)"
     }

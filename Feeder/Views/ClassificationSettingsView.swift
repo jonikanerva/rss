@@ -8,9 +8,9 @@ struct ClassificationSettingsView: View {
   private var syncEngine
 
   @State
-  private var selectedProvider: String = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
+  private var selectedProvider: ClassificationProviderKind = ClassificationProviderKind.current
   @State
-  private var hasStoredKey: Bool = KeychainHelper.load(key: "openai_api_key") != nil
+  private var hasStoredKey: Bool = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) != nil
   @State
   private var showReclassifyAlert = false
   @State
@@ -23,7 +23,7 @@ struct ClassificationSettingsView: View {
       Section("Classification Provider") {
         VStack(alignment: .leading, spacing: 12) {
           providerRow(
-            tag: "apple_fm",
+            tag: .appleFM,
             icon: "apple.logo",
             title: "Apple Foundation Models",
             subtitle: "Free \u{00B7} On-device \u{00B7} Private"
@@ -32,7 +32,7 @@ struct ClassificationSettingsView: View {
           Divider()
 
           providerRow(
-            tag: "openai",
+            tag: .openAI,
             icon: "cloud",
             title: "OpenAI GPT-5.4-nano",
             subtitle: "Requires API key \u{00B7} Cloud-based"
@@ -41,7 +41,7 @@ struct ClassificationSettingsView: View {
         .padding(.vertical, 4)
       }
 
-      if selectedProvider == "openai" {
+      if selectedProvider == .openAI {
         Section("OpenAI API Key") {
           HStack {
             if hasStoredKey {
@@ -69,7 +69,7 @@ struct ClassificationSettingsView: View {
     .onChange(of: showAPIKeyEditor) { _, isPresented in
       if isPresented {
         hadKeyBeforeEdit = hasStoredKey
-      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == "openai" {
+      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == .openAI {
         // Prompt only when a key was added (not removed)
         showReclassifyAlert = true
       }
@@ -90,7 +90,7 @@ struct ClassificationSettingsView: View {
 
   // MARK: - Provider row
 
-  private func providerRow(tag: String, icon: String, title: String, subtitle: String) -> some View {
+  private func providerRow(tag: ClassificationProviderKind, icon: String, title: String, subtitle: String) -> some View {
     HStack(spacing: 12) {
       Image(systemName: selectedProvider == tag ? "circle.inset.filled" : "circle")
         .foregroundStyle(selectedProvider == tag ? Color.accentColor : .secondary)
@@ -111,9 +111,9 @@ struct ClassificationSettingsView: View {
     .onTapGesture {
       guard selectedProvider != tag else { return }
       selectedProvider = tag
-      UserDefaults.standard.set(tag, forKey: "classification_provider")
+      ClassificationProviderKind.persist(tag)
       // Only prompt reclassify when switching to a provider that's ready to use
-      if tag == "apple_fm" || hasStoredKey {
+      if tag == .appleFM || hasStoredKey {
         showReclassifyAlert = true
       }
     }
@@ -130,6 +130,8 @@ private struct APIKeyEditSheet: View {
   private var dismiss
   @State
   private var editKey: String = ""
+  @State
+  private var errorMessage: String?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -155,6 +157,12 @@ private struct APIKeyEditSheet: View {
             .font(FontTheme.caption)
             .foregroundStyle(.green)
         }
+
+        if let errorMessage {
+          Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+            .font(FontTheme.caption)
+            .foregroundStyle(.red)
+        }
       }
       .padding()
 
@@ -162,9 +170,7 @@ private struct APIKeyEditSheet: View {
       HStack {
         if hasStoredKey {
           Button("Remove Key", role: .destructive) {
-            KeychainHelper.delete(key: "openai_api_key")
-            hasStoredKey = false
-            dismiss()
+            performRemove()
           }
         }
 
@@ -176,9 +182,7 @@ private struct APIKeyEditSheet: View {
         .keyboardShortcut(.cancelAction)
 
         Button("Save") {
-          KeychainHelper.save(key: "openai_api_key", value: editKey)
-          hasStoredKey = true
-          dismiss()
+          performSave()
         }
         .keyboardShortcut(.defaultAction)
         .disabled(editKey.isEmpty)
@@ -186,5 +190,28 @@ private struct APIKeyEditSheet: View {
       .padding()
     }
     .frame(width: 400)
+  }
+
+  // Commit only what the keychain actually accepted: errors keep the sheet
+  // open with an inline message so the parent view never shows "A key is
+  // currently saved" for a write that failed.
+  private func performSave() {
+    do {
+      try KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
+      hasStoredKey = true
+      dismiss()
+    } catch {
+      errorMessage = "Couldn't save API key to Keychain: \(String(describing: error))"
+    }
+  }
+
+  private func performRemove() {
+    do {
+      try KeychainHelper.delete(key: KeychainHelper.openAIAPIKeychainKey)
+      hasStoredKey = false
+      dismiss()
+    } catch {
+      errorMessage = "Couldn't remove API key from Keychain: \(String(describing: error))"
+    }
   }
 }

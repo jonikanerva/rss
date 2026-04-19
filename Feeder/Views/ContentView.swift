@@ -2,347 +2,13 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-// MARK: - Color extension
-
-extension Color {
-  init(hex: UInt, opacity: Double = 1.0) {
-    self.init(
-      .sRGB,
-      red: Double((hex >> 16) & 0xFF) / 255,
-      green: Double((hex >> 8) & 0xFF) / 255,
-      blue: Double(hex & 0xFF) / 255,
-      opacity: opacity
-    )
-  }
-}
-
-// MARK: - Article Filter
-
-enum ArticleFilter: String, CaseIterable {
-  case unread = "Unread"
-  case read = "Read"
-}
-
-// MARK: - Pending Read IDs Environment Key
-
-private struct PendingReadIDsKey: EnvironmentKey {
-  static let defaultValue: Set<Int> = []
-}
-
-extension EnvironmentValues {
-  var pendingReadIDs: Set<Int> {
-    get { self[PendingReadIDsKey.self] }
-    set { self[PendingReadIDsKey.self] = newValue }
-  }
-}
-
-// MARK: - Sidebar Selection
-
-enum SidebarSelection: Hashable {
-  case folder(String)
-  case category(String)
-
-  var isCategory: Bool {
-    if case .category = self { return true }
-    return false
-  }
-}
-
-// MARK: - Panel Focus
-
-private enum PanelFocus: Hashable {
-  case sidebar
-  case articleList
-}
-
-// MARK: - Mark All Read Key Handler
-
-/// Intercepts Shift+A before List type-to-select can capture it.
-private struct MarkAllReadKeyHandler: ViewModifier {
-  let action: () -> Void
-
-  func body(content: Content) -> some View {
-    content
-      .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
-        action()
-        return .handled
-      }
-  }
-}
-
-// MARK: - Bare Key Actions Environment
-
-/// Actions for bare-key shortcuts that must fire from any panel,
-/// intercepting before List type-to-select consumes letter keys.
-/// Returns `KeyPress.Result` so individual actions can decline handling.
-private struct BareKeyActions {
-  var onJ: () -> KeyPress.Result = { .handled }
-  var onK: () -> KeyPress.Result = { .handled }
-  var onR: () -> KeyPress.Result = { .handled }
-  var onB: () -> KeyPress.Result = { .handled }
-}
-
-private struct BareKeyActionsKey: EnvironmentKey {
-  static let defaultValue = BareKeyActions()
-}
-
-extension EnvironmentValues {
-  fileprivate var bareKeyActions: BareKeyActions {
-    get { self[BareKeyActionsKey.self] }
-    set { self[BareKeyActionsKey.self] = newValue }
-  }
-}
-
-/// Intercepts bare-key shortcuts on each panel's List/view, preventing
-/// List type-to-select from consuming them.
-private struct BareKeyHandler: ViewModifier {
-  @Environment(\.bareKeyActions)
-  private var actions
-
-  func body(content: Content) -> some View {
-    content
-      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in actions.onJ() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
-  }
-}
-
-// MARK: - Category-Folder-Change Refresh Trigger
-
-/// Fires `onChange` when any category's `folderLabel` changes. Extracted into
-/// a modifier so the category-folder-move refetch trigger doesn't push
-/// ContentView.body past the type-checker's reasonable-time limit.
-private struct CategoryFolderChangeTrigger: ViewModifier {
-  let categoryFolderLabels: [String?]
-  let onChange: () -> Void
-
-  func body(content: Content) -> some View {
-    content.onChange(of: categoryFolderLabels) {
-      onChange()
-    }
-  }
-}
-
-// MARK: - Visible Entry IDs Preference Key
-
-/// Bubbles the current entry IDs from EntryListView up to ContentView
-/// so Tab can select the first article when switching to the article list.
-/// Carries `PersistentIdentifier`s (Sendable, lightweight) — the Tab handler
-/// materializes the first Entry on demand via `modelContext.model(for:)`.
-private struct VisibleEntryIDsKey: PreferenceKey {
-  static let defaultValue: [PersistentIdentifier] = []
-  static func reduce(value: inout [PersistentIdentifier], nextValue: () -> [PersistentIdentifier]) {
-    value = nextValue()
-  }
-}
-
-// MARK: - Entry List View (background-fetched section snapshots, no MainActor @Query)
-
-/// Renders the article list for a given sidebar selection.
-///
-/// **Why not `@Query`**: SwiftData's `@Query` runs synchronously on MainActor
-/// during view init/body. For large categories (e.g. "uncategorized" with
-/// thousands of entries), the SQLite fetch + Entry materialization + day-grouping
-/// blocks the main thread for seconds — even a `ProgressView` placeholder
-/// can't paint because MainActor is busy.
-///
-/// Instead, the heavy fetch + grouping runs on `DataWriter` (a `@ModelActor`,
-/// so on a background thread). The view holds lightweight `[EntryListSection]`
-/// state (`PersistentIdentifier` arrays + section labels — Sendable DTOs) and
-/// shows `ProgressView` instantly while the fetch runs. Each row materializes
-/// its `Entry` lazily on MainActor via `modelContext.model(for:)` (cheap O(1)
-/// primary-key lookup, only for visible rows).
-///
-/// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
-/// explicit refresh-version triggers driven from `ContentView` — `.onChange`
-/// handlers on `syncEngine.isSyncing` / `classificationEngine.isClassifying`
-/// false-transitions, plus an explicit bump after `flushPendingReads` and
-/// `markAllAsRead` writes.
-struct EntryListView: View {
-  let category: String?
-  let folder: String?
-  let filter: ArticleFilter
-  let cutoffDate: Date
-  let writer: DataWriter
-  let refreshVersion: Int
-  @Binding
-  var selectedEntry: Entry?
-  let onMarkAllRead: () -> Void
-
-  @Environment(\.modelContext)
-  private var modelContext
-  @State
-  private var sections: [EntryListSection] = []
-  /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
-  /// per fetch (in `.task`) instead of `sections.flatMap(\.entryIDs)` on every body
-  /// re-eval — meaningful for large categories ("uncategorized" with thousands of IDs).
-  @State
-  private var allVisibleEntryIDs: [PersistentIdentifier] = []
-  @State
-  private var hasLoaded = false
-
-  var body: some View {
-    Group {
-      if !hasLoaded {
-        ProgressView()
-          .controlSize(.regular)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .accessibilityIdentifier("timeline.loading")
-      } else if sections.isEmpty {
-        ContentUnavailableView {
-          Label("No Articles", systemImage: "newspaper")
-        } description: {
-          Text(
-            filter == .unread
-              ? "No unread articles in this category."
-              : "No read articles in this category."
-          )
-        }
-      } else {
-        List(selection: $selectedEntry) {
-          ForEach(sections) { section in
-            Section {
-              ForEach(section.entryIDs, id: \.self) { id in
-                if let entry = modelContext.model(for: id) as? Entry {
-                  EntryRowView(entry: entry)
-                    .tag(entry)
-                    .listRowSeparator(.hidden)
-                }
-              }
-            } header: {
-              Text(section.label)
-                .font(.system(size: FontTheme.captionSize, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .textCase(nil)
-            }
-          }
-        }
-        .listStyle(.inset(alternatesRowBackgrounds: false))
-        .modifier(BareKeyHandler())
-        .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-        .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
-        .accessibilityIdentifier("timeline.list")
-      }
-    }
-    // Two tasks so refresh-only ticks (classification / sync completion) do
-    // not flip `hasLoaded` back to false and tear down the `List` — which
-    // would reset scroll every time. `structuralKey` captures inputs whose
-    // change means "user is looking at a different list" (category / folder
-    // / filter / cutoff); only those warrant a loading view. `refreshVersion`
-    // fires in place and `reload()` skips the assign when sections are
-    // equal, so SwiftUI's diff keeps the scroll stable.
-    //
-    // The refresh task's id intentionally includes `structuralKey`: a bare
-    // `refreshVersion` id would not be cancelled when the user switches
-    // category mid-refresh, and the in-flight fetch — which captured `self`
-    // with the old category — could race the structural task and overwrite
-    // `sections` with stale rows from the previous list. Including
-    // `structuralKey` cancels the stale refresh when context changes, and
-    // the `guard hasLoaded` check keeps the restarted refresh a no-op while
-    // the structural task owns the reload.
-    .task(id: structuralKey) {
-      hasLoaded = false
-      await reload()
-      hasLoaded = true
-    }
-    .task(id: refreshTaskKey) {
-      guard hasLoaded else { return }
-      await reload()
-    }
-  }
-
-  private func reload() async {
-    let result =
-      (try? await writer.fetchEntrySections(
-        category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
-      )) ?? []
-    guard !Task.isCancelled else { return }
-    if result != sections {
-      sections = result
-      allVisibleEntryIDs = result.flatMap(\.entryIDs)
-    }
-  }
-
-  /// Composed key for the refresh task so a structural change (category /
-  /// folder / filter / cutoff) cancels any in-flight refresh bound to the
-  /// previous context. Without the structural suffix, a refresh captured
-  /// against the old `self` could finish after the structural reload and
-  /// overwrite `sections` with stale rows.
-  private var refreshTaskKey: String {
-    "\(structuralKey)|\(refreshVersion)"
-  }
-
-  /// Key for "this is a different article list" — user-visible context change.
-  /// Excludes `refreshVersion`, which rides on a separate task so in-place
-  /// refreshes do not tear down the `List` and drop the scroll position.
-  private var structuralKey: String {
-    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
-  }
-}
-
-// MARK: - Sync Status View (isolated from article list to prevent unnecessary re-renders)
-
-struct SyncStatusView: View {
-  @Environment(SyncEngine.self)
-  private var syncEngine
-  @Environment(ClassificationEngine.self)
-  private var classificationEngine
-
-  private var lastSyncText: String? {
-    guard let date = syncEngine.lastSyncDate else { return nil }
-    let calendar = Calendar.current
-    let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    if calendar.isDateInToday(date) {
-      return "Synced today \(time)"
-    } else if calendar.isDateInYesterday(date) {
-      return "Synced yesterday \(time)"
-    } else {
-      return "Synced \(date.formatted(.dateTime.month(.abbreviated).day())) \(time)"
-    }
-  }
-
-  private var fetchStatusText: String? {
-    if syncEngine.isSyncing {
-      let n = syncEngine.fetchedCount
-      let x = syncEngine.totalToFetch
-      return x > 0 ? "Fetching \(n)/\(x)" : "Syncing..."
-    }
-    return lastSyncText
-  }
-
-  private var classifyStatusText: String? {
-    guard classificationEngine.isClassifying else { return nil }
-    let n = classificationEngine.classifiedCount
-    let x = classificationEngine.totalToClassify
-    return x > 0 ? "Categorizing \(n)/\(x)" : nil
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text("News")
-        .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
-        .foregroundStyle(.primary)
-        .textCase(nil)
-
-      if let fetchStatus = fetchStatusText {
-        Text(fetchStatus)
-          .font(.system(size: FontTheme.statusSize))
-          .foregroundStyle(.tertiary)
-          .textCase(nil)
-          .contentTransition(.numericText())
-      }
-      if let classifyStatus = classifyStatusText {
-        Text(classifyStatus)
-          .font(.system(size: FontTheme.statusSize))
-          .foregroundStyle(.tertiary)
-          .textCase(nil)
-          .contentTransition(.numericText())
-      }
-    }
-    .padding(.bottom, 4)
-  }
-}
+// MARK: - Content View root
+//
+// `EntryListView`, `SyncStatusView`, and the sidebar/key-handling helpers
+// live in dedicated files — see `Views/EntryListView.swift`,
+// `Views/SyncStatusView.swift`, and `Views/Support/*`. ContentView stays
+// focused on the NavigationSplitView layout, selection debouncing, sync
+// bootstrap, and menu-bar action wiring.
 
 // MARK: - Content View
 
@@ -365,6 +31,10 @@ struct ContentView: View {
   private var folders: [Folder]
   @Query(sort: \Category.sortOrder)
   private var allCategories: [Category]
+  /// Root-level categories fetched via a SQLite-level predicate. Replaces an
+  /// `allCategories.atRoot` in-memory filter on every render.
+  @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
+  private var rootCategories: [Category]
   @State
   private var selectedEntry: Entry?
   /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
@@ -576,23 +246,23 @@ struct ContentView: View {
   // Separated to keep body type-checkable
   private var menuBarValues: some ViewModifier {
     FocusedValuesModifier(
-      syncAction: { Task { await syncAndClassify() } },
-      markAllReadAction: markAllAsRead,
-      toggleViewModeAction: toggleArticleViewMode,
-      openInBrowserAction: openInBackground,
-      moveSelectionDownAction: { moveSidebarSelection(by: 1) },
-      moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-      canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
-      canOpenInBrowser: selectedEntry != nil,
-      hasSelectedEntry: selectedEntry != nil,
-      isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
-      currentViewMode: articleViewMode
+      context: FeederCommandContext(
+        syncAction: { Task { await syncAndClassify() } },
+        markAllReadAction: markAllAsRead,
+        toggleViewModeAction: toggleArticleViewMode,
+        openInBrowserAction: openInBackground,
+        moveSelectionDownAction: { moveSidebarSelection(by: 1) },
+        moveSelectionUpAction: { moveSidebarSelection(by: -1) },
+        canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
+        canOpenInBrowser: selectedEntry != nil,
+        hasSelectedEntry: selectedEntry != nil,
+        isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
+        currentViewMode: articleViewMode
+      )
     )
   }
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
-
-  private var rootCategories: [Category] { allCategories.atRoot }
 
   /// Flat ordered sidebar items matching visual display order.
   private var sidebarItems: [SidebarSelection] {
@@ -737,14 +407,15 @@ struct ContentView: View {
       let writer = syncEngine.writer
     else { return }
     selectedEntry = nil
+    let markTarget: MarkReadTarget
+    switch target {
+    case .folder(let label): markTarget = .folder(label)
+    case .category(let label): markTarget = .category(label)
+    }
     Task {
-      let markedIDs: Set<Int>?
-      switch target {
-      case .folder(let label):
-        markedIDs = try? await writer.markAllAsRead(folder: label, cutoffDate: syncEngine.queryCutoffDate)
-      case .category(let label):
-        markedIDs = try? await writer.markAllAsRead(category: label, cutoffDate: syncEngine.queryCutoffDate)
-      }
+      let markedIDs = try? await writer.markAllAsRead(
+        target: markTarget, cutoffDate: syncEngine.queryCutoffDate
+      )
       guard let ids = markedIDs, !ids.isEmpty else { return }
       syncEngine.queueReadIDs(ids)
       // Same rationale as flushPendingReads — refetch so the now-empty unread
@@ -904,8 +575,8 @@ struct ContentView: View {
       return
     }
 
-    let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
-    let password = KeychainHelper.load(key: "feedbin_password") ?? ""
+    let username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
+    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     if username.isEmpty || password.isEmpty {
       needsSetup = true
     } else {
@@ -930,8 +601,8 @@ struct ContentView: View {
   }
 
   private func startSync() {
-    let username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
-    let password = KeychainHelper.load(key: "feedbin_password") ?? ""
+    let username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
+    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
     let container = modelContext.container
@@ -946,7 +617,7 @@ struct ContentView: View {
         try? await writer.purgeEntriesOlderThan(cutoff)
       }
 
-      let syncInterval = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
+      let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
       syncEngine.startPeriodicSync(interval: syncInterval)
       if let writer = syncEngine.writer {
         classificationEngine.startContinuousClassification(writer: writer)

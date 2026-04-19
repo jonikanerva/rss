@@ -158,11 +158,7 @@ struct CategoryEditSheet: View {
         dismiss()
       }
     } else {
-      let sanitized = trimmedName.lowercased()
-        .replacingOccurrences(of: " ", with: "_")
-        .filter { $0.isLetter || $0.isNumber || $0 == "_" }
-      let label = (sanitized.isEmpty ? "category" : sanitized)
-        .appending("_\(Int.random(in: 1000...9999))")
+      let label = makeUniqueLabel(from: trimmedName, fallbackPrefix: "category")
       let sortOrder = categoriesInTarget(selectedFolderLabel).count
       let folder = selectedFolderLabel
       Task {

@@ -104,11 +104,7 @@ struct FolderEditSheet: View {
         dismiss()
       }
     } else {
-      let sanitized = trimmedName.lowercased()
-        .replacingOccurrences(of: " ", with: "_")
-        .filter { $0.isLetter || $0.isNumber || $0 == "_" }
-      let label = (sanitized.isEmpty ? "folder" : sanitized)
-        .appending("_\(Int.random(in: 1000...9999))")
+      let label = makeUniqueLabel(from: trimmedName, fallbackPrefix: "folder")
       Task {
         try? await writer.addFolder(label: label, displayName: trimmedName, sortOrder: allFolders.count)
         dismiss()

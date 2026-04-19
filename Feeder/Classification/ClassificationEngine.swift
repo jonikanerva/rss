@@ -193,12 +193,11 @@ final class ClassificationEngine {
   /// Resolve the configured classification provider from UserDefaults + Keychain.
   /// Static + nonisolated so it can be invoked from background tasks per batch.
   nonisolated static func buildProvider() -> any ClassificationProvider {
-    let selection = UserDefaults.standard.string(forKey: "classification_provider") ?? "apple_fm"
-    switch selection {
-    case "openai":
-      let apiKey = KeychainHelper.load(key: "openai_api_key") ?? ""
+    switch ClassificationProviderKind.current {
+    case .openAI:
+      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) ?? ""
       return OpenAIClassificationProvider(apiKey: apiKey)
-    default:
+    case .appleFM:
       return AppleFMClassificationProvider()
     }
   }
@@ -303,8 +302,7 @@ nonisolated struct ClassificationRunner: Sendable {
               title: input.title,
               body: input.body,
               url: input.url,
-              instructions: instructions,
-              validLabels: validLabels
+              instructions: instructions
             )
             let rawLabel =
               validLabels.contains(providerResult.category)

@@ -27,9 +27,16 @@ XCODEBUILD_FLAGS = \
 	-configuration $(CONFIGURATION) \
 	-derivedDataPath $(DERIVED_DATA) \
 	-destination '$(DESTINATION)' \
-	CODE_SIGNING_ALLOWED=NO \
+	-allowProvisioningUpdates \
 	ENABLE_APP_SANDBOX=NO \
 	ENABLE_HARDENED_RUNTIME=NO
+
+# NOTE: We deliberately let xcodebuild sign with the project's automatic
+# `CODE_SIGN_STYLE = Automatic` + `DEVELOPMENT_TEAM` setting instead of passing
+# `CODE_SIGNING_ALLOWED=NO`. macOS 26 tightened Gatekeeper so the XCTRunner
+# bundle that `make test-ui` launches is killed by `syspolicyd` when it has no
+# valid signature ("Gatekeeper policy blocked execution"). Leaving signing on
+# lets the user's Apple Development identity validate the runner.
 
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
