@@ -1,12 +1,5 @@
 import Foundation
 
-/// Shared formatter for the time-of-day shown in article-list rows.
-nonisolated private let rowTimeFormatter: DateFormatter = {
-  let formatter = DateFormatter()
-  formatter.dateFormat = "HH.mm"
-  return formatter
-}()
-
 // MARK: - Pure helpers shared between DataWriter and display layers
 
 /// Strip HTML tags and decode entities to produce plain text.
@@ -23,10 +16,27 @@ nonisolated func stripHTMLToPlainText(_ html: String) -> String {
   return text.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-/// Format the time-of-day portion of an entry for the article-list row.
-/// Pre-computed at persist time so the row view doesn't invoke DateFormatter at render.
+/// English ordinal suffix for a day-of-month number (1 → "st", 2 → "nd", 11 → "th", …).
+nonisolated func ordinalSuffix(forDay day: Int) -> String {
+  switch day {
+  case 11, 12, 13: return "th"
+  default:
+    switch day % 10 {
+    case 1: return "st"
+    case 2: return "nd"
+    case 3: return "rd"
+    default: return "th"
+    }
+  }
+}
+
+/// Format the time-of-day portion of an entry for the article-list row as "HH.mm".
+/// Uses value-type components + `String(format:)` so no shared mutable formatter exists.
 nonisolated func formatEntryTime(_ date: Date) -> String {
-  rowTimeFormatter.string(from: date)
+  let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+  let hour = components.hour ?? 0
+  let minute = components.minute ?? 0
+  return String(format: "%02d.%02d", hour, minute)
 }
 
 /// Format a date for display: "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar" / "Monday, 2nd Mar"
@@ -34,17 +44,7 @@ nonisolated func formatEntryDate(_ date: Date) -> String {
   let calendar = Calendar.current
   let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
   let day = calendar.component(.day, from: date)
-  let suffix: String =
-    switch day {
-    case 11, 12, 13: "th"
-    default:
-      switch day % 10 {
-      case 1: "st"
-      case 2: "nd"
-      case 3: "rd"
-      default: "th"
-      }
-    }
+  let suffix = ordinalSuffix(forDay: day)
   let month = date.formatted(.dateTime.month(.abbreviated))
 
   if calendar.isDateInToday(date) {
