@@ -8,10 +8,17 @@ struct SettingsView: View {
   private var classificationEngine
   @Environment(\.modelContext)
   private var modelContext
+  /// Category list used only for its `.count`. Small set (< 100 typical) so the full
+  /// `@Query` is effectively free, and keeping it reactive means the Data section
+  /// refreshes the moment the user adds or deletes a category in the Categories tab —
+  /// which a `fetchCount` on a sync-only trigger would leave stale.
+  @Query
+  private var categories: [Category]
+  /// Entries can grow into the thousands, so we avoid materializing them for a counter.
+  /// Refreshed from `fetchCount` on sync completion; the user can't mutate entries from
+  /// Settings, so sync is the only path that changes this number while Settings is open.
   @State
   private var entryCount: Int = 0
-  @State
-  private var categoryCount: Int = 0
   @State
   private var username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
   @State
@@ -57,13 +64,8 @@ struct SettingsView: View {
       minHeight: 450, idealHeight: 550, maxHeight: 700
     )
     .task(id: syncEngine.isSyncing) {
-      refreshCounts()
+      entryCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
     }
-  }
-
-  private func refreshCounts() {
-    entryCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
-    categoryCount = (try? modelContext.fetchCount(FetchDescriptor<Category>())) ?? 0
   }
 
   // MARK: - Account Tab
@@ -91,7 +93,7 @@ struct SettingsView: View {
             .monospacedDigit()
         }
         LabeledContent("Categories") {
-          Text("\(categoryCount)")
+          Text("\(categories.count)")
             .monospacedDigit()
         }
       }
