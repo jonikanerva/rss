@@ -36,7 +36,7 @@ struct FeederApp: App {
     } catch {
       logger.error("ModelContainer failed: \(error.localizedDescription). Deleting store and retrying.")
       Self.deleteStoreFiles()
-      UserDefaults.standard.removeObject(forKey: "lastSyncDate")
+      UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
       UserDefaults.standard.set(currentSchemaVersion, forKey: schemaVersionKey)
       do {
         modelContainer = try ModelContainer(for: schema, configurations: [config])
@@ -59,7 +59,7 @@ struct FeederApp: App {
       DefaultCategoryData.seed(into: context)
     }
 
-    let lastSync = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date
+    let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
     logger.info(
       "Startup: schema v\(currentSchemaVersion), \(feedCount) feeds, \(entryCount) entries, \(categoryCount) categories, \(folderCount) folders. Last sync: \(lastSync?.description ?? "never"). In-memory: \(useInMemoryStore)"
     )
@@ -111,7 +111,7 @@ struct FeederApp: App {
     }
     try? context.save()
 
-    UserDefaults.standard.removeObject(forKey: "lastSyncDate")
+    UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
     UserDefaults.standard.set(currentSchemaVersion, forKey: schemaVersionKey)
     logger.info("All data cleared. Will re-seed and sync fresh.")
   }

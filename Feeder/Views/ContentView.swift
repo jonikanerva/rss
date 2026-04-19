@@ -617,7 +617,7 @@ struct ContentView: View {
         try? await writer.purgeEntriesOlderThan(cutoff)
       }
 
-      let syncInterval = UserDefaults.standard.double(forKey: "sync_interval").clamped(to: 60...3600, default: 300)
+      let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
       syncEngine.startPeriodicSync(interval: syncInterval)
       if let writer = syncEngine.writer {
         classificationEngine.startContinuousClassification(writer: writer)

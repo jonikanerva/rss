@@ -130,6 +130,8 @@ private struct APIKeyEditSheet: View {
   private var dismiss
   @State
   private var editKey: String = ""
+  @State
+  private var errorMessage: String?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -155,6 +157,12 @@ private struct APIKeyEditSheet: View {
             .font(FontTheme.caption)
             .foregroundStyle(.green)
         }
+
+        if let errorMessage {
+          Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+            .font(FontTheme.caption)
+            .foregroundStyle(.red)
+        }
       }
       .padding()
 
@@ -162,9 +170,7 @@ private struct APIKeyEditSheet: View {
       HStack {
         if hasStoredKey {
           Button("Remove Key", role: .destructive) {
-            try? KeychainHelper.delete(key: KeychainHelper.openAIAPIKeychainKey)
-            hasStoredKey = false
-            dismiss()
+            performRemove()
           }
         }
 
@@ -176,9 +182,7 @@ private struct APIKeyEditSheet: View {
         .keyboardShortcut(.cancelAction)
 
         Button("Save") {
-          try? KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
-          hasStoredKey = true
-          dismiss()
+          performSave()
         }
         .keyboardShortcut(.defaultAction)
         .disabled(editKey.isEmpty)
@@ -186,5 +190,28 @@ private struct APIKeyEditSheet: View {
       .padding()
     }
     .frame(width: 400)
+  }
+
+  // Commit only what the keychain actually accepted: errors keep the sheet
+  // open with an inline message so the parent view never shows "A key is
+  // currently saved" for a write that failed.
+  private func performSave() {
+    do {
+      try KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
+      hasStoredKey = true
+      dismiss()
+    } catch {
+      errorMessage = "Couldn't save API key to Keychain: \(String(describing: error))"
+    }
+  }
+
+  private func performRemove() {
+    do {
+      try KeychainHelper.delete(key: KeychainHelper.openAIAPIKeychainKey)
+      hasStoredKey = false
+      dismiss()
+    } catch {
+      errorMessage = "Couldn't remove API key from Keychain: \(String(describing: error))"
+    }
   }
 }

@@ -4,10 +4,19 @@ import SwiftData
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
+// MARK: - UserDefaults keys
+
+/// Period (seconds) between automatic background syncs.
+nonisolated let syncIntervalUserDefaultsKey = "sync_interval"
+/// Number of days of article history the app retains on device.
+nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
+/// Timestamp of the last successful sync completion.
+nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
+
 /// Maximum age for articles in days. Configurable via Settings → Sync.
 /// Anything older than this is never fetched or persisted, and existing older articles are purged.
 nonisolated var articleKeepDays: Int {
-  let stored = UserDefaults.standard.integer(forKey: "article_keep_days")
+  let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
   return stored > 0 ? stored : 7
 }
 
@@ -90,8 +99,8 @@ final class SyncEngine {
 
   /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
   private(set) var lastSyncDate: Date? {
-    get { UserDefaults.standard.object(forKey: "lastSyncDate") as? Date }
-    set { UserDefaults.standard.set(newValue, forKey: "lastSyncDate") }
+    get { UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
+    set { UserDefaults.standard.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
   }
 
   private var client: FeedbinClient?
