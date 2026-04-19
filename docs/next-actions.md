@@ -11,10 +11,11 @@ Status: Active
 
 ## Active queue
 
-- **2026-04-19**: B-minimum refactor — P1 of 9. Remove shared `nonisolated` `DateFormatter` in `Feeder/Helpers/EntryFormatting.swift`. PR #58 open, two codereview rounds (round 1 requested tests for both new helpers, round 2 PASS with zero findings). Awaiting merge. Follow-up packages P2–P9 tracked in implementation plan; resumes on merge.
+- **B-minimum refactor queue** (P2–P9 of 9): EditSheetShell; LabelGeneration rename; SyncStatusView calendar-math move; Entry model split; DataWriter domain-split + `fetchCategory(label:)`; SyncEngine role separation + withTaskGroup limiter; typed throws rollout + FeederApp startup async; ContentView decomposition. Picked up one PR at a time.
 
 ## Completed history
 
+- **2026-04-19**: B-minimum refactor P1 — PR #58 merged. Removed `nonisolated` shared `DateFormatter` in `Feeder/Helpers/EntryFormatting.swift` (Swift 6 strict-concurrency rule fix); replaced with value-type `Calendar.dateComponents` + `String(format:)` for byte-identical `"HH.mm"` output; extracted `ordinalSuffix(forDay:)` helper. Added `OrdinalSuffixTests` (5) and `EntryTimeFormattingTests` (5) to lock both contracts. Two codereview rounds: round 1 required tests for both new helpers, round 2 PASS with zero findings.
 - **2026-04-18**: Article-list scroll preservation + SyncEngine refactor — PR #56. EntryListView split into structural + refresh tasks so sync/classification ticks diff in place instead of tearing down the List; refresh bumps gated on new-entry / classified counts; secondary sort on feedbinEntryID for deterministic ordering. Also collapsed syncUnread / syncIncremental / refetchHistory's inline loop into a single fetchEntriesSince path (−49 lines net).
 - **2026-04-04**: Embedded video/iframe thumbnails — PR #49. YouTube iframes replaced with clickable thumbnail images in both web and reader view. Extensible to other platforms.
 
