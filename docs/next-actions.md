@@ -11,7 +11,7 @@ Status: Active
 
 ## Active queue
 
-*(Queue empty)*
+- **2026-04-19**: B-minimum refactor — P1 of 9. Remove shared `nonisolated` `DateFormatter` in `Feeder/Helpers/EntryFormatting.swift`. PR #58 open, two codereview rounds (round 1 requested tests for both new helpers, round 2 PASS with zero findings). Awaiting merge. Follow-up packages P2–P9 tracked in implementation plan; resumes on merge.
 
 ## Completed history
 
