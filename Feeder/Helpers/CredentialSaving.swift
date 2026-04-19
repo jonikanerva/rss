@@ -3,6 +3,9 @@ import OSLog
 
 nonisolated private let credentialLogger = Logger(subsystem: "com.feeder.app", category: "CredentialSaving")
 
+/// UserDefaults key under which the Feedbin username (email) is stored.
+nonisolated let feedbinUsernameUserDefaultsKey = "feedbin_username"
+
 /// Validate Feedbin credentials with the API and persist them only on success.
 /// Writes username to UserDefaults and password to Keychain. Returns `true`
 /// when credentials were verified and saved; `false` when the server rejected
@@ -16,7 +19,7 @@ nonisolated func saveFeedbinCredentials(
   let client = FeedbinClient(username: username, password: password)
   let valid = try await client.verifyCredentials()
   guard valid else { return false }
-  UserDefaults.standard.set(username, forKey: "feedbin_username")
+  UserDefaults.standard.set(username, forKey: feedbinUsernameUserDefaultsKey)
   do {
     try KeychainHelper.save(key: KeychainHelper.feedbinPasswordKey, value: password)
   } catch {

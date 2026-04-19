@@ -5,4 +5,12 @@ import Foundation
 nonisolated enum MarkReadTarget: Sendable, Equatable {
   case folder(String)
   case category(String)
+
+  /// Human-readable description for log output, e.g. "folder 'technology'".
+  var logDescription: String {
+    switch self {
+    case .folder(let label): "folder '\(label)'"
+    case .category(let label): "category '\(label)'"
+    }
+  }
 }

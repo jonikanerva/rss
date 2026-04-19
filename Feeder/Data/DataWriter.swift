@@ -260,7 +260,7 @@ actor DataWriter: ModelActor {
       markedIDs.insert(entry.feedbinEntryID)
     }
     try modelContext.save()
-    Self.logger.info("Marked \(markedIDs.count) entries as read for \(String(describing: target))")
+    Self.logger.info("Marked \(markedIDs.count) entries as read in \(target.logDescription)")
     return markedIDs
   }
 

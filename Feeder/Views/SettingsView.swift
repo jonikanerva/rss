@@ -13,7 +13,7 @@ struct SettingsView: View {
   @State
   private var categoryCount: Int = 0
   @State
-  private var username = UserDefaults.standard.string(forKey: "feedbin_username") ?? ""
+  private var username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
   @State
   private var password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
   @State

@@ -28,7 +28,6 @@ enum FontTheme {
   static let metadataSize: CGFloat = baseSize  // 15
   static let rowSummarySize: CGFloat = baseSize  // 15 — summary excerpt in row
   static let rowFeedNameSize: CGFloat = statusSize  // 13 — uppercase feed name
-  static let pillSize: CGFloat = captionSize  // 14
 
   // MARK: - Semantic font styles
 
