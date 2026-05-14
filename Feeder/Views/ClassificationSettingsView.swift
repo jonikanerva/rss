@@ -49,7 +49,7 @@ struct ClassificationSettingsView: View {
                 .foregroundStyle(Color(nsColor: .systemGreen))
             } else {
               Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color(nsColor: .systemOrange))
             }
 
             Spacer()
