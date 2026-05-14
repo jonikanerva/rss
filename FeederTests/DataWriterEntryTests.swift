@@ -12,38 +12,8 @@ struct DataWriterEntryTests {
     try await DataWriterTestSupport.makeWriter()
   }
 
-  private static func makeFeedbinSubscription(
-    id: Int = 1, feedId: Int = 100, title: String = "Test Feed",
-    feedUrl: String = "https://example.com/feed.xml",
-    siteUrl: String = "https://www.example.com"
-  ) throws -> FeedbinSubscription {
-    let json: [String: Any] = [
-      "id": id, "feed_id": feedId, "title": title,
-      "feed_url": feedUrl, "site_url": siteUrl,
-      "created_at": "2025-01-01T00:00:00.000000Z",
-    ]
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinSubscription.self, from: data)
-  }
-
-  private static func makeFeedbinEntry(
-    id: Int = 1001, feedId: Int = 100, title: String? = "Test Article",
-    content: String? = "<p>Hello <b>world</b></p>",
-    url: String = "https://example.com/article",
-    published: String = "2025-06-15T12:00:00.000000Z"
-  ) throws -> FeedbinEntry {
-    var json: [String: Any] = [
-      "id": id, "feed_id": feedId, "url": url,
-      "published": published, "created_at": published,
-    ]
-    if let title { json["title"] = title }
-    if let content { json["content"] = content }
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinEntry.self, from: data)
-  }
-
   private func seedFeed(_ writer: DataWriter, id: Int = 1, feedId: Int = 100) async throws {
-    let sub = try Self.makeFeedbinSubscription(id: id, feedId: feedId)
+    let sub = try FeedbinFixtures.subscription(id: id, feedId: feedId)
     try await writer.syncFeeds([sub])
   }
 
@@ -55,8 +25,8 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entries = [
-      try Self.makeFeedbinEntry(id: 1001),
-      try Self.makeFeedbinEntry(id: 1002, title: "Second Article"),
+      try FeedbinFixtures.entry(id: 1001),
+      try FeedbinFixtures.entry(id: 1002, title: "Second Article"),
     ]
     let count = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
@@ -68,7 +38,7 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(id: 1001)
+    let entry = try FeedbinFixtures.entry(id: 1001)
     let first = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
     let second = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
@@ -81,7 +51,7 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(
+    let entry = try FeedbinFixtures.entry(
       id: 1001, content: "<p>Hello <b>world</b></p>")
     _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
@@ -97,12 +67,12 @@ struct DataWriterEntryTests {
   @Test
   func persistEntriesAssociatesWithFeed() async throws {
     let writer = try await makeWriter()
-    let sub = try Self.makeFeedbinSubscription(
+    let sub = try FeedbinFixtures.subscription(
       id: 1, feedId: 100,
       siteUrl: "https://www.theverge.com")
     try await writer.syncFeeds([sub])
 
-    let entry = try Self.makeFeedbinEntry(id: 1001, feedId: 100)
+    let entry = try FeedbinFixtures.entry(id: 1001, feedId: 100)
     let count = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     #expect(count == 1)
@@ -116,8 +86,8 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let unreadEntry = try Self.makeFeedbinEntry(id: 1001)
-    let readEntry = try Self.makeFeedbinEntry(id: 1002, title: "Read One")
+    let unreadEntry = try FeedbinFixtures.entry(id: 1001)
+    let readEntry = try FeedbinFixtures.entry(id: 1002, title: "Read One")
     _ = try await writer.persistEntries([unreadEntry], unreadIDs: Set([1001]))
     _ = try await writer.persistEntries([readEntry], unreadIDs: Set())
 
@@ -133,8 +103,8 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entries = [
-      try Self.makeFeedbinEntry(id: 1001),
-      try Self.makeFeedbinEntry(id: 1002, title: "Read Article"),
+      try FeedbinFixtures.entry(id: 1001),
+      try FeedbinFixtures.entry(id: 1002, title: "Read Article"),
     ]
     // 1001 is unread, 1002 is not in unread set so it's read
     let count = try await writer.persistEntries(entries, unreadIDs: Set([1001]))
@@ -154,7 +124,7 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(id: 1001)
+    let entry = try FeedbinFixtures.entry(id: 1001)
     _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     try await writer.addFolder(label: "tech", displayName: "Tech", sortOrder: 0)
@@ -182,7 +152,7 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(id: 1001)
+    let entry = try FeedbinFixtures.entry(id: 1001)
     _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     try await writer.addCategory(
@@ -208,7 +178,7 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry = try Self.makeFeedbinEntry(id: 1001)
+    let entry = try FeedbinFixtures.entry(id: 1001)
     _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     let result = ClassificationResult(
@@ -247,9 +217,9 @@ struct DataWriterEntryTests {
     try await seedFeed(writer)
 
     let entries = [
-      try Self.makeFeedbinEntry(id: 1001),
-      try Self.makeFeedbinEntry(id: 1002, title: "Second"),
-      try Self.makeFeedbinEntry(id: 1003, title: "Third"),
+      try FeedbinFixtures.entry(id: 1001),
+      try FeedbinFixtures.entry(id: 1002, title: "Second"),
+      try FeedbinFixtures.entry(id: 1003, title: "Third"),
     ]
     _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
@@ -286,10 +256,10 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let oldEntry = try Self.makeFeedbinEntry(
+    let oldEntry = try FeedbinFixtures.entry(
       id: 1001, title: "Old",
       published: "2024-01-01T00:00:00.000000Z")
-    let newEntry = try Self.makeFeedbinEntry(
+    let newEntry = try FeedbinFixtures.entry(
       id: 1002, title: "New",
       published: "2026-06-01T00:00:00.000000Z")
     _ = try await writer.persistEntries([oldEntry, newEntry], unreadIDs: Set([1001, 1002]))
@@ -323,9 +293,9 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let entry1 = try Self.makeFeedbinEntry(id: 2001, title: "Tech 1")
-    let entry2 = try Self.makeFeedbinEntry(id: 2002, title: "Tech 2")
-    let entry3 = try Self.makeFeedbinEntry(id: 2003, title: "World 1")
+    let entry1 = try FeedbinFixtures.entry(id: 2001, title: "Tech 1")
+    let entry2 = try FeedbinFixtures.entry(id: 2002, title: "Tech 2")
+    let entry3 = try FeedbinFixtures.entry(id: 2003, title: "World 1")
     _ = try await writer.persistEntries([entry1, entry2, entry3], unreadIDs: Set([2001, 2002, 2003]))
 
     try await writer.addCategory(
@@ -375,8 +345,8 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let unreadEntry = try Self.makeFeedbinEntry(id: 3001, title: "Unread Tech")
-    let readEntry = try Self.makeFeedbinEntry(id: readEntryID, title: "Read Tech")
+    let unreadEntry = try FeedbinFixtures.entry(id: 3001, title: "Unread Tech")
+    let readEntry = try FeedbinFixtures.entry(id: readEntryID, title: "Read Tech")
     _ = try await writer.persistEntries(
       [unreadEntry, readEntry], unreadIDs: Set([3001, readEntryID]))
 

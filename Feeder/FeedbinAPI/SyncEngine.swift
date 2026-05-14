@@ -35,7 +35,7 @@ nonisolated func articleCutoffDate() -> Date {
 /// Fetch extracted content for a batch of entries with a concurrency limit of 8.
 nonisolated func fetchExtractedContentBatch(
   requests: [(entryID: Int, url: String)],
-  using client: FeedbinClient
+  using client: any FeedbinClientProtocol
 ) async -> [(entryID: Int, content: String)] {
   await withTaskGroup(
     of: (Int, String?).self,
@@ -102,13 +102,21 @@ final class SyncEngine {
     queryCutoffDate = articleCutoffDate()
   }
 
-  /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
+  /// Last sync date — persisted to `defaults` so incremental sync works across app restarts.
   private(set) var lastSyncDate: Date? {
-    get { UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
-    set { UserDefaults.standard.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
+    get { defaults.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
+    set { defaults.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
   }
 
-  private var client: FeedbinClient?
+  /// `UserDefaults` instance backing `lastSyncDate` and `pendingReadIDsToSync`.
+  /// Defaults to `.standard` in production; tests pass an isolated
+  /// `UserDefaults(suiteName:)` instance so suite-level state can't leak
+  /// across the test target — see `SyncEngineTests` which is parallelised
+  /// against `DataWriterBootstrapTests` and would otherwise race on the
+  /// shared `lastSyncDate` key.
+  private let defaults: UserDefaults
+
+  private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
   private var periodicSyncTask: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
@@ -119,11 +127,19 @@ final class SyncEngine {
 
   private var pendingReadIDsToSync: Set<Int> {
     get {
-      Set(UserDefaults.standard.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
+      Set(defaults.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
     }
     set {
-      UserDefaults.standard.set(Array(newValue), forKey: Self.pendingReadKey)
+      defaults.set(Array(newValue), forKey: Self.pendingReadKey)
     }
+  }
+
+  /// Default-argumented init — production sites (`FeederApp`, every
+  /// `#Preview`) keep their existing `SyncEngine()` call; tests pass an
+  /// isolated `UserDefaults(suiteName:)` to keep their reads/writes off the
+  /// shared standard domain.
+  init(defaults: UserDefaults = .standard) {
+    self.defaults = defaults
   }
 
   /// Configure the sync engine with credentials. The caller is responsible
@@ -141,6 +157,15 @@ final class SyncEngine {
   /// here because the caller has already paid the background-init cost.
   func attachWriter(_ writer: DataWriter) {
     self.writer = writer
+  }
+
+  /// Inject a pre-built `FeedbinClientProtocol` implementation. Production
+  /// code uses `configure(username:password:)` to build a real `FeedbinClient`;
+  /// tests use this hook to install a fake that simulates API responses
+  /// without touching the network. Single-method seam keeps the production
+  /// path unchanged.
+  func attachClient(_ client: any FeedbinClientProtocol) {
+    self.client = client
   }
 
   /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
@@ -264,7 +289,7 @@ final class SyncEngine {
   /// window converge too. Returns the total number of changed rows — inserts
   /// plus cross-device read-state flips — so callers can gate UI refreshes
   /// on the full "something actually changed" signal, not just inserts.
-  private func fetchEntriesSince(_ since: Date, using client: FeedbinClient, writer: DataWriter) async throws -> Int {
+  private func fetchEntriesSince(_ since: Date, using client: any FeedbinClientProtocol, writer: DataWriter) async throws -> Int {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 

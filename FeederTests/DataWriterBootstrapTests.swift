@@ -117,12 +117,12 @@ struct DataWriterBootstrapTests {
     }
 
     // Seed real data the reset must wipe.
-    let subscription = try Self.makeFeedbinSubscription(id: 1, feedId: 100)
+    let subscription = try FeedbinFixtures.subscription(id: 1, feedId: 100)
     try await writer.syncFeeds([subscription])
     let entries = [
-      try Self.makeFeedbinEntry(id: 5001, feedId: 100),
-      try Self.makeFeedbinEntry(id: 5002, feedId: 100),
-      try Self.makeFeedbinEntry(id: 5003, feedId: 100),
+      try FeedbinFixtures.entry(id: 5001, feedId: 100),
+      try FeedbinFixtures.entry(id: 5002, feedId: 100),
+      try FeedbinFixtures.entry(id: 5003, feedId: 100),
     ]
     let inserted = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
     #expect(inserted == 3)
@@ -151,37 +151,5 @@ struct DataWriterBootstrapTests {
     // lastSyncDate is cleared on reset so the next sync re-fetches fresh.
     #expect(UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) == nil)
     #expect(UserDefaults.standard.integer(forKey: Self.schemaVersionKey) == newVersion)
-  }
-
-  // MARK: - Test fixtures
-
-  private static func makeFeedbinSubscription(
-    id: Int = 1, feedId: Int = 100, title: String = "Test Feed",
-    feedUrl: String = "https://example.com/feed.xml",
-    siteUrl: String = "https://www.example.com"
-  ) throws -> FeedbinSubscription {
-    let json: [String: Any] = [
-      "id": id, "feed_id": feedId, "title": title,
-      "feed_url": feedUrl, "site_url": siteUrl,
-      "created_at": "2025-01-01T00:00:00.000000Z",
-    ]
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinSubscription.self, from: data)
-  }
-
-  private static func makeFeedbinEntry(
-    id: Int = 5001, feedId: Int = 100, title: String? = "Test Article",
-    content: String? = "<p>Hello world</p>",
-    url: String = "https://example.com/article",
-    published: String = "2025-06-15T12:00:00.000000Z"
-  ) throws -> FeedbinEntry {
-    var json: [String: Any] = [
-      "id": id, "feed_id": feedId, "url": url,
-      "published": published, "created_at": published,
-    ]
-    if let title { json["title"] = title }
-    if let content { json["content"] = content }
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinEntry.self, from: data)
   }
 }
