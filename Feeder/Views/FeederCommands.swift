@@ -64,6 +64,8 @@ struct FeederCommands: Commands {
     // don't fire inside modal text fields. Menu items show the key for discoverability.
 
     CommandMenu("Article") {
+      // ⇧A intentionally has no confirmation dialog — see KeyHandling.swift
+      // (MarkAllReadKeyHandler) for the rationale.
       Button("Mark All as Read\t ⇧A") {
         context?.markAllReadAction()
       }

@@ -259,6 +259,12 @@ struct ContentView: View {
       }
       return .handled
     }
+    // Why dual-route: the per-panel `BareKeyHandler` modifiers ensure J/K/R/B
+    // do NOT trigger while the user is typing in a text field (search,
+    // password editor, etc.) — only when a List has focus. This fallback
+    // covers the gap after programmatic selection changes when no List
+    // currently owns focus. Revisit only if SwiftUI focus APIs make a single
+    // `.focusState`-driven route viable.
     .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
