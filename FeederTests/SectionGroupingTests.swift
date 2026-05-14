@@ -36,17 +36,9 @@ struct EntryListSectionLabelTests {
 
 @MainActor
 struct GroupEntriesByDayTests {
-  private static func makeContainer() throws -> ModelContainer {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    return try ModelContainer(
-      for: Entry.self, Feed.self, Category.self, Folder.self,
-      configurations: config
-    )
-  }
-
   /// Inserts entries into a fresh context and returns them with valid `persistentModelID`s.
   private static func makeEntries(publishDates: [Date]) throws -> [Entry] {
-    let container = try makeContainer()
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
     let context = ModelContext(container)
     var entries: [Entry] = []
     for (offset, date) in publishDates.enumerated() {
