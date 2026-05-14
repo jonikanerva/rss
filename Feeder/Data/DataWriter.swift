@@ -421,7 +421,8 @@ actor DataWriter: ModelActor {
         let blocks = parseHTMLToBlocks(replaceVideoIframes(content))
         entry.articleBlocksData = blocks.toJSONData()
         entry.plainText = parseHTMLToBlocks(content).classificationText
-        entry.invalidateBlocksCache()
+        // No view-level cache to invalidate — EntryDetailView decodes via
+        // `.task(id: entry.articleBlocksData)` and reacts to this write automatically.
       }
     }
     try modelContext.save()

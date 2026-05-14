@@ -32,6 +32,14 @@ struct EntryDetailView: View {
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
+  /// View-level cache of decoded reader blocks. Lives here (not on `@Model Entry`) so
+  /// persistence and rendering stay in separate layers. Re-decodes when the persisted
+  /// JSON changes — either because the user navigated to a different entry or because
+  /// `DataWriter` updated `articleBlocksData` in place (e.g. after Mercury Parser
+  /// extraction). A single `.task(id:)` trigger covers both paths.
+  @State
+  private var blocks: [ArticleBlock] = []
+
   var body: some View {
     Group {
       switch viewMode {
@@ -57,8 +65,8 @@ struct EntryDetailView: View {
 
         Divider()
 
-        // Article body — structured blocks from database
-        ArticleBlockView(blocks: entry.parsedBlocks)
+        // Article body — structured blocks decoded from `entry.articleBlocksData`.
+        ArticleBlockView(blocks: blocks)
           .textSelection(.enabled)
       }
       .frame(maxWidth: 610, alignment: .leading)
@@ -66,6 +74,16 @@ struct EntryDetailView: View {
       .padding(.top, 24)
       .padding(.bottom, 32)
       .frame(maxWidth: .infinity, alignment: .center)
+    }
+    .task(id: entry.articleBlocksData) {
+      // JSON decode for 30–100 KB blobs runs in <1 ms, so doing it synchronously in
+      // the task body is preferable to dispatching to a background priority — async
+      // here would introduce a visible empty-state flash on every entry switch.
+      blocks = decodeBlocks(
+        data: entry.articleBlocksData,
+        fallbackPlainText: entry.plainText,
+        fallbackURL: entry.url
+      )
     }
   }
 

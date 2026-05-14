@@ -57,33 +57,7 @@ final class Entry {
   /// Detected language code (e.g., "en", "fi")
   var detectedLanguage: String?
 
-  /// Cached decoded blocks — transient, not persisted. Decoded once on first access.
-  @Transient
-  private var _cachedBlocks: [ArticleBlock]?
-
-  /// Clear the transient block cache so the next `parsedBlocks` access re-decodes from `articleBlocksData`.
-  func invalidateBlocksCache() {
-    _cachedBlocks = nil
-  }
-
   private static let emptyContentMessage = "This article has no inline content."
-
-  /// Decoded article blocks for reader view. Uses extracted content (from Mercury Parser)
-  /// when available, falls back to feed content, then to an "Open in browser" link.
-  /// Cached after first decode to avoid JSON parsing on every re-render.
-  var parsedBlocks: [ArticleBlock] {
-    if let cached = _cachedBlocks { return cached }
-    let blocks: [ArticleBlock]
-    if let data = articleBlocksData, let decoded = [ArticleBlock].from(data), !decoded.isEmpty {
-      blocks = decoded
-    } else if !plainText.isEmpty {
-      blocks = [.paragraph(text: plainText)]
-    } else {
-      blocks = [.paragraph(text: "\(Self.emptyContentMessage) [Open in browser \u{2192}](\(url))")]
-    }
-    _cachedBlocks = blocks
-    return blocks
-  }
 
   /// Feed-provided HTML for the default web view: content > summary.
   /// Always shows what the feed provides — extracted content belongs in reader view.

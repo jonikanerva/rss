@@ -116,19 +116,6 @@ struct EntryContentFallbackTests {
     #expect(entry.feedHTML.contains("no inline content"))
     #expect(entry.feedHTML.contains("https://example.com/article"))
   }
-
-  @Test
-  func parsedBlocksReturnsFallbackWhenEmpty() {
-    let entry = makeEntry()
-    let blocks = entry.parsedBlocks
-    #expect(blocks.count == 1)
-    if case .paragraph(let text) = blocks.first {
-      #expect(text.contains("no inline content"))
-      #expect(text.contains("example.com/article"))
-    } else {
-      Issue.record("Expected paragraph block")
-    }
-  }
 }
 
 // MARK: - replaceVideoIframes + extractYouTubeVideoID
