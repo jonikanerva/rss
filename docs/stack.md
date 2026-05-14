@@ -118,5 +118,6 @@ Agents do not rely on training-data memory for API syntax or HIG specifics — t
 | ---- | ---- | ---------- | ------ |
 | 2026-05-14 | Same-story grouping UI | Deferred from MVP; data layer ready (`storyKey` computed and persisted on `Entry`), UI surfacing post-MVP. | Reduces MVP surface; classification correctness verified before UI investment. |
 | 2026-05-14 | Remote CI | No GitHub Actions; `make test-all` is the contracted local gate. | Single-developer project, PR template enforces verification. Revisit if contributor count > 1 or verification is skipped in any merged PR. |
+| 2026-05-14 | MainActor must not perform synchronous IO | `SyncEngine.lastSyncDate` and `pendingReadIDsToSync` accessors keep synchronous `UserDefaults` reads/writes on MainActor. | Writes occur at human-event frequency (sync completion, mark-read), are `CFPreferences`-cached in-process, and benchmark below 100 µs — well inside the 16 ms / 8.3 ms frame budget. Wrapping in an actor adds Task-hop latency on the very path it would protect and forces `ContentView` mark-read handlers to become async. Revisit if Instruments shows MainActor hang attributable to these accessors, or if call frequency rises (e.g., per-scroll persistence). |
 
 A divergence requires a measurement-backed reason, a clear benefit, and an isolated exception. Document it here when you take it.
