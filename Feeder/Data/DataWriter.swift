@@ -112,6 +112,12 @@ actor DataWriter: ModelActor {
       let deletedCount = try modelContext.fetchCount(FetchDescriptor<Entry>())
       Self.logger.info("Schema version changed (\(stored) → \(currentSchemaVersion)). Clearing all data.")
       try modelContext.delete(model: Entry.self)
+      // Flush entry deletes before deleting Feed. Feed → entries is
+      // `@Relationship(deleteRule: .cascade)`, so without this intermediate
+      // save SwiftData tries to cascade-delete entries that are already
+      // marked for deletion, which violates the OTO-nullify inverse on
+      // `Entry.feed` and aborts the batch with NSCocoaError 134050.
+      try modelContext.save()
       try modelContext.delete(model: Feed.self)
       try modelContext.delete(model: Category.self)
       try modelContext.delete(model: Folder.self)
