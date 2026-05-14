@@ -1,3 +1,4 @@
+import AppKit
 import OSLog
 import SwiftData
 import SwiftUI
@@ -16,6 +17,14 @@ struct FeederApp: App {
   private var syncEngine = SyncEngine()
   @State
   private var classificationEngine = ClassificationEngine()
+  @State
+  private var bootstrapPhase: BootstrapPhase = .pending
+  /// Owning reference to the production `DataWriter`. `SyncEngine` also
+  /// retains it via `attachWriter(_:)`; holding it here keeps the writer
+  /// alive across the app's lifetime and pins construction to a single
+  /// site (`runBootstrap`).
+  @State
+  private var dataWriter: DataWriter?
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
@@ -30,44 +39,27 @@ struct FeederApp: App {
     ])
     let config = ModelConfiguration("Feeder", isStoredInMemoryOnly: useInMemoryStore)
 
-    // If the store can't be opened (schema incompatible), delete it and retry
+    // If the store can't be opened (schema incompatible), delete it and retry.
+    // This is the only place we still do a synchronous `ModelContainer` open
+    // on MainActor — `DataWriter.bootstrap()` handles everything past this
+    // line on the background actor.
     do {
       modelContainer = try ModelContainer(for: schema, configurations: [config])
     } catch {
       logger.error("ModelContainer failed: \(error.localizedDescription). Deleting store and retrying.")
       Self.deleteStoreFiles()
       UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
-      UserDefaults.standard.set(currentSchemaVersion, forKey: schemaVersionKey)
       do {
         modelContainer = try ModelContainer(for: schema, configurations: [config])
       } catch {
         fatalError("Failed to create ModelContainer after reset: \(error)")
       }
     }
-
-    if !useInMemoryStore {
-      resetArticlesIfSchemaChanged()
-    }
-
-    let context = ModelContext(modelContainer)
-    let feedCount = (try? context.fetchCount(FetchDescriptor<Feed>())) ?? 0
-    let entryCount = (try? context.fetchCount(FetchDescriptor<Entry>())) ?? 0
-    let categoryCount = (try? context.fetchCount(FetchDescriptor<Category>())) ?? 0
-    let folderCount = (try? context.fetchCount(FetchDescriptor<Folder>())) ?? 0
-
-    if categoryCount == 0 {
-      DefaultCategoryData.seed(into: context)
-    }
-
-    let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
-    logger.info(
-      "Startup: schema v\(currentSchemaVersion), \(feedCount) feeds, \(entryCount) entries, \(categoryCount) categories, \(folderCount) folders. Last sync: \(lastSync?.description ?? "never"). In-memory: \(useInMemoryStore)"
-    )
   }
 
   var body: some Scene {
     WindowGroup {
-      ContentView()
+      bootstrapGate
         .environment(syncEngine)
         .environment(classificationEngine)
     }
@@ -83,47 +75,94 @@ struct FeederApp: App {
     .windowResizability(.contentSize)
   }
 
-  // MARK: - Schema versioning
+  // MARK: - Bootstrap gate
 
-  /// Clear all data when schema version changes (model shape may have changed).
-  private func resetArticlesIfSchemaChanged() {
-    let stored = UserDefaults.standard.integer(forKey: schemaVersionKey)
-    guard stored != currentSchemaVersion else { return }
-
-    logger.info("Schema version changed (\(stored) → \(currentSchemaVersion)). Clearing all data.")
-
-    let context = ModelContext(modelContainer)
-    let feeds = (try? context.fetch(FetchDescriptor<Feed>())) ?? []
-    for feed in feeds {
-      context.delete(feed)
-    }
-    let entries = (try? context.fetch(FetchDescriptor<Entry>())) ?? []
-    for entry in entries {
-      context.delete(entry)
-    }
-    let categories = (try? context.fetch(FetchDescriptor<Category>())) ?? []
-    for category in categories {
-      context.delete(category)
-    }
-    let folders = (try? context.fetch(FetchDescriptor<Folder>())) ?? []
-    for folder in folders {
-      context.delete(folder)
-    }
-    try? context.save()
-
-    UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
-    UserDefaults.standard.set(currentSchemaVersion, forKey: schemaVersionKey)
-    logger.info("All data cleared. Will re-seed and sync fresh.")
+  enum BootstrapPhase: Equatable {
+    case pending
+    case ready
+    case failed(String)
   }
+
+  @ViewBuilder
+  private var bootstrapGate: some View {
+    switch bootstrapPhase {
+    case .pending:
+      bootstrapPendingView
+        .task { await runBootstrap() }
+    case .ready:
+      ContentView()
+    case .failed(let message):
+      bootstrapFailedView(message: message)
+    }
+  }
+
+  private var bootstrapPendingView: some View {
+    VStack(spacing: 12) {
+      Image(systemName: "books.vertical")
+        .font(.system(size: 56))
+        .foregroundStyle(.tint)
+      // HIG (macOS): avoid labeling a spinning progress indicator —
+      // a brief startup spinner needs no accompanying text.
+      ProgressView()
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private func bootstrapFailedView(message: String) -> some View {
+    ContentUnavailableView {
+      Label("Couldn't open your library", systemImage: "exclamationmark.triangle")
+    } description: {
+      Text(message)
+    } actions: {
+      Button("Show in Finder") {
+        if let url = Self.storeDirectoryURL() {
+          NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+      }
+      Button("Quit Feeder") { NSApp.terminate(nil) }
+    }
+  }
+
+  /// Run the single bootstrap entry point on the `DataWriter` background
+  /// actor. Builds the writer on a detached task (per `swift-code-rules.md`
+  /// → "DataWriter init must happen on a background thread"), runs
+  /// `bootstrap()`, then injects the writer into the `SyncEngine` so the
+  /// rest of the app can use it.
+  private func runBootstrap() async {
+    let container = modelContainer
+    let writer = await Task.detached(priority: .utility) {
+      DataWriter(modelContainer: container)
+    }.value
+    do {
+      let outcome = try await writer.bootstrap(currentSchemaVersion: currentSchemaVersion)
+      let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
+      logger.info(
+        "Startup: schema v\(currentSchemaVersion), action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
+      )
+      dataWriter = writer
+      syncEngine.attachWriter(writer)
+      bootstrapPhase = .ready
+    } catch {
+      logger.error("Bootstrap failed: \(error.localizedDescription)")
+      bootstrapPhase = .failed(error.localizedDescription)
+    }
+  }
+
+  // MARK: - Disk fallback
 
   /// Delete SwiftData store files from disk (fallback when store can't be opened at all).
   private static func deleteStoreFiles() {
-    guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+    guard let appSupport = storeDirectoryURL() else { return }
     for suffix in ["store", "store-shm", "store-wal"] {
       let url = appSupport.appendingPathComponent("Feeder.\(suffix)")
       try? FileManager.default.removeItem(at: url)
     }
   }
-}
 
-private let schemaVersionKey = "feeder_schema_version"
+  /// Directory that hosts the SwiftData store files — Application Support.
+  /// Used by both `deleteStoreFiles()` and the "Show in Finder" recovery
+  /// action so a user can inspect the location if bootstrap fails.
+  private static func storeDirectoryURL() -> URL? {
+    FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+  }
+}
