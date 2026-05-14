@@ -595,7 +595,10 @@ struct ContentView: View {
       // `EntryListView` would otherwise spin on `ProgressView` forever.
       // Attach a writer so the preview renders its seeded rows.
       let container = modelContext.container
-      Task { await syncEngine.attachWriter(modelContainer: container) }
+      Task {
+        let writer = await DataWriter.makeDetached(modelContainer: container)
+        syncEngine.attachWriter(writer)
+      }
       return
     }
     if isUITestForceOnboarding {
@@ -624,12 +627,11 @@ struct ContentView: View {
   private func seedUITestDataIfNeeded() {
     let container = modelContext.container
     Task {
-      // Reuse the production writer-attach path — fixes the "DataWriter init on
-      // MainActor" violation and ensures `syncEngine.writer` is populated so
-      // `EntryListView` can render the seeded rows (without it the demo-mode
-      // launch sticks on `ProgressView`).
-      await syncEngine.attachWriter(modelContainer: container)
-      guard let writer = syncEngine.writer else { return }
+      // Build the writer via the shared helper so `EntryListView` can
+      // render the seeded rows (without a writer the demo-mode launch
+      // sticks on `ProgressView`).
+      let writer = await DataWriter.makeDetached(modelContainer: container)
+      syncEngine.attachWriter(writer)
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
         selection = .folder("technology")
@@ -642,10 +644,11 @@ struct ContentView: View {
     let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
-    let container = modelContext.container
-    Task {
-      await syncEngine.configure(username: username, password: password, modelContainer: container)
+    // `FeederApp.runBootstrap()` has already attached the production writer
+    // before this view renders, so we only configure credentials here.
+    syncEngine.configure(username: username, password: password)
 
+    Task {
       // Purge entries older than 30 days (max setting). The article-list
       // fetch also passes `cutoffDate` to `DataWriter.fetchEntrySections`
       // so purged rows never appear in the UI even before the next refresh.

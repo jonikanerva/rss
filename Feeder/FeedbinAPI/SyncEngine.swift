@@ -121,21 +121,21 @@ final class SyncEngine {
     }
   }
 
-  /// Configure the sync engine with credentials and model container.
-  /// DataWriter init is detached to a background task per CLAUDE.md ("DataWriter must init on a background thread").
-  func configure(username: String, password: String, modelContainer: ModelContainer) async {
+  /// Configure the sync engine with credentials. The caller is responsible
+  /// for attaching a `DataWriter` via `attachWriter(_:)` before invoking
+  /// `sync()`. In the production path `FeederApp` constructs the writer
+  /// inside its bootstrap task and injects it before `ContentView` renders.
+  func configure(username: String, password: String) {
     self.client = FeedbinClient(username: username, password: password)
-    await attachWriter(modelContainer: modelContainer)
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
   }
 
-  /// Attach a DataWriter without configuring credentials. Used by UI-test demo mode and any
-  /// path that needs a writer without performing real sync. Also the shared helper used by
-  /// `configure` so the detached-init pattern isn't duplicated.
-  func attachWriter(modelContainer: ModelContainer) async {
-    self.writer = await Task.detached(priority: .utility) {
-      DataWriter(modelContainer: modelContainer)
-    }.value
+  /// Inject the pre-built `DataWriter` that this engine should delegate
+  /// writes to. The writer is owned by the caller (typically `FeederApp`);
+  /// the engine merely holds a reference. Synchronous — no detached task
+  /// here because the caller has already paid the background-init cost.
+  func attachWriter(_ writer: DataWriter) {
+    self.writer = writer
   }
 
   /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
