@@ -4,7 +4,7 @@
   },
   "sandbox": {
     "filesystem": {
-      "allowWrite": ["~/.gnupg"]
+      "allowWrite": ["~/.gnupg", "~/.npm"]
     }
   },
   "permissions": {
@@ -22,10 +22,13 @@
       "Bash(git push origin:*)",
       "Bash(git pull:*)",
       "Bash(git worktree:*)",
+      "Bash(npx ctx7@latest:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:developer.apple.com)"
+      "WebFetch(domain:developer.apple.com)",
+      "WebFetch(domain:context7.com)",
+      "WebFetch(domain:mcp.context7.com)"
     ],
     "deny": [
       "Bash(git push --force:*)",
