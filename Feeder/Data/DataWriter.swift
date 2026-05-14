@@ -2,6 +2,24 @@ import Foundation
 import OSLog
 import SwiftData
 
+// MARK: - Bootstrap
+
+/// Outcome of `DataWriter.bootstrap()`. Reported by the caller for startup
+/// telemetry. The action discriminates the three legitimate startup paths:
+/// no-op, first-launch seed, schema-bump reset.
+nonisolated struct BootstrapOutcome: Sendable, Equatable {
+  enum Action: Sendable, Equatable {
+    case skipped
+    case seeded
+    case reset(deletedEntries: Int)
+  }
+  let action: Action
+  let feedCount: Int
+  let entryCount: Int
+  let categoryCount: Int
+  let folderCount: Int
+}
+
 // MARK: - Entry grouping (lives here because it reads @Model Entry within the actor's context)
 
 /// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
@@ -54,6 +72,94 @@ actor DataWriter: ModelActor {
   }
 
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
+
+  /// UserDefaults key tracking the schema version the persistent store was
+  /// last opened with. Lives here because `bootstrap()` is the only writer.
+  private static let schemaVersionKey = "feeder_schema_version"
+
+  // MARK: - Bootstrap
+
+  /// Reconcile the persistent store on launch.
+  ///
+  /// Three legitimate paths:
+  /// - Schema version matches and categories exist → `.skipped` (steady state).
+  /// - Schema version matches but categories table is empty → `.seeded`
+  ///   (first launch or post-reset re-entry).
+  /// - Schema version differs → wipe all entries / feeds / categories /
+  ///   folders, re-seed defaults, clear `lastSyncDate`, persist the new
+  ///   schema version → `.reset`.
+  ///
+  /// Single entry point for startup writes — restores compliance with
+  /// `swift-code-rules.md` § Two-Layer Architecture by keeping `ModelContext`
+  /// off the MainActor.
+  func bootstrap(currentSchemaVersion: Int) throws -> BootstrapOutcome {
+    let stored = UserDefaults.standard.integer(forKey: Self.schemaVersionKey)
+    let action: BootstrapOutcome.Action
+
+    if stored != currentSchemaVersion {
+      let deletedCount = try modelContext.fetchCount(FetchDescriptor<Entry>())
+      Self.logger.info("Schema version changed (\(stored) → \(currentSchemaVersion)). Clearing all data.")
+      try modelContext.delete(model: Entry.self)
+      try modelContext.delete(model: Feed.self)
+      try modelContext.delete(model: Category.self)
+      try modelContext.delete(model: Folder.self)
+      try modelContext.save()
+      try seedDefaultTaxonomy()
+      try modelContext.save()
+      UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
+      UserDefaults.standard.set(currentSchemaVersion, forKey: Self.schemaVersionKey)
+      action = .reset(deletedEntries: deletedCount)
+      Self.logger.info("All data cleared, defaults re-seeded.")
+    } else {
+      let categoryCount = try modelContext.fetchCount(FetchDescriptor<Category>())
+      if categoryCount == 0 {
+        try seedDefaultTaxonomy()
+        try modelContext.save()
+        action = .seeded
+      } else {
+        action = .skipped
+      }
+    }
+
+    return BootstrapOutcome(
+      action: action,
+      feedCount: try modelContext.fetchCount(FetchDescriptor<Feed>()),
+      entryCount: try modelContext.fetchCount(FetchDescriptor<Entry>()),
+      categoryCount: try modelContext.fetchCount(FetchDescriptor<Category>()),
+      folderCount: try modelContext.fetchCount(FetchDescriptor<Folder>())
+    )
+  }
+
+  /// Insert default folders, categories, and the system `uncategorized`
+  /// fallback. Does not save — callers control the transaction boundary.
+  private func seedDefaultTaxonomy() throws {
+    for folder in DefaultCategoryData.folders {
+      modelContext.insert(
+        Folder(label: folder.label, displayName: folder.displayName, sortOrder: folder.sortOrder)
+      )
+    }
+    for category in DefaultCategoryData.categories {
+      modelContext.insert(
+        Category(
+          label: category.label,
+          displayName: category.displayName,
+          categoryDescription: category.description,
+          sortOrder: category.sortOrder,
+          folderLabel: category.folderLabel,
+          keywords: category.keywords
+        )
+      )
+    }
+    modelContext.insert(
+      Category(
+        label: uncategorizedLabel,
+        displayName: "Uncategorized",
+        categoryDescription: "Use only when no other category clearly matches.",
+        sortOrder: Int.max,
+        isSystem: true
+      )
+    )
+  }
 
   // MARK: - Feed persistence
 

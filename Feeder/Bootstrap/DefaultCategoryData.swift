@@ -2,18 +2,21 @@ import Foundation
 import OSLog
 import SwiftData
 
-private let seedingLogger = Logger(subsystem: "com.feeder.app", category: "DefaultCategoryData")
+nonisolated private let seedingLogger = Logger(subsystem: "com.feeder.app", category: "DefaultCategoryData")
 
 /// First-launch taxonomy shipped with the app. Kept in its own file so
 /// `FeederApp` stays focused on lifecycle and the seed data is easy to review.
-enum DefaultCategoryData {
-  struct FolderDefinition {
+///
+/// `nonisolated` so the `DataWriter` background actor can read the static
+/// definitions from `bootstrap()` without crossing back to MainActor.
+nonisolated enum DefaultCategoryData {
+  struct FolderDefinition: Sendable {
     let label: String
     let displayName: String
     let sortOrder: Int
   }
 
-  struct CategoryDefinition {
+  struct CategoryDefinition: Sendable {
     let label: String
     let displayName: String
     let description: String
