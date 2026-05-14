@@ -73,6 +73,11 @@ nonisolated func fetchExtractedContentBatch(
 @MainActor
 @Observable
 final class SyncEngine {
+  /// Guards both primary sync (`sync()`) and history backfill (`refetchHistory()`)
+  /// from overlapping each other. Either operation acquires the flag at the start
+  /// and releases it before returning. UI consumers read this flag to show the
+  /// sync status indicator; they don't need to distinguish between the two
+  /// operations.
   private(set) var isSyncing = false
   private(set) var isFetchingContent = false
   private(set) var lastError: String?
@@ -335,8 +340,14 @@ final class SyncEngine {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
       guard let client, let writer else { return }
+      guard !isSyncing else {
+        logger.info("Backfill skipped: another sync in progress")
+        return
+      }
 
       isSyncing = true
+      defer { isSyncing = false }
+
       fetchedCount = 0
       totalToFetch = 0
       // Reset on entry and assign on completion so the `isSyncing = false`
@@ -358,7 +369,6 @@ final class SyncEngine {
       }
 
       lastSyncChangedEntryCount = changed
-      isSyncing = false
 
       // Extracted-content fetch rides the same post-sync pipeline sync()
       // uses — no need to duplicate the fetch-and-apply loop here.
