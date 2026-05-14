@@ -1,67 +1,48 @@
 # Feeder — Project Rules
 
-## Project Overview
+A macOS RSS reader: SwiftUI + SwiftData, Feedbin sync, on-device classification via Apple Foundation Models or OpenAI. Native Xcode project: `Feeder.xcodeproj`.
 
-macOS RSS reader app: SwiftUI + SwiftData. Feedbin API sync. Article classification via Apple Foundation Models (on-device) or OpenAI API (user-supplied key). Native Xcode project: `Feeder.xcodeproj`.
+Product vision: `docs/vision.md`. Concrete stack and verify commands: `docs/stack.md`.
 
 ## Language Policy
 
 - All project artifacts in **English**: code, comments, commits, branch names, PR titles, variable names.
 - User communication in **Finnish**.
 
+## Where the rules live
+
+CLAUDE.md is a short index. Project rules live in `docs/`:
+
+| File | Owns |
+| --- | --- |
+| `docs/vision.md` | Product vision, non-negotiable outcomes (human-owned) |
+| `docs/stack.md` | Tech stack, `$VERIFY_CMD` and friends, performance budgets, approved dependencies, persistence shape |
+| `docs/swift-code-rules.md` | Swift 6 rules, two-layer architecture, actor boundaries, strict prohibitions, code style |
+| `docs/app-rules.md` | Four design principles: performance, keyboard navigation, vanilla macOS, readability |
+| `docs/definition-of-done.md` | Checklist a change must satisfy before it can ship |
+| `docs/autonomy.md` | How agents proceed under ambiguity; failure mode for repeated verify failures |
+
+Do not duplicate content from these files in CLAUDE.md, agent prompts, or skill prompts — reference them by name and section.
+
 ## Verification
 
-Run before every commit and PR — all must pass, no exceptions:
+Run `make test-all` (`$VERIFY_CMD` in `docs/stack.md`) before every commit and PR — lint, build, unit tests must pass with zero warnings. Full readiness check: `docs/definition-of-done.md`.
 
-```bash
-make test-all
-```
+## Workflow
 
-This runs: lint → build (zero warnings) → unit tests. Use `make help` for all available targets.
-
-## Swift 6 Strict Concurrency (Non-Negotiable)
-
-Swift 6 language mode, strict concurrency complete, default actor isolation MainActor. Zero warnings, zero errors. Full spec: `docs/swift-code-rules.md`. Design principles: `docs/app-rules.md`.
-
-### Two-Layer Architecture
-
-- **Data layer** (background): `DataWriter` (`@ModelActor`), `FeedbinClient` (`actor`), pure helpers (`nonisolated`). All writes, network, computation here. Pre-compute display fields at write time.
-- **UI layer** (MainActor, read-only): SwiftUI views read via `@Query` with SQLite predicates. `SyncEngine`/`ClassificationEngine` are `@Observable` for progress display only — zero `ModelContext`, delegate to `DataWriter`.
-
-### Key Rules
-
-- No `ModelContext` on MainActor for writes — all writes through `DataWriter`.
-- No Swift filtering of `@Query` results — push predicates to `@Query`.
-- No expensive computation during rendering.
-- DTOs crossing actors: `nonisolated struct` + `Sendable`.
-- `@Model` objects never cross actor boundaries — use `PersistentIdentifier`.
-- `DataWriter` must init on a background thread.
-
-### Prohibited Patterns
-
-No `DispatchQueue`/GCD/`NSLock`/semaphores/`OperationQueue`. No completion handlers. No `Combine` for async. No `withCheckedContinuation`. No `Timer.scheduledTimer` — use `Task.sleep(for:)`. No `[weak self]` in Task closures.
-
-## Code Standards
-
-- **Strong Swift**: no `@unchecked Sendable`, no `nonisolated(unsafe)`. Every type properly isolated.
-- **Pure functions**: business logic as pure functions, side effects only at I/O boundaries.
-- **Value types**: prefer `struct` and `enum`. Use `class` only when required.
-- **DRY**: if logic is similar to existing code, refactor to reuse. Never copy-paste.
-- **Single-purpose functions**: each function does one thing.
-- **Naming**: descriptive, intention-revealing, English.
-- **Minimal scoped changes**: change only what is necessary. No unrelated refactors during fixes.
+- Use the `project-manager` agent to drive non-trivial changes end-to-end. It orchestrates `architect`, `ux-guardian`, `devils-advocate`, `lead-dev`, and `qa-enforcer` through agent-teams discussion before and after implementation.
+- `/implement` and `/codereview` are skills the team uses internally — `lead-dev` runs `/implement`, `qa-enforcer` runs `/codereview`.
+- Use Claude Code's `/plan` mode for upfront design questions.
 
 ## Git Workflow
 
-- Use `/implement <task>` for the full branch → implement → test → PR workflow.
-- Every feature gets its own branch. Branch from `main`, PR back to `main`.
-- **NEVER** commit or push directly to `main`.
-- Conventional Commits: `<type>(<scope>): <summary>`
-- Branch naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`
+- Every feature gets its own branch from `main` and PRs back to `main`. NEVER commit or push directly to `main`.
+- Branch naming: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<topic>`.
+- Conventional Commits: `<type>(<scope>): <summary>`.
 - Commits must be complete logical units — one logical change per commit.
-- PRs are merged with merge commit, not squash. Always delete the branch after merge.
-- **PR as audit trail**: the PR description must fully describe what and why. Design decisions, trade-offs, and compromises documented in PR comments.
-- After PR is merged: delete the local and remote feature branch, switch back to `main`, and pull.
+- PRs are merged with merge commit, not squash. Delete the branch after merge.
+- **PR as audit trail:** the PR description must fully describe what and why. The `.github/pull_request_template.md` enforces the structure.
+- After merge: delete the local and remote feature branch, switch back to `main`, pull.
 
 ## Safeguards
 
@@ -70,21 +51,9 @@ No `DispatchQueue`/GCD/`NSLock`/semaphores/`OperationQueue`. No completion handl
 - **NEVER** run `rm -rf` on project directories.
 - **NEVER** merge a PR without all verification passing.
 
-## Planning
-
-Use Claude Code's built-in `/plan` mode for any non-trivial work. Before implementation
-search the web, research the codebase, and read relevant documentation as part of planning.
-
-## Code Review
-
-Use `/codereview` after creating a PR. The skill handles: isolated subagent review → audit trail comment → fix → re-review.
-
-## SwiftData Schema Versioning
-
-Bump `currentSchemaVersion` in `FeederApp.swift` when schema changes. Database auto-resets on version mismatch. Never write migrations.
-
 ## Decision Rights
 
-- **Auto-allow**: read-only commands, local builds/tests, feature branch ops, PR creation.
-- **Ask first**: writes outside feature branch, edits to `docs/vision.md`, secrets/auth/billing.
-- **Never**: force push, `rm -rf`, push to main, bypass hooks, weaken concurrency settings.
+- **Auto-allow:** read-only commands, local builds/tests, feature branch ops, PR creation.
+- **Ask first:** writes outside feature branch, edits to `docs/vision.md` / `docs/stack.md` / `CLAUDE.md`, secrets/auth/billing.
+- **Never:** force push, `rm -rf`, push to main, bypass hooks, weaken concurrency settings.
+- **Ambiguity:** apply `docs/autonomy.md`.

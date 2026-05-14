@@ -17,6 +17,9 @@ All code must compile cleanly under Swift 6 with strict concurrency. Zero warnin
 2. **Pure functions for logic.** Business logic is written as pure functions with no side effects — same input always produces same output. Side effects (network, persistence, I/O) are isolated to actors.
 3. **Value types over reference types.** Prefer `struct` and `enum`. Use `class` only when required by framework APIs or reference semantics are explicitly needed.
 4. **No unsafe escape hatches.** `@unchecked Sendable`, `nonisolated(unsafe)`, and `assumeIsolated` are prohibited unless approved with a code comment explaining why no safe alternative exists.
+5. **DRY.** If logic is similar to existing code, refactor to reuse. Never copy-paste.
+6. **Single-purpose functions.** Each function does one thing. Split when a function grows past a single responsibility.
+7. **Minimal-scoped changes.** Change only what is necessary for the task. No unrelated refactors mixed into a fix.
 
 ## Two-Layer Architecture (Non-Negotiable)
 
@@ -58,6 +61,7 @@ Use `// MARK: - Section Name` to separate logical concerns.
 
 ### Naming
 
+- All identifiers in English. Descriptive, intention-revealing names.
 - Booleans: predicate form — `isRead`, `isClassified`, `isTopLevel`
 - Functions: descriptive verb prefix — `persist`, `fetch`, `apply`, `detect`, `strip`
 
