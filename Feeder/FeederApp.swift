@@ -19,12 +19,6 @@ struct FeederApp: App {
   private var classificationEngine = ClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
-  /// Owning reference to the production `DataWriter`. `SyncEngine` also
-  /// retains it via `attachWriter(_:)`; holding it here keeps the writer
-  /// alive across the app's lifetime and pins construction to a single
-  /// site (`runBootstrap`).
-  @State
-  private var dataWriter: DataWriter?
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
@@ -77,7 +71,7 @@ struct FeederApp: App {
 
   // MARK: - Bootstrap gate
 
-  enum BootstrapPhase: Equatable {
+  enum BootstrapPhase {
     case pending
     case ready
     case failed(String)
@@ -97,20 +91,17 @@ struct FeederApp: App {
   }
 
   private var bootstrapPendingView: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "books.vertical")
-        .font(.system(size: 56))
-        .foregroundStyle(.tint)
-      // HIG (macOS): avoid labeling a spinning progress indicator —
-      // a brief startup spinner needs no accompanying text.
-      ProgressView()
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    // HIG (macOS): avoid labeling a spinning progress indicator. A plain
+    // large spinner centred in the window matches the "calm/native" pattern
+    // — no launch-card decoration to compete with system chrome.
+    ProgressView()
+      .controlSize(.large)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private func bootstrapFailedView(message: String) -> some View {
     ContentUnavailableView {
-      Label("Couldn't open your library", systemImage: "exclamationmark.triangle")
+      Label("Couldn't open your feeds", systemImage: "exclamationmark.triangle")
     } description: {
       Text(message)
     } actions: {
@@ -124,22 +115,17 @@ struct FeederApp: App {
   }
 
   /// Run the single bootstrap entry point on the `DataWriter` background
-  /// actor. Builds the writer on a detached task (per `swift-code-rules.md`
-  /// → "DataWriter init must happen on a background thread"), runs
-  /// `bootstrap()`, then injects the writer into the `SyncEngine` so the
+  /// actor. Constructs the writer via the shared `makeDetached` helper,
+  /// runs `bootstrap()`, then injects the writer into `SyncEngine` so the
   /// rest of the app can use it.
   private func runBootstrap() async {
-    let container = modelContainer
-    let writer = await Task.detached(priority: .utility) {
-      DataWriter(modelContainer: container)
-    }.value
+    let writer = await DataWriter.makeDetached(modelContainer: modelContainer)
     do {
       let outcome = try await writer.bootstrap(currentSchemaVersion: currentSchemaVersion)
       let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
       logger.info(
         "Startup: schema v\(currentSchemaVersion), action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
-      dataWriter = writer
       syncEngine.attachWriter(writer)
       bootstrapPhase = .ready
     } catch {

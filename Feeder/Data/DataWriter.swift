@@ -74,10 +74,22 @@ actor DataWriter: ModelActor {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
   /// UserDefaults key tracking the schema version the persistent store was
-  /// last opened with. Lives here because `bootstrap()` is the only writer.
-  private static let schemaVersionKey = "feeder_schema_version"
+  /// last opened with. Lives here because production writes go through
+  /// `bootstrap()`. `internal` (default) visibility so tests can read the
+  /// same key without duplicating the magic string.
+  static let schemaVersionKey = "feeder_schema_version"
 
   // MARK: - Bootstrap
+
+  /// Construct a `DataWriter` on a detached background task. Single helper
+  /// shared by every production / preview / UI-test construction site,
+  /// honouring `swift-code-rules.md` → "DataWriter init must happen on a
+  /// background thread".
+  static func makeDetached(modelContainer: ModelContainer) async -> DataWriter {
+    await Task.detached(priority: .utility) {
+      DataWriter(modelContainer: modelContainer)
+    }.value
+  }
 
   /// Reconcile the persistent store on launch.
   ///

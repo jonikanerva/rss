@@ -596,9 +596,7 @@ struct ContentView: View {
       // Attach a writer so the preview renders its seeded rows.
       let container = modelContext.container
       Task {
-        let writer = await Task.detached(priority: .utility) {
-          DataWriter(modelContainer: container)
-        }.value
+        let writer = await DataWriter.makeDetached(modelContainer: container)
         syncEngine.attachWriter(writer)
       }
       return
@@ -629,13 +627,10 @@ struct ContentView: View {
   private func seedUITestDataIfNeeded() {
     let container = modelContext.container
     Task {
-      // Build the writer on a background task per swift-code-rules.md
-      // ("DataWriter init must happen on a background thread"), then inject
-      // it so `EntryListView` can render the seeded rows (without a writer
-      // the demo-mode launch sticks on `ProgressView`).
-      let writer = await Task.detached(priority: .utility) {
-        DataWriter(modelContainer: container)
-      }.value
+      // Build the writer via the shared helper so `EntryListView` can
+      // render the seeded rows (without a writer the demo-mode launch
+      // sticks on `ProgressView`).
+      let writer = await DataWriter.makeDetached(modelContainer: container)
       syncEngine.attachWriter(writer)
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
