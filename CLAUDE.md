@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-macOS RSS reader app: SwiftUI + SwiftData + Apple Foundation Models. Feedbin API sync, on-device classification, same-story grouping. Native Xcode project: `Feeder.xcodeproj`.
+macOS RSS reader app: SwiftUI + SwiftData. Feedbin API sync. Article classification via Apple Foundation Models (on-device) or OpenAI API (user-supplied key). Native Xcode project: `Feeder.xcodeproj`.
 
 ## Language Policy
 
@@ -83,12 +83,8 @@ Use `/codereview` after creating a PR. The skill handles: isolated subagent revi
 
 Bump `currentSchemaVersion` in `FeederApp.swift` when schema changes. Database auto-resets on version mismatch. Never write migrations.
 
-## Status Tracking
-
-`docs/next-actions.md` tracks the active work queue. Update on meaningful changes.
-
 ## Decision Rights
 
 - **Auto-allow**: read-only commands, local builds/tests, feature branch ops, PR creation.
-- **Ask first**: writes outside feature branch, edits to `docs/vision/VISION.md`, secrets/auth/billing.
+- **Ask first**: writes outside feature branch, edits to `docs/vision.md`, secrets/auth/billing.
 - **Never**: force push, `rm -rf`, push to main, bypass hooks, weaken concurrency settings.
