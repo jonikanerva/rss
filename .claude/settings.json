@@ -30,7 +30,8 @@
     "deny": [
       "Bash(git push --force:*)",
       "Bash(git push origin main:*)",
-      "Bash(rm -rf:*)"
+      "Bash(rm -rf:*)",
+      "Bash(claude:*)"
     ]
   },
   "hooks": {
@@ -41,6 +42,15 @@
           {
             "type": "command",
             "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \".env\"; then echo \"BLOCKED: reading .env files is not allowed\" >&2; exit 2; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -Eq \"(^|[[:space:];|&])claude([[:space:]]|$)\"; then echo \"BLOCKED: spawn subagents via the Agent tool, not the claude CLI\" >&2; exit 2; fi'"
           }
         ]
       }
