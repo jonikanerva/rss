@@ -107,10 +107,7 @@ struct FaviconView: View {
 
 @MainActor
 private func unreadEntryRowPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config) else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let feed = Feed(
@@ -144,10 +141,7 @@ private func unreadEntryRowPreview() -> some View {
 
 @MainActor
 private func readEntryRowPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config) else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let entry = Entry(

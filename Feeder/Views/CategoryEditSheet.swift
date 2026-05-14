@@ -194,15 +194,7 @@ struct CategoryEditSheet: View {
 
 @MainActor
 private func categoryEditExistingPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard
-    let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self, Folder.self,
-      configurations: config
-    )
-  else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
@@ -223,15 +215,7 @@ private func categoryEditExistingPreview() -> some View {
 
 @MainActor
 private func categoryEditNewPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard
-    let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self, Folder.self,
-      configurations: config
-    )
-  else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
 
   return CategoryEditSheet(category: nil, folders: [])
     .environment(SyncEngine())

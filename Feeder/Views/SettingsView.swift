@@ -335,15 +335,7 @@ extension Double {
 
 @MainActor
 private func settingsSeededPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard
-    let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self, Folder.self,
-      configurations: config
-    )
-  else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let feed = Feed(
