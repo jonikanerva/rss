@@ -117,7 +117,10 @@ enum ArticleViewMode {
 /// The regex sanitization and template-injection passes used to run inside
 /// `ArticleWebView.updateNSView`, on MainActor. Moving them here behind a
 /// `Task.detached` keeps the MainActor free for view diffing while the
-/// article switches. A `ProgressView` covers the brief render window.
+/// article switches. A `ProgressView` is shown only on the very first
+/// render (when `renderedHTML` is still `nil`); subsequent article switches
+/// keep the previous article visible until the new HTML lands (~5ms),
+/// avoiding spinner flashes during fast arrow-key navigation.
 private struct ArticleWebContainer: View {
   let entry: Entry
 
@@ -143,8 +146,14 @@ private struct ArticleWebContainer: View {
       }
     }
     .task(id: entry.feedbinEntryID) {
-      // Reset to placeholder when switching articles so stale HTML never shows.
-      renderedHTML = nil
+      // Keep the previous article's HTML visible while the new one renders
+      // (~5ms). This avoids a spinner flash on every arrow-key navigation —
+      // HIG advises against loading indicators for <100ms operations.
+      // Stale-HTML protection still holds:
+      //   • ArticleWebView's currentEntryID guard blocks loading the wrong
+      //     entry into WKWebView.
+      //   • The Task.isCancelled check below blocks a late render from
+      //     overwriting @State after the user has moved on.
       let html = await renderHTML(for: entry)
       guard !Task.isCancelled else { return }
       renderedHTML = html
