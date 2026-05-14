@@ -1,14 +1,12 @@
 import Foundation
-import OSLog
-import SwiftData
-
-nonisolated private let seedingLogger = Logger(subsystem: "com.feeder.app", category: "DefaultCategoryData")
 
 /// First-launch taxonomy shipped with the app. Kept in its own file so
 /// `FeederApp` stays focused on lifecycle and the seed data is easy to review.
 ///
+/// Pure data: insert logic lives on `DataWriter.bootstrap()` so all writes
+/// go through the single actor-isolated entry point.
 /// `nonisolated` so the `DataWriter` background actor can read the static
-/// definitions from `bootstrap()` without crossing back to MainActor.
+/// definitions without crossing back to MainActor.
 nonisolated enum DefaultCategoryData {
   struct FolderDefinition: Sendable {
     let label: String
@@ -122,43 +120,4 @@ nonisolated enum DefaultCategoryData {
       sortOrder: 3, folderLabel: nil,
       keywords: ["buddhism", "buddhist", "meditation", "dharma", "mindfulness", "zen"]),
   ]
-
-  /// Insert folders, categories, and the system `uncategorized` fallback into
-  /// the given context, then save. Expected to run only on first launch when
-  /// the categories table is empty — `FeederApp` guards that condition.
-  ///
-  /// Bootstrap exception: writes directly to `ModelContext` during app
-  /// `init()`, before any views or `@Query` are active. `DataWriter` is not yet
-  /// available (SyncEngine.configure() hasn't been called). Parallel path to
-  /// `FeederApp.resetArticlesIfSchemaChanged()`, which uses the same pattern.
-  static func seed(into context: ModelContext) {
-    for folder in folders {
-      context.insert(Folder(label: folder.label, displayName: folder.displayName, sortOrder: folder.sortOrder))
-    }
-    for category in categories {
-      context.insert(
-        Category(
-          label: category.label,
-          displayName: category.displayName,
-          categoryDescription: category.description,
-          sortOrder: category.sortOrder,
-          folderLabel: category.folderLabel,
-          keywords: category.keywords
-        )
-      )
-    }
-    context.insert(
-      Category(
-        label: uncategorizedLabel,
-        displayName: "Uncategorized",
-        categoryDescription: "Use only when no other category clearly matches.",
-        sortOrder: Int.max,
-        isSystem: true
-      )
-    )
-    try? context.save()
-    seedingLogger.info(
-      "Seeded \(folders.count) folders and \(categories.count + 1) categories on first launch."
-    )
-  }
 }
