@@ -25,33 +25,51 @@ import Testing
 //                    `deleteUnreadEntries` during a normal sync.
 
 @MainActor
-@Suite("SyncEngine", .serialized)
+@Suite("SyncEngine")
 struct SyncEngineTests {
-  /// Wipe `UserDefaults` keys this suite touches before each test. The
-  /// `init` of a `@Suite` `struct` runs per test instance, giving us a free
-  /// pre-test hook. The suite is `.serialized` so the wipe can't race
-  /// another test in the same suite.
+  // MARK: - Per-test isolation
+
+  /// Per-test isolated `UserDefaults` instance. Built with a unique
+  /// `suiteName` so reads/writes of `lastSyncDate` and `pendingReadIDsToSync`
+  /// never touch `.standard` and therefore can't race
+  /// `DataWriterBootstrapTests` (which asserts on the `lastSyncDate` key in
+  /// the standard domain). Swift Testing's `.serialized` trait can only
+  /// serialise within a single suite — it does not cross suite boundaries —
+  /// so a shared lock would not have worked here. Injecting a private
+  /// `UserDefaults` is the cleaner fix.
+  private let defaults: UserDefaults
+  private let suiteName: String
+
   init() {
-    UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
-    UserDefaults.standard.removeObject(forKey: "pendingReadIDsToSync")
+    let id = "FeederTests.SyncEngine.\(UUID().uuidString)"
+    self.suiteName = id
+    // `init(suiteName:)` returns nil for reserved names ("standard",
+    // "main", etc.). A random UUID never hits one of those, so the force
+    // unwrap here is safe and surfaces an immediate test failure if Apple
+    // changes that contract.
+    guard let defaults = UserDefaults(suiteName: id) else {
+      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
+    }
+    self.defaults = defaults
   }
 
   // MARK: - Builders
 
   /// Build a configured `SyncEngine` with an in-memory `DataWriter` and the
-  /// supplied fake client already attached.
+  /// supplied fake client already attached. The engine reads/writes its
+  /// `lastSyncDate` and queued-read-IDs against the per-test `defaults`
+  /// suite — never the standard domain.
   ///
-  /// We deliberately do **not** call `writer.bootstrap(...)` — bootstrap
+  /// `writer.bootstrap(...)` is deliberately **not** called: bootstrap
   /// writes to `UserDefaults.standard.feeder_schema_version`, which is
-  /// shared with `DataWriterBootstrapTests`. Skipping bootstrap keeps this
-  /// suite from racing the bootstrap suite. `SyncEngine`'s entry-persisting
-  /// path only needs `Feed` rows (created via `syncFeeds`), not the seeded
-  /// category/folder taxonomy.
+  /// shared with `DataWriterBootstrapTests`. `SyncEngine`'s entry-persisting
+  /// path only needs `Feed` rows (populated via `syncFeeds`), not the
+  /// seeded category/folder taxonomy.
   private func makeEngine(with client: FakeFeedbinClient) async throws -> (SyncEngine, DataWriter) {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
     let writer = DataWriter(modelContainer: container)
 
-    let engine = SyncEngine()
+    let engine = SyncEngine(defaults: defaults)
     engine.attachWriter(writer)
     engine.attachClient(client)
     return (engine, writer)
@@ -62,13 +80,13 @@ struct SyncEngineTests {
   @Test
   func successSyncFetchesAndPersistsEntries() async throws {
     let client = FakeFeedbinClient()
-    let subscription = try SyncEngineFixtures.subscription(id: 1, feedId: 100)
+    let subscription = try FeedbinFixtures.subscription(id: 1, feedId: 100)
     let entries = [
-      try SyncEngineFixtures.entry(id: 1001, feedId: 100),
-      try SyncEngineFixtures.entry(id: 1002, feedId: 100, title: "Second"),
+      try FeedbinFixtures.entry(id: 1001, feedId: 100),
+      try FeedbinFixtures.entry(id: 1002, feedId: 100, title: "Second"),
     ]
     await client.setSubscriptionsResponse([subscription])
-    await client.setEntryPagesResponse([SyncEngineFixtures.entriesPage(entries)])
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
     await client.setUnreadIDsResponse(entries.map(\.id))
 
     let (engine, writer) = try await makeEngine(with: client)
@@ -104,37 +122,35 @@ struct SyncEngineTests {
   @Test
   func refetchHistoryGuardedFromOverlappingPrimary() async throws {
     let client = FakeFeedbinClient()
-    let subscription = try SyncEngineFixtures.subscription()
-    let entries = [try SyncEngineFixtures.entry()]
+    let subscription = try FeedbinFixtures.subscription()
+    let entries = [try FeedbinFixtures.entry()]
     await client.setSubscriptionsResponse([subscription])
-    await client.setEntryPagesResponse([SyncEngineFixtures.entriesPage(entries)])
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
     await client.setUnreadIDsResponse([])
-    // Slow the page yield so the primary sync is still running when we
-    // trigger `refetchHistory()`. 250 ms is comfortably above the actor-hop
-    // noise floor without being slow enough to hurt test runtime.
-    await client.setEntryPagesPerPageDelay(.milliseconds(250))
+    // Hold the entry-page stream open long enough for the race-guard test
+    // window. The delay sits between the `fetchEntryPagesCallCount` bump
+    // and the first page yield, so the moment the counter flips to 1 we
+    // know the stream's task has started and we have the full delay
+    // window to fire `refetchHistory()` before `sync()` can complete.
+    await client.setEntryPagesInitialDelay(.milliseconds(400))
 
     let (engine, _) = try await makeEngine(with: client)
 
     let syncHandle = Task { await engine.sync() }
 
-    // Wait until the primary sync has acquired the `isSyncing` flag. Without
-    // this we'd race the guard check.
-    try await waitUntil { engine.isSyncing }
-
-    // Snapshot the call count before triggering the contended path.
-    let pagesBefore = await client.fetchEntryPagesCallCount
-    #expect(pagesBefore == 1, "Primary sync should have started its entry-page fetch")
+    // Gate on the **client** call counter, not `engine.isSyncing`.
+    // `isSyncing` flips to `true` long before `fetchAllEntryPages` is
+    // entered — gating on the flag would race the actual stream start.
+    try await waitUntilEntryPagesCallCountReaches(1, client: client)
 
     engine.refetchHistory()
 
-    // Let the backfill task run to completion. It should observe
-    // `isSyncing == true` and return immediately without touching the
-    // client. A short yield + sleep is enough — the guarded path does no
-    // I/O.
+    // Let `refetchHistory`'s `backfillTask` run to completion. It should
+    // observe `isSyncing == true` and bail out immediately without touching
+    // the client. A 50 ms yield is plenty — the guarded path does no I/O.
     try await Task.sleep(for: .milliseconds(50))
 
-    // Now wait for the primary sync to finish naturally.
+    // Wait for the primary sync to finish naturally.
     await syncHandle.value
 
     let pagesAfter = await client.fetchEntryPagesCallCount
@@ -147,9 +163,9 @@ struct SyncEngineTests {
   @Test
   func markReadFlushesIDsOnSync() async throws {
     let client = FakeFeedbinClient()
-    let subscription = try SyncEngineFixtures.subscription()
+    let subscription = try FeedbinFixtures.subscription()
     await client.setSubscriptionsResponse([subscription])
-    await client.setEntryPagesResponse([SyncEngineFixtures.entriesPage([])])
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage([])])
     await client.setUnreadIDsResponse([])
 
     let (engine, _) = try await makeEngine(with: client)
@@ -161,24 +177,27 @@ struct SyncEngineTests {
 
     let calls = await client.deleteUnreadEntriesCallLog
     #expect(calls.count == 1, "Expected a single delete-unread batch flush")
-    // Order inside a batch is `Set.Array` conversion order; assert by set
-    // equality so the test stays stable across Swift releases.
+    // Order inside a batch comes from `Set`'s `Array`-conversion; assert
+    // by set equality so the test stays stable across Swift releases.
     #expect(Set(calls.first ?? []) == queuedIDs)
   }
 
   // MARK: - Helpers
 
-  /// Spin-wait (yielding to the runtime) until `condition` becomes true or
-  /// `timeout` elapses. Used to synchronise on `@MainActor`-driven state
-  /// transitions without sprinkling fixed sleeps.
-  private func waitUntil(
-    timeout: Duration = .seconds(2),
-    _ condition: @MainActor () -> Bool
+  /// Poll the fake client until `fetchEntryPagesCallCount` reaches the
+  /// expected value or the timeout elapses. Used by the race-guard test
+  /// to synchronise on the moment the entry-page stream has actually been
+  /// entered — a stronger signal than `engine.isSyncing`, which flips
+  /// before the client is touched.
+  private func waitUntilEntryPagesCallCountReaches(
+    _ expected: Int,
+    client: FakeFeedbinClient,
+    timeout: Duration = .seconds(2)
   ) async throws {
     let deadline = ContinuousClock.now.advanced(by: timeout)
-    while !condition() {
+    while await client.fetchEntryPagesCallCount < expected {
       if ContinuousClock.now >= deadline {
-        Issue.record("Timed out waiting for condition")
+        Issue.record("Timed out waiting for fetchEntryPagesCallCount to reach \(expected)")
         return
       }
       try await Task.sleep(for: .milliseconds(5))

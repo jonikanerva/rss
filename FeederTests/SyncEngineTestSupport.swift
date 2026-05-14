@@ -6,94 +6,95 @@ import SwiftData
 // MARK: - Fake Feedbin client
 
 /// In-memory `FeedbinClientProtocol` implementation for `SyncEngine` tests.
-/// Each method either replays a pre-configured response, throws a
-/// pre-configured error, or — for entry pages — yields the configured pages
-/// through an `AsyncThrowingStream`. Method invocations are recorded so
-/// tests can assert orchestration behaviour (e.g. mark-read flush).
 ///
-/// Lives in test target only; production code never sees this type.
+/// Only the surface `SyncEngineTests` actually exercises is modeled here.
+/// Methods the engine calls but the tests don't assert on (icons,
+/// extracted content, credentials) return safe defaults — they still need
+/// to behave like the real client so `sync()` can run end-to-end.
+///
+/// All methods record their invocations in their own `*CallLog`, mirroring
+/// the same pattern, so any test (current or future) can introspect the
+/// orchestration without reaching into private state.
+///
+/// Lives in the test target only; production code never sees this type.
 actor FakeFeedbinClient: FeedbinClientProtocol {
   // MARK: Configurable responses
 
   var subscriptionsResponse: [FeedbinSubscription] = []
-  var iconsResponse: [FeedbinIcon] = []
   var unreadIDsResponse: [Int] = []
   var entryPagesResponse: [FeedbinEntriesPage] = []
-  var verifyCredentialsResponse: Bool = true
-  var extractedContentResponse: FeedbinExtractedContent?
 
-  // MARK: Configurable errors (any non-nil error is thrown instead of returning)
+  // MARK: Configurable errors (non-nil → thrown instead of returning)
 
   var subscriptionsError: Error?
-  var iconsError: Error?
-  var unreadIDsError: Error?
-  var entryPagesError: Error?
-  var verifyCredentialsError: Error?
-  var deleteUnreadEntriesError: Error?
+  var extractedContentError: Error?
 
   // MARK: Timing knobs
 
-  /// Sleep inserted before each entry page is yielded. Lets race-guard tests
-  /// keep the primary sync in-flight while a second operation tries to start.
-  var entryPagesPerPageDelay: Duration = .zero
+  /// Sleep inserted **before** entry-page yielding begins. Lets race-guard
+  /// tests keep the primary sync in-flight while a second operation tries
+  /// to start. The delay sits between the `bumpEntryPagesCallCount` and
+  /// the first page yield, so tests can gate on `fetchEntryPagesCallCount`
+  /// to know the stream has been entered.
+  var entryPagesInitialDelay: Duration = .zero
 
   // MARK: Call logs
 
-  /// Each entry is the ID batch passed to a single `deleteUnreadEntries` call.
+  /// Each entry is the ID batch passed to one `deleteUnreadEntries` call.
   var deleteUnreadEntriesCallLog: [[Int]] = []
-  var fetchSubscriptionsCallCount: Int = 0
+  /// Recorded URLs `fetchExtractedContent(from:)` was called with.
+  var extractedContentCallLog: [String] = []
+  /// Number of times `fetchAllEntryPages` was invoked. Bumped synchronously
+  /// at the start of the stream's body so race-guard tests can gate on it.
   var fetchEntryPagesCallCount: Int = 0
 
   // MARK: - FeedbinClientProtocol
 
   func fetchSubscriptions() async throws -> [FeedbinSubscription] {
-    fetchSubscriptionsCallCount += 1
     if let error = subscriptionsError { throw error }
     return subscriptionsResponse
   }
 
   func fetchIcons() async throws -> [FeedbinIcon] {
-    if let error = iconsError { throw error }
-    return iconsResponse
+    // Icons aren't asserted by any current test — return an empty list so
+    // `SyncEngine.sync()` can complete its icon pass.
+    []
   }
 
   func fetchUnreadEntryIDs() async throws -> [Int] {
-    if let error = unreadIDsError { throw error }
-    return unreadIDsResponse
+    unreadIDsResponse
   }
 
   func deleteUnreadEntries(_ ids: [Int]) async throws {
-    if let error = deleteUnreadEntriesError { throw error }
     deleteUnreadEntriesCallLog.append(ids)
   }
 
   func verifyCredentials() async throws -> Bool {
-    if let error = verifyCredentialsError { throw error }
-    return verifyCredentialsResponse
+    // Not exercised by any current test. Return `true` so the production
+    // contract ("valid creds → true") is mirrored.
+    true
   }
 
   func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? {
-    extractedContentResponse
+    extractedContentCallLog.append(extractedContentURL)
+    if let error = extractedContentError { throw error }
+    return nil
   }
 
   nonisolated func fetchAllEntryPages(since: Date?) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
-    AsyncThrowingStream { continuation in
-      let task = Task { [weak self] in
-        guard let self else {
-          continuation.finish()
-          return
+    // Snapshot of the actor's response/delay configuration captured in one
+    // hop. Doing it once up-front means the stream's task does not need to
+    // hold the actor across each page yield — and crucially the stream
+    // task does **not** capture `self`, sidestepping the `[weak self]`
+    // prohibition in `docs/swift-code-rules.md`.
+    let snapshotTask = Task { await self.snapshotEntryPagesState() }
+    return AsyncThrowingStream { continuation in
+      let task = Task {
+        let snapshot = await snapshotTask.value
+        if snapshot.delay > .zero {
+          try? await Task.sleep(for: snapshot.delay)
         }
-        await self.bumpEntryPagesCallCount()
-        if let error = await self.entryPagesError {
-          continuation.finish(throwing: error)
-          return
-        }
-        let pages = await self.entryPagesResponse
-        let delay = await self.entryPagesPerPageDelay
-        for page in pages {
-          if delay > .zero {
-            try? await Task.sleep(for: delay)
-          }
+        for page in snapshot.pages {
           if Task.isCancelled { break }
           continuation.yield(page)
         }
@@ -103,73 +104,23 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     }
   }
 
-  // MARK: - Configuration helpers (actor-isolated mutators usable from sync tests)
+  // MARK: - Configuration setters (actor-isolated mutators)
 
   func setSubscriptionsResponse(_ value: [FeedbinSubscription]) { subscriptionsResponse = value }
-  func setIconsResponse(_ value: [FeedbinIcon]) { iconsResponse = value }
   func setUnreadIDsResponse(_ value: [Int]) { unreadIDsResponse = value }
   func setEntryPagesResponse(_ value: [FeedbinEntriesPage]) { entryPagesResponse = value }
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
-  func setEntryPagesPerPageDelay(_ value: Duration) { entryPagesPerPageDelay = value }
+  func setEntryPagesInitialDelay(_ value: Duration) { entryPagesInitialDelay = value }
 
-  private func bumpEntryPagesCallCount() {
+  // MARK: - Internal
+
+  /// Read the page-stream snapshot **and** bump the call counter in one
+  /// actor hop. Done together so race-guard tests can use the counter as a
+  /// reliable "the stream's body has started" signal without depending on
+  /// `SyncEngine`'s `isSyncing` flag, which flips before any client call.
+  private func snapshotEntryPagesState() -> (pages: [FeedbinEntriesPage], delay: Duration) {
     fetchEntryPagesCallCount += 1
-  }
-}
-
-// MARK: - Fixture builders
-
-enum SyncEngineFixtures {
-  /// Build a `FeedbinSubscription` via the production JSON decoder so the test
-  /// exercises the same field-name conventions as the real API path.
-  static func subscription(
-    id: Int = 1,
-    feedId: Int = 100,
-    title: String = "Test Feed",
-    feedUrl: String = "https://example.com/feed.xml",
-    siteUrl: String = "https://www.example.com",
-    createdAt: String = "2026-01-01T00:00:00.000000Z"
-  ) throws -> FeedbinSubscription {
-    let json: [String: Any] = [
-      "id": id,
-      "feed_id": feedId,
-      "title": title,
-      "feed_url": feedUrl,
-      "site_url": siteUrl,
-      "created_at": createdAt,
-    ]
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinSubscription.self, from: data)
-  }
-
-  /// Build a `FeedbinEntry` via the production JSON decoder.
-  static func entry(
-    id: Int = 1001,
-    feedId: Int = 100,
-    title: String = "Test Article",
-    content: String = "<p>Body</p>",
-    url: String = "https://example.com/article",
-    published: String = "2026-05-01T12:00:00.000000Z"
-  ) throws -> FeedbinEntry {
-    let json: [String: Any] = [
-      "id": id,
-      "feed_id": feedId,
-      "title": title,
-      "content": content,
-      "url": url,
-      "published": published,
-      "created_at": published,
-    ]
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return try makeFeedbinDecoder().decode(FeedbinEntry.self, from: data)
-  }
-
-  static func entriesPage(
-    _ entries: [FeedbinEntry],
-    hasNextPage: Bool = false,
-    totalCount: Int? = nil
-  ) -> FeedbinEntriesPage {
-    FeedbinEntriesPage(entries: entries, hasNextPage: hasNextPage, totalCount: totalCount ?? entries.count)
+    return (entryPagesResponse, entryPagesInitialDelay)
   }
 }
 
@@ -177,8 +128,8 @@ enum SyncEngineFixtures {
 
 extension DataWriter {
   /// Count `Entry` rows in the in-memory store. Test-only convenience so
-  /// `SyncEngineTests` can assert that the orchestration actually persisted
-  /// entries without crossing actor boundaries by hand.
+  /// `SyncEngineTests` can assert the engine actually persisted entries
+  /// without crossing actor boundaries by hand.
   func entryCount() throws -> Int {
     try modelContext.fetchCount(FetchDescriptor<Entry>())
   }

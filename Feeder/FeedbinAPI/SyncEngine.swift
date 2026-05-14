@@ -102,11 +102,19 @@ final class SyncEngine {
     queryCutoffDate = articleCutoffDate()
   }
 
-  /// Last sync date — persisted to UserDefaults so incremental sync works across app restarts.
+  /// Last sync date — persisted to `defaults` so incremental sync works across app restarts.
   private(set) var lastSyncDate: Date? {
-    get { UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
-    set { UserDefaults.standard.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
+    get { defaults.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
+    set { defaults.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
   }
+
+  /// `UserDefaults` instance backing `lastSyncDate` and `pendingReadIDsToSync`.
+  /// Defaults to `.standard` in production; tests pass an isolated
+  /// `UserDefaults(suiteName:)` instance so suite-level state can't leak
+  /// across the test target — see `SyncEngineTests` which is parallelised
+  /// against `DataWriterBootstrapTests` and would otherwise race on the
+  /// shared `lastSyncDate` key.
+  private let defaults: UserDefaults
 
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
@@ -119,11 +127,19 @@ final class SyncEngine {
 
   private var pendingReadIDsToSync: Set<Int> {
     get {
-      Set(UserDefaults.standard.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
+      Set(defaults.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
     }
     set {
-      UserDefaults.standard.set(Array(newValue), forKey: Self.pendingReadKey)
+      defaults.set(Array(newValue), forKey: Self.pendingReadKey)
     }
+  }
+
+  /// Default-argumented init — production sites (`FeederApp`, every
+  /// `#Preview`) keep their existing `SyncEngine()` call; tests pass an
+  /// isolated `UserDefaults(suiteName:)` to keep their reads/writes off the
+  /// shared standard domain.
+  init(defaults: UserDefaults = .standard) {
+    self.defaults = defaults
   }
 
   /// Configure the sync engine with credentials. The caller is responsible
