@@ -110,12 +110,7 @@ design decisions or trade-offs. Keep the title under 70 characters.
 gh pr comment <number> --body "<what changed and why>"
 ```
 
-### Step 6: Update status
-
-Update `docs/next-actions.md` if the change is relevant to
-tracked work items.
-
-### Step 7: Report to user
+### Step 6: Report to user
 
 Tell the user (in Finnish):
 
@@ -126,7 +121,6 @@ Tell the user (in Finnish):
 
 ## Rules
 
-- **NEVER** force push
 - **NEVER** push to main
 - **NEVER** commit secrets or credentials
 - **NEVER** merge the PR — that happens after human review

@@ -1,9 +1,13 @@
 {
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": ["~/.gnupg"]
+    }
+  },
   "permissions": {
     "allow": [
       "Bash(make:*)",
       "Bash(gh pr:*)",
-      "Bash(gh api:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",

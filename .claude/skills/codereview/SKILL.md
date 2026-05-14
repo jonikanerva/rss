@@ -17,6 +17,7 @@ Review all changes on the current branch against `main`. **This skill runs as an
 This project targets premium code quality. Every finding — regardless of severity — is a FAIL. There is no "nitpick", "minor", "suggestion", or "consider fixing later" category. If something can be improved, it must be improved before merge.
 
 Specific zero-tolerance rules:
+
 - No dead code, unused imports, or orphaned helpers
 - No code duplication when a shared helper exists or should be extracted
 - No TODO/FIXME/HACK comments, commented-out code, or debug print statements
@@ -46,8 +47,7 @@ Post a single PR comment (`gh pr review --comment [comment]`) with:
 
 - **PASS** or **FAIL** verdict
 - Per-checklist findings (or "No issues" if clean)
-- For FAIL: specific file, line, and description for each issue and request the changes (`gh pr review --request-changes --body [comment]`).
-- For PASS: approve PR (`gh pr review --approve --body [comment]`).
+- For FAIL: specific file, line, and description for each issue and request the changes.
 
 **PASS means zero findings across all 11 checks.** One finding in any category — no matter how small — is a FAIL with requested changes. Do not categorize findings as "nitpick", "minor", or "suggestion". Every finding is a required fix.
 
