@@ -6,12 +6,19 @@ import SwiftData
 /// Shared test helpers for DataWriter integration tests.
 enum DataWriterTestSupport {
   static func makeWriter() async throws -> DataWriter {
+    let container = try makeInMemoryContainer()
+    return DataWriter(modelContainer: container)
+  }
+
+  /// Creates an in-memory `ModelContainer` with the full app schema for tests
+  /// that need direct `ModelContext` access (e.g. pure-function tests that
+  /// insert SwiftData models without going through `DataWriter`).
+  static func makeInMemoryContainer() throws -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(
+    return try ModelContainer(
       for: Category.self, Entry.self, Feed.self, Folder.self,
       configurations: config
     )
-    return DataWriter(modelContainer: container)
   }
 }
 

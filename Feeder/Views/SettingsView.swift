@@ -158,7 +158,7 @@ struct SettingsView: View {
         if let error = syncEngine.lastError {
           LabeledContent("Error") {
             Text(error)
-              .foregroundStyle(.red)
+              .foregroundStyle(Color(nsColor: .systemRed))
               .font(FontTheme.caption)
           }
         }
@@ -263,7 +263,11 @@ private struct AccountEditSheet: View {
 
         if let status = statusMessage {
           Text(status)
-            .foregroundStyle(status.contains("Error") ? .red : .green)
+            .foregroundStyle(
+              status.contains("Error")
+                ? Color(nsColor: .systemRed)
+                : Color(nsColor: .systemGreen)
+            )
             .font(FontTheme.caption)
         }
       }

@@ -40,7 +40,7 @@ struct OnboardingView: View {
 
       if let error = errorMessage {
         Text(error)
-          .foregroundStyle(.red)
+          .foregroundStyle(Color(nsColor: .systemRed))
           .font(FontTheme.caption)
       }
 

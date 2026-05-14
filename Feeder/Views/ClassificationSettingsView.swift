@@ -46,10 +46,10 @@ struct ClassificationSettingsView: View {
           HStack {
             if hasStoredKey {
               Label("API key is saved", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(Color(nsColor: .systemGreen))
             } else {
               Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color(nsColor: .systemOrange))
             }
 
             Spacer()
@@ -155,13 +155,13 @@ private struct APIKeyEditSheet: View {
         if hasStoredKey {
           Label("A key is currently saved", systemImage: "checkmark.circle.fill")
             .font(FontTheme.caption)
-            .foregroundStyle(.green)
+            .foregroundStyle(Color(nsColor: .systemGreen))
         }
 
         if let errorMessage {
           Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
             .font(FontTheme.caption)
-            .foregroundStyle(.red)
+            .foregroundStyle(Color(nsColor: .systemRed))
         }
       }
       .padding()
