@@ -259,6 +259,12 @@ struct ContentView: View {
       }
       return .handled
     }
+    // Bare-key shortcuts (J/K/R/B/A) are routed through TWO parallel paths:
+    // the global `.onKeyPress` fallback here AND per-panel `BareKeyHandler`
+    // modifiers on each List. This is intentional — the per-panel handlers
+    // only fire when their List has focus, ensuring shortcuts do NOT trigger
+    // while typing in a text field (search, password, etc.). Revisit only if
+    // SwiftUI focus APIs make a single `.focusState`-driven route viable.
     .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }

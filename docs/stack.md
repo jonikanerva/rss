@@ -116,6 +116,7 @@ Agents do not rely on training-data memory for API syntax or HIG specifics — t
 
 | Date | Rule | Divergence | Reason |
 | ---- | ---- | ---------- | ------ |
-| *(none)* | — | — | — |
+| 2026-05-14 | Same-story grouping UI | Deferred from MVP; data layer ready (`storyKey` computed and persisted on `Entry`), UI surfacing post-MVP. | Reduces MVP surface; classification correctness verified before UI investment. |
+| 2026-05-14 | Remote CI | No GitHub Actions; `make test-all` is the contracted local gate. | Single-developer project, PR template enforces verification. Revisit if contributor count > 1 or verification is skipped in any merged PR. |
 
 A divergence requires a measurement-backed reason, a clear benefit, and an isolated exception. Document it here when you take it.

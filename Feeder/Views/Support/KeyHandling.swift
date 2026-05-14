@@ -11,6 +11,12 @@ enum PanelFocus: Hashable {
 // MARK: - Mark All Read Key Handler
 
 /// Intercepts Shift+A before List type-to-select can capture it.
+//
+// ⇧A (mark all as read) does not show a confirmation dialog by design:
+// the modifier+letter chord is already a two-key gesture and is not
+// pressed accidentally. A confirmation would break the calm reading
+// flow (vision.md → UX north star). Undo support is the right answer,
+// not a dialog.
 struct MarkAllReadKeyHandler: ViewModifier {
   let action: () -> Void
 
@@ -48,6 +54,11 @@ extension EnvironmentValues {
 
 /// Intercepts bare-key shortcuts on each panel's List/view, preventing
 /// List type-to-select from consuming them.
+//
+// Per-panel bare-key dispatcher. Lives on each panel's List so J/K/R/B
+// only fire when that List has focus — see ContentView for the rationale
+// behind the dual-route design (avoids triggering shortcuts while typing
+// in text fields).
 struct BareKeyHandler: ViewModifier {
   @Environment(\.bareKeyActions)
   private var actions

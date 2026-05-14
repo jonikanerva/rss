@@ -26,7 +26,7 @@ Status: Active
 
 ## Non-negotiable product outcomes
 
-1. Every ingested article gets a main category assignment (user defined taxonomy).
+1. Every ingested article gets exactly one main category assignment (user defined taxonomy).
 2. Every ingested article gets a same-story group assignment.
 3. Timeline order is always canonical timestamp descending.
 4. AI processing never changes timeline position.
@@ -62,7 +62,7 @@ Status: Active
 - Feed ingest and normalization only via Feedbin so we get the full-content of the article via the API.
 - Uses Apple Foundation Models as the primary LLM, with optional OpenAI provider for comparison.
 - Category assignment to user-defined main categories (with explicit fallback path).
-- Articles can have multiple categories.
+- Each article is assigned to exactly one main category — the best match. Multi-label assignment is out of scope for MVP.
 - Same-story grouping across sources.
 - Category-based timeline views with strict chronology based on earlierst article date.
 - Group headers with generated story titles.
