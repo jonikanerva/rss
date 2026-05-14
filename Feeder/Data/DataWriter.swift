@@ -308,7 +308,8 @@ actor DataWriter: ModelActor {
   /// Pass either `category` or `folder`; the other should be nil. If both are nil,
   /// returns an empty array.
   func fetchEntrySections(
-    category: String?, folder: String?, showRead: Bool, cutoffDate: Date
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
+    pinnedFeedbinEntryID: Int? = nil
   ) throws -> [EntryListSection] {
     let descriptor: FetchDescriptor<Entry>
     // Secondary sort on feedbinEntryID keeps order deterministic when two entries
@@ -319,10 +320,16 @@ actor DataWriter: ModelActor {
       SortDescriptor(\Entry.publishedAt, order: .reverse),
       SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
     ]
+    // `pinnedFeedbinEntryID` keeps the currently-selected row visible even when
+    // its `isRead` flips out of the filter (typically after cross-device sync
+    // marks it read elsewhere). Sentinel of 0 is safe — Feedbin assigns
+    // positive entry IDs only.
+    let pinned = pinnedFeedbinEntryID ?? 0
     if let category {
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryCategory == category && $0.isRead == showRead
+          $0.isClassified && $0.primaryCategory == category
+            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
             && $0.publishedAt >= cutoffDate
         },
         sortBy: entrySort
@@ -330,7 +337,8 @@ actor DataWriter: ModelActor {
     } else if let folder {
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryFolder == folder && $0.isRead == showRead
+          $0.isClassified && $0.primaryFolder == folder
+            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
             && $0.publishedAt >= cutoffDate
         },
         sortBy: entrySort

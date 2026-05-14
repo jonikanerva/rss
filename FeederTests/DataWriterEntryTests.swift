@@ -366,4 +366,76 @@ struct DataWriterEntryTests {
       target: .category("technology"), cutoffDate: .distantPast)
     #expect(result.isEmpty)
   }
+
+  // MARK: - fetchEntrySections (pinned selection retention)
+
+  /// Helper: seed a feed, two classified entries in `technology`, and mark
+  /// `readEntryID` as read. Returns the writer ready for fetch assertions.
+  private func seedPinTestData(readEntryID: Int) async throws -> DataWriter {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+
+    let unreadEntry = try Self.makeFeedbinEntry(id: 3001, title: "Unread Tech")
+    let readEntry = try Self.makeFeedbinEntry(id: readEntryID, title: "Read Tech")
+    _ = try await writer.persistEntries(
+      [unreadEntry, readEntry], unreadIDs: Set([3001, readEntryID]))
+
+    try await writer.addCategory(
+      label: "technology", displayName: "Technology",
+      description: "Tech news", sortOrder: 0)
+    for id in [3001, readEntryID] {
+      let result = ClassificationResult(
+        entryID: id, categoryLabel: "technology", storyKey: "story-\(id)",
+        detectedLanguage: "en", confidence: 0.9)
+      try await writer.applyClassification(entryID: id, result: result)
+    }
+
+    // Flip readEntryID to read — mirrors a cross-device sync mark.
+    try await writer.markEntriesRead(feedbinEntryIDs: Set([readEntryID]))
+    return writer
+  }
+
+  @Test
+  func fetchEntrySectionsExcludesReadEntryWithoutPin() async throws {
+    let writer = try await seedPinTestData(readEntryID: 3002)
+
+    let sections = try await writer.fetchEntrySections(
+      category: "technology", folder: nil, showRead: false,
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: nil)
+
+    let ids = sections.flatMap(\.entryIDs)
+    #expect(ids.count == 1)
+    // Only the unread entry should appear when no pin is set.
+    let unreadSnapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 3001)
+    #expect(ids.first == unreadSnapshot?.persistentModelID)
+  }
+
+  @Test
+  func fetchEntrySectionsRetainsPinnedReadEntry() async throws {
+    let writer = try await seedPinTestData(readEntryID: 3002)
+
+    let sections = try await writer.fetchEntrySections(
+      category: "technology", folder: nil, showRead: false,
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
+
+    let ids = sections.flatMap(\.entryIDs)
+    // Both the unread row and the pinned read row should appear.
+    #expect(ids.count == 2)
+    let readSnapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 3002)
+    #expect(ids.contains(where: { $0 == readSnapshot?.persistentModelID }))
+  }
+
+  @Test
+  func fetchEntrySectionsPinSentinelDoesNotMatchPositiveIDs() async throws {
+    // Pinning with `nil` (translated internally to sentinel 0) must not retain
+    // any read row — verifies the sentinel doesn't accidentally match valid IDs.
+    let writer = try await seedPinTestData(readEntryID: 3002)
+
+    let sections = try await writer.fetchEntrySections(
+      category: "technology", folder: nil, showRead: false,
+      cutoffDate: .distantPast)
+
+    let ids = sections.flatMap(\.entryIDs)
+    #expect(ids.count == 1)
+  }
 }

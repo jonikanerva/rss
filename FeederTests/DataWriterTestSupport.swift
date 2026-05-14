@@ -23,6 +23,7 @@ struct EntrySnapshot: Sendable {
   let primaryCategory: String
   let primaryFolder: String
   let plainText: String
+  let persistentModelID: PersistentIdentifier
 }
 
 extension DataWriter {
@@ -37,7 +38,8 @@ extension DataWriter {
       isClassified: entry.isClassified,
       primaryCategory: entry.primaryCategory,
       primaryFolder: entry.primaryFolder,
-      plainText: entry.plainText
+      plainText: entry.plainText,
+      persistentModelID: entry.persistentModelID
     )
   }
 }

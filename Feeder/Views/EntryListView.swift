@@ -43,6 +43,12 @@ struct EntryListView: View {
   let cutoffDate: Date
   let writer: DataWriter
   let refreshVersion: Int
+  /// When non-nil, the row with this Feedbin entry ID is retained in the fetch
+  /// result regardless of `isRead == showRead` — keeps a selected article
+  /// visible after a cross-device sync flips its read state. The pin rides
+  /// along with the next refresh trigger; selection changes alone do not
+  /// re-fetch (avoids per-click background work).
+  let pinnedFeedbinEntryID: Int?
   @Binding
   var selectedEntry: Entry?
   let onMarkAllRead: () -> Void
@@ -132,7 +138,8 @@ struct EntryListView: View {
   private func reload() async {
     let result =
       (try? await writer.fetchEntrySections(
-        category: category, folder: folder, showRead: filter == .read, cutoffDate: cutoffDate
+        category: category, folder: folder, showRead: filter == .read,
+        cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
       )) ?? []
     guard !Task.isCancelled else { return }
     if result != sections {

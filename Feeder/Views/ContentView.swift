@@ -18,6 +18,15 @@ struct ContentView: View {
   /// enough that single intentional taps still feel instant; long enough to
   /// suppress per-keystroke work during arrow-key scrubbing.
   fileprivate static let renderDwell: Duration = .milliseconds(150)
+  /// Hold time before a finished classification batch is allowed to refresh the
+  /// article list while the user is actively browsing. Bumping
+  /// `entryRefreshVersion` causes `EntryListView` to re-fetch sections; if any
+  /// row gained or lost a category in that batch, the `List` rebuilds and may
+  /// reseat its scroll anchor around the selected row — the user perceives
+  /// this as the list "jumping" when they were just scrolling/clicking. We
+  /// defer the bump until the user's selection has been stable for this long
+  /// (or selection clears) so the refresh lands at a quiet moment.
+  fileprivate static let classificationBumpDwell: Duration = .seconds(4)
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -68,6 +77,12 @@ struct ContentView: View {
   /// auto-refresh now that the article list is fetched off MainActor.
   @State
   private var entryRefreshVersion: Int = 0
+  /// Set true when classification finishes a batch and a refresh is owed; drained
+  /// by the dwell task below once the user's selection has been stable. Keeps
+  /// background refreshes from yanking the article list while the user clicks
+  /// or scrolls.
+  @State
+  private var pendingClassificationBump = false
   @FocusState
   private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
@@ -110,7 +125,6 @@ struct ContentView: View {
             }
           }
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
-          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: renderedSelection)
       } else {
         ContentUnavailableView {
           Label("No Category", systemImage: "newspaper")
@@ -210,9 +224,18 @@ struct ContentView: View {
     }
     .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
       if !isClassifying && classificationEngine.lastBatchClassifiedCount > 0 {
-        entryRefreshVersion &+= 1
+        pendingClassificationBump = true
       }
     }
+    .modifier(
+      ClassificationBumpDrainTrigger(
+        key: classificationBumpDrainKey,
+        dwell: Self.classificationBumpDwell,
+        hasSelection: selectedEntry != nil,
+        pendingBump: $pendingClassificationBump,
+        onDrain: { entryRefreshVersion &+= 1 }
+      )
+    )
     .modifier(
       CategoryFolderChangeTrigger(
         categoryFolderLabels: categoryFolderLabels,
@@ -331,6 +354,7 @@ struct ContentView: View {
         category: category, folder: folder, filter: articleFilter,
         cutoffDate: syncEngine.queryCutoffDate, writer: writer,
         refreshVersion: entryRefreshVersion,
+        pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
         selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
       )
     } else {
@@ -352,6 +376,13 @@ struct ContentView: View {
   /// Extracted from body to keep the type-checker happy.
   private var categoryFolderLabels: [String?] {
     allCategories.map(\.folderLabel)
+  }
+
+  /// Re-key for the classification drain task. A change in either component
+  /// restarts the task: selection move ⇒ fresh dwell window; pending flag flip
+  /// ⇒ pick up the newly-owed bump.
+  private var classificationBumpDrainKey: String {
+    "\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingClassificationBump)"
   }
 
   /// Tab from sidebar into the article-list column. No-ops entirely during
