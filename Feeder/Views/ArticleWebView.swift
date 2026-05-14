@@ -3,9 +3,9 @@ import WebKit
 
 // MARK: - Static resource loading
 
-/// Load a bundle resource as a UTF-8 string. Used at module init time to cache
-/// immutable template + CSS files in `ArticleWebView`.
-nonisolated private func loadStaticResource(_ name: String, ext: String) -> String {
+/// Load a bundle resource as a UTF-8 string. Used by the host view to cache
+/// immutable template + CSS files in static `let` bindings.
+nonisolated func loadStaticResource(_ name: String, ext: String) -> String {
   guard let url = Bundle.main.url(forResource: name, withExtension: ext),
     let contents = try? String(contentsOf: url, encoding: .utf8)
   else {
@@ -18,15 +18,10 @@ nonisolated private func loadStaticResource(_ name: String, ext: String) -> Stri
 
 struct ArticleWebView: NSViewRepresentable {
   let entry: Entry
-
-  /// Bundle resources are immutable — load once on first access, reuse forever.
-  /// Avoids two disk reads per detail render.
-  nonisolated private static let articleTemplate: String = loadStaticResource(
-    "article-template", ext: "html"
-  )
-  nonisolated private static let articleCSS: String = loadStaticResource(
-    "article-style", ext: "css"
-  )
+  /// Pre-rendered article HTML. The host view computes this on a background
+  /// task via `renderArticleHTML(...)` and passes the result in. This keeps
+  /// regex sanitization and template injection off the MainActor.
+  let renderedHTML: String
 
   func makeCoordinator() -> Coordinator {
     Coordinator()
@@ -48,59 +43,8 @@ struct ArticleWebView: NSViewRepresentable {
     guard context.coordinator.currentEntryID != entryID else { return }
     context.coordinator.currentEntryID = entryID
 
-    let html = buildHTML(for: entry)
     let baseURL = URL(string: entry.url)
-    webView.loadHTMLString(html, baseURL: baseURL)
-  }
-
-  private func buildHTML(for entry: Entry) -> String {
-    let template = Self.articleTemplate
-    let css = Self.articleCSS
-
-    let dateStr = DetailDateFormatting.formatDate(entry.publishedAt)
-    let title = (entry.title ?? "Untitled").htmlEscaped
-    let author = (entry.author ?? "").htmlEscaped
-    let domain = (entry.displayDomain ?? "").lowercased().htmlEscaped
-    let body = stripFeedStyles(replaceVideoIframes(entry.feedHTML))
-
-    let favicon: String
-    if let data = entry.feed?.faviconData {
-      let base64 = data.base64EncodedString()
-      favicon = "<img class=\"favicon\" src=\"data:image/png;base64,\(base64)\" alt=\"\">"
-    } else {
-      let firstChar = entry.feed?.title.first ?? Character("?")
-      let letter = String(firstChar).htmlEscaped
-      favicon = "<div class=\"favicon-placeholder\">\(letter)</div>"
-    }
-
-    return
-      template
-      .replacingOccurrences(of: "[[style]]", with: css)
-      .replacingOccurrences(of: "[[date]]", with: dateStr)
-      .replacingOccurrences(of: "[[title]]", with: title)
-      .replacingOccurrences(of: "[[author]]", with: author)
-      .replacingOccurrences(of: "[[domain]]", with: domain)
-      .replacingOccurrences(of: "[[favicon]]", with: favicon)
-      .replacingOccurrences(of: "[[body]]", with: body)
-  }
-
-  /// Strip feed CSS, scripts, and event handlers from HTML content in Swift.
-  /// This replaces the JS-based stripping, ensuring it works even with JS disabled.
-  /// Each sanitizer is applied in order; results are chained via `reduce`.
-  private static let sanitizers: [(Regex<Substring>, String)] = [
-    (#/<style[^>]*>[\s\S]*?<\/style>/#, ""),
-    (#/<link[^>]*rel=["']stylesheet["'][^>]*\/?>/#, ""),
-    (#/<script[^>]*>[\s\S]*?<\/script>/#, ""),
-    (#/\s+on\w+\s*=\s*"[^"]*"/#, ""),
-    (#/\s+on\w+\s*=\s*'[^']*'/#, ""),
-    (#/\s+style\s*=\s*"[^"]*"/#, ""),
-    (#/\s+style\s*=\s*'[^']*'/#, ""),
-  ]
-
-  private func stripFeedStyles(_ html: String) -> String {
-    Self.sanitizers.reduce(html) { result, pair in
-      result.replacing(pair.0, with: pair.1)
-    }
+    webView.loadHTMLString(renderedHTML, baseURL: baseURL)
   }
 
   // MARK: - Coordinator
