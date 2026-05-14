@@ -117,10 +117,7 @@ enum ArticleViewMode {
 
 @MainActor
 private func articleDetailPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, configurations: config) else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let feed = Feed(

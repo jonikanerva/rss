@@ -130,15 +130,7 @@ struct FolderEditSheet: View {
 
 @MainActor
 private func folderEditNewPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard
-    let container = try? ModelContainer(
-      for: Entry.self, Feed.self, Category.self, Folder.self,
-      configurations: config
-    )
-  else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
 
   return FolderEditSheet(folder: nil)
     .environment(SyncEngine())

@@ -678,10 +678,7 @@ struct ContentView: View {
 
 @MainActor
 private func timelineSeededDemoPreview() -> some View {
-  let config = ModelConfiguration(isStoredInMemoryOnly: true)
-  guard let container = try? ModelContainer(for: Entry.self, Feed.self, Category.self, Folder.self, configurations: config) else {
-    fatalError("Preview ModelContainer failed")
-  }
+  let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
   let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
