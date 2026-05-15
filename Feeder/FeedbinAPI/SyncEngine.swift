@@ -32,6 +32,70 @@ nonisolated func articleCutoffDate() -> Date {
   Date().addingTimeInterval(-maxArticleAge)
 }
 
+// MARK: - SyncError
+
+/// Categorised sync failure. `SyncEngine.lastError` exposes this so the
+/// sidebar can choose a contextual action (Retry vs Sign in again) without
+/// the view having to introspect a free-form error string. The
+/// `.message` carries the localized description for diagnostics; the
+/// case discriminates the actionable category.
+nonisolated enum SyncError: Error, Sendable, Equatable {
+  /// Offline, timeout, dropped connection, or transient server failure.
+  /// User action: retry once the network is reachable again.
+  case network(String)
+  /// Feedbin returned 401 — stored credentials no longer work.
+  /// User action: re-enter credentials in Settings → Account.
+  case authFailed(String)
+  /// Anything else (decoding failure, 4xx/5xx outside the auth window).
+  /// User action: surface the message and let the user retry manually.
+  case other(String)
+
+  /// Localized message suitable for inline secondary-styled UI.
+  var message: String {
+    switch self {
+    case .network(let message), .authFailed(let message), .other(let message): message
+    }
+  }
+
+  /// True when this represents a connectivity / transient transport failure
+  /// — used by `EntryListView` to surface the offline empty state instead
+  /// of "No articles in this category".
+  var isNetworkError: Bool {
+    if case .network = self { return true }
+    return false
+  }
+}
+
+/// Map any thrown error into a `SyncError`. Inspects `URLError` codes for
+/// connectivity classification and `FeedbinError.unauthorized` for the auth
+/// branch; everything else falls into `.other`. Pure — kept `nonisolated`
+/// so call sites in `SyncEngine` and future actors can categorise without
+/// hopping isolation.
+nonisolated func categorizeSyncError(_ error: Error) -> SyncError {
+  if let urlError = error as? URLError {
+    switch urlError.code {
+    case .notConnectedToInternet, .timedOut, .networkConnectionLost,
+      .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+      .resourceUnavailable, .internationalRoamingOff, .callIsActive,
+      .dataNotAllowed:
+      return .network(urlError.localizedDescription)
+    default:
+      break
+    }
+  }
+  if let feedbinError = error as? FeedbinError {
+    switch feedbinError {
+    case .unauthorized:
+      return .authFailed(feedbinError.localizedDescription)
+    case .httpError(let statusCode) where (500...599).contains(statusCode):
+      return .network(feedbinError.localizedDescription)
+    default:
+      break
+    }
+  }
+  return .other(error.localizedDescription)
+}
+
 /// Fetch extracted content for a batch of entries with a concurrency limit of 8.
 nonisolated func fetchExtractedContentBatch(
   requests: [(entryID: Int, url: String)],
@@ -80,7 +144,10 @@ final class SyncEngine {
   /// operations.
   private(set) var isSyncing = false
   private(set) var isFetchingContent = false
-  private(set) var lastError: String?
+  /// Categorised last failure (network / auth / other) or `nil` after a
+  /// successful sync. Views read this to render the inline error banner
+  /// and pick a contextual recovery action — see `SyncStatusView`.
+  private(set) var lastError: SyncError?
 
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
@@ -191,7 +258,7 @@ final class SyncEngine {
     do {
       return try await client.verifyCredentials()
     } catch {
-      lastError = error.localizedDescription
+      lastError = categorizeSyncError(error)
       return false
     }
   }
@@ -271,7 +338,7 @@ final class SyncEngine {
 
       logger.info("Primary sync complete")
     } catch {
-      lastError = error.localizedDescription
+      lastError = categorizeSyncError(error)
 
       logger.error("Sync failed: \(error.localizedDescription)")
       lastSyncChangedEntryCount = 0
@@ -399,5 +466,26 @@ final class SyncEngine {
       // uses — no need to duplicate the fetch-and-apply loop here.
       startExtractedContentFetch()
     }
+  }
+
+  // MARK: - Preview / test seam
+
+  /// Seed the engine's observable state for SwiftUI previews. Production
+  /// code never calls this — keeping the seam on the engine itself avoids
+  /// loosening `private(set)` on the real fields. Mirrors only the
+  /// surface the UI reads (`isSyncing`, `lastError`, `lastSyncDate`,
+  /// progress counters) — every other field stays at its init default.
+  func applyPreviewState(
+    isSyncing: Bool = false,
+    lastSyncDate: Date? = nil,
+    lastError: SyncError? = nil,
+    fetchedCount: Int = 0,
+    totalToFetch: Int = 0
+  ) {
+    self.isSyncing = isSyncing
+    self.lastSyncDate = lastSyncDate
+    self.lastError = lastError
+    self.fetchedCount = fetchedCount
+    self.totalToFetch = totalToFetch
   }
 }
