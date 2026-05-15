@@ -303,10 +303,13 @@ struct ContentView: View {
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
 
-  /// Folders that contribute at least one category, paired with their sorted
-  /// child categories. Built once per body evaluation and shared by both the
-  /// rendered sidebar (`sidebarView`) and the keyboard-nav flat list
-  /// (`sidebarItems`) so `allCategories.inFolder(...)` runs once per folder.
+  /// Filter+sort the folder list down to those with at least one category,
+  /// paired with their categories. Called from both `sidebarView` (hoisted to
+  /// a `let` so the body sees a single value) and `sidebarItems` (re-evaluated
+  /// per J/K keystroke for keyboard nav). Each invocation runs
+  /// `allCategories.inFolder(...)` once per folder — the two call sites do
+  /// not share a single computation; the property packages the dedupe
+  /// against `inFolder(...)` being called twice in one render pass.
   private var visibleFolderGroups: [(folder: Folder, categories: [Category])] {
     folders.compactMap { folder in
       let categoriesInFolder = allCategories.inFolder(folder.label)
