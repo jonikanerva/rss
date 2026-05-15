@@ -36,12 +36,23 @@ struct SettingsView: View {
     let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
     return stored > 0 ? stored : 7
   }()
+  /// Bound directly to the Picker — no `@State`/`.onChange` intermediate is
+  /// needed because changing the size has no side effects beyond updating the
+  /// `.dynamicTypeSize(_:)` modifier in `FeederApp`, which reads the same
+  /// `@AppStorage` key.
+  @AppStorage(appTextSizeUserDefaultsKey)
+  private var appTextSize: AppTextSize = .medium
 
   var body: some View {
     TabView {
       accountTab
         .tabItem {
           Label("Account", systemImage: "person.crop.circle")
+        }
+
+      appearanceTab
+        .tabItem {
+          Label("Appearance", systemImage: "textformat.size")
         }
 
       syncTab
@@ -106,6 +117,22 @@ struct SettingsView: View {
         onSave: { Task { await save() } }
       )
     }
+  }
+
+  // MARK: - Appearance Tab
+
+  private var appearanceTab: some View {
+    Form {
+      Section("Text size") {
+        Picker("Text size", selection: $appTextSize) {
+          ForEach(AppTextSize.allCases) { size in
+            Text(size.displayName).tag(size)
+          }
+        }
+        .accessibilityIdentifier("settings.appearance.textSize")
+      }
+    }
+    .formStyle(.grouped)
   }
 
   // MARK: - Sync Tab
@@ -320,6 +347,12 @@ extension Double {
 // MARK: - Preview
 
 #Preview("Settings - Seeded Data") {
+  settingsSeededPreview()
+}
+
+// Xcode opens the first tab by default; clicking the "Appearance" tab item
+// in the preview canvas surfaces the text-size picker for visual review.
+#Preview("Settings - Appearance Tab") {
   settingsSeededPreview()
 }
 
