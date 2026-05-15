@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Classification provider selection and OpenAI API key management.
@@ -65,8 +66,8 @@ struct ClassificationSettingsView: View {
     .sheet(isPresented: $showAPIKeyEditor) {
       APIKeyEditSheet(hasStoredKey: $hasStoredKey)
     }
-    .onChange(of: selectedProvider) { oldValue, newValue in
-      guard oldValue != newValue else { return }
+    .onChange(of: selectedProvider) { _, newValue in
+      // SwiftUI fires onChange only on Equatable change, so no manual diff guard needed.
       ClassificationProviderKind.persist(newValue)
       // Only prompt reclassify when switching to a provider that's ready to use
       if newValue == .appleFM || hasStoredKey {
@@ -190,4 +191,14 @@ private struct APIKeyEditSheet: View {
       errorMessage = "Couldn't remove API key from Keychain: \(String(describing: error))"
     }
   }
+}
+
+// MARK: - Preview
+
+#Preview("Classification Settings - Success") {
+  ClassificationSettingsView()
+    .environment(SyncEngine())
+    .environment(ClassificationEngine())
+    .modelContainer(PreviewSupport.makeContainer())
+    .frame(width: 480, height: 320)
 }
