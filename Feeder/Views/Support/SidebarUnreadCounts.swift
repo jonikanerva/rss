@@ -1,13 +1,13 @@
 import Foundation
 
-/// Pure aggregation helper for sidebar unread badges.
-///
-/// The sidebar runs a single `@Query` over classified-unread entries and the
-/// result is projected — once per body evaluation, lifted into `let`-locals so
-/// SwiftUI does not recompute on every property access — into per-category and
-/// per-folder count dictionaries. Aggregation is O(unread) and runs over the
-/// snapshot only; never per rendered row. Extracted as a `nonisolated` pure
-/// function so it can be unit-tested without spinning up a SwiftUI host.
+// Pure aggregation helper for sidebar unread badges.
+//
+// The sidebar runs a single `@Query` over classified-unread entries and the
+// result is projected — once per body evaluation, lifted into `let`-locals so
+// SwiftUI does not recompute on every property access — into per-category and
+// per-folder count dictionaries. Aggregation is O(unread) and runs over the
+// snapshot only; never per rendered row. Extracted as a `nonisolated` pure
+// function so it can be unit-tested without spinning up a SwiftUI host.
 
 /// Counts how many times each non-empty label appears in `labels` and returns
 /// the result as a `[label: count]` dictionary.
