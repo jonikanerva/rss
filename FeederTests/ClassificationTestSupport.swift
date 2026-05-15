@@ -105,7 +105,6 @@ actor FakeClassificationProvider: ClassificationProvider {
 
 /// Stable error type for `errorRecoveryContinuesWithNextBatch` so the test
 /// doesn't have to reach into production error namespaces it isn't
-/// otherwise exercising.
-struct FakeProviderError: Error, Equatable {
-  let message: String
-}
+/// otherwise exercising. Carries no payload — the runner's `catch` branch
+/// only cares that *some* error was thrown.
+struct FakeProviderError: Error {}

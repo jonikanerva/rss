@@ -179,10 +179,12 @@ final class ClassificationEngine {
   // MARK: - Test introspection
   //
   // These read-only accessors expose the orchestration state that
-  // `ClassificationEngineTests` needs to assert on. `#if DEBUG` keeps them
-  // out of Release builds entirely so they cannot be reached from
-  // production code paths — and the engine's own logic continues to read
-  // the private storage directly. Tests use them to prove the
+  // `ClassificationEngineTests` needs to assert on. They are not compiled
+  // into Release builds — `#if DEBUG` strips them from the shipping
+  // binary entirely. Debug app builds still see them (the cost of using
+  // an in-module test target), but the engine's own logic continues to
+  // read the private storage directly so no production-code path relies
+  // on this surface. Tests use the accessors to prove the
   // continuous-loop restart path in `runReplacingContinuousLoop` instead
   // of poking at private state through reflection.
 

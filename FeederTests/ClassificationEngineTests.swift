@@ -118,27 +118,6 @@ struct ClassificationEngineTests {
     return ids
   }
 
-  /// Poll until the fake provider has recorded at least `expected` calls,
-  /// or fail the test after the deadline. Used to synchronise on
-  /// "the runner's batch loop has actually entered the provider" without
-  /// waiting on `engine.isClassifying`, which flips asynchronously via
-  /// the progress reporter and would race the provider call.
-  private func waitUntilProviderCallsReach(
-    _ expected: Int,
-    provider: FakeClassificationProvider,
-    timeout: Duration = .seconds(2)
-  ) async throws {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while await provider.callCount < expected {
-      if ContinuousClock.now >= deadline {
-        let actual = await provider.callCount
-        Issue.record("Timed out waiting for provider callCount \(expected); reached \(actual)")
-        return
-      }
-      try await Task.sleep(for: .milliseconds(5))
-    }
-  }
-
   // MARK: - 1. Happy path: pending entries get classified
 
   @Test
@@ -180,7 +159,9 @@ struct ClassificationEngineTests {
     // its batch loop and is awaiting inside `provider.classify(...)`. The
     // `isClassifying` MainActor flag is set asynchronously via the progress
     // reporter and races the first provider call.
-    try await waitUntilProviderCallsReach(1, provider: provider)
+    try await waitUntil("provider.callCount >= 1") {
+      await provider.callCount >= 1
+    }
 
     engine.stopContinuousClassification()
 
@@ -215,7 +196,9 @@ struct ClassificationEngineTests {
 
     // Wait for the continuous loop to enter the provider — proves the slot
     // is occupied and the loop's batch is actually running, not just queued.
-    try await waitUntilProviderCallsReach(1, provider: provider)
+    try await waitUntil("provider.callCount >= 1") {
+      await provider.callCount >= 1
+    }
 
     // Manual trigger fires while the continuous loop is mid-batch. The
     // engine must (a) cancel the loop, (b) run the one-shot inline,
@@ -254,10 +237,7 @@ struct ClassificationEngineTests {
     // assigns `uncategorizedLabel` to that entry and proceeds; the remaining
     // four calls receive the default "tech" response and produce normal
     // classifications.
-    await provider.configureErrors(
-      FakeProviderError(message: "synthetic transient failure"),
-      count: 1
-    )
+    await provider.configureErrors(FakeProviderError(), count: 1)
 
     await engine.classifyUnclassified(writer: writer)
 
