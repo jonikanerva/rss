@@ -646,39 +646,22 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
-    for (label, sortOrder) in updates {
+  /// Re-assign `sortOrder` for categories in a single folder (or at root when
+  /// `folderLabel` is `nil`) to match the position of each label in
+  /// `orderedLabels`. Labels not present in `orderedLabels` are left untouched.
+  /// System categories are skipped so the "uncategorized" pseudo-row cannot be
+  /// reordered into another slot. `[String]` is `Sendable`; no `Category`
+  /// objects cross the actor boundary.
+  func reorderCategories(inFolder folderLabel: String?, orderedLabels: [String]) throws {
+    for (index, label) in orderedLabels.enumerated() {
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == label }
       )
-      if let category = try modelContext.fetch(descriptor).first, !category.isSystem {
-        category.sortOrder = sortOrder
-      }
-    }
-    try modelContext.save()
-  }
-
-  func batchUpdateCategoryFolderAndSortOrders(
-    folderChanges: [(label: String, folderLabel: String?, sortOrder: Int)],
-    sortOrderUpdates: [(label: String, sortOrder: Int)]
-  ) throws {
-    for change in folderChanges {
-      let targetLabel = change.label
-      let descriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.label == targetLabel }
-      )
-      guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { continue }
-      category.folderLabel = change.folderLabel
-      category.sortOrder = change.sortOrder
-      try updatePrimaryFolderOnEntries(categoryLabel: change.label, newFolder: change.folderLabel ?? "")
-    }
-    for (label, sortOrder) in sortOrderUpdates {
-      let descriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.label == label }
-      )
-      if let category = try modelContext.fetch(descriptor).first, !category.isSystem {
-        category.sortOrder = sortOrder
-      }
+      guard let category = try modelContext.fetch(descriptor).first,
+        !category.isSystem,
+        category.folderLabel == folderLabel
+      else { continue }
+      category.sortOrder = index
     }
     try modelContext.save()
   }

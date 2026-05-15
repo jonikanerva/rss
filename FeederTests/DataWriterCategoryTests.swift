@@ -185,28 +185,6 @@ struct DataWriterCategoryTests {
     #expect(cat?.description == "New desc")
   }
 
-  // MARK: - updateCategorySortOrders
-
-  @Test
-  func updateSortOrdersReorders() async throws {
-    let writer = try await makeWriter()
-    try await writer.addCategory(
-      label: "a", displayName: "A", description: "A", sortOrder: 0
-    )
-    try await writer.addCategory(
-      label: "b", displayName: "B", description: "B", sortOrder: 1
-    )
-    try await writer.updateCategorySortOrders([
-      (label: "a", sortOrder: 1),
-      (label: "b", sortOrder: 0),
-    ])
-
-    let orderA = try await writer.fetchCategorySortOrder(label: "a")
-    let orderB = try await writer.fetchCategorySortOrder(label: "b")
-    #expect(orderA == 1)
-    #expect(orderB == 0)
-  }
-
   // MARK: - seedDefaultCategories
 
   @Test
@@ -260,5 +238,86 @@ struct DataWriterCategoryTests {
     let defs = try await writer.fetchCategoryDefinitions()
     let uncat = defs.first { $0.label == uncategorizedLabel }
     #expect(uncat?.folderLabel == nil)
+  }
+
+  // MARK: - reorderCategories
+
+  @Test
+  func reorderCategoriesInsideFolderUpdatesSortOrders() async throws {
+    let writer = try await makeWriter()
+    try await seedFoldersAndCategories(writer)
+    // technology starts as [apple=0, ai=1]; reverse to [ai=0, apple=1].
+    try await writer.reorderCategories(
+      inFolder: "technology", orderedLabels: ["ai", "apple"]
+    )
+
+    let appleOrder = try await writer.fetchCategorySortOrder(label: "apple")
+    let aiOrder = try await writer.fetchCategorySortOrder(label: "ai")
+    #expect(aiOrder == 0)
+    #expect(appleOrder == 1)
+  }
+
+  @Test
+  func reorderCategoriesAtRootUpdatesOnlyRootMembers() async throws {
+    let writer = try await makeWriter()
+    try await seedFoldersAndCategories(writer)
+    try await writer.addCategory(
+      label: "world", displayName: "World", description: "World", sortOrder: 1
+    )
+    // Root: [science=0, world=1] → [world=0, science=1].
+    try await writer.reorderCategories(
+      inFolder: nil, orderedLabels: ["world", "science"]
+    )
+
+    let scienceOrder = try await writer.fetchCategorySortOrder(label: "science")
+    let worldOrder = try await writer.fetchCategorySortOrder(label: "world")
+    #expect(worldOrder == 0)
+    #expect(scienceOrder == 1)
+    // technology folder untouched.
+    let appleOrder = try await writer.fetchCategorySortOrder(label: "apple")
+    #expect(appleOrder == 0)
+  }
+
+  @Test
+  func reorderCategoriesSkipsLabelsFromOtherFolders() async throws {
+    let writer = try await makeWriter()
+    try await seedFoldersAndCategories(writer)
+    // ps5 belongs to gaming, not technology — must be ignored, peers untouched.
+    try await writer.reorderCategories(
+      inFolder: "technology", orderedLabels: ["ps5", "ai", "apple"]
+    )
+
+    // Indices in orderedLabels: ps5=0, ai=1, apple=2.
+    // ps5 is in the wrong folder → not updated → stays at its seed value (0).
+    let ps5Order = try await writer.fetchCategorySortOrder(label: "ps5")
+    let aiOrder = try await writer.fetchCategorySortOrder(label: "ai")
+    let appleOrder = try await writer.fetchCategorySortOrder(label: "apple")
+    #expect(ps5Order == 0)
+    #expect(aiOrder == 1)
+    #expect(appleOrder == 2)
+  }
+
+  @Test
+  func reorderCategoriesSkipsSystemCategories() async throws {
+    let writer = try await makeWriter()
+    try await writer.addCategory(
+      label: uncategorizedLabel, displayName: "Uncategorized",
+      description: "Fallback", sortOrder: Int.max
+    )
+    try await writer.updateSystemFlag(label: uncategorizedLabel, isSystem: true)
+    try await writer.addCategory(
+      label: "world", displayName: "World", description: "World", sortOrder: 0
+    )
+
+    // Even if the UI shipped the system label, the writer must refuse to
+    // re-index it.
+    try await writer.reorderCategories(
+      inFolder: nil, orderedLabels: [uncategorizedLabel, "world"]
+    )
+
+    let uncatOrder = try await writer.fetchCategorySortOrder(label: uncategorizedLabel)
+    let worldOrder = try await writer.fetchCategorySortOrder(label: "world")
+    #expect(uncatOrder == Int.max)
+    #expect(worldOrder == 1)
   }
 }

@@ -1,11 +1,9 @@
 import SwiftUI
 
-/// Compact list row for a folder inside the management view. Displays a folder
-/// icon, the folder name, and an Edit button. `isDropTarget` paints an
-/// accent-colored highlight frame when a drag is hovering.
+/// Compact list row for a folder header inside the management view. Displays
+/// a folder icon, the folder name, and an Edit button.
 struct FolderCompactRow: View {
   let displayName: String
-  let isDropTarget: Bool
   let onEdit: () -> Void
 
   var body: some View {
@@ -21,13 +19,5 @@ struct FolderCompactRow: View {
     }
     .padding(.vertical, 4)
     .padding(.horizontal, 8)
-    .background(
-      RoundedRectangle(cornerRadius: 6)
-        .fill(isDropTarget ? Color.accentColor.opacity(0.15) : Color.clear)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 6)
-        .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
-    )
   }
 }

@@ -403,8 +403,8 @@ struct ContentView: View {
   // MARK: - Selection
 
   /// Snapshot of every category's folder assignment. Watched by `.onChange` so
-  /// moving a category between folders (via DataWriter.moveCategoryToFolder /
-  /// batchUpdateCategoryFolderAndSortOrders) refreshes the article list.
+  /// moving a category between folders (via DataWriter.moveCategoryToFolder)
+  /// refreshes the article list.
   /// Extracted from body to keep the type-checker happy.
   private var categoryFolderLabels: [String?] {
     allCategories.map(\.folderLabel)
