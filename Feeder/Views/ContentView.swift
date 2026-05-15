@@ -44,6 +44,16 @@ struct ContentView: View {
   /// `allCategories.atRoot` in-memory filter on every render.
   @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
   private var rootCategories: [Category]
+  /// Classified-unread entries — the universe over which sidebar badges are
+  /// aggregated. Filtering happens at the SQLite level so the count of rows
+  /// pulled into MainActor is bounded by unread inventory, not total entries.
+  /// Aggregation into per-category and per-folder dictionaries is O(n) Swift
+  /// (where n = unread count), computed once per `@Query` snapshot and read
+  /// by `body` as dictionary lookups — no work during row rendering.
+  @Query(filter: #Predicate<Entry> { $0.isClassified == true && $0.isRead == false })
+  private var unreadEntries: [Entry]
+  @AppStorage("sidebar.collapsedFolders")
+  private var collapsedFolders: SidebarCollapsedFolders = .init()
   @State
   private var selectedEntry: Entry?
   /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
@@ -293,19 +303,35 @@ struct ContentView: View {
 
   // MARK: - Category lookups (small count, acceptable in-memory filter)
 
-  /// Flat ordered sidebar items matching visual display order.
+  /// Filter+sort the folder list down to those with at least one category,
+  /// paired with their categories. Called from both `sidebarView` (hoisted to
+  /// a `let` so the body sees a single value) and `sidebarItems` (re-evaluated
+  /// per J/K keystroke for keyboard nav). Each invocation runs
+  /// `allCategories.inFolder(...)` once per folder — the two call sites do
+  /// not share a single computation; the property packages the dedupe
+  /// against `inFolder(...)` being called twice in one render pass.
+  private var visibleFolderGroups: [(folder: Folder, categories: [Category])] {
+    folders.compactMap { folder in
+      let categoriesInFolder = allCategories.inFolder(folder.label)
+      guard !categoriesInFolder.isEmpty else { return nil }
+      return (folder, categoriesInFolder)
+    }
+  }
+
+  /// Flat ordered sidebar items matching the keyboard-visible navigation order.
+  /// Folders with no categories are skipped entirely; a folder's child rows are
+  /// included only when the folder is currently expanded — otherwise J/K would
+  /// land on rows that are not visible in the source list. Delegates to the
+  /// pure `sidebarNavigationItems(...)` helper so the same rules apply in tests.
   private var sidebarItems: [SidebarSelection] {
-    var items: [SidebarSelection] = []
-    for folder in folders {
-      items.append(.folder(folder.label))
-      for category in allCategories.inFolder(folder.label) {
-        items.append(.category(category.label))
-      }
+    let groups = visibleFolderGroups.map { group in
+      (folderLabel: group.folder.label, categoryLabels: group.categories.map(\.label))
     }
-    for category in rootCategories {
-      items.append(.category(category.label))
-    }
-    return items
+    return sidebarNavigationItems(
+      folderGroups: groups,
+      rootCategoryLabels: rootCategories.map(\.label),
+      collapsedFolderLabels: collapsedFolders.labels
+    )
   }
 
   private func moveSidebarSelection(by offset: Int) {
@@ -481,26 +507,26 @@ struct ContentView: View {
 
   @ViewBuilder
   private var sidebarView: some View {
+    // Lift aggregation out of computed properties: a computed `var` re-runs on
+    // every access, and SwiftUI accesses it once per row inside `ForEach`
+    // closures. Local `let`s in the body run once per body evaluation and the
+    // dictionaries are then passed by reference into the row builders.
+    let categoryUnreadCounts = unreadCounts(in: unreadEntries.map(\.primaryCategory))
+    let folderUnreadCounts = unreadCounts(in: unreadEntries.map(\.primaryFolder))
+    let groups = visibleFolderGroups
+
     List(selection: $selection) {
       Section {
-        ForEach(folders) { folder in
-          Text(folder.displayName)
-            .font(.system(size: FontTheme.metadataSize, weight: .semibold))
-            .tag(SidebarSelection.folder(folder.label))
-            .accessibilityIdentifier("sidebar.folder.\(folder.label)")
-          ForEach(allCategories.inFolder(folder.label)) { category in
-            Text(category.displayName)
-              .font(.system(size: FontTheme.metadataSize))
-              .padding(.leading, 16)
-              .tag(SidebarSelection.category(category.label))
-              .accessibilityIdentifier("sidebar.category.\(category.label)")
-          }
+        ForEach(groups, id: \.folder.persistentModelID) { group in
+          sidebarFolderGroup(
+            folder: group.folder,
+            categories: group.categories,
+            folderUnreadCounts: folderUnreadCounts,
+            categoryUnreadCounts: categoryUnreadCounts
+          )
         }
         ForEach(rootCategories) { category in
-          Text(category.displayName)
-            .font(.system(size: FontTheme.metadataSize))
-            .tag(SidebarSelection.category(category.label))
-            .accessibilityIdentifier("sidebar.category.\(category.label)")
+          sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
         }
       } header: {
         SyncStatusView()
@@ -527,6 +553,48 @@ struct ContentView: View {
         .accessibilityIdentifier("toolbar.sync")
       }
     }
+  }
+
+  /// A folder row plus its child categories rendered as a `DisclosureGroup`.
+  /// The label carries the folder selection tag so the folder aggregate stays
+  /// selectable (J/K nav and click), and `.badge(Int)` decorates both the
+  /// folder label and each child category — SwiftUI hides the badge when the
+  /// count is zero. Unread counts are passed in as already-computed
+  /// dictionaries so the row builder never re-aggregates per render.
+  @ViewBuilder
+  private func sidebarFolderGroup(
+    folder: Folder,
+    categories: [Category],
+    folderUnreadCounts: [String: Int],
+    categoryUnreadCounts: [String: Int]
+  ) -> some View {
+    DisclosureGroup(
+      isExpanded: SidebarCollapsedFolders.expansionBinding(
+        for: folder.label, store: $collapsedFolders
+      )
+    ) {
+      ForEach(categories) { category in
+        sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
+      }
+    } label: {
+      Text(folder.displayName)
+        .badge(folderUnreadCounts[folder.label, default: 0])
+        .tag(SidebarSelection.folder(folder.label))
+        .accessibilityIdentifier("sidebar.folder.\(folder.label)")
+    }
+  }
+
+  /// A single selectable category row with its unread badge. Shared by
+  /// in-folder children and root-level categories.
+  @ViewBuilder
+  private func sidebarCategoryRow(
+    category: Category,
+    categoryUnreadCounts: [String: Int]
+  ) -> some View {
+    Text(category.displayName)
+      .badge(categoryUnreadCounts[category.label, default: 0])
+      .tag(SidebarSelection.category(category.label))
+      .accessibilityIdentifier("sidebar.category.\(category.label)")
   }
 
   /// The navigation title reflects what the content column is currently rendering
