@@ -17,4 +17,27 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   static func persist(_ kind: Self) {
     UserDefaults.standard.set(kind.rawValue, forKey: userDefaultsKey)
   }
+
+  // MARK: - Display
+
+  var displayName: String {
+    switch self {
+    case .appleFM: "Apple Foundation Models"
+    case .openAI: "OpenAI GPT-5.4-nano"
+    }
+  }
+
+  var subtitle: String {
+    switch self {
+    case .appleFM: "Free \u{00B7} On-device \u{00B7} Private"
+    case .openAI: "Requires API key \u{00B7} Cloud-based"
+    }
+  }
+
+  var iconName: String {
+    switch self {
+    case .appleFM: "apple.logo"
+    case .openAI: "cloud"
+    }
+  }
 }
