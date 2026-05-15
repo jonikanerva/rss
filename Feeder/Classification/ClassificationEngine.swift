@@ -86,7 +86,7 @@ final class ClassificationEngine {
   /// `buildProvider()` static call inside `makeRunner`, so tests run end-to-end
   /// against a fake `ClassificationProvider` without depending on Settings
   /// state, the Keychain, or `UserDefaults`.
-  internal init(providerFactoryOverride: @Sendable @escaping () -> any ClassificationProvider) {
+  init(providerFactoryOverride: @Sendable @escaping () -> any ClassificationProvider) {
     self.providerFactoryOverride = providerFactoryOverride
   }
 
@@ -179,14 +179,17 @@ final class ClassificationEngine {
   // MARK: - Test introspection
   //
   // These read-only accessors expose the orchestration state that
-  // `ClassificationEngineTests` needs to assert on. Kept `internal` so they
-  // never leak to production code — the engine's own logic continues to
-  // read the private storage directly. Tests use them to prove the
-  // continuous-loop restart path in `runReplacingContinuousLoop` instead of
-  // poking at private state through reflection.
+  // `ClassificationEngineTests` needs to assert on. `#if DEBUG` keeps them
+  // out of Release builds entirely so they cannot be reached from
+  // production code paths — and the engine's own logic continues to read
+  // the private storage directly. Tests use them to prove the
+  // continuous-loop restart path in `runReplacingContinuousLoop` instead
+  // of poking at private state through reflection.
 
-  internal var isContinuousLoopActive: Bool { isContinuousModeActive }
-  internal var currentClassificationTaskID: UUID? { classificationTaskID }
+  #if DEBUG
+    var isContinuousLoopActive: Bool { isContinuousModeActive }
+    var currentClassificationTaskID: UUID? { classificationTaskID }
+  #endif
 
   // MARK: - MainActor sink for progress snapshots
 
@@ -217,12 +220,8 @@ final class ClassificationEngine {
     // without requiring `stopContinuousClassification` + `start` round-trip.
     // The test-only override (when set) bypasses `buildProvider()`'s Settings/
     // Keychain lookup so integration tests can inject a fake provider.
-    let providerFactory: @Sendable () -> any ClassificationProvider
-    if let override = providerFactoryOverride {
-      providerFactory = override
-    } else {
-      providerFactory = { Self.buildProvider() }
-    }
+    let providerFactory: @Sendable () -> any ClassificationProvider =
+      providerFactoryOverride ?? { Self.buildProvider() }
     return ClassificationRunner(
       writer: writer, providerFactory: providerFactory, reportProgress: reporter
     )

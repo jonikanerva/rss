@@ -6,18 +6,18 @@ import Foundation
 
 /// In-memory `ClassificationProvider` implementation for
 /// `ClassificationEngineTests`. Lets the engine run end-to-end against a
-/// configurable response, optional thrown error, and an optional per-call
-/// delay — without touching `UserDefaults`, the Keychain, the on-device
-/// Foundation Model, or OpenAI.
+/// fixed default response, an optional pre-configured error count, and an
+/// optional per-call delay — without touching `UserDefaults`, the
+/// Keychain, the on-device Foundation Model, or OpenAI.
 ///
 /// Implemented as an `actor` so the fake stays trivially `Sendable` (the
 /// protocol requires it) and so mutators called from tests don't race the
 /// detached `ClassificationRunner` task that consumes `classify(...)`.
 ///
-/// The configuration model mirrors `FakeFeedbinClient` from
-/// `SyncEngineTestSupport.swift`: a configurable response, an optional
-/// error, and a call log — kept narrow to exactly what
-/// `ClassificationEngineTests` needs and nothing more.
+/// The surface is deliberately narrow — every member is exercised by at
+/// least one `ClassificationEngineTests` case. Adding configuration knobs
+/// "for future tests" would be dead scaffolding; grow the surface only
+/// when a new test actually needs it.
 actor FakeClassificationProvider: ClassificationProvider {
   // MARK: ClassificationProvider — synchronous metadata
 
@@ -25,59 +25,43 @@ actor FakeClassificationProvider: ClassificationProvider {
   /// Constant per instance — no actor state needs to be touched.
   nonisolated let name = "Fake"
 
-  // MARK: Configurable behaviour
+  // MARK: State
 
-  /// Response returned by `classify(...)` on every call (until an error is
-  /// configured). Defaults to a category of "tech" with full confidence so
-  /// happy-path tests can use the fake with zero configuration.
-  private var response = ProviderClassificationResult(
+  /// Fixed response every call returns. "tech" matches one of the
+  /// categories `ClassificationEngineTests` seeds, so it survives the
+  /// `validLabels` filter inside `DataWriter.applyClassification` and the
+  /// confidence gate inside `ClassificationRunner.runOneBatch`.
+  private static let defaultResponse = ProviderClassificationResult(
     category: "tech",
     storyKey: "fake-story",
     confidence: 1.0
   )
 
   /// Number of remaining `classify(...)` invocations that should `throw`
-  /// before returning the configured response. Decremented each time an
-  /// error is thrown. Lets `errorRecoveryContinuesWithNextBatch` model
-  /// "fail the first call, succeed for the rest" without per-call state
-  /// machinery.
+  /// before returning `defaultResponse`. Decremented on each thrown call.
+  /// Lets `errorRecoveryContinuesWithNextBatch` model "fail the first N
+  /// calls, succeed for the rest" without per-call state machinery.
   private var errorsRemaining = 0
   private var errorToThrow: Error?
 
-  /// Delay inserted before each `classify(...)` returns. Used by the
-  /// cancellation test to keep the loop suspended long enough for a
-  /// `Task.cancel()` to land between iterations.
+  /// Delay inserted before each `classify(...)` returns. Used by tests
+  /// that need to keep the runner suspended long enough for a
+  /// `Task.cancel()` or a manual trigger to land between iterations.
   private var perCallDelay: Duration = .zero
 
-  /// Languages the engine will treat as supported. `nil` means "all
-  /// languages" — the production contract.
-  private var supportedLanguages: Set<String>? = nil
-
-  /// Toggle for `isAvailable`. Defaults to true so happy-path tests don't
-  /// need to configure it.
-  private var available = true
-
-  // MARK: Call log
-
-  private(set) var classifyCalls: [ClassifyCall] = []
-
-  /// Captured arguments of one `classify(...)` invocation. Tests assert on
-  /// `entryID`-derived fields (via the title/url Feedbin fixtures use) but
-  /// the full payload is recorded for future assertions.
-  struct ClassifyCall: Sendable {
-    let title: String
-    let body: String
-    let url: String
-    let instructions: String
-  }
-
-  var callCount: Int { classifyCalls.count }
+  /// Count of `classify(...)` invocations. The single piece of observable
+  /// state tests assert on.
+  private(set) var callCount: Int = 0
 
   // MARK: - ClassificationProvider conformance
 
-  var isAvailable: Bool { available }
+  /// Always available. No test exercises the unavailable branch — adding
+  /// a toggle would be dead scaffolding.
+  var isAvailable: Bool { true }
 
-  var supportedLanguageCodes: Set<String>? { supportedLanguages }
+  /// Nil = "all languages". The runner's language-gate branch is exercised
+  /// in pure-helper tests; integration tests don't need to flip it.
+  var supportedLanguageCodes: Set<String>? { nil }
 
   func classify(
     title: String,
@@ -85,9 +69,7 @@ actor FakeClassificationProvider: ClassificationProvider {
     url: String,
     instructions: String
   ) async throws -> ProviderClassificationResult {
-    classifyCalls.append(
-      ClassifyCall(title: title, body: body, url: url, instructions: instructions)
-    )
+    callCount += 1
 
     if perCallDelay > .zero {
       try? await Task.sleep(for: perCallDelay)
@@ -98,33 +80,24 @@ actor FakeClassificationProvider: ClassificationProvider {
       throw error
     }
 
-    return response
+    return Self.defaultResponse
   }
 
   // MARK: - Test configuration setters
 
-  func configureResponse(_ value: ProviderClassificationResult) {
-    response = value
-  }
-
   /// Configure the fake to throw `error` on the next `count` calls before
-  /// reverting to the configured response. Used by
+  /// reverting to the default response. Used by
   /// `errorRecoveryContinuesWithNextBatch`.
   func configureErrors(_ error: Error, count: Int) {
     errorToThrow = error
     errorsRemaining = count
   }
 
+  /// Insert `value` before each `classify(...)` returns. Used by the
+  /// cancellation and slot-management tests to keep the runner's batch
+  /// loop suspended long enough for a control-plane event to land.
   func configureDelay(_ value: Duration) {
     perCallDelay = value
-  }
-
-  func configureSupportedLanguages(_ value: Set<String>?) {
-    supportedLanguages = value
-  }
-
-  func configureAvailable(_ value: Bool) {
-    available = value
   }
 }
 
