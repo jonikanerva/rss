@@ -9,6 +9,10 @@ import Testing
 /// drives the sidebar's recovery action (Retry vs Sign in again) and
 /// `EntryListView`'s offline empty state — getting the mapping wrong silently
 /// breaks both, so each branch gets its own dedicated test.
+///
+/// Assertions use `SyncError`'s `Equatable` conformance throughout — the
+/// case **and** the carried message are pinned, so a regression that
+/// swaps a case while keeping the same description still fails the test.
 @Suite("SyncError categorisation")
 struct SyncErrorTests {
   // MARK: - Network bucket
@@ -16,79 +20,69 @@ struct SyncErrorTests {
   @Test
   func notConnectedToInternetMapsToNetwork() {
     let error = URLError(.notConnectedToInternet)
-    let categorised = categorizeSyncError(error)
-    #expect(categorised.isNetworkError)
-    if case .network = categorised {
-    } else {
-      Issue.record("Expected .network, got \(categorised)")
-    }
+    #expect(categorizeSyncError(error) == .network(error.localizedDescription))
   }
 
   @Test
   func timedOutMapsToNetwork() {
     let error = URLError(.timedOut)
-    #expect(categorizeSyncError(error).isNetworkError)
+    #expect(categorizeSyncError(error) == .network(error.localizedDescription))
   }
 
   @Test
   func networkConnectionLostMapsToNetwork() {
     let error = URLError(.networkConnectionLost)
-    #expect(categorizeSyncError(error).isNetworkError)
+    #expect(categorizeSyncError(error) == .network(error.localizedDescription))
   }
 
   @Test
   func cannotConnectToHostMapsToNetwork() {
     let error = URLError(.cannotConnectToHost)
-    #expect(categorizeSyncError(error).isNetworkError)
+    #expect(categorizeSyncError(error) == .network(error.localizedDescription))
   }
 
   @Test
   func server5xxMapsToNetwork() {
     let error = FeedbinError.httpError(statusCode: 503)
-    #expect(categorizeSyncError(error).isNetworkError)
+    #expect(categorizeSyncError(error) == .network(error.localizedDescription))
   }
 
   // MARK: - Auth bucket
 
   @Test
   func unauthorizedFeedbinErrorMapsToAuth() {
-    let categorised = categorizeSyncError(FeedbinError.unauthorized)
-    if case .authFailed = categorised {
-    } else {
-      Issue.record("Expected .authFailed, got \(categorised)")
-    }
-    #expect(!categorised.isNetworkError)
+    let error = FeedbinError.unauthorized
+    #expect(categorizeSyncError(error) == .authFailed(error.localizedDescription))
   }
 
   // MARK: - Other bucket
 
   @Test
   func httpError400MapsToOther() {
-    let categorised = categorizeSyncError(FeedbinError.httpError(statusCode: 400))
-    if case .other = categorised {
-    } else {
-      Issue.record("Expected .other for 4xx outside auth window, got \(categorised)")
-    }
-    #expect(!categorised.isNetworkError)
+    let error = FeedbinError.httpError(statusCode: 400)
+    #expect(categorizeSyncError(error) == .other(error.localizedDescription))
   }
 
   @Test
   func invalidResponseMapsToOther() {
-    let categorised = categorizeSyncError(FeedbinError.invalidResponse)
-    if case .other = categorised {
-    } else {
-      Issue.record("Expected .other, got \(categorised)")
-    }
+    let error = FeedbinError.invalidResponse
+    #expect(categorizeSyncError(error) == .other(error.localizedDescription))
   }
 
   @Test
   func nonURLErrorMapsToOther() {
     struct UnknownError: Error {}
-    let categorised = categorizeSyncError(UnknownError())
-    if case .other = categorised {
-    } else {
-      Issue.record("Expected .other for unknown errors, got \(categorised)")
-    }
+    let error = UnknownError()
+    #expect(categorizeSyncError(error) == .other(error.localizedDescription))
+  }
+
+  // MARK: - isNetworkError flag
+
+  @Test
+  func isNetworkErrorTrueOnlyForNetworkCase() {
+    #expect(SyncError.network("x").isNetworkError)
+    #expect(!SyncError.authFailed("x").isNetworkError)
+    #expect(!SyncError.other("x").isNetworkError)
   }
 
   // MARK: - Message propagation
@@ -97,6 +91,6 @@ struct SyncErrorTests {
   func messageIsPopulatedFromLocalizedDescription() {
     let error = URLError(.notConnectedToInternet)
     let categorised = categorizeSyncError(error)
-    #expect(!categorised.message.isEmpty)
+    #expect(categorised.message == error.localizedDescription)
   }
 }

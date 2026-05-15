@@ -475,17 +475,22 @@ final class SyncEngine {
   /// loosening `private(set)` on the real fields. Mirrors only the
   /// surface the UI reads (`isSyncing`, `lastError`, `lastSyncDate`,
   /// progress counters) — every other field stays at its init default.
-  func applyPreviewState(
-    isSyncing: Bool = false,
-    lastSyncDate: Date? = nil,
-    lastError: SyncError? = nil,
-    fetchedCount: Int = 0,
-    totalToFetch: Int = 0
-  ) {
-    self.isSyncing = isSyncing
-    self.lastSyncDate = lastSyncDate
-    self.lastError = lastError
-    self.fetchedCount = fetchedCount
-    self.totalToFetch = totalToFetch
-  }
+  ///
+  /// `#if DEBUG`-gated so the seam is stripped from Release builds, matching
+  /// the `ClassificationEngine` debug-accessor convention.
+  #if DEBUG
+    func applyPreviewState(
+      isSyncing: Bool = false,
+      lastSyncDate: Date? = nil,
+      lastError: SyncError? = nil,
+      fetchedCount: Int = 0,
+      totalToFetch: Int = 0
+    ) {
+      self.isSyncing = isSyncing
+      self.lastSyncDate = lastSyncDate
+      self.lastError = lastError
+      self.fetchedCount = fetchedCount
+      self.totalToFetch = totalToFetch
+    }
+  #endif
 }

@@ -74,7 +74,6 @@ struct SyncStatusView: View {
   /// Inline secondary-styled banner shown beneath the sync status text.
   /// Calm/premium per `app-rules.md` § Readability: no `.red`, no alert /
   /// sheet — orange-accented icon plus a contextual recovery button.
-  @ViewBuilder
   private func errorBanner(error: SyncError) -> some View {
     HStack(spacing: 6) {
       Image(systemName: errorSymbol(for: error))
@@ -96,16 +95,14 @@ struct SyncStatusView: View {
   private func errorSymbol(for error: SyncError) -> String {
     switch error {
     case .network: "wifi.slash"
-    case .authFailed: "exclamationmark.triangle"
-    case .other: "exclamationmark.triangle"
+    case .authFailed, .other: "exclamationmark.triangle"
     }
   }
 
   private func errorLabel(for error: SyncError) -> String {
     switch error {
-    case .network: "Sync failed"
+    case .network, .other: "Sync failed"
     case .authFailed: "Sign in expired"
-    case .other: "Sync failed"
     }
   }
 
