@@ -85,6 +85,7 @@ struct ContentView: View {
   /// classification batch finished). `EntryListView` includes this in its
   /// `.task(id:)` key, triggering a re-fetch — replaces SwiftData's `@Query`
   /// auto-refresh now that the article list is fetched off MainActor.
+  /// All mutations bump via `bumpEntryList()` to keep a single point of accountability.
   @State
   private var entryRefreshVersion: Int = 0
   /// Set true when classification finishes a batch and a refresh is owed; drained
@@ -229,7 +230,7 @@ struct ContentView: View {
     // the list untouched so the refresh task does not re-fetch for nothing.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in
       if !isSyncing && syncEngine.lastSyncChangedEntryCount > 0 {
-        entryRefreshVersion &+= 1
+        bumpEntryList()
       }
     }
     .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
@@ -243,13 +244,13 @@ struct ContentView: View {
         dwell: Self.classificationBumpDwell,
         hasSelection: selectedEntry != nil,
         pendingBump: $pendingClassificationBump,
-        onDrain: { entryRefreshVersion &+= 1 }
+        onDrain: { bumpEntryList() }
       )
     )
     .modifier(
       CategoryFolderChangeTrigger(
         categoryFolderLabels: categoryFolderLabels,
-        onChange: { entryRefreshVersion &+= 1 }
+        onChange: { bumpEntryList() }
       )
     )
     // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
@@ -446,6 +447,15 @@ struct ContentView: View {
 
   // MARK: - Actions
 
+  /// Single point that invalidates the EntryListView's data refresh.
+  /// Use whenever a mutation path can change what's shown in the timeline
+  /// — sync edge, classification drain, mark-read flush, mark-all-read,
+  /// category/folder reorganisation. Avoids drifting `&+=` bumps in five
+  /// places.
+  private func bumpEntryList() {
+    entryRefreshVersion &+= 1
+  }
+
   private func flushPendingReads() {
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return }
@@ -457,7 +467,7 @@ struct ContentView: View {
       // Locally mutating isRead invalidates the article-list snapshot — refetch
       // so unread filter shrinks. Without this, scrubbed-past entries linger
       // (only dimmed via pendingReadIDs) until the next sync/classification.
-      entryRefreshVersion &+= 1
+      bumpEntryList()
     }
   }
 
@@ -483,7 +493,7 @@ struct ContentView: View {
       syncEngine.queueReadIDs(ids)
       // Same rationale as flushPendingReads — refetch so the now-empty unread
       // list (or remaining unread items) appears immediately.
-      entryRefreshVersion &+= 1
+      bumpEntryList()
     }
   }
 
