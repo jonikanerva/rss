@@ -21,24 +21,23 @@ struct ClassificationSettingsView: View {
   var body: some View {
     Form {
       Section("Classification Provider") {
-        VStack(alignment: .leading, spacing: 12) {
-          providerRow(
-            tag: .appleFM,
-            icon: "apple.logo",
-            title: "Apple Foundation Models",
-            subtitle: "Free \u{00B7} On-device \u{00B7} Private"
-          )
-
-          Divider()
-
-          providerRow(
-            tag: .openAI,
-            icon: "cloud",
-            title: "OpenAI GPT-5.4-nano",
-            subtitle: "Requires API key \u{00B7} Cloud-based"
-          )
+        Picker("Provider", selection: $selectedProvider) {
+          ForEach(ClassificationProviderKind.allCases, id: \.self) { kind in
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(kind.displayName)
+                Text(kind.subtitle)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: kind.iconName)
+            }
+            .tag(kind)
+          }
         }
-        .padding(.vertical, 4)
+        .pickerStyle(.radioGroup)
+        .labelsHidden()
       }
 
       if selectedProvider == .openAI {
@@ -66,6 +65,14 @@ struct ClassificationSettingsView: View {
     .sheet(isPresented: $showAPIKeyEditor) {
       APIKeyEditSheet(hasStoredKey: $hasStoredKey)
     }
+    .onChange(of: selectedProvider) { oldValue, newValue in
+      guard oldValue != newValue else { return }
+      ClassificationProviderKind.persist(newValue)
+      // Only prompt reclassify when switching to a provider that's ready to use
+      if newValue == .appleFM || hasStoredKey {
+        showReclassifyAlert = true
+      }
+    }
     .onChange(of: showAPIKeyEditor) { _, isPresented in
       if isPresented {
         hadKeyBeforeEdit = hasStoredKey
@@ -85,37 +92,6 @@ struct ClassificationSettingsView: View {
       Button("Later", role: .cancel) {}
     } message: {
       Text("Would you like to reclassify all articles with the new provider?")
-    }
-  }
-
-  // MARK: - Provider row
-
-  private func providerRow(tag: ClassificationProviderKind, icon: String, title: String, subtitle: String) -> some View {
-    HStack(spacing: 12) {
-      Image(systemName: selectedProvider == tag ? "circle.inset.filled" : "circle")
-        .foregroundStyle(selectedProvider == tag ? Color.accentColor : .secondary)
-        .font(.title3)
-
-      Image(systemName: icon)
-        .frame(width: 20)
-        .foregroundStyle(.secondary)
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title)
-        Text(subtitle)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .contentShape(Rectangle())
-    .onTapGesture {
-      guard selectedProvider != tag else { return }
-      selectedProvider = tag
-      ClassificationProviderKind.persist(tag)
-      // Only prompt reclassify when switching to a provider that's ready to use
-      if tag == .appleFM || hasStoredKey {
-        showReclassifyAlert = true
-      }
     }
   }
 }
