@@ -1,17 +1,6 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Drop target state
-
-/// Unified drop hover state. Replaces three parallel optionals
-/// (folder label / root position / child position) with a single enum so the
-/// "what is the drag currently over?" question has one answer.
-private enum DropTarget: Hashable {
-  case folder(String)
-  case rootPosition(Int)
-  case childPosition(folder: String, position: Int)
-}
-
 // MARK: - Category Management View
 
 struct CategoryManagementView: View {
@@ -39,8 +28,6 @@ struct CategoryManagementView: View {
   private var showNewCategorySheet = false
   @State
   private var showNewFolderSheet = false
-  @State
-  private var currentDropTarget: DropTarget?
 
   var body: some View {
     Form {
@@ -49,112 +36,96 @@ struct CategoryManagementView: View {
       }
 
       if allCategories.isEmpty && folders.isEmpty {
-        Section("Categories") {
-          ContentUnavailableView {
-            Label("No Categories", systemImage: "tag")
-          } description: {
-            Text("Create categories to classify your articles.")
-          }
-        }
+        emptyState
       } else {
-        Section("Categories") {
-          categoryList
-        }
+        categorySections
       }
     }
     .formStyle(.grouped)
   }
 
-  // MARK: - Category list (drag-and-drop with folders)
+  // MARK: - List content
 
-  private var categoryList: some View {
-    VStack(spacing: 0) {
-      // Folders with their categories
-      ForEach(folders) { folder in
-        folderSection(folder: folder)
-      }
-
-      // Root-level categories (no folder)
-      rootDropZone(position: 0)
-      ForEach(Array(rootCategories.enumerated()), id: \.element.persistentModelID) { index, category in
-        CategoryCompactRow(
-          displayName: category.displayName,
-          descriptionPreview: category.categoryDescription,
-          depth: 0,
-          isSystem: category.isSystem,
-          onEdit: { editingCategory = category }
-        )
-        .draggable(category.label)
-        rootDropZone(position: index + 1)
+  @ViewBuilder
+  private var emptyState: some View {
+    Section("Categories") {
+      ContentUnavailableView {
+        Label("No Categories", systemImage: "tag")
+      } description: {
+        Text("Create categories to classify your articles.")
       }
     }
+  }
+
+  /// One `Section` per folder plus a trailing root section. `.onMove` on each
+  /// folder reorders that folder's children in place; cross-folder moves use
+  /// the row context menu. The system category gets `.moveDisabled(true)` so
+  /// "uncategorized" never drifts out of its pinned position.
+  @ViewBuilder
+  private var categorySections: some View {
+    ForEach(folders) { folder in
+      folderSection(folder: folder)
+    }
+    rootSection
   }
 
   @ViewBuilder
   private func folderSection(folder: Folder) -> some View {
-    FolderCompactRow(
-      displayName: folder.displayName,
-      isDropTarget: currentDropTarget == .folder(folder.label),
-      onEdit: { editingFolder = folder }
-    )
-    .dropDestination(for: String.self) { labels, _ in
-      guard let draggedLabel = labels.first else { return false }
-      handleMoveToFolder(draggedLabel, folderLabel: folder.label)
-      return true
-    } isTargeted: { targeted in
-      updateHover(targeted ? .folder(folder.label) : nil, matching: .folder(folder.label))
-    }
-
     let children = allCategories.inFolder(folder.label)
-    if !children.isEmpty {
-      childDropZone(folderLabel: folder.label, position: 0)
-    }
-    ForEach(Array(children.enumerated()), id: \.element.persistentModelID) { childIndex, child in
-      CategoryCompactRow(
-        displayName: child.displayName,
-        descriptionPreview: child.categoryDescription,
-        depth: 1,
-        isSystem: child.isSystem,
-        onEdit: { editingCategory = child }
-      )
-      .draggable(child.label)
-      childDropZone(folderLabel: folder.label, position: childIndex + 1)
+    Section {
+      FolderCompactRow(displayName: folder.displayName, onEdit: { editingFolder = folder })
+      ForEach(children, id: \.persistentModelID) { child in
+        categoryRow(child, depth: 1)
+      }
+      .onMove { indices, newOffset in
+        reorder(children: children, inFolder: folder.label, source: indices, destination: newOffset)
+      }
     }
   }
 
-  // MARK: - Drop zones
-
   @ViewBuilder
-  private func rootDropZone(position: Int) -> some View {
-    let target = DropTarget.rootPosition(position)
-    let isTargeted = currentDropTarget == target
-    Rectangle()
-      .fill(isTargeted ? Color.accentColor : Color.clear)
-      .frame(height: 8)
-      .dropDestination(for: String.self) { labels, _ in
-        guard let draggedLabel = labels.first else { return false }
-        handleMoveToRoot(draggedLabel, at: position)
-        return true
-      } isTargeted: { targeted in
-        updateHover(targeted ? target : nil, matching: target)
+  private var rootSection: some View {
+    Section {
+      ForEach(rootCategories, id: \.persistentModelID) { category in
+        categoryRow(category, depth: 0)
+          .moveDisabled(category.isSystem)
       }
+      .onMove { indices, newOffset in
+        reorder(children: rootCategories, inFolder: nil, source: indices, destination: newOffset)
+      }
+    }
   }
 
   @ViewBuilder
-  private func childDropZone(folderLabel: String, position: Int) -> some View {
-    let target = DropTarget.childPosition(folder: folderLabel, position: position)
-    let isTargeted = currentDropTarget == target
-    Rectangle()
-      .fill(isTargeted ? Color.accentColor : Color.clear)
-      .frame(height: 6)
-      .padding(.leading, 20)
-      .dropDestination(for: String.self) { labels, _ in
-        guard let draggedLabel = labels.first else { return false }
-        handleInsertInFolder(draggedLabel, folderLabel: folderLabel, at: position)
-        return true
-      } isTargeted: { targeted in
-        updateHover(targeted ? target : nil, matching: target)
+  private func categoryRow(_ category: Category, depth: Int) -> some View {
+    CategoryCompactRow(
+      displayName: category.displayName,
+      descriptionPreview: category.categoryDescription,
+      depth: depth,
+      isSystem: category.isSystem,
+      onEdit: { editingCategory = category }
+    )
+    .contextMenu {
+      moveToFolderMenu(for: category)
+    }
+  }
+
+  @ViewBuilder
+  private func moveToFolderMenu(for category: Category) -> some View {
+    if !category.isSystem {
+      Menu("Move to Folder") {
+        Button("No Folder") {
+          moveCategory(category, toFolder: nil)
+        }
+        .disabled(category.folderLabel == nil)
+        ForEach(folders) { folder in
+          Button(folder.displayName) {
+            moveCategory(category, toFolder: folder.label)
+          }
+          .disabled(category.folderLabel == folder.label)
+        }
       }
+    }
   }
 
   // MARK: - Footer
@@ -203,82 +174,36 @@ struct CategoryManagementView: View {
     }
   }
 
-  // MARK: - Lookups
+  // MARK: - Mutations
 
-  private func snapshotsInFolder(_ folderLabel: String) -> [CategorySnapshot] {
-    allCategories.inFolder(folderLabel).map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
-  }
-
-  private func rootSnapshots() -> [CategorySnapshot] {
-    rootCategories.map { CategorySnapshot(label: $0.label, sortOrder: $0.sortOrder) }
-  }
-
-  private func draggedCategoryFolder(label: String) -> String? {
-    allCategories.first { $0.label == label }?.folderLabel
-  }
-
-  // MARK: - Drop handlers
-
-  private func handleMoveToFolder(_ draggedLabel: String, folderLabel: String) {
-    guard let writer = syncEngine.writer,
-      let plan = planMoveToFolder(
-        dragged: draggedLabel,
-        targetFolder: folderLabel,
-        existingInFolder: snapshotsInFolder(folderLabel)
-      )
-    else { return }
-    apply(plan, using: writer)
-  }
-
-  private func handleInsertInFolder(_ draggedLabel: String, folderLabel: String, at position: Int) {
-    guard let writer = syncEngine.writer,
-      let plan = planInsertInFolder(
-        dragged: draggedLabel,
-        draggedCurrentFolder: draggedCategoryFolder(label: draggedLabel),
-        targetFolder: folderLabel,
-        position: position,
-        existingInFolder: snapshotsInFolder(folderLabel)
-      )
-    else { return }
-    apply(plan, using: writer)
-  }
-
-  private func handleMoveToRoot(_ draggedLabel: String, at position: Int) {
-    guard let writer = syncEngine.writer,
-      let plan = planMoveToRoot(
-        dragged: draggedLabel,
-        draggedCurrentFolder: draggedCategoryFolder(label: draggedLabel),
-        position: position,
-        existingAtRoot: rootSnapshots()
-      )
-    else { return }
-    apply(plan, using: writer)
-  }
-
-  private func apply(_ plan: CategoryDropPlan, using writer: DataWriter) {
-    let folderChanges = plan.folderChanges.map { change in
-      (label: change.label, folderLabel: change.folderLabel, sortOrder: change.sortOrder)
-    }
-    let sortOrderUpdates = plan.sortOrderUpdates.map { update in
-      (label: update.label, sortOrder: update.sortOrder)
-    }
+  /// Apply a SwiftUI `.onMove` index shuffle: rebuild the label order locally,
+  /// then ship just the `[String]` order across the actor boundary. `move(...)`
+  /// is the standard Swift Collections helper used in tandem with `.onMove`.
+  private func reorder(
+    children: [Category], inFolder folderLabel: String?, source: IndexSet, destination: Int
+  ) {
+    guard let writer = syncEngine.writer else { return }
+    var labels = children.map(\.label)
+    labels.move(fromOffsets: source, toOffset: destination)
     Task {
-      try? await writer.batchUpdateCategoryFolderAndSortOrders(
-        folderChanges: folderChanges, sortOrderUpdates: sortOrderUpdates
-      )
+      try? await writer.reorderCategories(inFolder: folderLabel, orderedLabels: labels)
     }
   }
 
-  // MARK: - Hover helpers
-
-  /// Update `currentDropTarget` only when the incoming change actually affects
-  /// the requested target. Matches the "latch a single target at a time"
-  /// behavior the old three-optional layout had.
-  private func updateHover(_ newValue: DropTarget?, matching target: DropTarget) {
-    if let value = newValue {
-      currentDropTarget = value
-    } else if currentDropTarget == target {
-      currentDropTarget = nil
+  /// Move a category between folders (or to root) via the context menu. The
+  /// new sortOrder appends past the existing peers in the target — matching
+  /// what `CategoryEditSheet.save()` does.
+  private func moveCategory(_ category: Category, toFolder folderLabel: String?) {
+    guard !category.isSystem, let writer = syncEngine.writer else { return }
+    let peerCount: Int
+    if let folderLabel {
+      peerCount = allCategories.inFolder(folderLabel).count
+    } else {
+      peerCount = rootCategories.count
+    }
+    let label = category.label
+    Task {
+      try? await writer.moveCategoryToFolder(label: label, folderLabel: folderLabel, sortOrder: peerCount)
     }
   }
 }
