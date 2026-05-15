@@ -31,10 +31,21 @@
       "WebFetch(domain:mcp.context7.com)"
     ],
     "deny": [
+      "Bash(claude:*)",
+      "Bash(gh api repos/*/merges:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git clean -fdx:*)",
       "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin +:*)",
+      "Bash(git push origin HEAD:main:*)",
       "Bash(git push origin main:*)",
-      "Bash(rm -rf:*)",
-      "Bash(claude:*)"
+      "Bash(git reset --hard:*)",
+      "Bash(rm --recursive:*)",
+      "Bash(rm -f -r:*)",
+      "Bash(rm -fr:*)",
+      "Bash(rm -r -f:*)",
+      "Bash(rm -rf:*)"
     ]
   },
   "hooks": {
