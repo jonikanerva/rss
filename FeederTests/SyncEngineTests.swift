@@ -141,7 +141,9 @@ struct SyncEngineTests {
     // Gate on the **client** call counter, not `engine.isSyncing`.
     // `isSyncing` flips to `true` long before `fetchAllEntryPages` is
     // entered — gating on the flag would race the actual stream start.
-    try await waitUntilEntryPagesCallCountReaches(1, client: client)
+    try await waitUntil("fetchEntryPagesCallCount >= 1") {
+      await client.fetchEntryPagesCallCount >= 1
+    }
 
     engine.refetchHistory()
 
@@ -180,27 +182,5 @@ struct SyncEngineTests {
     // Order inside a batch comes from `Set`'s `Array`-conversion; assert
     // by set equality so the test stays stable across Swift releases.
     #expect(Set(calls.first ?? []) == queuedIDs)
-  }
-
-  // MARK: - Helpers
-
-  /// Poll the fake client until `fetchEntryPagesCallCount` reaches the
-  /// expected value or the timeout elapses. Used by the race-guard test
-  /// to synchronise on the moment the entry-page stream has actually been
-  /// entered — a stronger signal than `engine.isSyncing`, which flips
-  /// before the client is touched.
-  private func waitUntilEntryPagesCallCountReaches(
-    _ expected: Int,
-    client: FakeFeedbinClient,
-    timeout: Duration = .seconds(2)
-  ) async throws {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while await client.fetchEntryPagesCallCount < expected {
-      if ContinuousClock.now >= deadline {
-        Issue.record("Timed out waiting for fetchEntryPagesCallCount to reach \(expected)")
-        return
-      }
-      try await Task.sleep(for: .milliseconds(5))
-    }
   }
 }

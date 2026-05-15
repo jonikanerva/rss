@@ -69,6 +69,25 @@ final class ClassificationEngine {
   /// to restart the polling loop after the reset+batch completes.
   private var isContinuousModeActive = false
 
+  /// Optional test-only provider factory. When non-nil, `makeRunner` uses
+  /// this in place of the static `buildProvider()` — letting integration
+  /// tests inject a fake provider without touching `UserDefaults` or the
+  /// Keychain. Production code paths leave this nil and continue to resolve
+  /// the provider per batch from the production configuration.
+  private let providerFactoryOverride: (@Sendable () -> any ClassificationProvider)?
+
+  // MARK: - Initializer
+
+  /// Default-argumented init — production call sites (`FeederApp`, every
+  /// `#Preview`) keep their existing `ClassificationEngine()` invocation;
+  /// integration tests pass a factory that resolves to a
+  /// `FakeClassificationProvider` so the engine bypasses the production
+  /// `buildProvider()` static (which reads `UserDefaults` + the Keychain).
+  /// Mirrors the precedent set by `SyncEngine(defaults:)`.
+  init(providerFactoryOverride: (@Sendable () -> any ClassificationProvider)? = nil) {
+    self.providerFactoryOverride = providerFactoryOverride
+  }
+
   // MARK: - Continuous classification (polling loop)
 
   func startContinuousClassification(writer: DataWriter) {
@@ -155,6 +174,23 @@ final class ClassificationEngine {
     }
   }
 
+  // MARK: - Test introspection
+  //
+  // These read-only accessors expose the orchestration state that
+  // `ClassificationEngineTests` needs to assert on. They are not compiled
+  // into Release builds — `#if DEBUG` strips them from the shipping
+  // binary entirely. Debug app builds still see them (the cost of using
+  // an in-module test target), but the engine's own logic continues to
+  // read the private storage directly so no production-code path relies
+  // on this surface. Tests use the accessors to prove the
+  // continuous-loop restart path in `runReplacingContinuousLoop` instead
+  // of poking at private state through reflection.
+
+  #if DEBUG
+    var isContinuousLoopActive: Bool { isContinuousModeActive }
+    var currentClassificationTaskID: UUID? { classificationTaskID }
+  #endif
+
   // MARK: - MainActor sink for progress snapshots
 
   private func apply(_ snapshot: ProgressSnapshot) {
@@ -182,7 +218,10 @@ final class ClassificationEngine {
     // Provider is built per-batch via this Sendable factory, so a Settings change
     // (provider switch / OpenAI key entry) takes effect on the next polling cycle
     // without requiring `stopContinuousClassification` + `start` round-trip.
-    let providerFactory: @Sendable () -> any ClassificationProvider = { Self.buildProvider() }
+    // The test-only override (when set) bypasses `buildProvider()`'s Settings/
+    // Keychain lookup so integration tests can inject a fake provider.
+    let providerFactory: @Sendable () -> any ClassificationProvider =
+      providerFactoryOverride ?? { Self.buildProvider() }
     return ClassificationRunner(
       writer: writer, providerFactory: providerFactory, reportProgress: reporter
     )
