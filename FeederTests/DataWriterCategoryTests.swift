@@ -185,28 +185,6 @@ struct DataWriterCategoryTests {
     #expect(cat?.description == "New desc")
   }
 
-  // MARK: - updateCategorySortOrders
-
-  @Test
-  func updateSortOrdersReorders() async throws {
-    let writer = try await makeWriter()
-    try await writer.addCategory(
-      label: "a", displayName: "A", description: "A", sortOrder: 0
-    )
-    try await writer.addCategory(
-      label: "b", displayName: "B", description: "B", sortOrder: 1
-    )
-    try await writer.updateCategorySortOrders([
-      (label: "a", sortOrder: 1),
-      (label: "b", sortOrder: 0),
-    ])
-
-    let orderA = try await writer.fetchCategorySortOrder(label: "a")
-    let orderB = try await writer.fetchCategorySortOrder(label: "b")
-    #expect(orderA == 1)
-    #expect(orderB == 0)
-  }
-
   // MARK: - seedDefaultCategories
 
   @Test

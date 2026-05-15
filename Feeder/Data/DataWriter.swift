@@ -646,18 +646,6 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  func updateCategorySortOrders(_ updates: [(label: String, sortOrder: Int)]) throws {
-    for (label, sortOrder) in updates {
-      let descriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.label == label }
-      )
-      if let category = try modelContext.fetch(descriptor).first, !category.isSystem {
-        category.sortOrder = sortOrder
-      }
-    }
-    try modelContext.save()
-  }
-
   /// Re-assign `sortOrder` for categories in a single folder (or at root when
   /// `folderLabel` is `nil`) to match the position of each label in
   /// `orderedLabels`. Labels not present in `orderedLabels` are left untouched.

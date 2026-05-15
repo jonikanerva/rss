@@ -30,43 +30,57 @@ struct CategoryManagementView: View {
   private var showNewFolderSheet = false
 
   var body: some View {
-    Form {
-      Section {
-        actionButtons
-      }
-
+    VStack(spacing: 0) {
       if allCategories.isEmpty && folders.isEmpty {
         emptyState
       } else {
-        categorySections
+        categoryList
       }
+      Divider()
+      actionButtons
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
-    .formStyle(.grouped)
+    .sheet(isPresented: $showNewCategorySheet) {
+      CategoryEditSheet(category: nil, folders: folders)
+    }
+    .sheet(isPresented: $showNewFolderSheet) {
+      FolderEditSheet(folder: nil)
+    }
+    .sheet(item: $editingCategory) { category in
+      CategoryEditSheet(category: category, folders: folders)
+    }
+    .sheet(item: $editingFolder) { folder in
+      FolderEditSheet(folder: folder)
+    }
   }
 
   // MARK: - List content
 
   @ViewBuilder
   private var emptyState: some View {
-    Section("Categories") {
-      ContentUnavailableView {
-        Label("No Categories", systemImage: "tag")
-      } description: {
-        Text("Create categories to classify your articles.")
-      }
+    ContentUnavailableView {
+      Label("No Categories", systemImage: "tag")
+    } description: {
+      Text("Create categories to classify your articles.")
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  /// One `Section` per folder plus a trailing root section. `.onMove` on each
-  /// folder reorders that folder's children in place; cross-folder moves use
-  /// the row context menu. The system category gets `.moveDisabled(true)` so
-  /// "uncategorized" never drifts out of its pinned position.
+  /// `.onMove` is only synthesized inside `List`, not `Form` — so the list of
+  /// categories lives in a `List` even though the surrounding screen is a
+  /// settings tab. One `Section` per folder plus a trailing root section.
+  /// `.onMove` on each folder reorders that folder's children in place;
+  /// cross-folder moves use the row context menu. The system category gets
+  /// `.moveDisabled(true)` so "uncategorized" never drifts out of place.
   @ViewBuilder
-  private var categorySections: some View {
-    ForEach(folders) { folder in
-      folderSection(folder: folder)
+  private var categoryList: some View {
+    List {
+      ForEach(folders) { folder in
+        folderSection(folder: folder)
+      }
+      rootSection
     }
-    rootSection
   }
 
   @ViewBuilder
@@ -96,33 +110,40 @@ struct CategoryManagementView: View {
     }
   }
 
+  /// Per-row view. The context menu is only attached for non-system
+  /// categories — gating the menu body alone would produce an empty
+  /// context menu for "uncategorized".
   @ViewBuilder
   private func categoryRow(_ category: Category, depth: Int) -> some View {
-    CategoryCompactRow(
+    let row = CategoryCompactRow(
       displayName: category.displayName,
       descriptionPreview: category.categoryDescription,
       depth: depth,
       isSystem: category.isSystem,
       onEdit: { editingCategory = category }
     )
-    .contextMenu {
-      moveToFolderMenu(for: category)
+    if category.isSystem {
+      row
+    } else {
+      row.contextMenu {
+        moveToFolderMenu(for: category)
+      }
     }
   }
 
+  /// "Move to Folder" submenu. HIG: hide unavailable destinations (current
+  /// folder, and "No Folder" when already at root) instead of disabling them.
   @ViewBuilder
   private func moveToFolderMenu(for category: Category) -> some View {
-    if !category.isSystem {
-      Menu("Move to Folder") {
+    Menu("Move to Folder") {
+      if category.folderLabel != nil {
         Button("No Folder") {
           moveCategory(category, toFolder: nil)
         }
-        .disabled(category.folderLabel == nil)
-        ForEach(folders) { folder in
-          Button(folder.displayName) {
-            moveCategory(category, toFolder: folder.label)
-          }
-          .disabled(category.folderLabel == folder.label)
+      }
+      ForEach(folders.filter { $0.label != category.folderLabel }) { folder in
+        Button(folder.displayName) {
+          moveCategory(category, toFolder: folder.label)
         }
       }
     }
@@ -159,18 +180,6 @@ struct CategoryManagementView: View {
         showNewCategorySheet = true
       }
       .accessibilityIdentifier("categories.add")
-    }
-    .sheet(isPresented: $showNewCategorySheet) {
-      CategoryEditSheet(category: nil, folders: folders)
-    }
-    .sheet(isPresented: $showNewFolderSheet) {
-      FolderEditSheet(folder: nil)
-    }
-    .sheet(item: $editingCategory) { category in
-      CategoryEditSheet(category: category, folders: folders)
-    }
-    .sheet(item: $editingFolder) { folder in
-      FolderEditSheet(folder: folder)
     }
   }
 
