@@ -35,6 +35,11 @@ enum FontTheme {
   /// `<h4>` rendering inside structured article blocks.
   static var minorHeader: Font { .title3.weight(.bold) }
 
+  /// Reader pane h5/h6 inline heading fallback. Distinct from `headline`
+  /// (sheet titles) so a future reader redesign can retune one without
+  /// affecting the other.
+  static var minorInlineHeading: Font { .headline }
+
   /// Reader prose: paragraphs, list items, blockquotes.
   static var body: Font { .body }
 

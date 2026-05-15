@@ -86,18 +86,17 @@ struct ArticleBlockView: View {
   // MARK: - Headings
 
   /// Maps HTML heading level (1–6) to a Dynamic-Type-aware semantic font.
-  /// `level` outside 1–4 falls back to `FontTheme.headline` (Apple's
-  /// `.headline` text style) to keep h5/h6 distinguishable from body text
-  /// without inventing a new style. We avoid `FontTheme.rowTitle` here —
-  /// that alias is documented as the article-list row role and shouldn't
-  /// be reused for reader content.
+  /// `level` outside 1–4 falls back to `FontTheme.minorInlineHeading` — a
+  /// reader-pane alias kept distinct from `FontTheme.headline` (sheet
+  /// titles) and `FontTheme.rowTitle` (article-list rows) so a future
+  /// reader redesign can retune h5/h6 without rippling into other surfaces.
   private func headingFont(_ level: Int) -> Font {
     switch level {
     case 1: FontTheme.articleTitle
     case 2: FontTheme.sectionHeader
     case 3: FontTheme.subsectionHeader
     case 4: FontTheme.minorHeader
-    default: FontTheme.headline
+    default: FontTheme.minorInlineHeading
     }
   }
 
