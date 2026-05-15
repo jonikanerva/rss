@@ -76,17 +76,15 @@ final class ClassificationEngine {
   /// the provider per batch from the production configuration.
   private let providerFactoryOverride: (@Sendable () -> any ClassificationProvider)?
 
-  // MARK: - Initializers
+  // MARK: - Initializer
 
-  init() {
-    self.providerFactoryOverride = nil
-  }
-
-  /// Test-only initializer. The supplied factory replaces the production
-  /// `buildProvider()` static call inside `makeRunner`, so tests run end-to-end
-  /// against a fake `ClassificationProvider` without depending on Settings
-  /// state, the Keychain, or `UserDefaults`.
-  init(providerFactoryOverride: @Sendable @escaping () -> any ClassificationProvider) {
+  /// Default-argumented init — production call sites (`FeederApp`, every
+  /// `#Preview`) keep their existing `ClassificationEngine()` invocation;
+  /// integration tests pass a factory that resolves to a
+  /// `FakeClassificationProvider` so the engine bypasses the production
+  /// `buildProvider()` static (which reads `UserDefaults` + the Keychain).
+  /// Mirrors the precedent set by `SyncEngine(defaults:)`.
+  init(providerFactoryOverride: (@Sendable () -> any ClassificationProvider)? = nil) {
     self.providerFactoryOverride = providerFactoryOverride
   }
 

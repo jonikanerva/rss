@@ -100,18 +100,13 @@ struct ClassificationEngineTests {
     isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     let nowIso = isoFormatter.string(from: Date())
 
-    var ids: [Int] = []
-    var entries: [FeedbinEntry] = []
-    for index in 0..<count {
-      let id = 1001 + index
-      ids.append(id)
-      entries.append(
-        try FeedbinFixtures.entry(
-          id: id,
-          title: "Article \(index)",
-          content: "<p>Body content for article \(index)</p>",
-          published: nowIso
-        )
+    let ids = Array(1001..<(1001 + count))
+    let entries = try ids.map { id in
+      try FeedbinFixtures.entry(
+        id: id,
+        title: "Article \(id - 1001)",
+        content: "<p>Body content for article \(id - 1001)</p>",
+        published: nowIso
       )
     }
     _ = try await writer.persistEntries(entries, unreadIDs: Set(ids))
