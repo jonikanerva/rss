@@ -63,7 +63,7 @@ struct FolderEditSheet: View {
         .foregroundStyle(.secondary)
       TextField("Folder name", text: $name)
         .textFieldStyle(.roundedBorder)
-        .font(.system(size: FontTheme.bodySize))
+        .font(FontTheme.body)
     }
     .padding()
   }

@@ -28,8 +28,13 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 18px;
+  /* `-apple-system-body` is the WebKit shorthand for the system body text
+     style — it tracks the macOS Larger Text accessibility setting the same
+     way SwiftUI's `.body` does. `-webkit-text-size-adjust: 100%` opts out
+     of the auto-zoom heuristic that would otherwise re-scale on top of
+     Dynamic Type and double-count the user's preference. */
+  font: -apple-system-body;
+  -webkit-text-size-adjust: 100%;
   line-height: 1.65;
   color: var(--text-primary);
   /* No background-color — WKWebView inherits the macOS window background automatically */
@@ -50,7 +55,7 @@ header {
 
 .date {
   display: block;
-  font-size: 13px;
+  font: -apple-system-caption1;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
@@ -59,7 +64,7 @@ header {
 }
 
 .title {
-  font-size: 32px;
+  font: -apple-system-largeTitle;
   font-weight: 700;
   line-height: 1.2;
   margin: 0 0 12px;
@@ -90,6 +95,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Glyph inside a fixed-size favicon box — kept px so it stays centered
+     and never overflows when Dynamic Type scales up. */
   font-size: 11px;
   font-weight: 700;
   color: var(--text-secondary);
@@ -97,14 +104,14 @@ header {
 }
 
 .author {
-  font-size: 13px;
+  font: -apple-system-caption1;
   font-weight: 600;
   text-transform: none;
   color: var(--text-secondary);
 }
 
 .domain {
-  font-size: 13px;
+  font: -apple-system-caption1;
   font-weight: 500;
   text-transform: lowercase;
   color: var(--text-secondary);
@@ -124,9 +131,13 @@ header {
   color: var(--text-primary);
 }
 
-.content h2 { font-size: 24px; }
-.content h3 { font-size: 20px; }
-.content h4 { font-size: 18px; }
+/* Heading sizes inherit the body's Dynamic Type scaling — we cannot
+   `font: -apple-system-title2` here because that shorthand also resets
+   weight/line-height. `em` keeps the proportional ladder while letting
+   the user's text-size preference flow through from `body`. */
+.content h2 { font-size: 1.4em; font-weight: 700; }
+.content h3 { font-size: 1.2em; font-weight: 700; }
+.content h4 { font-size: 1.05em; font-weight: 700; }
 
 .content p {
   margin: 0 0 1em;
@@ -155,7 +166,7 @@ header {
 }
 
 .content figcaption {
-  font-size: 14px;
+  font-size: 0.85em;
   color: var(--text-secondary);
   margin-top: 6px;
 }
@@ -206,7 +217,7 @@ header {
   border-collapse: collapse;
   width: 100%;
   margin: 1em 0;
-  font-size: 16px;
+  font-size: 0.95em;
 }
 
 .content th, .content td {
@@ -246,6 +257,8 @@ header {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  /* Decorative glyph layered over an <img>; size is intentionally fixed
+     so it does not balloon past the thumbnail on Larger Text. */
   font-size: 48px;
   color: white;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);

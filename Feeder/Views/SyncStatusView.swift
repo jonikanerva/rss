@@ -41,20 +41,20 @@ struct SyncStatusView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       Text("News")
-        .font(.system(size: FontTheme.sectionHeaderSize, weight: .bold))
+        .font(FontTheme.sectionHeader)
         .foregroundStyle(.primary)
         .textCase(nil)
 
       if let fetchStatus = fetchStatusText {
         Text(fetchStatus)
-          .font(.system(size: FontTheme.statusSize))
+          .font(FontTheme.status)
           .foregroundStyle(.tertiary)
           .textCase(nil)
           .contentTransition(.numericText())
       }
       if let classifyStatus = classifyStatusText {
         Text(classifyStatus)
-          .font(.system(size: FontTheme.statusSize))
+          .font(FontTheme.status)
           .foregroundStyle(.tertiary)
           .textCase(nil)
           .contentTransition(.numericText())
