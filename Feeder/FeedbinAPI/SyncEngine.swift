@@ -476,21 +476,24 @@ final class SyncEngine {
   /// surface the UI reads (`isSyncing`, `lastError`, `lastSyncDate`,
   /// progress counters) — every other field stays at its init default.
   ///
-  /// `#if DEBUG`-gated so the seam is stripped from Release builds, matching
-  /// the `ClassificationEngine` debug-accessor convention.
-  #if DEBUG
-    func applyPreviewState(
-      isSyncing: Bool = false,
-      lastSyncDate: Date? = nil,
-      lastError: SyncError? = nil,
-      fetchedCount: Int = 0,
-      totalToFetch: Int = 0
-    ) {
-      self.isSyncing = isSyncing
-      self.lastSyncDate = lastSyncDate
-      self.lastError = lastError
-      self.fetchedCount = fetchedCount
-      self.totalToFetch = totalToFetch
-    }
-  #endif
+  /// Not gated behind `#if DEBUG`: the seam is reached from the
+  /// `SyncStatusView` / `EntryListView` preview helpers, which are
+  /// themselves visible to the Release compiler (SwiftUI's `#Preview`
+  /// macro strips the preview body in Release, but its enclosing
+  /// helper types and free functions still need to type-check). Keeping
+  /// the function unconditionally available avoids a Release-build
+  /// failure without forcing every call site into `#if DEBUG`.
+  func applyPreviewState(
+    isSyncing: Bool = false,
+    lastSyncDate: Date? = nil,
+    lastError: SyncError? = nil,
+    fetchedCount: Int = 0,
+    totalToFetch: Int = 0
+  ) {
+    self.isSyncing = isSyncing
+    self.lastSyncDate = lastSyncDate
+    self.lastError = lastError
+    self.fetchedCount = fetchedCount
+    self.totalToFetch = totalToFetch
+  }
 }
