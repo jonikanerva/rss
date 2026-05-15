@@ -15,8 +15,11 @@ import SwiftUI
 /// - `.headline`   (13pt, semibold) — row titles, sheet titles.
 /// - `.body`       (13pt) — reader prose, form text fields.
 /// - `.callout`    (12pt) — row summaries, body-adjacent supporting text.
-/// - `.subheadline` (11pt) — captions / form labels with secondary weight.
-/// - `.caption`    (10pt) — status strings, metadata, feed-name footers.
+/// - `.subheadline` (11pt) — used in two flavours below:
+///   - bare `.subheadline` for form labels and inline secondary text (`caption`).
+///   - `.subheadline.weight(.medium)` where metadata needs a touch more
+///     emphasis without jumping a full size (`metadata`, `sectionLabel`).
+/// - `.caption`    (10pt) — status strings, uppercase feed-name footers.
 enum FontTheme {
   // MARK: - Article reading surfaces
 
