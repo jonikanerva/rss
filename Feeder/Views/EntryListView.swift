@@ -55,6 +55,8 @@ struct EntryListView: View {
 
   @Environment(\.modelContext)
   private var modelContext
+  @Environment(SyncEngine.self)
+  private var syncEngine
   @State
   private var sections: [EntryListSection] = []
   /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
@@ -73,14 +75,22 @@ struct EntryListView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
           .accessibilityIdentifier("timeline.loading")
       } else if sections.isEmpty {
-        ContentUnavailableView {
-          Label("No Articles", systemImage: "newspaper")
-        } description: {
-          Text(
-            filter == .unread
-              ? "No unread articles in this category."
-              : "No read articles in this category."
+        if syncEngine.lastError?.isNetworkError == true {
+          ContentUnavailableView(
+            "Offline",
+            systemImage: "wifi.slash",
+            description: Text("Connect to the internet to sync new articles.")
           )
+        } else {
+          ContentUnavailableView {
+            Label("No Articles", systemImage: "newspaper")
+          } description: {
+            Text(
+              filter == .unread
+                ? "No unread articles in this category."
+                : "No read articles in this category."
+            )
+          }
         }
       } else {
         List(selection: $selectedEntry) {
@@ -162,5 +172,55 @@ struct EntryListView: View {
   /// refreshes do not tear down the `List` and drop the scroll position.
   private var structuralKey: String {
     "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+  }
+}
+
+// MARK: - Previews
+
+#Preview("Empty - Offline") {
+  EntryListOfflinePreview()
+}
+
+/// Renders `EntryListView` in the offline-empty state: container is seeded
+/// but contains no entries, and `SyncEngine.lastError` is set to `.network`
+/// so the view picks the `ContentUnavailableView("Offline", …)` branch.
+@MainActor
+private struct EntryListOfflinePreview: View {
+  @State
+  private var writer: DataWriter?
+  @State
+  private var selectedEntry: Entry?
+  private let container: ModelContainer = PreviewSupport.makeContainer()
+  private let syncEngine: SyncEngine = {
+    let engine = SyncEngine()
+    engine.applyPreviewState(
+      lastError: .network("The Internet connection appears to be offline."))
+    return engine
+  }()
+
+  var body: some View {
+    Group {
+      if let writer {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          writer: writer,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntry: $selectedEntry,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .modelContainer(container)
+    .task {
+      writer = await DataWriter.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 480)
   }
 }

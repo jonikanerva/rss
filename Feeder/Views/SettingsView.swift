@@ -157,7 +157,7 @@ struct SettingsView: View {
 
         if let error = syncEngine.lastError {
           LabeledContent("Error") {
-            Text(error)
+            Text(error.message)
               .foregroundStyle(Color(nsColor: .systemRed))
               .font(FontTheme.caption)
           }
