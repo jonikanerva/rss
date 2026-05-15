@@ -3,21 +3,24 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - unreadCountsByCategory
+// MARK: - unreadCounts
 
-struct UnreadCountsByCategoryTests {
+struct UnreadCountsTests {
   @Test
   func aggregatesByLabel() {
     let labels = ["apple", "world_news", "apple", "apple", "world_news"]
-    let counts = unreadCountsByCategory(labels)
+    let counts = unreadCounts(in: labels)
     #expect(counts["apple"] == 3)
     #expect(counts["world_news"] == 2)
   }
 
   @Test
   func emptyLabelsAreIgnored() {
+    // Empty labels stand in for entries that are unclassified (no category) or
+    // assigned to a root-level category (no folder) — neither contributes to a
+    // sidebar badge.
     let labels = ["", "apple", "", "apple", ""]
-    let counts = unreadCountsByCategory(labels)
+    let counts = unreadCounts(in: labels)
     #expect(counts.count == 1)
     #expect(counts["apple"] == 2)
     #expect(counts[""] == nil)
@@ -25,36 +28,78 @@ struct UnreadCountsByCategoryTests {
 
   @Test
   func emptyInputReturnsEmptyDictionary() {
-    let counts = unreadCountsByCategory([] as [String])
+    let counts = unreadCounts(in: [] as [String])
     #expect(counts.isEmpty)
   }
 
   @Test
   func missingLabelLookupReturnsZeroDefault() {
-    let counts = unreadCountsByCategory(["apple"])
+    let counts = unreadCounts(in: ["apple"])
     #expect(counts["world_news", default: 0] == 0)
   }
-}
 
-// MARK: - unreadCountsByFolder
-
-struct UnreadCountsByFolderTests {
   @Test
-  func aggregatesByFolder() {
-    let labels = ["technology", "technology", "world", "technology"]
-    let counts = unreadCountsByFolder(labels)
+  func sameHelperAggregatesFolderLabels() {
+    // The single helper serves both per-category and per-folder counting.
+    let folders = ["technology", "technology", "world", "technology"]
+    let counts = unreadCounts(in: folders)
     #expect(counts["technology"] == 3)
     #expect(counts["world"] == 1)
   }
+}
+
+// MARK: - sidebarNavigationItems
+
+struct SidebarNavigationItemsTests {
+  private static let groups: [(folderLabel: String, categoryLabels: [String])] = [
+    (folderLabel: "technology", categoryLabels: ["apple", "playstation"]),
+    (folderLabel: "media", categoryLabels: ["movies"]),
+  ]
+  private static let roots = ["world_news"]
 
   @Test
-  func rootLevelEntriesAreNotCounted() {
-    // Entries assigned to a root-level category have an empty primaryFolder
-    // and must not contribute to any folder badge.
-    let labels = ["", "", "technology", ""]
-    let counts = unreadCountsByFolder(labels)
-    #expect(counts["technology"] == 1)
-    #expect(counts[""] == nil)
+  func expandedFoldersExposeChildren() {
+    let items = sidebarNavigationItems(
+      folderGroups: Self.groups,
+      rootCategoryLabels: Self.roots,
+      collapsedFolderLabels: []
+    )
+    #expect(
+      items == [
+        .folder("technology"), .category("apple"), .category("playstation"),
+        .folder("media"), .category("movies"),
+        .category("world_news"),
+      ])
+  }
+
+  @Test
+  func collapsedFolderSkipsItsChildrenInNavigationOrder() {
+    // Critical regression: J/K must not land on rows that are not visible in
+    // the rendered source list. With "technology" collapsed, its child rows
+    // disappear from the flat navigation list entirely.
+    let items = sidebarNavigationItems(
+      folderGroups: Self.groups,
+      rootCategoryLabels: Self.roots,
+      collapsedFolderLabels: ["technology"]
+    )
+    #expect(
+      items == [
+        .folder("technology"),
+        .folder("media"), .category("movies"),
+        .category("world_news"),
+      ])
+  }
+
+  @Test
+  func collapsedRootCategoriesAreUnaffected() {
+    // Root-level categories are not nested under any folder, so the collapsed
+    // set never hides them.
+    let items = sidebarNavigationItems(
+      folderGroups: [],
+      rootCategoryLabels: ["world_news", "uncategorized"],
+      collapsedFolderLabels: ["technology"]
+    )
+    #expect(items == [.category("world_news"), .category("uncategorized")])
   }
 }
 

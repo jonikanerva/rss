@@ -25,7 +25,6 @@ enum FontTheme {
   // Kept as aliases so we can redesign a specific surface without having to
   // grep through every place the raw number appears.
 
-  static let metadataSize: CGFloat = baseSize  // 15
   static let rowSummarySize: CGFloat = baseSize  // 15 — summary excerpt in row
   static let rowFeedNameSize: CGFloat = statusSize  // 13 — uppercase feed name
 

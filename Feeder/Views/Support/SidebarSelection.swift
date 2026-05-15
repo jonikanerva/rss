@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Sidebar selection — either a folder aggregate or a specific category.
-enum SidebarSelection: Hashable {
+nonisolated enum SidebarSelection: Hashable, Sendable {
   case folder(String)
   case category(String)
 
@@ -9,6 +9,32 @@ enum SidebarSelection: Hashable {
     if case .category = self { return true }
     return false
   }
+}
+
+/// Flatten `(folder, [categoryLabel])` groups plus root-level category labels
+/// into the visual top-to-bottom navigation order, honouring which folders are
+/// collapsed.
+///
+/// Pure helper extracted from `ContentView.sidebarItems` so the behaviour is
+/// unit-testable without spinning up a SwiftUI host: the rule that J/K
+/// navigation must skip the children of a collapsed folder is enforced here.
+nonisolated func sidebarNavigationItems(
+  folderGroups: [(folderLabel: String, categoryLabels: [String])],
+  rootCategoryLabels: [String],
+  collapsedFolderLabels: Set<String>
+) -> [SidebarSelection] {
+  var items: [SidebarSelection] = []
+  for group in folderGroups {
+    items.append(.folder(group.folderLabel))
+    guard !collapsedFolderLabels.contains(group.folderLabel) else { continue }
+    for label in group.categoryLabels {
+      items.append(.category(label))
+    }
+  }
+  for label in rootCategoryLabels {
+    items.append(.category(label))
+  }
+  return items
 }
 
 /// Fires `onChange` when any category's `folderLabel` changes. Extracted into
