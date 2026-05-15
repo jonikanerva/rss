@@ -44,12 +44,12 @@ struct ArticleBlockView: View {
     switch block {
     case .paragraph(let text):
       Text(attributedInline(text))
-        .font(.system(size: FontTheme.bodySize))
+        .font(FontTheme.body)
         .lineSpacing(6)
 
     case .heading(let level, let text):
       Text(attributedInline(text))
-        .font(.system(size: headingSize(level), weight: .bold))
+        .font(headingFont(level))
         .padding(.top, level <= 2 ? 8 : 4)
 
     case .image(let url, let alt):
@@ -57,7 +57,7 @@ struct ArticleBlockView: View {
 
     case .codeBlock(let code):
       Text(code.trimmingCharacters(in: .whitespacesAndNewlines))
-        .font(.system(size: FontTheme.bodySize - 2, design: .monospaced))
+        .font(FontTheme.codeBlock)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
@@ -67,7 +67,7 @@ struct ArticleBlockView: View {
 
     case .blockquote(let text):
       Text(attributedInline(text))
-        .font(.system(size: FontTheme.bodySize))
+        .font(FontTheme.body)
         .lineSpacing(6)
         .foregroundStyle(.secondary)
         .padding(.leading, 12)
@@ -85,12 +85,16 @@ struct ArticleBlockView: View {
 
   // MARK: - Headings
 
-  private func headingSize(_ level: Int) -> CGFloat {
+  /// Maps HTML heading level (1–6) to a Dynamic-Type-aware semantic font.
+  /// `level` outside 1–4 falls back to `.headline` to keep h5/h6 distinguishable
+  /// from body text without inventing a new style.
+  private func headingFont(_ level: Int) -> Font {
     switch level {
-    case 1: FontTheme.articleTitleSize
-    case 2: FontTheme.sectionHeaderSize
-    case 3: FontTheme.rowTitleSize
-    default: FontTheme.bodySize
+    case 1: FontTheme.articleTitle
+    case 2: FontTheme.sectionHeader
+    case 3: FontTheme.subsectionHeader
+    case 4: FontTheme.minorHeader
+    default: FontTheme.rowTitle
     }
   }
 
@@ -136,16 +140,16 @@ struct ArticleBlockView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
           if ordered {
             Text("\(index + 1).")
-              .font(.system(size: FontTheme.bodySize))
+              .font(FontTheme.body)
               .foregroundStyle(.secondary)
               .frame(minWidth: 20, alignment: .trailing)
           } else {
             Text("•")
-              .font(.system(size: FontTheme.bodySize))
+              .font(FontTheme.body)
               .foregroundStyle(.secondary)
           }
           Text(attributedInline(item))
-            .font(.system(size: FontTheme.bodySize))
+            .font(FontTheme.body)
             .lineSpacing(4)
         }
       }

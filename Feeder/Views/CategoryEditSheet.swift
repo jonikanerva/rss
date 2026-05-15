@@ -71,7 +71,7 @@ struct CategoryEditSheet: View {
           .foregroundStyle(.secondary)
         TextField("Category name", text: $name)
           .textFieldStyle(.roundedBorder)
-          .font(.system(size: FontTheme.bodySize))
+          .font(FontTheme.body)
           .disabled(category?.isSystem ?? false)
       }
 
@@ -94,7 +94,7 @@ struct CategoryEditSheet: View {
           .font(FontTheme.caption)
           .foregroundStyle(.secondary)
         TextEditor(text: $description)
-          .font(.system(size: FontTheme.bodySize))
+          .font(FontTheme.body)
           .frame(minHeight: 80, maxHeight: 160)
           .overlay(
             RoundedRectangle(cornerRadius: 6)

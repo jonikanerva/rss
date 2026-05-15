@@ -95,7 +95,7 @@ struct EntryListView: View {
               }
             } header: {
               Text(section.label)
-                .font(.system(size: FontTheme.captionSize, weight: .medium))
+                .font(FontTheme.sectionLabel)
                 .foregroundStyle(.tertiary)
                 .textCase(nil)
             }

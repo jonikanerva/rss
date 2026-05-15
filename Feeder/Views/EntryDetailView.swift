@@ -91,12 +91,12 @@ struct EntryDetailView: View {
     VStack(alignment: .leading, spacing: 8) {
       // Date + time
       Text(DetailDateFormatting.formatDate(entry.publishedAt))
-        .font(.system(size: FontTheme.captionSize, weight: .medium))
+        .font(FontTheme.metadata)
         .foregroundStyle(.secondary)
 
       // Title
       Text(entry.title ?? "Untitled")
-        .font(.system(size: FontTheme.articleTitleSize, weight: .bold))
+        .font(FontTheme.articleTitle)
         .fixedSize(horizontal: false, vertical: true)
 
       // Favicon + author/domain
@@ -107,12 +107,12 @@ struct EntryDetailView: View {
         VStack(alignment: .leading, spacing: 2) {
           if let author = entry.author, !author.isEmpty {
             Text(author)
-              .font(.system(size: FontTheme.captionSize, weight: .medium))
+              .font(FontTheme.metadata)
               .foregroundStyle(.secondary)
           }
           if let domain = entry.displayDomain, !domain.isEmpty {
             Text(domain.lowercased())
-              .font(.system(size: FontTheme.captionSize, weight: .medium))
+              .font(FontTheme.metadata)
               .foregroundStyle(.tertiary)
           }
         }
@@ -211,6 +211,11 @@ private struct ArticleWebContainer: View {
 
 #Preview("Article Detail with Sources") {
   articleDetailPreview()
+}
+
+#Preview("Article Detail — Larger Text (AX3)") {
+  articleDetailPreview()
+    .dynamicTypeSize(.accessibility3)
 }
 
 @MainActor

@@ -11,16 +11,21 @@ struct OnboardingView: View {
   private var isVerifying = false
   @State
   private var errorMessage: String?
+  /// Scales the welcome icon alongside the rest of the typography when the
+  /// user enables macOS *Larger Text*. Anchored to `.largeTitle` so it tracks
+  /// the welcome title above it instead of growing on its own curve.
+  @ScaledMetric(relativeTo: .largeTitle)
+  private var iconSize: CGFloat = 50
   let onComplete: () -> Void
 
   var body: some View {
     VStack(spacing: 24) {
       Image(systemName: "newspaper.fill")
-        .font(.system(size: FontTheme.iconSize))
+        .font(.system(size: iconSize))
         .foregroundStyle(.tint)
 
       Text("Welcome to Feeder")
-        .font(FontTheme.title)
+        .font(FontTheme.articleTitle)
 
       Text("Connect your Feedbin account to get started.")
         .foregroundStyle(.secondary)

@@ -28,27 +28,28 @@ struct EntryRowView: View {
         // Feed name + time
         HStack(alignment: .top, spacing: 5) {
           Text(entry.title ?? "Untitled")
-            .font(.system(size: FontTheme.rowTitleSize, weight: isRead ? .regular : .semibold))
+            .font(FontTheme.rowTitle)
+            .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(2)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
           Spacer()
 
           Text(entry.formattedPublishedTime)
-            .font(.system(size: FontTheme.rowFeedNameSize))
+            .font(FontTheme.rowFeedName)
             .foregroundStyle(.tertiary)
         }
 
         if let domain = entry.displayDomain, !domain.isEmpty {
           Text(domain.lowercased())
-            .font(.system(size: FontTheme.rowFeedNameSize, weight: .regular))
+            .font(FontTheme.rowFeedName)
             .foregroundStyle(FontTheme.domainPillColor)
         }
 
         // Summary excerpt
         if !summaryText.isEmpty {
           Text(summaryText)
-            .font(.system(size: FontTheme.rowSummarySize))
+            .font(FontTheme.rowSummary)
             .lineLimit(2)
             .foregroundStyle(.tertiary)
         }
@@ -103,6 +104,11 @@ struct FaviconView: View {
 
 #Preview("Read Entry") {
   readEntryRowPreview()
+}
+
+#Preview("Unread Entry — Larger Text (AX3)") {
+  unreadEntryRowPreview()
+    .dynamicTypeSize(.accessibility3)
 }
 
 @MainActor
