@@ -39,9 +39,18 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   func updateNSView(_ webView: WKWebView, context: Context) {
+    // Re-load when either the entry changes (selection) or the rendered HTML
+    // changes (text-size picker — same entry, new `--app-scale`). Hashing the
+    // HTML keeps the guard cheap and avoids the `String` heap allocation a
+    // direct `currentHTML != renderedHTML` would incur on every diff.
     let entryID = entry.feedbinEntryID
-    guard context.coordinator.currentEntryID != entryID else { return }
+    let htmlHash = renderedHTML.hashValue
+    guard
+      context.coordinator.currentEntryID != entryID
+        || context.coordinator.currentHTMLHash != htmlHash
+    else { return }
     context.coordinator.currentEntryID = entryID
+    context.coordinator.currentHTMLHash = htmlHash
 
     let baseURL = URL(string: entry.url)
     webView.loadHTMLString(renderedHTML, baseURL: baseURL)
@@ -52,6 +61,7 @@ struct ArticleWebView: NSViewRepresentable {
   final class Coordinator: NSObject, WKNavigationDelegate {
     weak var webView: WKWebView?
     var currentEntryID: Int?
+    var currentHTMLHash: Int?
 
     func webView(
       _ webView: WKWebView,

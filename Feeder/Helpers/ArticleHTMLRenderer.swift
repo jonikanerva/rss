@@ -9,7 +9,13 @@ import Foundation
 /// them into a `nonisolated` helper lets `Task.detached` run them on a
 /// background cooperative thread, keeping the render path off the
 /// MainActor. All inputs are plain `Sendable` values (`String`, `Date`,
-/// `Character`) so the helper can be invoked from any isolation domain.
+/// `Character`, `CGFloat`) so the helper can be invoked from any
+/// isolation domain.
+///
+/// `scaleFactor` is the same multiplier `AppFontSettings` applies to every
+/// SwiftUI font alias. Injecting it into the article HTML as the CSS custom
+/// property `--app-scale` makes the WebView reader pane scale in lockstep
+/// with the SwiftUI surfaces driven by the user's Appearance picker.
 nonisolated func renderArticleHTML(
   feedHTMLBody: String,
   title: String?,
@@ -18,6 +24,7 @@ nonisolated func renderArticleHTML(
   displayDomain: String?,
   faviconBase64: String?,
   feedTitleInitial: Character?,
+  scaleFactor: CGFloat,
   template: String,
   css: String
 ) -> String {
@@ -27,9 +34,14 @@ nonisolated func renderArticleHTML(
   let escapedDomain = (displayDomain ?? "").lowercased().htmlEscaped
   let body = stripFeedStyles(replaceVideoIframes(feedHTMLBody))
   let favicon = renderFaviconHTML(base64: faviconBase64, fallbackInitial: feedTitleInitial)
+  // Format with up to four decimal places (matches the precision of the
+  // `AppTextSize.scaleFactor` rationals). `String(format:)` uses the C
+  // locale so the resulting CSS is always `1.15`, never `1,15`.
+  let scaleCSS = String(format: "%.4f", scaleFactor)
 
   return
     template
+    .replacingOccurrences(of: "[[scale]]", with: scaleCSS)
     .replacingOccurrences(of: "[[style]]", with: css)
     .replacingOccurrences(of: "[[date]]", with: dateStr)
     .replacingOccurrences(of: "[[title]]", with: escapedTitle)

@@ -11,6 +11,21 @@
   --code-bg: #f5f5f7;
   --border: #d2d2d7;
   --blockquote-border: #C0463A;
+  /* Set to the active `AppTextSize.scaleFactor` by `renderArticleHTML` via an
+     inline `<html style="--app-scale: …">`. Defaults to `1` so the stylesheet
+     stays sensible when previewed in isolation (e.g. opening the .css file
+     directly). All font-related sizes use `em` units so they inherit the
+     `font-size` set on `html` below — the WebView reader pane scales in
+     lockstep with SwiftUI surfaces through the same `AppFontSettings`. */
+  --app-scale: 1;
+}
+
+html {
+  /* Root `font-size` drives every `em`-based length downstream. `100%` is the
+     WebKit default (≈16px on macOS); multiplying by `--app-scale` shifts the
+     entire typographic ladder by the user's chosen factor without touching
+     any per-element rule. */
+  font-size: calc(100% * var(--app-scale));
 }
 
 @media (prefers-color-scheme: dark) {

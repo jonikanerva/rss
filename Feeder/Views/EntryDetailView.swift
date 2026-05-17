@@ -144,6 +144,8 @@ enum ArticleViewMode {
 private struct ArticleWebContainer: View {
   let entry: Entry
 
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var renderedHTML: String?
 
@@ -165,7 +167,11 @@ private struct ArticleWebContainer: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    .task(id: entry.feedbinEntryID) {
+    // Re-key on `(entry, textSize)` so changing the picker re-renders the
+    // article HTML with the new `--app-scale` value — without changing the
+    // selected entry, the user's scroll position is preserved by WKWebView
+    // as long as the document stays the same shape (same DOM, larger text).
+    .task(id: renderKey) {
       // Keep the previous article's HTML visible while the new one renders
       // (~5ms). This avoids a spinner flash on every arrow-key navigation —
       // HIG advises against loading indicators for <100ms operations.
@@ -174,15 +180,22 @@ private struct ArticleWebContainer: View {
       //     entry into WKWebView.
       //   • The Task.isCancelled check below blocks a late render from
       //     overwriting @State after the user has moved on.
-      let html = await renderHTML(for: entry)
+      let html = await renderHTML(for: entry, scaleFactor: fontSettings.textSize.scaleFactor)
       guard !Task.isCancelled else { return }
       renderedHTML = html
     }
   }
 
+  /// Composite re-render key: a new entry obviously triggers a fresh render,
+  /// and a new text size triggers a re-render with an updated `--app-scale`.
+  /// Encoding both in one key keeps `.task(id:)` semantics simple.
+  private var renderKey: String {
+    "\(entry.feedbinEntryID)|\(fontSettings.textSize.rawValue)"
+  }
+
   /// Snapshot every MainActor-only value from `entry` and `entry.feed`, then
   /// hand the plain `Sendable` values to a detached task for the heavy work.
-  private func renderHTML(for entry: Entry) async -> String {
+  private func renderHTML(for entry: Entry, scaleFactor: CGFloat) async -> String {
     let body = entry.feedHTML
     let title = entry.title
     let author = entry.author
@@ -202,6 +215,7 @@ private struct ArticleWebContainer: View {
         displayDomain: displayDomain,
         faviconBase64: faviconBase64,
         feedTitleInitial: feedTitleInitial,
+        scaleFactor: scaleFactor,
         template: template,
         css: css
       )

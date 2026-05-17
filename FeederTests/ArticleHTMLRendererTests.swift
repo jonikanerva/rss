@@ -12,7 +12,7 @@ import Testing
 /// in isolation from the web view.
 struct ArticleHTMLRendererTests {
   private static let template = """
-    <html><head>[[style]]</head><body>\
+    <html style="--app-scale: [[scale]]"><head>[[style]]</head><body>\
     <div class="meta">[[date]] [[domain]] [[author]] [[favicon]]</div>\
     <h1>[[title]]</h1>[[body]]</body></html>
     """
@@ -25,7 +25,8 @@ struct ArticleHTMLRendererTests {
     author: String? = "Author",
     domain: String? = "example.com",
     faviconBase64: String? = nil,
-    feedTitleInitial: Character? = Character("E")
+    feedTitleInitial: Character? = Character("E"),
+    scaleFactor: CGFloat = 1.0
   ) -> String {
     renderArticleHTML(
       feedHTMLBody: body,
@@ -35,6 +36,7 @@ struct ArticleHTMLRendererTests {
       displayDomain: domain,
       faviconBase64: faviconBase64,
       feedTitleInitial: feedTitleInitial,
+      scaleFactor: scaleFactor,
       template: template,
       css: css
     )
@@ -156,5 +158,18 @@ struct ArticleHTMLRendererTests {
     let html = Self.render(body: "")
     #expect(html.contains("body { color: red; }"))
     #expect(!html.contains("[[style]]"))
+  }
+
+  @Test
+  func scaleFactorIsInjectedAsCustomProperty() {
+    let html = Self.render(body: "", scaleFactor: 1.15)
+    #expect(html.contains("--app-scale: 1.1500"))
+    #expect(!html.contains("[[scale]]"))
+  }
+
+  @Test
+  func scaleFactorOneRendersOne() {
+    let html = Self.render(body: "", scaleFactor: 1.0)
+    #expect(html.contains("--app-scale: 1.0000"))
   }
 }
