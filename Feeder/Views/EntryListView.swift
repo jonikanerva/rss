@@ -59,6 +59,8 @@ struct EntryListView: View {
   private var syncEngine
   @Environment(AppFontSettings.self)
   private var fontSettings
+  @Environment(\.openSettings)
+  private var openSettings
   @State
   private var sections: [EntryListSection] = []
   /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
@@ -77,7 +79,19 @@ struct EntryListView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
           .accessibilityIdentifier("timeline.loading")
       } else if sections.isEmpty {
-        if syncEngine.lastError?.isNetworkError == true {
+        if case .authFailed = syncEngine.lastError {
+          ContentUnavailableView {
+            Label(
+              "Signed out of Feedbin",
+              systemImage: "person.crop.circle.badge.exclamationmark")
+          } description: {
+            Text("Sign in again to resume syncing your feeds.")
+          } actions: {
+            Button("Sign In Again") { openSettings() }
+              .buttonStyle(.borderedProminent)
+              .accessibilityIdentifier("timeline.authError.signIn")
+          }
+        } else if syncEngine.lastError?.isNetworkError == true {
           ContentUnavailableView(
             "Offline",
             systemImage: "wifi.slash",
@@ -183,6 +197,10 @@ struct EntryListView: View {
   EntryListOfflinePreview()
 }
 
+#Preview("Empty - Auth Failed") {
+  EntryListAuthFailedPreview()
+}
+
 /// Renders `EntryListView` in the offline-empty state: container is seeded
 /// but contains no entries, and `SyncEngine.lastError` is set to `.network`
 /// so the view picks the `ContentUnavailableView("Offline", …)` branch.
@@ -197,6 +215,51 @@ private struct EntryListOfflinePreview: View {
     let engine = SyncEngine()
     engine.applyPreviewState(
       lastError: .network("The Internet connection appears to be offline."))
+    return engine
+  }()
+
+  var body: some View {
+    Group {
+      if let writer {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          writer: writer,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntry: $selectedEntry,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .environment(AppFontSettings())
+    .modelContainer(container)
+    .task {
+      writer = await DataWriter.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 480)
+  }
+}
+
+/// Renders `EntryListView` in the auth-failed empty state: container is seeded
+/// but contains no entries, and `SyncEngine.lastError` is set to `.authFailed`
+/// so the view picks the "Signed out of Feedbin" branch.
+@MainActor
+private struct EntryListAuthFailedPreview: View {
+  @State
+  private var writer: DataWriter?
+  @State
+  private var selectedEntry: Entry?
+  private let container: ModelContainer = PreviewSupport.makeContainer()
+  private let syncEngine: SyncEngine = {
+    let engine = SyncEngine()
+    engine.applyPreviewState(
+      lastError: .authFailed("Invalid Feedbin credentials"))
     return engine
   }()
 
