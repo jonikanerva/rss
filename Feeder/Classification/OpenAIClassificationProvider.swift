@@ -71,7 +71,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
     guard httpResponse.statusCode == 200 else {
       let body = String(data: data, encoding: .utf8) ?? "no body"
-      logger.error("OpenAI API error \(httpResponse.statusCode): \(body)")
+      logger.error("OpenAI API error \(httpResponse.statusCode): \(body, privacy: .private)")
       throw OpenAIError.apiError(statusCode: httpResponse.statusCode, message: body)
     }
 
