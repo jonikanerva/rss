@@ -21,11 +21,14 @@
 }
 
 html {
-  /* Root `font-size` drives every `em`-based length downstream. `100%` is the
-     WebKit default (≈16px on macOS); multiplying by `--app-scale` shifts the
-     entire typographic ladder by the user's chosen factor without touching
-     any per-element rule. */
-  font-size: calc(100% * var(--app-scale));
+  /* Root `font-size` drives every `em`/`rem`-based length downstream. We
+     anchor the reader pane at 16px (Apple HIG's comfort baseline for long-
+     form reading) and multiply by `--app-scale` so the user's Appearance
+     pick shifts the entire typographic ladder in lockstep with the SwiftUI
+     surfaces. Using an explicit `px` base (not `100%`) keeps `font-size`
+     deterministic across WebKit's site-specific text-size overrides and is
+     the value `em`/`rem` resolve against in `body`/`.title`/etc. below. */
+  font-size: calc(16px * var(--app-scale, 1));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,12 +46,17 @@ html {
 }
 
 body {
-  /* `-apple-system-body` is the WebKit shorthand for the system body text
-     style — it tracks the macOS Larger Text accessibility setting the same
-     way SwiftUI's `.body` does. `-webkit-text-size-adjust: 100%` opts out
-     of the auto-zoom heuristic that would otherwise re-scale on top of
-     Dynamic Type and double-count the user's preference. */
-  font: -apple-system-body;
+  /* The previous version used `font: -apple-system-body` here — that
+     WebKit shorthand was convenient but it **resets `font-size`** to the
+     system body text style (~13px on macOS) and silently overrides the
+     `font-size: calc(16px * var(--app-scale, 1))` we set on `html`, so the
+     Appearance picker had no visible effect in the WebView. Explicit
+     longhands keep the SF system font but let `1rem` flow through from
+     `html` and pick up `--app-scale`. `-webkit-text-size-adjust: 100%`
+     still opts out of WebKit's auto-zoom on the resulting size. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
   -webkit-text-size-adjust: 100%;
   line-height: 1.65;
   color: var(--text-primary);
@@ -68,9 +76,14 @@ header {
   margin-bottom: 24px;
 }
 
+/* Caption-tier (.date / .author / .domain) and the hero `.title` used to
+   use `font: -apple-system-caption1` / `font: -apple-system-largeTitle`.
+   Same `font-size` reset problem as `body` above — the shorthand swallowed
+   the user's Appearance pick. Replaced with explicit longhands sized in
+   `em` (relative to `body`'s `1rem`) so the ladder still scales together. */
 .date {
   display: block;
-  font: -apple-system-caption1;
+  font-size: 0.75em;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
@@ -79,7 +92,7 @@ header {
 }
 
 .title {
-  font: -apple-system-largeTitle;
+  font-size: 1.625em;
   font-weight: 700;
   line-height: 1.2;
   margin: 0 0 12px;
@@ -119,14 +132,18 @@ header {
 }
 
 .author {
-  font: -apple-system-caption1;
+  font-size: 0.75em;
   font-weight: 600;
   text-transform: none;
   color: var(--text-secondary);
 }
 
+/* `.domain` is the feed-source label. ux-guardian flagged caption1 (≈12px)
+   as too quiet for the source signal a reader scans for first — bumped to
+   `0.875em` to sit between caption and body. Kept on the same `--app-scale`
+   ladder via the `em` unit. */
 .domain {
-  font: -apple-system-caption1;
+  font-size: 0.875em;
   font-weight: 500;
   text-transform: lowercase;
   color: var(--text-secondary);
