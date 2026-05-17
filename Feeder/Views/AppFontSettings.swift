@@ -126,8 +126,11 @@ final class AppFontSettings {
   var rowSummary: Font { .system(size: scaled(12)) }
 
   /// Uppercase feed name / timestamp footer beneath a row.
-  /// Mirrors `.caption` at 10pt base.
-  var rowFeedName: Font { .system(size: scaled(10)) }
+  /// Mirrors `.caption` at 12pt base — bumped from 10pt so the Small text-size
+  /// setting (× 0.85) lands at ~10.2pt, keeping uppercase utility text above
+  /// the macOS HIG ~10pt legibility floor where uppercase + sub-9pt is the
+  /// worst-readability combination.
+  var rowFeedName: Font { .system(size: scaled(12)) }
 
   // MARK: - Sheets, settings, metadata
 
@@ -148,8 +151,10 @@ final class AppFontSettings {
   var metadata: Font { .system(size: scaled(11), weight: .medium) }
 
   /// Sync / classification status strings under the sidebar header.
-  /// Mirrors `.caption` at 10pt base.
-  var status: Font { .system(size: scaled(10)) }
+  /// Mirrors `.caption` at 12pt base — bumped from 10pt so the Small text-size
+  /// setting (× 0.85) lands at ~10.2pt, keeping the status text above the
+  /// macOS HIG ~10pt legibility floor.
+  var status: Font { .system(size: scaled(12)) }
 
   /// Section labels in the entry list (e.g. "Today", "Yesterday").
   /// Mirrors `.subheadline.weight(.medium)` at 11pt base.
@@ -159,7 +164,9 @@ final class AppFontSettings {
   /// not primary text) but still scaled by `AppTextSize` so users who pick
   /// a larger overall size can still read the number. Distinct from
   /// `caption` so the badge can retune independently of form labels.
-  /// Mirrors `.caption2.weight(.regular)` at 11pt base — visually quieter
-  /// than `.metadata` and `.caption` (both medium weight).
-  var sidebarBadge: Font { .system(size: scaled(11), weight: .regular) }
+  /// Mirrors `.caption2.weight(.regular)` at 12pt base — visually quieter
+  /// than `.metadata` and `.caption` (both medium weight). Bumped from 11pt
+  /// so the Small text-size setting (× 0.85) lands at ~10.2pt, keeping the
+  /// badge above the macOS HIG ~10pt legibility floor.
+  var sidebarBadge: Font { .system(size: scaled(12), weight: .regular) }
 }

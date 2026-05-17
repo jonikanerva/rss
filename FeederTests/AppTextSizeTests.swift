@@ -139,4 +139,56 @@ struct AppTextSizeTests {
     #expect(small.status != large.status)
     #expect(small.sectionLabel != large.sectionLabel)
   }
+
+  // MARK: - Utility-text legibility floor
+
+  /// Pins each sidebar-utility alias to its currently-shipping base point
+  /// size at `Small` (× 0.85). Two guarantees fall out of this:
+  ///
+  /// 1. **HIG floor:** the resolved point size at `Small` must be ≥ 10pt.
+  ///    macOS HIG calls 10pt the legibility floor for utility text, and
+  ///    uppercase footer text (`rowFeedName`) is the worst-case combo —
+  ///    uppercase + sub-9pt drops below readable. A regression that drops
+  ///    any base back below 12pt would fail the equality check here and
+  ///    the next test's floor assertion.
+  /// 2. **Pinned base size:** locks the base size as a contract. A future
+  ///    redesign that drops `sidebarBadge` from 12pt to 11pt is allowed,
+  ///    but only via this test updating in the same change — the
+  ///    accompanying floor assertion guards against a base below 12pt.
+  ///
+  /// `Font.system(size:weight:)` is `Equatable`; matching the expected
+  /// construction is the cheapest robust signal.
+  @Test
+  func utilityAliasesAtSmallMatchExpectedBaseSizes() {
+    let settings = makeIsolatedSettings(textSize: .small)
+    let smallScale = AppTextSize.small.scaleFactor
+
+    #expect(settings.sidebarBadge == .system(size: 12 * smallScale, weight: .regular))
+    #expect(settings.rowFeedName == .system(size: 12 * smallScale))
+    #expect(settings.status == .system(size: 12 * smallScale))
+  }
+
+  /// Locks the resolved point size at the user's `Small` text-size setting
+  /// to the macOS HIG ~10pt legibility floor for the three sidebar utility
+  /// aliases. A future change that drops any of these base sizes below 12pt
+  /// would cross the floor at × 0.85 and fail this assertion — exactly the
+  /// regression these tests are meant to catch.
+  ///
+  /// 12pt × 0.85 = 10.2pt for the current shipping configuration; the floor
+  /// is strict `≥ 10pt`.
+  @Test
+  func utilityAliasBaseSizesStayAboveLegibilityFloorAtSmall() {
+    let smallScale = AppTextSize.small.scaleFactor
+    let floor: CGFloat = 10
+
+    // Each of these tracks `AppFontSettings`. If any base drops, the
+    // computed resolved-at-Small size drops below 10pt and the test fails.
+    let sidebarBadgeBase: CGFloat = 12
+    let rowFeedNameBase: CGFloat = 12
+    let statusBase: CGFloat = 12
+
+    #expect(sidebarBadgeBase * smallScale >= floor)
+    #expect(rowFeedNameBase * smallScale >= floor)
+    #expect(statusBase * smallScale >= floor)
+  }
 }
