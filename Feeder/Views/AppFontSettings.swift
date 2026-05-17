@@ -154,4 +154,12 @@ final class AppFontSettings {
   /// Section labels in the entry list (e.g. "Today", "Yesterday").
   /// Mirrors `.subheadline.weight(.medium)` at 11pt base.
   var sectionLabel: Font { .system(size: scaled(11), weight: .medium) }
+
+  /// Sidebar unread-count digits. Smaller than `body` (a count is metadata,
+  /// not primary text) but still scaled by `AppTextSize` so users who pick
+  /// a larger overall size can still read the number. Distinct from
+  /// `caption` so the badge can retune independently of form labels.
+  /// Mirrors `.caption2.weight(.regular)` at 11pt base — visually quieter
+  /// than `.metadata` and `.caption` (both medium weight).
+  var sidebarBadge: Font { .system(size: scaled(11), weight: .regular) }
 }

@@ -569,10 +569,13 @@ struct ContentView: View {
 
   /// A folder row plus its child categories rendered as a `DisclosureGroup`.
   /// The label carries the folder selection tag so the folder aggregate stays
-  /// selectable (J/K nav and click), and `.badge(Int)` decorates both the
-  /// folder label and each child category — SwiftUI hides the badge when the
-  /// count is zero. Unread counts are passed in as already-computed
-  /// dictionaries so the row builder never re-aggregates per render.
+  /// selectable (J/K nav and click). The trailing unread count is a
+  /// `SidebarUnreadBadge` rather than `.badge(_:)` so we control its font
+  /// and contrast — `.badge` renders a high-contrast system pill on macOS
+  /// that has no public styling hook and clashed with the calm reader
+  /// surface (`docs/vision.md`). Unread counts are passed in as
+  /// already-computed dictionaries so the row builder never re-aggregates
+  /// per render.
   @ViewBuilder
   private func sidebarFolderGroup(
     folder: Folder,
@@ -589,11 +592,12 @@ struct ContentView: View {
         sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
       }
     } label: {
-      Text(folder.displayName)
-        .font(fontSettings.body)
-        .badge(folderUnreadCounts[folder.label, default: 0])
-        .tag(SidebarSelection.folder(folder.label))
-        .accessibilityIdentifier("sidebar.folder.\(folder.label)")
+      sidebarRowLabel(
+        title: folder.displayName,
+        count: folderUnreadCounts[folder.label, default: 0]
+      )
+      .tag(SidebarSelection.folder(folder.label))
+      .accessibilityIdentifier("sidebar.folder.\(folder.label)")
     }
   }
 
@@ -604,11 +608,27 @@ struct ContentView: View {
     category: Category,
     categoryUnreadCounts: [String: Int]
   ) -> some View {
-    Text(category.displayName)
-      .font(fontSettings.body)
-      .badge(categoryUnreadCounts[category.label, default: 0])
-      .tag(SidebarSelection.category(category.label))
-      .accessibilityIdentifier("sidebar.category.\(category.label)")
+    sidebarRowLabel(
+      title: category.displayName,
+      count: categoryUnreadCounts[category.label, default: 0]
+    )
+    .tag(SidebarSelection.category(category.label))
+    .accessibilityIdentifier("sidebar.category.\(category.label)")
+  }
+
+  /// Shared row layout for sidebar entries — folder labels and category
+  /// labels both need "title left, quiet count right". Lifting this avoids
+  /// duplicating the `HStack` + `Spacer()` + `SidebarUnreadBadge` triplet
+  /// in two call sites and gives the count a stable trailing column.
+  @ViewBuilder
+  private func sidebarRowLabel(title: String, count: Int) -> some View {
+    HStack(spacing: 6) {
+      Text(title)
+        .font(fontSettings.body)
+        .lineLimit(1)
+      Spacer(minLength: 4)
+      SidebarUnreadBadge(count: count)
+    }
   }
 
   /// The navigation title reflects what the content column is currently rendering
