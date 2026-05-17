@@ -35,7 +35,7 @@ Do not rely on training-data memory for HIG specifics or component APIs.
 
 ## What you check
 
-- **Vision non-negotiables** (`docs/vision.md`): every ingested article gets a main category and same-story group; timeline order is canonical timestamp descending; AI processing never changes timeline position; categorization and grouping are always on in MVP.
+- **Vision non-negotiables** (`docs/vision.md`): every ingested article gets a main category; timeline order is canonical timestamp descending; AI processing never changes timeline position; categorization is always on in MVP.
 - **Four design principles** (`docs/app-rules.md`):
   1. **Performance** — MainActor sacred; no heavy work in `body`.
   2. **Keyboard Navigation** — every core action keyboard-accessible; predictable focus; discoverable shortcuts.

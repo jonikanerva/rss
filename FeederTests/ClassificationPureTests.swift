@@ -55,52 +55,6 @@ struct ClassificationInstructionsTests {
   }
 }
 
-// MARK: - normalizeStoryKey
-
-struct StoryKeyTests {
-  @Test
-  func producesKebabCase() {
-    #expect(normalizeStoryKey("Apple M5 MacBook Pro!!") == "apple-m5-macbook-pro")
-  }
-
-  @Test
-  func lowercasesInput() {
-    #expect(normalizeStoryKey("UPPERCASE") == "uppercase")
-  }
-
-  @Test
-  func replacesSpecialChars() {
-    #expect(normalizeStoryKey("hello@world#2024") == "hello-world-2024")
-  }
-
-  @Test
-  func trimsDashes() {
-    #expect(normalizeStoryKey("--hello--") == "hello")
-  }
-
-  @Test
-  func emptyInputReturnsDefault() {
-    #expect(normalizeStoryKey("") == "story-unknown")
-  }
-
-  @Test
-  func specialCharsOnlyReturnsDefault() {
-    #expect(normalizeStoryKey("!!!@@@") == "story-unknown")
-  }
-
-  @Test
-  func truncatesAt80Chars() {
-    let longInput = String(repeating: "a", count: 100)
-    let result = normalizeStoryKey(longInput)
-    #expect(result.count == 80)
-  }
-
-  @Test
-  func collapsesMultipleDashes() {
-    #expect(normalizeStoryKey("hello   world") == "hello-world")
-  }
-}
-
 // MARK: - applyConfidenceGate
 
 struct ConfidenceGateTests {

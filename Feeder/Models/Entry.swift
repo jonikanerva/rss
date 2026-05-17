@@ -52,8 +52,6 @@ final class Entry {
 
   // MARK: - Classification
 
-  /// Generated story key for grouping
-  var storyKey: String?
   /// Detected language code (e.g., "en", "fi")
   var detectedLanguage: String?
 

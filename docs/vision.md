@@ -1,6 +1,6 @@
 # Product Vision (Canonical)
 
-Date: 2026-02-22
+Date: 2026-05-17
 Owner: Repository Owner
 Status: Active
 
@@ -12,33 +12,28 @@ Status: Active
 ## Vision statement
 
 - Build a native macOS RSS app that gives a calm, beautiful, high-trust reading experience.
-- Every incoming article is categorized into user-defined main categories and grouped by same story across sources, while strict chronological order is always preserved.
+- Every incoming article is categorized into user-defined main categories, while strict chronological order is always preserved.
 
 ## Product thesis
 
 - The product is a macOS-first RSS reader, not a generic cross-platform feed client.
 - The core differentiator is local intelligence:
-  - a local/on-device LLM runtime classifies and groups incoming articles.
-- The experience is conceptually similar to Techmeme:
-  - same-story coverage from multiple sources is grouped under one generated story heading.
+  - a local/on-device LLM runtime classifies incoming articles into user-defined categories.
 - The app remains chronology-first:
-  - grouped stories and items are shown in canonical timestamp order (newest first).
+  - articles are shown in canonical timestamp order (newest first), within and across categories.
 
 ## Non-negotiable product outcomes
 
 1. Every ingested article gets exactly one main category assignment (user defined taxonomy).
-2. Every ingested article gets a same-story group assignment.
-3. Timeline order is always canonical timestamp descending.
-4. AI processing never changes timeline position.
-5. Group headers summarize the story and unify cross-source coverage.
-6. Categorization and grouping are always on in MVP (no off-toggle).
+2. Timeline order is always canonical timestamp descending.
+3. AI processing never changes timeline position.
+4. Categorization is always on in MVP (no off-toggle).
 
 ## UX north star
 
 - Visual quality must feel premium, modern, harmonious, and calm.
 - Information hierarchy must be clear at a glance.
 - Category views are first-class navigation surfaces.
-- Same-story grouping must reduce noise without hiding source diversity.
 - Reading flow must feel fast and frictionless for daily use.
 - One good benchmark Current Reader (https://www.currentreader.app/)
 
@@ -60,12 +55,10 @@ Status: Active
 ## MVP scope (in)
 
 - Feed ingest and normalization only via Feedbin so we get the full-content of the article via the API.
-- Uses Apple Foundation Models as the primary LLM, with optional OpenAI provider for comparison.
+- Uses Apple Foundation Models or OpenAI for on-device / cloud classification. Both are first-class options the user chooses between. OpenAI is currently the higher-quality choice; Apple Foundation Models is the zero-config, fully on-device alternative.
 - Category assignment to user-defined main categories (with explicit fallback path).
 - Each article is assigned to exactly one main category — the best match. Multi-label assignment is out of scope for MVP.
-- Same-story grouping across sources.
-- Category-based timeline views with strict chronology based on earlierst article date.
-- Group headers with generated story titles.
+- Category-based timeline views with strict chronology.
 - Reproducible feasibility and quality evidence before broader expansion.
 
 ## MVP scope (out)
@@ -81,7 +74,7 @@ Status: Active
 
 ## Success signals
 
-- LLM is able to categorize and group articles. Human verifiable.
+- LLM is able to categorize articles. Human verifiable.
 - UI quality is consistently described as clear, beautiful, and calm in dogfood feedback.
 
 ## Canonical usage rule

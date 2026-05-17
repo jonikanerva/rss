@@ -50,7 +50,6 @@ extension DataWriter {
       entry.feed = index.isMultiple(of: 2) ? feed1 : feed2
       entry.primaryCategory = "apple"
       entry.primaryFolder = "technology"
-      entry.storyKey = "sample-tech-story-\(index)"
       entry.isClassified = true
       entry.formattedDate = formatEntryDate(entry.publishedAt)
       entry.formattedPublishedTime = formatEntryTime(entry.publishedAt)
@@ -76,7 +75,6 @@ extension DataWriter {
     worldEntry.feed = feed1
     worldEntry.primaryCategory = "world_news"
     worldEntry.primaryFolder = ""
-    worldEntry.storyKey = "eu-ai-transparency-framework"
     worldEntry.isClassified = true
     worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
     worldEntry.formattedPublishedTime = formatEntryTime(worldEntry.publishedAt)

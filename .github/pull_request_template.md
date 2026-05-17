@@ -18,9 +18,8 @@ Trivial PRs (typo fixes, dep bumps, dead-code removal) may use "N/A — trivial 
 Answers against `docs/vision.md` → Non-negotiable product outcomes:
 
 1. Does every ingested article still get a main category assignment? **`<yes / no>`** — `<one-line rationale>`.
-2. Does every ingested article still get a same-story group assignment? **`<yes / no>`** — `<one-line rationale>`.
-3. Is timeline order still canonical timestamp descending? **`<yes / no>`** — `<one-line rationale>`.
-4. Does AI processing leave timeline position unchanged? **`<yes / no>`** — `<one-line rationale>`.
+2. Is timeline order still canonical timestamp descending? **`<yes / no>`** — `<one-line rationale>`.
+3. Does AI processing leave timeline position unchanged? **`<yes / no>`** — `<one-line rationale>`.
 
 If any answer is `no`, document the conflict and propose the smallest framework-native alternative.
 

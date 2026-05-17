@@ -13,13 +13,6 @@ nonisolated func detectLanguage(_ text: String) -> String {
   return recognizer.dominantLanguage?.rawValue ?? "unknown"
 }
 
-nonisolated func normalizeStoryKey(_ value: String) -> String {
-  let lowered = value.lowercased()
-  let cleaned = lowered.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-  let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-  return trimmed.isEmpty ? "story-unknown" : String(trimmed.prefix(80))
-}
-
 // MARK: - Progress snapshot (crosses actor boundary)
 
 /// Snapshot of classification progress, sent from the background runner to MainActor for UI update.
@@ -333,7 +326,6 @@ nonisolated struct ClassificationRunner: Sendable {
         result = ClassificationResult(
           entryID: input.entryID,
           categoryLabel: uncategorizedLabel,
-          storyKey: normalizeStoryKey(input.title),
           detectedLanguage: "unknown",
           confidence: 0.0
         )
@@ -347,7 +339,6 @@ nonisolated struct ClassificationRunner: Sendable {
           result = ClassificationResult(
             entryID: input.entryID,
             categoryLabel: uncategorizedLabel,
-            storyKey: normalizeStoryKey(input.title),
             detectedLanguage: lang,
             confidence: 0.0
           )
@@ -377,7 +368,6 @@ nonisolated struct ClassificationRunner: Sendable {
             result = ClassificationResult(
               entryID: input.entryID,
               categoryLabel: gatedLabel,
-              storyKey: normalizeStoryKey(providerResult.storyKey),
               detectedLanguage: lang,
               confidence: providerResult.confidence
             )
@@ -385,7 +375,6 @@ nonisolated struct ClassificationRunner: Sendable {
             result = ClassificationResult(
               entryID: input.entryID,
               categoryLabel: uncategorizedLabel,
-              storyKey: normalizeStoryKey(input.title),
               detectedLanguage: lang,
               confidence: 0.0
             )

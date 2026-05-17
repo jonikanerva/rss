@@ -20,7 +20,7 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
   let folderCount: Int
 }
 
-// MARK: - Entry grouping (lives here because it reads @Model Entry within the actor's context)
+// MARK: - Day sectioning (lives here because it reads @Model Entry within the actor's context)
 
 /// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
 /// Runs in whatever context calls it (typically `DataWriter` background actor).
@@ -579,7 +579,6 @@ actor DataWriter: ModelActor {
     let label = validLabels.contains(result.categoryLabel) ? result.categoryLabel : uncategorizedLabel
 
     entry.detectedLanguage = result.detectedLanguage
-    entry.storyKey = result.storyKey
     entry.isClassified = true
     entry.primaryCategory = label
     entry.primaryFolder = categories.first { $0.label == label }?.folderLabel ?? ""
@@ -590,7 +589,6 @@ actor DataWriter: ModelActor {
     let descriptor = FetchDescriptor<Entry>()
     let entries = try modelContext.fetch(descriptor)
     for entry in entries {
-      entry.storyKey = nil
       entry.detectedLanguage = nil
       entry.isClassified = false
       entry.primaryCategory = ""

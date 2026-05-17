@@ -26,7 +26,6 @@ protocol ClassificationProvider: Sendable {
 /// Raw output from a provider before confidence gating.
 nonisolated struct ProviderClassificationResult: Sendable {
   let category: String
-  let storyKey: String
   let confidence: Double
 }
 
@@ -91,7 +90,6 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
 
     return ProviderClassificationResult(
       category: classification.category,
-      storyKey: classification.storyKey,
       confidence: classification.confidence
     )
   }
@@ -175,11 +173,6 @@ struct ArticleClassification {
     description:
       "The single best matching category label from the provided list.")
   var category: String
-
-  @Guide(
-    description:
-      "A short stable kebab-case topic key for story grouping, e.g. 'apple-m5-macbook-pro' or 'openai-dod-contract'")
-  var storyKey: String
 
   @Guide(description: "How confident you are in the classification, from 0.0 (guessing) to 1.0 (certain)")
   var confidence: Double
