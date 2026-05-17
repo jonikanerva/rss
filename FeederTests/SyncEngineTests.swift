@@ -60,11 +60,12 @@ struct SyncEngineTests {
   /// `lastSyncDate` and queued-read-IDs against the per-test `defaults`
   /// suite — never the standard domain.
   ///
-  /// `writer.bootstrap(...)` is deliberately **not** called: bootstrap
-  /// writes to `UserDefaults.standard.feeder_schema_version`, which is
-  /// shared with `DataWriterBootstrapTests`. `SyncEngine`'s entry-persisting
-  /// path only needs `Feed` rows (populated via `syncFeeds`), not the
-  /// seeded category/folder taxonomy.
+  /// `writer.bootstrap(...)` is deliberately **not** called: this suite
+  /// covers sync orchestration, not store initialization, and only needs
+  /// `Feed` rows (populated via `syncFeeds`) for the entry-persisting
+  /// path — not the seeded category/folder taxonomy. Bootstrap itself is
+  /// covered by `DataWriterBootstrapTests` with isolated `UserDefaults`
+  /// suites, so we wouldn't share state even if both suites ran here.
   private func makeEngine(with client: FakeFeedbinClient) async throws -> (SyncEngine, DataWriter) {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
     let writer = DataWriter(modelContainer: container)
