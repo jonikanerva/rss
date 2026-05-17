@@ -30,8 +30,9 @@ Run `make test-all` (`$VERIFY_CMD` in `docs/stack.md`) before every commit and P
 
 ## Workflow
 
-- Use the `project-manager` agent to drive non-trivial changes end-to-end. It orchestrates `architect`, `ux-guardian`, `devils-advocate`, `lead-dev`, and `qa-enforcer` through agent-teams discussion before and after implementation.
+- Run `/project-manager <task description>` to drive non-trivial changes end-to-end. The skill turns this Claude Code session into the agent-team **lead** and orchestrates `architect`, `ux-guardian`, `devils-advocate`, `lead-dev`, and `qa-enforcer` as teammates — they discuss directly via the agent-teams channel before and after implementation.
 - `/implement` and `/codereview` are skills the team uses internally — `lead-dev` runs `/implement`, `qa-enforcer` runs `/codereview`.
+- Agent-teams require the experimental flag (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`) and Claude Code v2.1.32 or later.
 - Use Claude Code's `/plan` mode for upfront design questions.
 
 ## Git Workflow

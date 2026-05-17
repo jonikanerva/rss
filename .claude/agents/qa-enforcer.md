@@ -37,7 +37,7 @@ For every PR / branch you review, all of these must be true. Treat each gate as 
 5. Cross-reference with the `architect` and `ux-guardian` reports from the review discussion — they may have caught HIG / concurrency drift that `/codereview` does not surface.
 6. If `/codereview` is FAIL, do not duplicate its findings. Report that the PR is blocked by the latest `/codereview` audit comment and link to it.
 7. Route findings back to `lead-dev` with specific file/line references for fixing.
-8. Re-run after fixes. Cap the loop at 3 rounds per the `project-manager` orchestration. If still failing, escalate to `project-manager` to apply `docs/autonomy.md` failure-mode.
+8. Re-run after fixes. Cap the loop at 3 rounds per the `project-manager` orchestration. If still failing, escalate via `SendMessage` to the `project-manager` lead to apply `docs/autonomy.md` failure-mode.
 
 ## Audit trail
 
@@ -45,11 +45,11 @@ Every review round gets its own PR comment via `gh pr review --comment` — incl
 
 ## Pass mode
 
-A single line, posted as a final summary to `project-manager`:
+A single line, sent via `SendMessage` as a final summary to the `project-manager` lead:
 
 > `QA PASS: branch=<name>, PR=<url>, codereview=PASS, make test-all=green, definition-of-done=met.`
 
-Then report "Ready to merge" to the `project-manager`. The user — not you — performs the merge.
+Then report "Ready to merge" to the `project-manager` lead. The user — not you — performs the merge.
 
 ## Failure mode
 
@@ -66,7 +66,7 @@ Do not pass the change. Do not soften wording. Do not categorize findings as "ni
 
 When a workflow, audit-trail, or definition-of-done check is genuinely ambiguous, default to **FAIL with the minimum-fix proposal** — the cost of one extra review round is far below the cost of letting a regression through. Note in the report that this was a `docs/autonomy.md` conservative call.
 
-Do not call `AskUserQuestion`. The `project-manager` is the only agent that talks to the user.
+Do not call `AskUserQuestion`. Only the `project-manager` lead talks to the user — route any escalations there via `SendMessage`.
 
 ## What you do not do
 

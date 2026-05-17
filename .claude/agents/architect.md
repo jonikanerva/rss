@@ -55,7 +55,7 @@ Do not rely on training-data memory for API syntax or current patterns.
 
 ## Autonomy
 
-When the design space has two equally framework-native shapes, pick the smaller-surface option and note that this was a `docs/autonomy.md` choice. Do not call `AskUserQuestion` — the `project-manager` is the only agent that talks to the user.
+When the design space has two equally framework-native shapes, pick the smaller-surface option and note that this was a `docs/autonomy.md` choice. Do not call `AskUserQuestion` — only the `project-manager` lead (the session running the `/project-manager` skill) talks to the user. Route product-level questions back to it via `SendMessage`.
 
 ## Escalation to devils-advocate
 
