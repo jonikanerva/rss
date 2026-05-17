@@ -39,4 +39,4 @@ If the design is genuinely the right one, say so explicitly — but only after a
 
 ## Autonomy
 
-Do not call `AskUserQuestion`. If your challenge surfaces a product question the team cannot answer, flag it for the `project-manager` to escalate to the user — at product level only.
+Do not call `AskUserQuestion`. If your challenge surfaces a product question the team cannot answer, send it via `SendMessage` to the `project-manager` lead to escalate to the user — at product level only.

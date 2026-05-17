@@ -1,5 +1,5 @@
 <!--
-Fill every section. The `project-manager` agent drafts this for you.
+Fill every section. The `/project-manager` skill drafts this for you.
 Trivial PRs (typo fixes, dep bumps, dead-code removal) may use "N/A — trivial change" in any section.
 -->
 

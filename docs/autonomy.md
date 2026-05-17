@@ -28,7 +28,7 @@ If `make test-all` (`stack.md` → `$VERIFY_CMD`) fails despite up to **5 fix at
 
 ## Agent-team specifics
 
-The `project-manager` agent is the only agent that talks to the user during a workflow. It uses this fallback for technical decisions internal to the team and surfaces only **product-level** questions to the user — never code-level or function-level questions.
+The `project-manager` lead (the Claude Code session running the `/project-manager` skill) is the only role that talks to the user during a workflow. It uses this fallback for technical decisions internal to the team and surfaces only **product-level** questions to the user — never code-level or function-level questions.
 
 Examples:
 
