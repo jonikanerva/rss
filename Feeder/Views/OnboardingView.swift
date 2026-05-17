@@ -3,6 +3,8 @@ import SwiftUI
 struct OnboardingView: View {
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var username = ""
   @State
@@ -30,7 +32,7 @@ struct OnboardingView: View {
           .foregroundStyle(.tint)
 
         Text("Welcome to Feeder")
-          .font(FontTheme.articleTitle)
+          .font(fontSettings.articleTitle)
           .multilineTextAlignment(.center)
 
         Text("Connect your Feedbin account to get started.")
@@ -53,7 +55,7 @@ struct OnboardingView: View {
         if let error = errorMessage {
           Text(error)
             .foregroundStyle(Color(nsColor: .systemRed))
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .multilineTextAlignment(.center)
         }
 
@@ -106,10 +108,16 @@ struct OnboardingView: View {
 #Preview("Onboarding - Default") {
   OnboardingView(onComplete: {})
     .environment(SyncEngine())
+    .environment(AppFontSettings())
 }
 
-#Preview("Onboarding — Larger Text (AX3)") {
+#Preview("Onboarding — Huge Text") {
+  // `.dynamicTypeSize(_:)` propagates the environment value but does not
+  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
+  // here would render identically to `.medium`. Inject the largest
+  // `AppFontSettings` instead — that is the mechanism shipped code uses,
+  // so the preview reflects what a user picking *Huge* actually sees.
   OnboardingView(onComplete: {})
     .environment(SyncEngine())
-    .dynamicTypeSize(.accessibility3)
+    .environment(AppFontSettings(textSize: .xxLarge))
 }

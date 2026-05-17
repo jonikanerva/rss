@@ -9,6 +9,8 @@ struct SyncStatusView: View {
   private var syncEngine
   @Environment(ClassificationEngine.self)
   private var classificationEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @Environment(\.openSettings)
   private var openSettings
 
@@ -44,20 +46,20 @@ struct SyncStatusView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       Text("News")
-        .font(FontTheme.sectionHeader)
+        .font(fontSettings.sectionHeader)
         .foregroundStyle(.primary)
         .textCase(nil)
 
       if let fetchStatus = fetchStatusText {
         Text(fetchStatus)
-          .font(FontTheme.status)
+          .font(fontSettings.status)
           .foregroundStyle(.tertiary)
           .textCase(nil)
           .contentTransition(.numericText())
       }
       if let classifyStatus = classifyStatusText {
         Text(classifyStatus)
-          .font(FontTheme.status)
+          .font(fontSettings.status)
           .foregroundStyle(.tertiary)
           .textCase(nil)
           .contentTransition(.numericText())
@@ -87,7 +89,7 @@ struct SyncStatusView: View {
       .disabled(syncEngine.isSyncing)
       .accessibilityIdentifier(errorActionAccessibilityID(for: error))
     }
-    .font(FontTheme.status)
+    .font(fontSettings.status)
     .textCase(nil)
     .accessibilityIdentifier("sidebar.syncError")
   }
@@ -201,6 +203,7 @@ private func syncStatusPreview(state: SyncStatusPreviewState) -> some View {
   return SyncStatusView()
     .environment(syncEngine)
     .environment(classificationEngine)
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 220)
     .padding()

@@ -8,6 +8,8 @@ struct EntryRowView: View {
   let entry: Entry
   @Environment(\.pendingReadIDs)
   private var pendingReadIDs
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   private var isRead: Bool { entry.isRead || pendingReadIDs.contains(entry.feedbinEntryID) }
 
@@ -28,7 +30,7 @@ struct EntryRowView: View {
         // Feed name + time
         HStack(alignment: .top, spacing: 5) {
           Text(entry.title ?? "Untitled")
-            .font(FontTheme.rowTitle)
+            .font(fontSettings.rowTitle)
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(2)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
@@ -36,20 +38,20 @@ struct EntryRowView: View {
           Spacer()
 
           Text(entry.formattedPublishedTime)
-            .font(FontTheme.rowFeedName)
+            .font(fontSettings.rowFeedName)
             .foregroundStyle(.tertiary)
         }
 
         if let domain = entry.displayDomain, !domain.isEmpty {
           Text(domain.lowercased())
-            .font(FontTheme.rowFeedName)
+            .font(fontSettings.rowFeedName)
             .foregroundStyle(FontTheme.domainPillColor)
         }
 
         // Summary excerpt
         if !summaryText.isEmpty {
           Text(summaryText)
-            .font(FontTheme.rowSummary)
+            .font(fontSettings.rowSummary)
             .lineLimit(2)
             .foregroundStyle(.tertiary)
         }
@@ -99,20 +101,25 @@ struct FaviconView: View {
 // MARK: - Preview
 
 #Preview("Unread Entry") {
-  unreadEntryRowPreview()
+  unreadEntryRowPreview(fontSettings: AppFontSettings())
 }
 
 #Preview("Read Entry") {
-  readEntryRowPreview()
+  readEntryRowPreview(fontSettings: AppFontSettings())
 }
 
-#Preview("Unread Entry — Larger Text (AX3)") {
-  unreadEntryRowPreview()
-    .dynamicTypeSize(.accessibility3)
+#Preview("Unread Entry — Huge Text") {
+  // `.dynamicTypeSize(_:)` propagates the environment value but does not
+  // re-resolve system fonts on macOS, so it makes the preview look
+  // identical to `.medium`. Inject `AppFontSettings(textSize: .xxLarge)`
+  // through the view's regular environment slot instead — that is the
+  // mechanism shipped code uses, so the preview actually shows the
+  // largest layout reviewers ship to users.
+  unreadEntryRowPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
 }
 
 @MainActor
-private func unreadEntryRowPreview() -> some View {
+private func unreadEntryRowPreview(fontSettings: AppFontSettings) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -140,13 +147,14 @@ private func unreadEntryRowPreview() -> some View {
   context.insert(entry)
 
   return EntryRowView(entry: entry)
+    .environment(fontSettings)
     .modelContainer(container)
     .frame(width: 380)
     .padding()
 }
 
 @MainActor
-private func readEntryRowPreview() -> some View {
+private func readEntryRowPreview(fontSettings: AppFontSettings) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -166,6 +174,7 @@ private func readEntryRowPreview() -> some View {
   context.insert(entry)
 
   return EntryRowView(entry: entry)
+    .environment(fontSettings)
     .modelContainer(container)
     .frame(width: 380)
     .padding()

@@ -19,6 +19,14 @@ struct FeederApp: App {
   private var classificationEngine = ClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
+  /// App-wide font settings. `AppFontSettings` is `@Observable`, owns the
+  /// persisted `textSize`, and exposes every font alias the app renders.
+  /// Injected into both scenes via `.environment(fontSettings)` so any view
+  /// with `@Environment(AppFontSettings.self)` re-renders precisely the rows
+  /// that read a font when the user picks a new size — `ContentView`'s
+  /// `@State` (selection, focus, scroll anchor) stays intact.
+  @State
+  private var fontSettings = AppFontSettings()
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
@@ -56,6 +64,7 @@ struct FeederApp: App {
       bootstrapGate
         .environment(syncEngine)
         .environment(classificationEngine)
+        .environment(fontSettings)
     }
     .modelContainer(modelContainer)
     .commands { FeederCommands() }
@@ -64,6 +73,7 @@ struct FeederApp: App {
       SettingsView()
         .environment(syncEngine)
         .environment(classificationEngine)
+        .environment(fontSettings)
         .modelContainer(modelContainer)
     }
     .windowResizability(.contentSize)

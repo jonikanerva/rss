@@ -4,6 +4,8 @@ import SwiftUI
 struct CategoryEditSheet: View {
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @Environment(\.dismiss)
   private var dismiss
   @Query(sort: \Category.sortOrder)
@@ -55,7 +57,7 @@ struct CategoryEditSheet: View {
   private var header: some View {
     HStack {
       Text(isNew ? "New Category" : "Edit Category")
-        .font(FontTheme.headline)
+        .font(fontSettings.headline)
       Spacer()
     }
     .padding()
@@ -67,17 +69,17 @@ struct CategoryEditSheet: View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text("Name")
-          .font(FontTheme.caption)
+          .font(fontSettings.caption)
           .foregroundStyle(.secondary)
         TextField("Category name", text: $name)
           .textFieldStyle(.roundedBorder)
-          .font(FontTheme.body)
+          .font(fontSettings.body)
           .disabled(category?.isSystem ?? false)
       }
 
       VStack(alignment: .leading, spacing: 4) {
         Text("Folder")
-          .font(FontTheme.caption)
+          .font(fontSettings.caption)
           .foregroundStyle(.secondary)
         Picker("Folder", selection: $selectedFolderLabel) {
           Text("None (root level)").tag(String?.none)
@@ -91,10 +93,10 @@ struct CategoryEditSheet: View {
 
       VStack(alignment: .leading, spacing: 4) {
         Text("Description")
-          .font(FontTheme.caption)
+          .font(fontSettings.caption)
           .foregroundStyle(.secondary)
         TextEditor(text: $description)
-          .font(FontTheme.body)
+          .font(fontSettings.body)
           .frame(minHeight: 80, maxHeight: 160)
           .overlay(
             RoundedRectangle(cornerRadius: 6)
@@ -210,6 +212,7 @@ private func categoryEditExistingPreview() -> some View {
 
   return CategoryEditSheet(category: apple, folders: [techFolder])
     .environment(SyncEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
 }
 
@@ -219,5 +222,6 @@ private func categoryEditNewPreview() -> some View {
 
   return CategoryEditSheet(category: nil, folders: [])
     .environment(SyncEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
 }

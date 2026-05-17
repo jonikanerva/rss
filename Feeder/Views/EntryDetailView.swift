@@ -31,6 +31,8 @@ struct EntryDetailView: View {
   let viewMode: ArticleViewMode
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   /// View-level cache of decoded reader blocks. Lives here (not on `@Model Entry`) so
   /// persistence and rendering stay in separate layers. Re-decodes when the persisted
@@ -91,12 +93,12 @@ struct EntryDetailView: View {
     VStack(alignment: .leading, spacing: 8) {
       // Date + time
       Text(DetailDateFormatting.formatDate(entry.publishedAt))
-        .font(FontTheme.metadata)
+        .font(fontSettings.metadata)
         .foregroundStyle(.secondary)
 
       // Title
       Text(entry.title ?? "Untitled")
-        .font(FontTheme.articleTitle)
+        .font(fontSettings.articleTitle)
         .fixedSize(horizontal: false, vertical: true)
 
       // Favicon + author/domain
@@ -107,12 +109,12 @@ struct EntryDetailView: View {
         VStack(alignment: .leading, spacing: 2) {
           if let author = entry.author, !author.isEmpty {
             Text(author)
-              .font(FontTheme.metadata)
+              .font(fontSettings.metadata)
               .foregroundStyle(.secondary)
           }
           if let domain = entry.displayDomain, !domain.isEmpty {
             Text(domain.lowercased())
-              .font(FontTheme.metadata)
+              .font(fontSettings.metadata)
               .foregroundStyle(.tertiary)
           }
         }
@@ -142,6 +144,8 @@ enum ArticleViewMode {
 private struct ArticleWebContainer: View {
   let entry: Entry
 
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var renderedHTML: String?
 
@@ -163,7 +167,11 @@ private struct ArticleWebContainer: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    .task(id: entry.feedbinEntryID) {
+    // Re-key on `(entry, textSize)` so changing the picker re-renders the
+    // article HTML with the new `--app-scale` value — without changing the
+    // selected entry, the user's scroll position is preserved by WKWebView
+    // as long as the document stays the same shape (same DOM, larger text).
+    .task(id: renderKey) {
       // Keep the previous article's HTML visible while the new one renders
       // (~5ms). This avoids a spinner flash on every arrow-key navigation —
       // HIG advises against loading indicators for <100ms operations.
@@ -172,15 +180,22 @@ private struct ArticleWebContainer: View {
       //     entry into WKWebView.
       //   • The Task.isCancelled check below blocks a late render from
       //     overwriting @State after the user has moved on.
-      let html = await renderHTML(for: entry)
+      let html = await renderHTML(for: entry, scaleFactor: fontSettings.textSize.scaleFactor)
       guard !Task.isCancelled else { return }
       renderedHTML = html
     }
   }
 
+  /// Composite re-render key: a new entry obviously triggers a fresh render,
+  /// and a new text size triggers a re-render with an updated `--app-scale`.
+  /// Encoding both in one key keeps `.task(id:)` semantics simple.
+  private var renderKey: String {
+    "\(entry.feedbinEntryID)|\(fontSettings.textSize.rawValue)"
+  }
+
   /// Snapshot every MainActor-only value from `entry` and `entry.feed`, then
   /// hand the plain `Sendable` values to a detached task for the heavy work.
-  private func renderHTML(for entry: Entry) async -> String {
+  private func renderHTML(for entry: Entry, scaleFactor: CGFloat) async -> String {
     let body = entry.feedHTML
     let title = entry.title
     let author = entry.author
@@ -200,6 +215,7 @@ private struct ArticleWebContainer: View {
         displayDomain: displayDomain,
         faviconBase64: faviconBase64,
         feedTitleInitial: feedTitleInitial,
+        scaleFactor: scaleFactor,
         template: template,
         css: css
       )
@@ -210,16 +226,20 @@ private struct ArticleWebContainer: View {
 // MARK: - Preview
 
 #Preview("Article Detail with Sources") {
-  articleDetailPreview()
+  articleDetailPreview(fontSettings: AppFontSettings())
 }
 
-#Preview("Article Detail — Larger Text (AX3)") {
-  articleDetailPreview()
-    .dynamicTypeSize(.accessibility3)
+#Preview("Article Detail — Huge Text") {
+  // `.dynamicTypeSize(_:)` propagates the environment value but does not
+  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
+  // here would render identically to `.medium`. Inject the largest
+  // `AppFontSettings` instead — that is the mechanism shipped code uses,
+  // so the preview reflects what a user picking *Huge* actually sees.
+  articleDetailPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
 }
 
 @MainActor
-private func articleDetailPreview() -> some View {
+private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -242,6 +262,7 @@ private func articleDetailPreview() -> some View {
   context.insert(entry)
 
   return EntryDetailView(entry: entry, viewMode: .reader)
+    .environment(fontSettings)
     .modelContainer(container)
     .frame(width: 600, height: 500)
 }

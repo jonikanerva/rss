@@ -8,6 +8,8 @@ struct CategoryManagementView: View {
   private var classificationEngine
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   @Query(sort: \Folder.sortOrder)
   private var folders: [Folder]
@@ -157,7 +159,7 @@ struct CategoryManagementView: View {
         ProgressView()
           .scaleEffect(0.7)
         Text(classificationEngine.progress)
-          .font(FontTheme.caption)
+          .font(fontSettings.caption)
           .foregroundStyle(.secondary)
       } else {
         Button("Reclassify All") {
@@ -250,6 +252,7 @@ private func categoryManagementPreview() -> some View {
   return CategoryManagementView()
     .environment(ClassificationEngine())
     .environment(SyncEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 480, height: 500)
 }
@@ -261,6 +264,7 @@ private func categoryManagementEmptyPreview() -> some View {
   return CategoryManagementView()
     .environment(ClassificationEngine())
     .environment(SyncEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 480, height: 500)
 }

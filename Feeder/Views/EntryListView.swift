@@ -57,6 +57,8 @@ struct EntryListView: View {
   private var modelContext
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var sections: [EntryListSection] = []
   /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
@@ -105,7 +107,7 @@ struct EntryListView: View {
               }
             } header: {
               Text(section.label)
-                .font(FontTheme.sectionLabel)
+                .font(fontSettings.sectionLabel)
                 .foregroundStyle(.tertiary)
                 .textCase(nil)
             }
@@ -217,6 +219,7 @@ private struct EntryListOfflinePreview: View {
       }
     }
     .environment(syncEngine)
+    .environment(AppFontSettings())
     .modelContainer(container)
     .task {
       writer = await DataWriter.makeDetached(modelContainer: container)

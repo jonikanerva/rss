@@ -7,6 +7,8 @@ struct ClassificationSettingsView: View {
   private var classificationEngine
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   @State
   private var selectedProvider: ClassificationProviderKind = ClassificationProviderKind.current
@@ -105,6 +107,8 @@ private struct APIKeyEditSheet: View {
 
   @Environment(\.dismiss)
   private var dismiss
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var editKey: String = ""
   @State
@@ -114,7 +118,7 @@ private struct APIKeyEditSheet: View {
     VStack(spacing: 0) {
       HStack {
         Text("OpenAI API Key")
-          .font(FontTheme.headline)
+          .font(fontSettings.headline)
         Spacer()
       }
       .padding()
@@ -123,7 +127,7 @@ private struct APIKeyEditSheet: View {
       VStack(alignment: .leading, spacing: 12) {
         VStack(alignment: .leading, spacing: 4) {
           Text("API Key")
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .foregroundStyle(.secondary)
           SecureField(hasStoredKey ? "Enter new key to replace" : "sk-...", text: $editKey)
             .textFieldStyle(.roundedBorder)
@@ -131,13 +135,13 @@ private struct APIKeyEditSheet: View {
 
         if hasStoredKey {
           Label("A key is currently saved", systemImage: "checkmark.circle.fill")
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .foregroundStyle(Color(nsColor: .systemGreen))
         }
 
         if let errorMessage {
           Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .foregroundStyle(Color(nsColor: .systemRed))
         }
       }
@@ -199,6 +203,7 @@ private struct APIKeyEditSheet: View {
   ClassificationSettingsView()
     .environment(SyncEngine())
     .environment(ClassificationEngine())
+    .environment(AppFontSettings())
     .modelContainer(PreviewSupport.makeContainer())
     .frame(width: 480, height: 320)
 }

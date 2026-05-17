@@ -4,6 +4,8 @@ import SwiftUI
 struct FolderEditSheet: View {
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @Environment(\.dismiss)
   private var dismiss
   @Query(sort: \Folder.sortOrder)
@@ -48,7 +50,7 @@ struct FolderEditSheet: View {
   private var header: some View {
     HStack {
       Text(isNew ? "New Folder" : "Edit Folder")
-        .font(FontTheme.headline)
+        .font(fontSettings.headline)
       Spacer()
     }
     .padding()
@@ -59,11 +61,11 @@ struct FolderEditSheet: View {
   private var form: some View {
     VStack(alignment: .leading, spacing: 4) {
       Text("Name")
-        .font(FontTheme.caption)
+        .font(fontSettings.caption)
         .foregroundStyle(.secondary)
       TextField("Folder name", text: $name)
         .textFieldStyle(.roundedBorder)
-        .font(FontTheme.body)
+        .font(fontSettings.body)
     }
     .padding()
   }
@@ -134,5 +136,6 @@ private func folderEditNewPreview() -> some View {
 
   return FolderEditSheet(folder: nil)
     .environment(SyncEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
 }

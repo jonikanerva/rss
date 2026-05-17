@@ -3,6 +3,8 @@ import SwiftUI
 /// Renders an array of ArticleBlocks as styled SwiftUI views.
 struct ArticleBlockView: View {
   let blocks: [ArticleBlock]
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   /// Cached Markdown→AttributedString parses, keyed by the raw Markdown string.
   /// Avoids re-parsing on every re-render of this view for the reader pane.
@@ -44,7 +46,7 @@ struct ArticleBlockView: View {
     switch block {
     case .paragraph(let text):
       Text(attributedInline(text))
-        .font(FontTheme.body)
+        .font(fontSettings.body)
         .lineSpacing(6)
 
     case .heading(let level, let text):
@@ -57,7 +59,7 @@ struct ArticleBlockView: View {
 
     case .codeBlock(let code):
       Text(code.trimmingCharacters(in: .whitespacesAndNewlines))
-        .font(FontTheme.codeBlock)
+        .font(fontSettings.codeBlock)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
@@ -67,7 +69,7 @@ struct ArticleBlockView: View {
 
     case .blockquote(let text):
       Text(attributedInline(text))
-        .font(FontTheme.body)
+        .font(fontSettings.body)
         .lineSpacing(6)
         .foregroundStyle(.secondary)
         .padding(.leading, 12)
@@ -85,18 +87,18 @@ struct ArticleBlockView: View {
 
   // MARK: - Headings
 
-  /// Maps HTML heading level (1–6) to a Dynamic-Type-aware semantic font.
-  /// `level` outside 1–4 falls back to `FontTheme.minorInlineHeading` — a
-  /// reader-pane alias kept distinct from `FontTheme.headline` (sheet
-  /// titles) and `FontTheme.rowTitle` (article-list rows) so a future
+  /// Maps HTML heading level (1–6) to a text-size-aware semantic font.
+  /// `level` outside 1–4 falls back to `fontSettings.minorInlineHeading` — a
+  /// reader-pane alias kept distinct from `fontSettings.headline` (sheet
+  /// titles) and `fontSettings.rowTitle` (article-list rows) so a future
   /// reader redesign can retune h5/h6 without rippling into other surfaces.
   private func headingFont(_ level: Int) -> Font {
     switch level {
-    case 1: FontTheme.articleTitle
-    case 2: FontTheme.sectionHeader
-    case 3: FontTheme.subsectionHeader
-    case 4: FontTheme.minorHeader
-    default: FontTheme.minorInlineHeading
+    case 1: fontSettings.articleTitle
+    case 2: fontSettings.sectionHeader
+    case 3: fontSettings.subsectionHeader
+    case 4: fontSettings.minorHeader
+    default: fontSettings.minorInlineHeading
     }
   }
 
@@ -142,16 +144,16 @@ struct ArticleBlockView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
           if ordered {
             Text("\(index + 1).")
-              .font(FontTheme.body)
+              .font(fontSettings.body)
               .foregroundStyle(.secondary)
               .frame(minWidth: 20, alignment: .trailing)
           } else {
             Text("•")
-              .font(FontTheme.body)
+              .font(fontSettings.body)
               .foregroundStyle(.secondary)
           }
           Text(attributedInline(item))
-            .font(FontTheme.body)
+            .font(fontSettings.body)
             .lineSpacing(4)
         }
       }
@@ -186,5 +188,6 @@ struct ArticleBlockView: View {
     .padding(32)
     .frame(maxWidth: 660, alignment: .leading)
   }
+  .environment(AppFontSettings())
   .frame(width: 700, height: 600)
 }
