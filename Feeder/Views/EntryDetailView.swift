@@ -226,16 +226,20 @@ private struct ArticleWebContainer: View {
 // MARK: - Preview
 
 #Preview("Article Detail with Sources") {
-  articleDetailPreview()
+  articleDetailPreview(fontSettings: AppFontSettings())
 }
 
-#Preview("Article Detail — Larger Text (AX3)") {
-  articleDetailPreview()
-    .dynamicTypeSize(.accessibility3)
+#Preview("Article Detail — Huge Text") {
+  // `.dynamicTypeSize(_:)` propagates the environment value but does not
+  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
+  // here would render identically to `.medium`. Inject the largest
+  // `AppFontSettings` instead — that is the mechanism shipped code uses,
+  // so the preview reflects what a user picking *Huge* actually sees.
+  articleDetailPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
 }
 
 @MainActor
-private func articleDetailPreview() -> some View {
+private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -258,7 +262,7 @@ private func articleDetailPreview() -> some View {
   context.insert(entry)
 
   return EntryDetailView(entry: entry, viewMode: .reader)
-    .environment(AppFontSettings())
+    .environment(fontSettings)
     .modelContainer(container)
     .frame(width: 600, height: 500)
 }

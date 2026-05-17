@@ -33,21 +33,46 @@ final class AppFontSettings {
   /// value so the choice survives relaunch. Reads go through the computed
   /// font aliases below; nothing outside this class reads `scaleFactor`
   /// directly.
+  ///
+  /// `didSet` does not fire during init (Swift property observer
+  /// semantics), so the dependency-injected `init(textSize:userDefaults:)`
+  /// below can seed a value for previews / tests without writing back to
+  /// `UserDefaults`.
   var textSize: AppTextSize {
     didSet {
       guard textSize != oldValue else { return }
-      UserDefaults.standard.set(textSize.rawValue, forKey: appTextSizeUserDefaultsKey)
+      userDefaults.set(textSize.rawValue, forKey: appTextSizeUserDefaultsKey)
     }
   }
 
-  init() {
-    // Match the `@AppStorage` storage shape: a missing key reads back as `0`
-    // from `UserDefaults.integer(forKey:)`. `AppTextSize(rawValue: 0) == nil`
-    // by construction (the enum starts at `1`), so the `?? .medium` fallback
-    // wins on a fresh install / cleared preferences — preserving the same
-    // default the picker uses.
+  /// Backing store for `textSize` persistence. Defaults to
+  /// `UserDefaults.standard` in shipped code; tests pass a per-suite store
+  /// so they cannot leak into the developer's app preferences.
+  @ObservationIgnored
+  private let userDefaults: UserDefaults
+
+  /// Shipping init — reads the persisted value from `UserDefaults.standard`
+  /// so the first frame uses the user's previous choice. Match the
+  /// `@AppStorage` storage shape: a missing key reads back as `0` from
+  /// `UserDefaults.integer(forKey:)`. `AppTextSize(rawValue: 0) == nil` by
+  /// construction (the enum starts at `1`), so the `?? .medium` fallback
+  /// wins on a fresh install / cleared preferences — preserving the same
+  /// default the picker uses.
+  convenience init() {
     let stored = UserDefaults.standard.integer(forKey: appTextSizeUserDefaultsKey)
-    self.textSize = AppTextSize(rawValue: stored) ?? .medium
+    let resolved = AppTextSize(rawValue: stored) ?? .medium
+    self.init(textSize: resolved, userDefaults: .standard)
+  }
+
+  /// Dependency-injected init for previews (pin a specific size so
+  /// reviewers see the layout at that scale instead of whatever the
+  /// developer's persisted choice happens to be) and tests (pin a
+  /// per-suite `UserDefaults` so the test cannot leak into shipped
+  /// preferences). The initial assignment is direct, so `didSet` does
+  /// not fire — no write-back side effect happens during construction.
+  init(textSize: AppTextSize, userDefaults: UserDefaults = .standard) {
+    self.userDefaults = userDefaults
+    self.textSize = textSize
   }
 
   // MARK: - Scaling

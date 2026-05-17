@@ -111,9 +111,13 @@ struct OnboardingView: View {
     .environment(AppFontSettings())
 }
 
-#Preview("Onboarding — Larger Text (AX3)") {
+#Preview("Onboarding — Huge Text") {
+  // `.dynamicTypeSize(_:)` propagates the environment value but does not
+  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
+  // here would render identically to `.medium`. Inject the largest
+  // `AppFontSettings` instead — that is the mechanism shipped code uses,
+  // so the preview reflects what a user picking *Huge* actually sees.
   OnboardingView(onComplete: {})
     .environment(SyncEngine())
-    .environment(AppFontSettings())
-    .dynamicTypeSize(.accessibility3)
+    .environment(AppFontSettings(textSize: .xxLarge))
 }

@@ -10,6 +10,23 @@ import Testing
 // verifies that `AppFontSettings` actually produces a different font at
 // different sizes — the property that `.dynamicTypeSize(_:)` failed to
 // provide on macOS and that motivated the explicit scale factor.
+//
+// Persistence isolation: every test that mutates `AppFontSettings.textSize`
+// injects a per-suite `UserDefaults` so the `didSet` write-back lands in a
+// throwaway store. Without this, running the suite locally would silently
+// overwrite the developer's chosen text size in the shipped app's
+// preferences. `makeIsolatedSettings(textSize:)` is the only constructor
+// these tests use.
+
+/// Per-suite `UserDefaults` store, cleared after every use so tests cannot
+/// leak state into each other or into shipped preferences.
+@MainActor
+private func makeIsolatedSettings(textSize: AppTextSize = .medium) -> AppFontSettings {
+  let suiteName = "FeederTests.appTextSize.\(UUID().uuidString)"
+  let store = UserDefaults(suiteName: suiteName) ?? .standard
+  store.removePersistentDomain(forName: suiteName)
+  return AppFontSettings(textSize: textSize, userDefaults: store)
+}
 
 @MainActor
 struct AppTextSizeTests {
@@ -77,8 +94,7 @@ struct AppTextSizeTests {
     // produce visibly different fonts at different `textSize` values.
     // `Font` is `Equatable`, so an inequality assertion is the cheapest
     // robust signal that the alias re-evaluates against the current scale.
-    let settings = AppFontSettings()
-    settings.textSize = .small
+    let settings = makeIsolatedSettings(textSize: .small)
     let smallBody = settings.body
     settings.textSize = .xxLarge
     let xxLargeBody = settings.body
@@ -91,8 +107,7 @@ struct AppTextSizeTests {
     // Two reads at the same scale must produce the same `Font` — guards
     // against accidental nondeterminism (e.g. a future change pulling in
     // a time-dependent factor).
-    let settings = AppFontSettings()
-    settings.textSize = .medium
+    let settings = makeIsolatedSettings(textSize: .medium)
     let firstRead = settings.body
     let secondRead = settings.body
 
@@ -104,10 +119,8 @@ struct AppTextSizeTests {
     // Defends every published alias against a future refactor that forgets
     // to multiply by `scaleFactor`. If any of these become accidentally
     // size-independent, the test fails before users see flat scaling.
-    let small = AppFontSettings()
-    small.textSize = .small
-    let large = AppFontSettings()
-    large.textSize = .xxLarge
+    let small = makeIsolatedSettings(textSize: .small)
+    let large = makeIsolatedSettings(textSize: .xxLarge)
 
     #expect(small.articleTitle != large.articleTitle)
     #expect(small.sectionHeader != large.sectionHeader)
