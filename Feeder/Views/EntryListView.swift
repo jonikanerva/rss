@@ -57,10 +57,29 @@ struct EntryListView: View {
   private var modelContext
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(ClassificationEngine.self)
+  private var classificationEngine
   @Environment(AppFontSettings.self)
   private var fontSettings
   @Environment(\.openSettings)
   private var openSettings
+  /// Probe that fires while no entry has been classified yet. The static
+  /// `FetchDescriptor` caps the fetch at one row regardless of inventory size,
+  /// so the MainActor exception relative to this view's other reads (which
+  /// run on `DataWriter`) stays inside the frame budget. Predicate pushed to
+  /// SQLite — never filtered in Swift.
+  ///
+  /// Built lazily as a `static let` so the descriptor allocation happens once
+  /// at module-init time rather than per view-init.
+  private static let anyClassifiedProbeDescriptor: FetchDescriptor<Entry> = {
+    var descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.isClassified == true }
+    )
+    descriptor.fetchLimit = 1
+    return descriptor
+  }()
+  @Query(EntryListView.anyClassifiedProbeDescriptor)
+  private var anyClassifiedProbe: [Entry]
   @State
   private var sections: [EntryListSection] = []
   /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
@@ -70,6 +89,34 @@ struct EntryListView: View {
   private var allVisibleEntryIDs: [PersistentIdentifier] = []
   @State
   private var hasLoaded = false
+
+  // MARK: - Init
+  //
+  // Explicit init so Swift does not synthesize a memberwise init that exposes
+  // the `@Query`-backed `anyClassifiedProbe` storage as a public parameter.
+  // The synthesized form would require call sites to pass an `[Entry]` for the
+  // probe; this init keeps the surface area identical to the pre-probe shape.
+  init(
+    category: String?,
+    folder: String?,
+    filter: ArticleFilter,
+    cutoffDate: Date,
+    writer: DataWriter,
+    refreshVersion: Int,
+    pinnedFeedbinEntryID: Int?,
+    selectedEntry: Binding<Entry?>,
+    onMarkAllRead: @escaping () -> Void
+  ) {
+    self.category = category
+    self.folder = folder
+    self.filter = filter
+    self.cutoffDate = cutoffDate
+    self.writer = writer
+    self.refreshVersion = refreshVersion
+    self.pinnedFeedbinEntryID = pinnedFeedbinEntryID
+    self._selectedEntry = selectedEntry
+    self.onMarkAllRead = onMarkAllRead
+  }
 
   var body: some View {
     Group {
@@ -97,6 +144,30 @@ struct EntryListView: View {
             systemImage: "wifi.slash",
             description: Text("Connect to the internet to sync new articles.")
           )
+        } else if anyClassifiedProbe.isEmpty
+          && (classificationEngine.isClassifying || syncEngine.isSyncing)
+        {
+          // First-sync / post-reset state: entries have landed but none are
+          // classified yet, so this category-scoped fetch is empty while
+          // classification catches up. Spinner-only (no SF Symbol) by
+          // ux-guardian decision — the sidebar already carries progress
+          // counts, so the middle pane stays calm and avoids double-signalling.
+          // No trailing ellipsis on the headline per HIG: don't label a
+          // spinning progress indicator.
+          ContentUnavailableView {
+            ProgressView()
+              .controlSize(.large)
+          } description: {
+            VStack(spacing: 8) {
+              Text("Sorting your articles")
+                .font(.headline)
+                .foregroundStyle(.primary)
+              Text("We're placing fresh articles into your categories.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .accessibilityIdentifier("timeline.firstSync")
         } else {
           ContentUnavailableView {
             Label("No Articles", systemImage: "newspaper")
@@ -201,6 +272,10 @@ struct EntryListView: View {
   EntryListAuthFailedPreview()
 }
 
+#Preview("Empty - First Sync") {
+  EntryListFirstSyncPreview()
+}
+
 /// Renders `EntryListView` in the offline-empty state: container is seeded
 /// but contains no entries, and `SyncEngine.lastError` is set to `.network`
 /// so the view picks the `ContentUnavailableView("Offline", …)` branch.
@@ -217,6 +292,7 @@ private struct EntryListOfflinePreview: View {
       lastError: .network("The Internet connection appears to be offline."))
     return engine
   }()
+  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
@@ -237,6 +313,7 @@ private struct EntryListOfflinePreview: View {
       }
     }
     .environment(syncEngine)
+    .environment(classificationEngine)
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
@@ -262,6 +339,7 @@ private struct EntryListAuthFailedPreview: View {
       lastError: .authFailed("Invalid Feedbin credentials"))
     return engine
   }()
+  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
@@ -282,6 +360,59 @@ private struct EntryListAuthFailedPreview: View {
       }
     }
     .environment(syncEngine)
+    .environment(classificationEngine)
+    .environment(AppFontSettings())
+    .modelContainer(container)
+    .task {
+      writer = await DataWriter.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 480)
+  }
+}
+
+/// Renders `EntryListView` in the first-sync empty state: container is seeded
+/// but contains no classified entries, `SyncEngine.lastError` is nil and
+/// `ClassificationEngine` is mid-batch — so the view picks the "Sorting your
+/// articles" branch.
+@MainActor
+private struct EntryListFirstSyncPreview: View {
+  @State
+  private var writer: DataWriter?
+  @State
+  private var selectedEntry: Entry?
+  private let container: ModelContainer = PreviewSupport.makeContainer()
+  private let syncEngine = SyncEngine()
+  private let classificationEngine: ClassificationEngine = {
+    let engine = ClassificationEngine()
+    engine.applyPreviewState(
+      isClassifying: true,
+      progress: "Categorizing 12/47",
+      classifiedCount: 12,
+      totalToClassify: 47
+    )
+    return engine
+  }()
+
+  var body: some View {
+    Group {
+      if let writer {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          writer: writer,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntry: $selectedEntry,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .environment(classificationEngine)
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
