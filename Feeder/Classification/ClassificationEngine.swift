@@ -53,6 +53,15 @@ final class ClassificationEngine {
   /// polling ticks that had nothing to classify.
   private(set) var lastBatchClassifiedCount = 0
 
+  /// Monotonic counter bumped on every **non-terminal** progress snapshot
+  /// while a batch is in flight. Lets `ContentView` route a deferred middle-
+  /// pane refresh during the batch — newly-classified entries appear in
+  /// their target category as they're written, instead of only on the
+  /// terminal `isClassifying` false-edge. The 200 ms throttle inside the
+  /// runner rate-limits these bumps; the terminal snapshot does not bump
+  /// because the existing `isClassifying` false-edge already handles that.
+  private(set) var batchProgressVersion: Int = 0
+
   /// The single-slot task that owns whatever classification work is in flight.
   /// `startContinuousClassification`, `classifyUnclassified`, and `reclassifyAll`
   /// all route through this slot — so only ever one runner is active, and manual
@@ -199,6 +208,13 @@ final class ClassificationEngine {
     // decide whether a classification tick actually changed anything.
     if isClassifying && !snapshot.isClassifying {
       lastBatchClassifiedCount = classifiedCount
+    }
+    // Signal mid-batch progress to the middle pane. Only non-terminal
+    // snapshots bump — the terminal false-edge is already covered by the
+    // `isClassifying` `.onChange` path in `ContentView`. The runner's
+    // 200 ms throttle naturally rate-limits this counter.
+    if snapshot.isClassifying {
+      batchProgressVersion &+= 1
     }
     isClassifying = snapshot.isClassifying
     progress = snapshot.progress

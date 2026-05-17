@@ -221,7 +221,56 @@ struct ClassificationEngineTests {
     engine.stopContinuousClassification()
   }
 
-  // MARK: - 4. Error recovery: one failure does not poison the batch
+  // MARK: - 4. Mid-batch progress bumps drive the live-refresh signal
+
+  /// `ContentView` listens to `batchProgressVersion` to refresh the middle
+  /// pane while a classification batch is still running. Without a per-
+  /// snapshot bump the article list only updates on the terminal
+  /// `isClassifying` false-edge, so freshly-classified entries stay in
+  /// their old category until the whole batch finishes. The bump fires on
+  /// every non-terminal `apply(snapshot)` — the initial "starting"
+  /// snapshot, every throttled progress tick, and the final mid-batch
+  /// tick — but **not** on the terminal `.terminal` snapshot.
+  @Test
+  func batchProgressVersionBumpsDuringBatch() async throws {
+    let (engine, writer, _) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 3)
+    let baseline = engine.batchProgressVersion
+
+    await engine.classifyUnclassified(writer: writer)
+
+    // Engine is back to idle, so the terminal snapshot has already
+    // landed. The counter must have advanced at least once during the
+    // batch — proves the mid-flight signal is observable to
+    // `ContentView`'s `.onChange`.
+    let bumps = engine.batchProgressVersion - baseline
+    #expect(bumps >= 1, "Expected at least one mid-batch bump; got \(bumps)")
+    #expect(engine.isClassifying == false)
+  }
+
+  /// The terminal `.terminal` snapshot must not bump
+  /// `batchProgressVersion` — the existing `isClassifying` false-edge
+  /// path in `ContentView` already covers the post-batch refresh, and a
+  /// double bump on the terminal edge would race the deferred-drain
+  /// dwell timer. This test runs the engine with **zero** unclassified
+  /// inputs: `runOneBatch` exits via the no-inputs early return, which
+  /// emits only a single `.terminal` snapshot and never the
+  /// `isClassifying: true` opening snapshot. The counter must stay put.
+  @Test
+  func batchProgressVersionDoesNotBumpOnTerminalOnly() async throws {
+    let (engine, writer, _) = try await makeEngineAndWriter()
+    // Deliberately seed no entries — `fetchUnclassifiedInputs` returns
+    // an empty list, the runner emits `.terminal` immediately, and
+    // there is no non-terminal snapshot to bump the counter.
+    let baseline = engine.batchProgressVersion
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(engine.batchProgressVersion == baseline)
+    #expect(engine.isClassifying == false)
+  }
+
+  // MARK: - 5. Error recovery: one failure does not poison the batch
 
   @Test
   func errorRecoveryContinuesWithNextBatch() async throws {

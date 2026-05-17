@@ -161,6 +161,14 @@ final class SyncEngine {
   /// the list. Both count toward "the list snapshot may now be stale".
   private(set) var lastSyncChangedEntryCount: Int = 0
 
+  /// Monotonic counter bumped after **each page** persisted during a
+  /// multi-page entry fetch. Lets `ContentView` route a deferred middle-pane
+  /// refresh while the sync is still running, so newly-persisted entries
+  /// appear in the article list as they land instead of only on the terminal
+  /// `isSyncing` false-edge. The `lastSyncChangedEntryCount` terminal signal
+  /// stays in place — this counter is purely additive.
+  private(set) var lastPersistedPageVersion: Int = 0
+
   /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
   private(set) var queryCutoffDate: Date = articleCutoffDate()
 
@@ -369,6 +377,13 @@ final class SyncEngine {
       let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
       totalNew += newCount
       totalFetched += page.entries.count
+      // Signal to `ContentView` that a page just landed so the middle pane
+      // can refresh mid-sync. Bumped per persisted page even when `newCount`
+      // is zero — a page with only de-duplicated rows still shifts no UI
+      // state, but the counter contract is "a page was processed". The
+      // downstream `.onChange` coalesces these via the existing deferred
+      // refresh channel.
+      lastPersistedPageVersion &+= 1
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
         fetchedCount = totalFetched

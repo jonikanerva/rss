@@ -51,13 +51,45 @@ struct CategoryFolderChangeTrigger: ViewModifier {
   }
 }
 
-/// Drains a pending classification refresh bump once the user is idle.
+/// Mid-flight refresh router. Watches the monotonic bump counters published
+/// by `SyncEngine` (per persisted page) and `ClassificationEngine` (per
+/// throttled progress snapshot), and sets the matching pending-bump flags
+/// so the deferred drain modifiers can coalesce them into
+/// `entryRefreshVersion` ticks. Extracted into a modifier so the two
+/// `.onChange` observers stay out of `ContentView.body` and the body keeps
+/// type-checking inside SwiftUI's reasonable-time limit.
+struct MidFlightBumpRouter: ViewModifier {
+  let syncPageVersion: Int
+  let classificationBatchVersion: Int
+  @Binding
+  var pendingSyncBump: Bool
+  @Binding
+  var pendingClassificationBump: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .onChange(of: syncPageVersion) {
+        pendingSyncBump = true
+      }
+      .onChange(of: classificationBatchVersion) {
+        pendingClassificationBump = true
+      }
+  }
+}
+
+/// Drains a pending background refresh bump once the user is idle.
 /// Owns the dwell `Task.sleep` so the bump fires when a list rebuild will not
 /// disrupt the user — re-keyed by selection identity and the pending flag so
-/// each selection change or new batch resets the dwell window. Extracted
-/// into a modifier so the task closure stays out of ContentView.body and the
-/// body keeps type-checking inside SwiftUI's reasonable-time limit.
-struct ClassificationBumpDrainTrigger: ViewModifier {
+/// each selection change or new background tick resets the dwell window.
+/// Extracted into a modifier so the task closure stays out of
+/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
+/// reasonable-time limit.
+///
+/// Reused by both the classification-batch drain (long dwell — finished
+/// batches reshuffle category membership and may move the selected row out
+/// of view) and the sync-page drain (shorter dwell — newly-inserted entries
+/// land at the top via stable-ID diffing and do not move the selected row).
+struct DeferredBumpDrainTrigger: ViewModifier {
   let key: String
   let dwell: Duration
   let hasSelection: Bool
