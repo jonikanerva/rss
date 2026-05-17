@@ -31,6 +31,8 @@ struct EntryDetailView: View {
   let viewMode: ArticleViewMode
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   /// View-level cache of decoded reader blocks. Lives here (not on `@Model Entry`) so
   /// persistence and rendering stay in separate layers. Re-decodes when the persisted
@@ -91,12 +93,12 @@ struct EntryDetailView: View {
     VStack(alignment: .leading, spacing: 8) {
       // Date + time
       Text(DetailDateFormatting.formatDate(entry.publishedAt))
-        .font(FontTheme.metadata)
+        .font(fontSettings.metadata)
         .foregroundStyle(.secondary)
 
       // Title
       Text(entry.title ?? "Untitled")
-        .font(FontTheme.articleTitle)
+        .font(fontSettings.articleTitle)
         .fixedSize(horizontal: false, vertical: true)
 
       // Favicon + author/domain
@@ -107,12 +109,12 @@ struct EntryDetailView: View {
         VStack(alignment: .leading, spacing: 2) {
           if let author = entry.author, !author.isEmpty {
             Text(author)
-              .font(FontTheme.metadata)
+              .font(fontSettings.metadata)
               .foregroundStyle(.secondary)
           }
           if let domain = entry.displayDomain, !domain.isEmpty {
             Text(domain.lowercased())
-              .font(FontTheme.metadata)
+              .font(fontSettings.metadata)
               .foregroundStyle(.tertiary)
           }
         }
@@ -242,6 +244,7 @@ private func articleDetailPreview() -> some View {
   context.insert(entry)
 
   return EntryDetailView(entry: entry, viewMode: .reader)
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 600, height: 500)
 }

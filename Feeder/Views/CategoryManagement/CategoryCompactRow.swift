@@ -10,14 +10,16 @@ struct CategoryCompactRow: View {
   let depth: Int
   let isSystem: Bool
   let onEdit: () -> Void
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   var body: some View {
     HStack {
       VStack(alignment: .leading, spacing: 2) {
         Text(displayName)
-          .font(FontTheme.bodyMedium)
+          .font(fontSettings.bodyMedium)
         Text(descriptionPreview.prefix(50) + (descriptionPreview.count > 50 ? "…" : ""))
-          .font(FontTheme.caption)
+          .font(fontSettings.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
       }

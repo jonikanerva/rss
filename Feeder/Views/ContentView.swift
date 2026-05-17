@@ -32,6 +32,8 @@ struct ContentView: View {
   private var syncEngine
   @Environment(ClassificationEngine.self)
   private var classificationEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @Environment(\.modelContext)
   private var modelContext
   @Environment(\.scenePhase)
@@ -588,6 +590,7 @@ struct ContentView: View {
       }
     } label: {
       Text(folder.displayName)
+        .font(fontSettings.body)
         .badge(folderUnreadCounts[folder.label, default: 0])
         .tag(SidebarSelection.folder(folder.label))
         .accessibilityIdentifier("sidebar.folder.\(folder.label)")
@@ -602,6 +605,7 @@ struct ContentView: View {
     categoryUnreadCounts: [String: Int]
   ) -> some View {
     Text(category.displayName)
+      .font(fontSettings.body)
       .badge(categoryUnreadCounts[category.label, default: 0])
       .tag(SidebarSelection.category(category.label))
       .accessibilityIdentifier("sidebar.category.\(category.label)")
@@ -796,6 +800,7 @@ private func timelineSeededDemoPreview() -> some View {
   return ContentView()
     .environment(SyncEngine())
     .environment(ClassificationEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(minWidth: 1200, minHeight: 760)
 }

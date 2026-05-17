@@ -7,15 +7,17 @@ import SwiftUI
 /// literal duplication.
 nonisolated let appTextSizeUserDefaultsKey = "app_text_size"
 
-/// User-selectable, app-wide text size. Drives `.dynamicTypeSize(_:)` applied
-/// at the scene-content level in `FeederApp`, so every SwiftUI surface that
-/// renders with semantic text styles (`.body`, `.headline`, etc.) scales
-/// uniformly with the chosen size.
+/// User-selectable, app-wide text size. Drives the `scaleFactor` consumed by
+/// `FontTheme`, which multiplies every alias's base point size by the chosen
+/// factor. This is the only mechanism that actually scales SwiftUI text on
+/// macOS — `.dynamicTypeSize(_:)` and `@ScaledMetric` were verified not to
+/// affect rendered text size, despite propagating the environment value.
 ///
-/// **macOS behaviour note:** the system-level Dynamic Type slider (Accessibility →
-/// Display → Larger Text) is iOS-only — on macOS the user-facing path to scale
-/// system text styles is this per-app picker, applied through the
-/// `.dynamicTypeSize(_:)` view modifier (public, `macOS 12.0+`).
+/// **Why this isn't `.dynamicTypeSize(_:)`:** on macOS the modifier sets the
+/// environment value but SwiftUI's text-style rendering does not re-resolve
+/// system fonts from it — `Font.body` etc. remain at their default sizes.
+/// We therefore drive sizing explicitly via `Font.system(size:)` and apply a
+/// scale multiplier here.
 ///
 /// **Why raw values start at 1 (not 0):** a missing `UserDefaults` integer
 /// reads back as `0`, which would otherwise collide with the first case and
@@ -31,18 +33,18 @@ enum AppTextSize: Int, CaseIterable, Identifiable, Sendable {
 
   var id: Int { rawValue }
 
-  /// The Dynamic Type bucket applied to the SwiftUI environment via
-  /// `.dynamicTypeSize(_:)`. Five options chosen to match the visible scale
-  /// steps `.small` through `.xxLarge` — accessibility sizes (`.accessibility1`+)
-  /// are deliberately excluded to keep macOS layouts intact (sidebar /
-  /// settings frames are sized for the standard range).
-  var dynamicTypeSize: DynamicTypeSize {
+  /// Multiplier applied to every `FontTheme` alias's base point size. Centred
+  /// on `1.0` for `.medium` so the default selection preserves the existing
+  /// visual mass; the spread (0.85 → 1.5) is balanced between an acceptably
+  /// small "compact" mode and a comfortable "huge" mode without breaking
+  /// sidebar / settings frame budgets.
+  var scaleFactor: CGFloat {
     switch self {
-    case .small: .small
-    case .medium: .medium
-    case .large: .large
-    case .xLarge: .xLarge
-    case .xxLarge: .xxLarge
+    case .small: 0.85
+    case .medium: 1.0
+    case .large: 1.15
+    case .xLarge: 1.3
+    case .xxLarge: 1.5
     }
   }
 

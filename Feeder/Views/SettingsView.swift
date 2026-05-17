@@ -6,6 +6,8 @@ struct SettingsView: View {
   private var syncEngine
   @Environment(ClassificationEngine.self)
   private var classificationEngine
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @Environment(\.modelContext)
   private var modelContext
   /// Category list used only for its `.count`. Small set (< 100 typical) so the full
@@ -36,12 +38,6 @@ struct SettingsView: View {
     let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
     return stored > 0 ? stored : 7
   }()
-  /// Bound directly to the Picker — no `@State`/`.onChange` intermediate is
-  /// needed because changing the size has no side effects beyond updating the
-  /// `.dynamicTypeSize(_:)` modifier in `FeederApp`, which reads the same
-  /// `@AppStorage` key.
-  @AppStorage(appTextSizeUserDefaultsKey)
-  private var appTextSize: AppTextSize = .medium
 
   var body: some View {
     TabView {
@@ -121,10 +117,18 @@ struct SettingsView: View {
 
   // MARK: - Appearance Tab
 
+  /// Picker bound to the live `AppFontSettings.textSize` through
+  /// `@Bindable`. Mutating the binding writes through the observed object's
+  /// `didSet`, which persists to `UserDefaults` and notifies every
+  /// `@Environment(AppFontSettings.self)` consumer — no `@AppStorage`
+  /// duplication, and the rest of the app's `@State` (sidebar selection,
+  /// scroll position) is untouched.
   private var appearanceTab: some View {
-    Form {
+    @Bindable
+    var bindableFontSettings = fontSettings
+    return Form {
       Section("Text size") {
-        Picker("Text size", selection: $appTextSize) {
+        Picker("Text size", selection: $bindableFontSettings.textSize) {
           ForEach(AppTextSize.allCases) { size in
             Text(size.displayName).tag(size)
           }
@@ -186,7 +190,7 @@ struct SettingsView: View {
           LabeledContent("Error") {
             Text(error.message)
               .foregroundStyle(Color(nsColor: .systemRed))
-              .font(FontTheme.caption)
+              .font(fontSettings.caption)
           }
         }
       }
@@ -255,6 +259,8 @@ private struct AccountEditSheet: View {
 
   @Environment(\.dismiss)
   private var dismiss
+  @Environment(AppFontSettings.self)
+  private var fontSettings
   @State
   private var editUsername: String = ""
   @State
@@ -264,7 +270,7 @@ private struct AccountEditSheet: View {
     VStack(spacing: 0) {
       HStack {
         Text("Edit Account")
-          .font(FontTheme.headline)
+          .font(fontSettings.headline)
         Spacer()
       }
       .padding()
@@ -273,7 +279,7 @@ private struct AccountEditSheet: View {
       VStack(alignment: .leading, spacing: 12) {
         VStack(alignment: .leading, spacing: 4) {
           Text("Email")
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .foregroundStyle(.secondary)
           TextField("Email", text: $editUsername)
             .textFieldStyle(.roundedBorder)
@@ -281,7 +287,7 @@ private struct AccountEditSheet: View {
         }
         VStack(alignment: .leading, spacing: 4) {
           Text("Password")
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
             .foregroundStyle(.secondary)
           SecureField("Password", text: $editPassword)
             .textFieldStyle(.roundedBorder)
@@ -295,7 +301,7 @@ private struct AccountEditSheet: View {
                 ? Color(nsColor: .systemRed)
                 : Color(nsColor: .systemGreen)
             )
-            .font(FontTheme.caption)
+            .font(fontSettings.caption)
         }
       }
       .padding()
@@ -364,6 +370,7 @@ extension Double {
     statusMessage: .constant(nil),
     onSave: {}
   )
+  .environment(AppFontSettings())
 }
 
 @MainActor
@@ -410,5 +417,6 @@ private func settingsSeededPreview() -> some View {
   return SettingsView()
     .environment(SyncEngine())
     .environment(ClassificationEngine())
+    .environment(AppFontSettings())
     .modelContainer(container)
 }

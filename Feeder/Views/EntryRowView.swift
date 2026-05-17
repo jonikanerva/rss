@@ -8,6 +8,8 @@ struct EntryRowView: View {
   let entry: Entry
   @Environment(\.pendingReadIDs)
   private var pendingReadIDs
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   private var isRead: Bool { entry.isRead || pendingReadIDs.contains(entry.feedbinEntryID) }
 
@@ -28,7 +30,7 @@ struct EntryRowView: View {
         // Feed name + time
         HStack(alignment: .top, spacing: 5) {
           Text(entry.title ?? "Untitled")
-            .font(FontTheme.rowTitle)
+            .font(fontSettings.rowTitle)
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(2)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
@@ -36,20 +38,20 @@ struct EntryRowView: View {
           Spacer()
 
           Text(entry.formattedPublishedTime)
-            .font(FontTheme.rowFeedName)
+            .font(fontSettings.rowFeedName)
             .foregroundStyle(.tertiary)
         }
 
         if let domain = entry.displayDomain, !domain.isEmpty {
           Text(domain.lowercased())
-            .font(FontTheme.rowFeedName)
+            .font(fontSettings.rowFeedName)
             .foregroundStyle(FontTheme.domainPillColor)
         }
 
         // Summary excerpt
         if !summaryText.isEmpty {
           Text(summaryText)
-            .font(FontTheme.rowSummary)
+            .font(fontSettings.rowSummary)
             .lineLimit(2)
             .foregroundStyle(.tertiary)
         }
@@ -140,6 +142,7 @@ private func unreadEntryRowPreview() -> some View {
   context.insert(entry)
 
   return EntryRowView(entry: entry)
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 380)
     .padding()
@@ -166,6 +169,7 @@ private func readEntryRowPreview() -> some View {
   context.insert(entry)
 
   return EntryRowView(entry: entry)
+    .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 380)
     .padding()

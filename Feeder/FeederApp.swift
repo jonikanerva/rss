@@ -19,11 +19,14 @@ struct FeederApp: App {
   private var classificationEngine = ClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
-  /// App-wide text size. Read here so the `.dynamicTypeSize(_:)` modifier
-  /// below the scene content reacts to changes from `SettingsView` (which
-  /// writes the same `@AppStorage` key) without any manual plumbing.
-  @AppStorage(appTextSizeUserDefaultsKey)
-  private var appTextSize: AppTextSize = .medium
+  /// App-wide font settings. `AppFontSettings` is `@Observable`, owns the
+  /// persisted `textSize`, and exposes every font alias the app renders.
+  /// Injected into both scenes via `.environment(fontSettings)` so any view
+  /// with `@Environment(AppFontSettings.self)` re-renders precisely the rows
+  /// that read a font when the user picks a new size — `ContentView`'s
+  /// `@State` (selection, focus, scroll anchor) stays intact.
+  @State
+  private var fontSettings = AppFontSettings()
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
@@ -57,15 +60,11 @@ struct FeederApp: App {
   }
 
   var body: some Scene {
-    // `.dynamicTypeSize(_:)` is a view modifier, not a scene modifier, so it
-    // must live inside each scene's content closure. The Settings scene does
-    // not inherit modifiers applied to the WindowGroup content, so both
-    // surfaces apply the binding independently.
     WindowGroup {
       bootstrapGate
         .environment(syncEngine)
         .environment(classificationEngine)
-        .dynamicTypeSize(appTextSize.dynamicTypeSize)
+        .environment(fontSettings)
     }
     .modelContainer(modelContainer)
     .commands { FeederCommands() }
@@ -74,8 +73,8 @@ struct FeederApp: App {
       SettingsView()
         .environment(syncEngine)
         .environment(classificationEngine)
+        .environment(fontSettings)
         .modelContainer(modelContainer)
-        .dynamicTypeSize(appTextSize.dynamicTypeSize)
     }
     .windowResizability(.contentSize)
   }

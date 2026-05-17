@@ -5,13 +5,15 @@ import SwiftUI
 struct FolderCompactRow: View {
   let displayName: String
   let onEdit: () -> Void
+  @Environment(AppFontSettings.self)
+  private var fontSettings
 
   var body: some View {
     HStack {
       Image(systemName: "folder")
         .foregroundStyle(.secondary)
       Text(displayName)
-        .font(FontTheme.bodyMedium)
+        .font(fontSettings.bodyMedium)
       Spacer()
       Button("Edit") {
         onEdit()
