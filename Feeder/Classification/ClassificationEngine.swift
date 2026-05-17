@@ -236,6 +236,31 @@ final class ClassificationEngine {
     )
   }
 
+  // MARK: - Preview / test seam
+
+  /// Seed the engine's observable state for SwiftUI previews. Production code
+  /// never calls this — keeping the seam on the engine itself avoids loosening
+  /// `private(set)` on the real fields. Mirrors only the surface the UI reads
+  /// for progress display (`isClassifying`, `progress`, `classifiedCount`,
+  /// `totalToClassify`).
+  ///
+  /// Not gated behind `#if DEBUG` for symmetry with `SyncEngine.applyPreviewState`:
+  /// the seam is reached from `EntryListView` preview helpers, whose enclosing
+  /// types still need to type-check in Release even though the `#Preview` body
+  /// is stripped. Keeping the function unconditionally available avoids a
+  /// Release-build failure without forcing every call site into `#if DEBUG`.
+  func applyPreviewState(
+    isClassifying: Bool = false,
+    progress: String = "",
+    classifiedCount: Int = 0,
+    totalToClassify: Int = 0
+  ) {
+    self.isClassifying = isClassifying
+    self.progress = progress
+    self.classifiedCount = classifiedCount
+    self.totalToClassify = totalToClassify
+  }
+
   // MARK: - Provider factory
 
   /// Resolve the configured classification provider from UserDefaults + Keychain.
