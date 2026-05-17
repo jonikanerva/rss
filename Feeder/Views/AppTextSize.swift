@@ -22,10 +22,10 @@ nonisolated let appTextSizeUserDefaultsKey = "app_text_size"
 /// scale multiplier here.
 ///
 /// **Why raw values start at 1 (not 0):** a missing `UserDefaults` integer
-/// reads back as `0`, which would otherwise collide with the first case and
-/// silently override the `.medium` `@AppStorage` default. Starting at `1`
-/// makes `AppTextSize(rawValue: 0) == nil`, so the `@AppStorage` default wins
-/// on a fresh install / cleared preferences.
+/// reads back as `0`, which would otherwise collide with the first case.
+/// Starting at `1` makes `AppTextSize(rawValue: 0) == nil`, so the
+/// `?? .medium` fallback in `AppFontSettings.init()` resolves a missing /
+/// invalid stored value to medium on a fresh install / cleared preferences.
 enum AppTextSize: Int, CaseIterable, Identifiable, Sendable {
   case small = 1
   case medium  // 2

@@ -52,12 +52,12 @@ final class AppFontSettings {
   private let userDefaults: UserDefaults
 
   /// Shipping init — reads the persisted value from `UserDefaults.standard`
-  /// so the first frame uses the user's previous choice. Match the
-  /// `@AppStorage` storage shape: a missing key reads back as `0` from
-  /// `UserDefaults.integer(forKey:)`. `AppTextSize(rawValue: 0) == nil` by
-  /// construction (the enum starts at `1`), so the `?? .medium` fallback
-  /// wins on a fresh install / cleared preferences — preserving the same
-  /// default the picker uses.
+  /// so the first frame uses the user's previous choice.
+  /// `UserDefaults.integer(forKey:)` returns `0` for a missing key, and
+  /// `AppTextSize(rawValue: 0) == nil` by construction (the enum starts at
+  /// `1`), so the `?? .medium` fallback below resolves missing / invalid
+  /// stored values to medium on a fresh install / cleared preferences —
+  /// preserving the same default the picker uses.
   convenience init() {
     let stored = UserDefaults.standard.integer(forKey: appTextSizeUserDefaultsKey)
     let resolved = AppTextSize(rawValue: stored) ?? .medium
