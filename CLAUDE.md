@@ -34,6 +34,7 @@ Run `make test-all` (`$VERIFY_CMD` in `docs/stack.md`) before every commit and P
 - `/implement` and `/codereview` are skills the team uses internally — `lead-dev` runs `/implement`, `qa-enforcer` runs `/codereview`.
 - Agent-teams require the experimental flag (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`) and Claude Code v2.1.32 or later.
 - Use Claude Code's `/plan` mode for upfront design questions.
+- **Follow-ups and deferred work** live as GitHub Issues with the `follow-up` label. Surface them via `gh issue list --label follow-up`. When planning or review discussions defer an item out of the current PR's scope, file a `follow-up` issue rather than leaving the decision in a PR comment or in-conversation note.
 
 ## Git Workflow
 
