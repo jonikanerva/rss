@@ -84,7 +84,6 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
     return ProviderClassificationResult(
       category: classification.category,
-      storyKey: classification.storyKey,
       confidence: classification.confidence
     )
   }
@@ -146,10 +145,9 @@ private struct OpenAIRequest: Encodable {
       type: "object",
       properties: [
         "category": PropertyDefinition(type: "string"),
-        "storyKey": PropertyDefinition(type: "string"),
         "confidence": PropertyDefinition(type: "number"),
       ],
-      required: ["category", "storyKey", "confidence"],
+      required: ["category", "confidence"],
       additionalProperties: false
     )
   }
@@ -178,6 +176,5 @@ private struct OpenAIResponse: Decodable {
 
 private struct OpenAIClassification: Decodable {
   let category: String
-  let storyKey: String
   let confidence: Double
 }

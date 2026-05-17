@@ -33,7 +33,6 @@ actor FakeClassificationProvider: ClassificationProvider {
   /// confidence gate inside `ClassificationRunner.runOneBatch`.
   private static let defaultResponse = ProviderClassificationResult(
     category: "tech",
-    storyKey: "fake-story",
     confidence: 1.0
   )
 

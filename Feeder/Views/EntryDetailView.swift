@@ -225,7 +225,7 @@ private struct ArticleWebContainer: View {
 
 // MARK: - Preview
 
-#Preview("Article Detail with Sources") {
+#Preview("Article Detail") {
   articleDetailPreview(fontSettings: AppFontSettings())
 }
 

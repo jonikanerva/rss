@@ -410,7 +410,6 @@ private func settingsSeededPreview() -> some View {
   entry.feed = feed
   entry.primaryCategory = "apple"
   entry.primaryFolder = "technology"
-  entry.storyKey = "apple-m5-ultra"
   context.insert(entry)
   try? context.save()
 
