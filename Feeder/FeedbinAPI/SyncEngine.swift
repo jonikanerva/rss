@@ -223,7 +223,7 @@ final class SyncEngine {
   /// inside its bootstrap task and injects it before `ContentView` renders.
   func configure(username: String, password: String) {
     self.client = FeedbinClient(username: username, password: password)
-    logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never").")
+    logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never", privacy: .private).")
   }
 
   /// Inject the pre-built `DataWriter` that this engine should delegate
@@ -368,7 +368,7 @@ final class SyncEngine {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 
-    logger.info("Fetching entries since \(since.description)")
+    logger.info("Fetching entries since \(since.description, privacy: .private)")
 
     var totalNew = 0
     var totalFetched = 0
