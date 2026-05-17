@@ -27,6 +27,12 @@ struct ContentView: View {
   /// defer the bump until the user's selection has been stable for this long
   /// (or selection clears) so the refresh lands at a quiet moment.
   fileprivate static let classificationBumpDwell: Duration = .seconds(4)
+  /// Shorter dwell for sync-page bumps. New entries persisted by a sync page
+  /// land at the top of the list via stable-ID diffing — `List` preserves the
+  /// scroll anchor around the selected row, so a near-immediate refresh stays
+  /// non-disruptive. The dwell still buys a small coalescing window so a
+  /// burst of pages collapses into one re-fetch instead of N.
+  fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -96,6 +102,12 @@ struct ContentView: View {
   /// or scrolls.
   @State
   private var pendingClassificationBump = false
+  /// Set true when a sync page lands and a mid-sync refresh is owed; drained
+  /// by a shorter-dwell sibling of `pendingClassificationBump` so newly-
+  /// persisted entries appear in the middle pane as pages arrive, without
+  /// waiting for the terminal `isSyncing` false-edge.
+  @State
+  private var pendingSyncBump = false
   @FocusState
   private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
@@ -240,12 +252,36 @@ struct ContentView: View {
         pendingClassificationBump = true
       }
     }
+    // Mid-flight refresh signals: bumped while the underlying job is still
+    // running. Sync bumps once per persisted page; classification bumps once
+    // per throttled (200 ms) progress snapshot. Both route into the deferred
+    // drain channel so a burst of bumps coalesces into a single
+    // `entryRefreshVersion` tick that `EntryListView.task(id:)` consumes —
+    // selection and scroll position are preserved by `List`'s stable-ID
+    // diffing in `EntryListView.reload()`.
     .modifier(
-      ClassificationBumpDrainTrigger(
+      MidFlightBumpRouter(
+        syncPageVersion: syncEngine.lastPersistedPageVersion,
+        classificationBatchVersion: classificationEngine.batchProgressVersion,
+        pendingSyncBump: $pendingSyncBump,
+        pendingClassificationBump: $pendingClassificationBump
+      )
+    )
+    .modifier(
+      DeferredBumpDrainTrigger(
         key: classificationBumpDrainKey,
         dwell: Self.classificationBumpDwell,
         hasSelection: selectedEntry != nil,
         pendingBump: $pendingClassificationBump,
+        onDrain: { bumpEntryList() }
+      )
+    )
+    .modifier(
+      DeferredBumpDrainTrigger(
+        key: syncBumpDrainKey,
+        dwell: Self.syncBumpDwell,
+        hasSelection: selectedEntry != nil,
+        pendingBump: $pendingSyncBump,
         onDrain: { bumpEntryList() }
       )
     )
@@ -418,6 +454,13 @@ struct ContentView: View {
   /// ⇒ pick up the newly-owed bump.
   private var classificationBumpDrainKey: String {
     "\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingClassificationBump)"
+  }
+
+  /// Sibling of `classificationBumpDrainKey` for the sync-page drain. Re-keys
+  /// on the same inputs so a selection move resets the dwell window and the
+  /// pending flag transition both starts and clears the dwell task.
+  private var syncBumpDrainKey: String {
+    "sync|\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingSyncBump)"
   }
 
   /// Tab from sidebar into the article-list column. No-ops entirely during

@@ -161,7 +161,38 @@ struct SyncEngineTests {
     #expect(engine.isSyncing == false)
   }
 
-  // MARK: - 4. Queued read IDs are flushed during sync
+  // MARK: - 4. Mid-flight page bumps drive the live-refresh signal
+
+  /// `ContentView` listens to `lastPersistedPageVersion` to refresh the
+  /// middle pane while a sync is still in flight. Without a per-page bump
+  /// the article list only updates on the terminal `isSyncing` false-edge,
+  /// so entries persisted by earlier pages stay hidden until the whole
+  /// sync finishes. This test drives the engine through a three-page
+  /// response and asserts the counter advances once per persisted page.
+  @Test
+  func lastPersistedPageVersionBumpsPerPage() async throws {
+    let client = FakeFeedbinClient()
+    let subscription = try FeedbinFixtures.subscription(id: 1, feedId: 100)
+    let pages = [
+      FeedbinFixtures.entriesPage([try FeedbinFixtures.entry(id: 2001)]),
+      FeedbinFixtures.entriesPage([try FeedbinFixtures.entry(id: 2002, title: "Page 2")]),
+      FeedbinFixtures.entriesPage([try FeedbinFixtures.entry(id: 2003, title: "Page 3")]),
+    ]
+    await client.setSubscriptionsResponse([subscription])
+    await client.setEntryPagesResponse(pages)
+    await client.setUnreadIDsResponse([2001, 2002, 2003])
+
+    let (engine, _) = try await makeEngine(with: client)
+    let baseline = engine.lastPersistedPageVersion
+
+    await engine.sync()
+
+    let bumps = engine.lastPersistedPageVersion - baseline
+    #expect(bumps == pages.count, "Expected one bump per persisted page; got \(bumps)")
+    #expect(engine.isSyncing == false)
+  }
+
+  // MARK: - 5. Queued read IDs are flushed during sync
 
   @Test
   func markReadFlushesIDsOnSync() async throws {
