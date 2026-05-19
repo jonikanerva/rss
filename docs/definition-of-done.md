@@ -45,7 +45,8 @@ For every user-visible surface that the change touches, the following states are
 
 ## Persistence
 
-- [ ] `currentSchemaVersion` in `FeederApp.swift` bumped if the schema changed (`stack.md` → Persistence shape).
+- [ ] If the schema changed: a new `VersionedSchema` is added, `FeederMigrationPlan.schemas` and `.stages` updated, and a migration stage (lightweight or custom) connects it to the previous version (`stack.md` → Persistence shape).
+- [ ] If the change touches inputs to denormalized display fields (`plainText`, `formattedDate`, `formattedPublishedTime`, `primaryCategory`, `primaryFolder`, `displayDomain`, `summaryPlainText`, `articleBlocksData`): the migration stage is `.custom` and recomputes those fields in `willMigrate` / `didMigrate`.
 
 ## Code hygiene
 

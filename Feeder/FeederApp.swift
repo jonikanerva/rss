@@ -5,10 +5,6 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
-/// Bump this when the SwiftData schema changes. On mismatch, articles
-/// and feeds are deleted (categories preserved) and a fresh sync runs.
-private let currentSchemaVersion = 16
-
 @main
 struct FeederApp: App {
   let modelContainer: ModelContainer
@@ -33,26 +29,37 @@ struct FeederApp: App {
     let useInMemoryStore =
       processEnvironment["UITEST_IN_MEMORY_STORE"] == "1" || processEnvironment["UITEST_DEMO_MODE"] == "1"
 
-    let schema = Schema([
-      Feed.self,
-      Entry.self,
-      Category.self,
-      Folder.self,
-    ])
-    let config = ModelConfiguration("Feeder", isStoredInMemoryOnly: useInMemoryStore)
+    // `Schema(versionedSchema:)` resolves the `@Model` types and version
+    // identifier `FeederSchemaV1` advertises; the resulting `Schema` is
+    // what `ModelContainer` accepts alongside the migration plan.
+    let schema = Schema(versionedSchema: FeederSchemaV1.self)
+    let config = ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: useInMemoryStore)
 
-    // If the store can't be opened (schema incompatible), delete it and retry.
-    // This is the only place we still do a synchronous `ModelContainer` open
-    // on MainActor — `DataWriter.bootstrap()` handles everything past this
-    // line on the background actor.
+    // SwiftData opens the store against `FeederSchemaV1` and applies any
+    // stages declared in `FeederMigrationPlan` — so a future V2 lands as
+    // a lightweight or custom stage rather than a destructive wipe. The
+    // fallback below survives non-schema corruption only (unreadable
+    // store file, locked WAL, etc.). This is the only place we still do
+    // a synchronous `ModelContainer` open on MainActor — `DataWriter.bootstrap()`
+    // handles everything past this line on the background actor.
     do {
-      modelContainer = try ModelContainer(for: schema, configurations: [config])
+      modelContainer = try ModelContainer(
+        for: schema,
+        migrationPlan: FeederMigrationPlan.self,
+        configurations: config
+      )
     } catch {
-      logger.error("ModelContainer failed: \(error.localizedDescription). Deleting store and retrying.")
+      logger.error(
+        "ModelContainer failed: \(error.localizedDescription, privacy: .private). Deleting store and retrying."
+      )
       Self.deleteStoreFiles()
       UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
       do {
-        modelContainer = try ModelContainer(for: schema, configurations: [config])
+        modelContainer = try ModelContainer(
+          for: schema,
+          migrationPlan: FeederMigrationPlan.self,
+          configurations: config
+        )
       } catch {
         fatalError("Failed to create ModelContainer after reset: \(error)")
       }
@@ -127,19 +134,22 @@ struct FeederApp: App {
   /// Run the single bootstrap entry point on the `DataWriter` background
   /// actor. Constructs the writer via the shared `makeDetached` helper,
   /// runs `bootstrap()`, then injects the writer into `SyncEngine` so the
-  /// rest of the app can use it.
+  /// rest of the app can use it. Schema migration itself runs inside the
+  /// `ModelContainer` open in `init` — bootstrap only seeds taxonomy on
+  /// a freshly-created store, so the data layer can survive a schema
+  /// bump without losing folders, categories, or classified entries.
   private func runBootstrap() async {
     let writer = await DataWriter.makeDetached(modelContainer: modelContainer)
     do {
-      let outcome = try await writer.bootstrap(currentSchemaVersion: currentSchemaVersion)
+      let outcome = try await writer.bootstrap()
       let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
       logger.info(
-        "Startup: schema v\(currentSchemaVersion), action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
+        "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
       syncEngine.attachWriter(writer)
       bootstrapPhase = .ready
     } catch {
-      logger.error("Bootstrap failed: \(error.localizedDescription)")
+      logger.error("Bootstrap failed: \(error.localizedDescription, privacy: .private)")
       bootstrapPhase = .failed(error.localizedDescription)
     }
   }

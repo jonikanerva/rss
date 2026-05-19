@@ -5,13 +5,14 @@ import SwiftData
 // MARK: - Bootstrap
 
 /// Outcome of `DataWriter.bootstrap()`. Reported by the caller for startup
-/// telemetry. The action discriminates the three legitimate startup paths:
-/// no-op, first-launch seed, schema-bump reset.
+/// telemetry. The action discriminates the two legitimate startup paths:
+/// steady-state no-op and first-launch seed of the default taxonomy.
+/// Schema migration itself runs inside the `ModelContainer` open via the
+/// `FeederMigrationPlan`, not through bootstrap.
 nonisolated struct BootstrapOutcome: Sendable, Equatable {
   enum Action: Sendable, Equatable {
     case skipped
     case seeded
-    case reset(deletedEntries: Int)
   }
   let action: Action
   let feedCount: Int
@@ -73,12 +74,6 @@ actor DataWriter: ModelActor {
 
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
-  /// UserDefaults key tracking the schema version the persistent store was
-  /// last opened with. Lives here because production writes go through
-  /// `bootstrap()`. `internal` (default) visibility so tests can read the
-  /// same key without duplicating the magic string.
-  static let schemaVersionKey = "feeder_schema_version"
-
   // MARK: - Bootstrap
 
   /// Construct a `DataWriter` on a detached background task. Single helper
@@ -91,116 +86,33 @@ actor DataWriter: ModelActor {
     }.value
   }
 
-  /// Resolve the `UserDefaults` instance to use for bootstrap reads/writes.
-  /// `nil` → `.standard` (production); a non-nil suite name → an isolated
-  /// suite, falling back to `.standard` if the OS refuses to create it
-  /// (defensive — `UserDefaults(suiteName:)` is non-failing on macOS in
-  /// practice, but the API is `Optional`). Resolving inside the actor keeps
-  /// the non-Sendable `UserDefaults` reference from crossing isolation
-  /// domains.
-  private static func resolveUserDefaults(suiteName: String?) -> UserDefaults {
-    guard let suiteName else { return .standard }
-    return UserDefaults(suiteName: suiteName) ?? .standard
-  }
-
   /// Reconcile the persistent store on launch.
   ///
-  /// Four legitimate paths:
-  /// - Schema version matches and categories exist → `.skipped` (steady state).
-  /// - Schema version matches but categories table is empty → `.seeded`
-  ///   (first launch or post-reset re-entry).
-  /// - Schema version key missing **but data already present** → treat as
-  ///   recovery: restore the key without touching the store. Keeps test
-  ///   suites (or any future caller that strips the key) from triggering a
-  ///   destructive wipe of real user data.
-  /// - Schema version differs and no recovery applied → wipe all entries /
-  ///   feeds / categories / folders, re-seed defaults, clear `lastSyncDate`,
-  ///   persist the new schema version → `.reset`.
+  /// Two legitimate paths:
+  /// - Categories table empty → seed default folders + categories + the
+  ///   system `uncategorized` fallback → `.seeded` (first launch on a
+  ///   brand-new store).
+  /// - Categories table populated → `.skipped` (steady state).
   ///
-  /// Single entry point for startup writes — restores compliance with
-  /// `swift-code-rules.md` § Two-Layer Architecture by keeping `ModelContext`
-  /// off the MainActor.
+  /// The old "schema version bump → wipe everything" branch is gone.
+  /// SwiftData migrates the store inside the `ModelContainer` open via
+  /// `FeederMigrationPlan`, so a schema change preserves folders,
+  /// categories, classifications, and per-entry denormalized fields. See
+  /// `docs/stack.md` → Persistence shape.
   ///
-  /// `userDefaultsSuiteName` is the `UserDefaults(suiteName:)` name to use
-  /// for the schema-version / `lastSyncDate` reads + writes. `nil` (the
-  /// production default) means `UserDefaults.standard`. Tests inject a
-  /// per-suite name so they cannot pollute the developer's preferences and
-  /// one test cannot trample another's `feeder_schema_version` write. The
-  /// parameter is `String?` (Sendable) instead of `UserDefaults` (not
-  /// Sendable) to satisfy Swift 6 strict concurrency when the actor's
-  /// non-MainActor isolation domain calls into it — see
-  /// `swift-code-rules.md` → "No unsafe escape hatches".
-  func bootstrap(
-    currentSchemaVersion: Int,
-    userDefaultsSuiteName: String? = nil
-  ) throws -> BootstrapOutcome {
-    let userDefaults = Self.resolveUserDefaults(suiteName: userDefaultsSuiteName)
-    let stored = userDefaults.integer(forKey: Self.schemaVersionKey)
+  /// Single entry point for startup writes — keeps `ModelContext` off the
+  /// MainActor per `swift-code-rules.md` § Two-Layer Architecture.
+  func bootstrap() throws -> BootstrapOutcome {
+    let preexistingCategoryCount = try modelContext.fetchCount(FetchDescriptor<Category>())
     let action: BootstrapOutcome.Action
 
-    // Defense-in-depth: if the schema-version key is missing (reads as 0)
-    // but the store already holds real user data, do NOT take the destructive
-    // reset path. Restore the key in place and continue as `.skipped` /
-    // `.seeded`. Without this, a stray `removeObject(forKey:)` (the bug this
-    // PR's test-isolation fix addresses) could wipe entries, feeds, and
-    // user-created taxonomy on the very next launch.
-    let preexistingCategoryCount = try modelContext.fetchCount(FetchDescriptor<Category>())
-    let preexistingEntryCount = try modelContext.fetchCount(FetchDescriptor<Entry>())
-    let recovering =
-      stored == 0
-      && currentSchemaVersion != 0
-      && (preexistingCategoryCount > 0 || preexistingEntryCount > 0)
-
-    if recovering {
-      Self.logger.info(
-        "Recovery: schema key missing but data present (categories=\(preexistingCategoryCount), entries=\(preexistingEntryCount)); restoring key v\(currentSchemaVersion) without wipe."
-      )
-      userDefaults.set(currentSchemaVersion, forKey: Self.schemaVersionKey)
-      action = preexistingCategoryCount == 0 ? .seeded : .skipped
-      if action == .seeded {
-        try seedDefaultTaxonomy()
-        try modelContext.save()
-      }
-    } else if stored != currentSchemaVersion {
-      let deletedCount = try modelContext.fetchCount(FetchDescriptor<Entry>())
-      Self.logger.info("Schema version changed (\(stored) → \(currentSchemaVersion)). Clearing all data.")
-      // Feed → entries is `@Relationship(deleteRule: .cascade)`, so deleting
-      // Feed automatically cascades to its entries. Going Feed-first avoids
-      // the batch-delete constraint conflict (NSCocoaError 134050) that
-      // arises when Entry and Feed are batched in separate passes —
-      // SwiftData can't reconcile the OTO-nullify inverse on `Entry.feed`
-      // against the cascade rule mid-batch.
-      try modelContext.delete(model: Feed.self)
-      try modelContext.save()
-      // Defensive: sweep any orphan entries that weren't linked to a feed.
-      // `persistEntries` always links new rows to their Feed, so in practice
-      // this is a no-op — kept so a bug elsewhere can't leave stray rows
-      // behind across a schema bump.
-      try modelContext.delete(model: Entry.self)
-      try modelContext.delete(model: Category.self)
-      try modelContext.delete(model: Folder.self)
-      try modelContext.save()
+    if preexistingCategoryCount == 0 {
       try seedDefaultTaxonomy()
       try modelContext.save()
-      userDefaults.removeObject(forKey: lastSyncDateUserDefaultsKey)
-      action = .reset(deletedEntries: deletedCount)
-      Self.logger.info("All data cleared, defaults re-seeded.")
+      action = .seeded
     } else {
-      if preexistingCategoryCount == 0 {
-        try seedDefaultTaxonomy()
-        try modelContext.save()
-        action = .seeded
-      } else {
-        action = .skipped
-      }
+      action = .skipped
     }
-
-    // Idempotent persistence: every successful bootstrap path writes the
-    // current schema version, not just `.reset`. This is the defense-in-depth
-    // counterpart to the recovery branch above — if the key ever falls out
-    // of sync with the data (test pollution, manual edit, defaults reset),
-    // the next bootstrap restores it without touching user data.
-    userDefaults.set(currentSchemaVersion, forKey: Self.schemaVersionKey)
 
     return BootstrapOutcome(
       action: action,
