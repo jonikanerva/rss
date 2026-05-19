@@ -30,6 +30,11 @@ struct CategoryManagementView: View {
   private var showNewCategorySheet = false
   @State
   private var showNewFolderSheet = false
+  /// Tracks which folder row is selected in the management list. Selection
+  /// activates the row's context-menu keyboard shortcuts (Cmd+[ / Cmd+]) so
+  /// the user can reorder folders without reaching for the mouse.
+  @State
+  private var selectedFolderLabel: String?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -75,11 +80,18 @@ struct CategoryManagementView: View {
   /// `.onMove` on each folder reorders that folder's children in place;
   /// cross-folder moves use the row context menu. The system category gets
   /// `.moveDisabled(true)` so "uncategorized" never drifts out of place.
+  ///
+  /// The list carries a `selection` binding for the focused folder row. That
+  /// selection activates the folder context-menu shortcuts (Cmd+[ / Cmd+]),
+  /// satisfying the keyboard-navigation mandate alongside the drag affordance.
   @ViewBuilder
   private var categoryList: some View {
-    List {
+    List(selection: $selectedFolderLabel) {
       ForEach(folders) { folder in
         folderSection(folder: folder)
+      }
+      .onMove { indices, newOffset in
+        reorderFolders(source: indices, destination: newOffset)
       }
       rootSection
     }
@@ -89,7 +101,7 @@ struct CategoryManagementView: View {
   private func folderSection(folder: Folder) -> some View {
     let children = allCategories.inFolder(folder.label)
     Section {
-      FolderCompactRow(displayName: folder.displayName, onEdit: { editingFolder = folder })
+      folderHeaderRow(folder: folder)
       ForEach(children, id: \.persistentModelID) { child in
         categoryRow(child, depth: 1)
       }
@@ -97,6 +109,51 @@ struct CategoryManagementView: View {
         reorder(children: children, inFolder: folder.label, source: indices, destination: newOffset)
       }
     }
+  }
+
+  /// Folder header row. Tagged so `List(selection:)` can drive the
+  /// keyboard-shortcut buttons in the context menu, and given an accessibility
+  /// label that announces the row's current position to VoiceOver.
+  @ViewBuilder
+  private func folderHeaderRow(folder: Folder) -> some View {
+    let position = folderPosition(of: folder.label)
+    FolderCompactRow(displayName: folder.displayName, onEdit: { editingFolder = folder })
+      .tag(folder.label)
+      .accessibilityLabel("Folder \(folder.displayName)")
+      .accessibilityValue("position \(position) of \(folders.count)")
+      .contextMenu {
+        folderReorderMenu(for: folder)
+      }
+  }
+
+  /// Move Up / Move Down / Move to Top / Move to Bottom buttons. Cmd+[ and
+  /// Cmd+] are attached to the directional moves so the shortcuts surface in
+  /// the row's context menu — discoverable per `app-rules.md` § Keyboard
+  /// Navigation. Move-to-Top / Move-to-Bottom have no shortcut by design
+  /// (matches Finder's Edit > Move convention).
+  @ViewBuilder
+  private func folderReorderMenu(for folder: Folder) -> some View {
+    let canMoveUp = canMoveFolderUp(label: folder.label)
+    let canMoveDown = canMoveFolderDown(label: folder.label)
+    Button("Move Up") {
+      moveFolder(label: folder.label, direction: .up)
+    }
+    .keyboardShortcut("[", modifiers: .command)
+    .disabled(!canMoveUp)
+    Button("Move Down") {
+      moveFolder(label: folder.label, direction: .down)
+    }
+    .keyboardShortcut("]", modifiers: .command)
+    .disabled(!canMoveDown)
+    Divider()
+    Button("Move to Top") {
+      moveFolder(label: folder.label, direction: .top)
+    }
+    .disabled(!canMoveUp)
+    Button("Move to Bottom") {
+      moveFolder(label: folder.label, direction: .bottom)
+    }
+    .disabled(!canMoveDown)
   }
 
   @ViewBuilder
@@ -201,6 +258,89 @@ struct CategoryManagementView: View {
     }
   }
 
+  /// Apply a SwiftUI `.onMove` index shuffle to the top-level folder list.
+  /// Mirrors `reorder(children:inFolder:source:destination:)` but ships the
+  /// folder label order instead of the category label order.
+  private func reorderFolders(source: IndexSet, destination: Int) {
+    guard let movedLabel = source.first.flatMap({ folders.indices.contains($0) ? folders[$0].label : nil })
+    else { return }
+    var labels = folders.map(\.label)
+    labels.move(fromOffsets: source, toOffset: destination)
+    persistFolderOrder(labels)
+    announceFolderMoveInOrder(label: movedLabel, in: labels)
+  }
+
+  private enum FolderMoveDirection {
+    case up
+    case down
+    case top
+    case bottom
+  }
+
+  /// Keyboard / context-menu folder move. Builds the resulting label order
+  /// locally, then hands the `[String]` order to `DataWriter`. Selection is
+  /// kept on the moved row so subsequent keyboard moves chain naturally.
+  private func moveFolder(label: String, direction: FolderMoveDirection) {
+    guard let currentIndex = folders.firstIndex(where: { $0.label == label }) else { return }
+    var labels = folders.map(\.label)
+    switch direction {
+    case .up:
+      guard currentIndex > 0 else { return }
+      labels.swapAt(currentIndex, currentIndex - 1)
+    case .down:
+      guard currentIndex < labels.count - 1 else { return }
+      labels.swapAt(currentIndex, currentIndex + 1)
+    case .top:
+      guard currentIndex > 0 else { return }
+      labels.remove(at: currentIndex)
+      labels.insert(label, at: 0)
+    case .bottom:
+      guard currentIndex < labels.count - 1 else { return }
+      labels.remove(at: currentIndex)
+      labels.append(label)
+    }
+    persistFolderOrder(labels)
+    selectedFolderLabel = label
+    announceFolderMoveInOrder(label: label, in: labels)
+  }
+
+  /// Ship a label order across the actor boundary. Logging is delegated to
+  /// `DataWriter`; the UI side stays fire-and-forget like the existing
+  /// category reorder path.
+  private func persistFolderOrder(_ orderedLabels: [String]) {
+    guard let writer = syncEngine.writer else { return }
+    Task {
+      try? await writer.reorderFolders(orderedLabels: orderedLabels)
+    }
+  }
+
+  /// Post a VoiceOver announcement so screen-reader users hear the new
+  /// position immediately after a programmatic move. Reads the new position
+  /// from the locally-computed label order — the `@Query`-backed `folders`
+  /// array only refreshes after the write round-trips through SwiftData.
+  private func announceFolderMoveInOrder(label: String, in orderedLabels: [String]) {
+    guard let folder = folders.first(where: { $0.label == label }),
+      let newIndex = orderedLabels.firstIndex(of: label)
+    else { return }
+    let message = "Folder \(folder.displayName), moved to position \(newIndex + 1) of \(orderedLabels.count)"
+    AccessibilityNotification.Announcement(message).post()
+  }
+
+  /// 1-indexed position of a folder for accessibility strings.
+  private func folderPosition(of label: String) -> Int {
+    (folders.firstIndex(where: { $0.label == label }) ?? 0) + 1
+  }
+
+  private func canMoveFolderUp(label: String) -> Bool {
+    guard let index = folders.firstIndex(where: { $0.label == label }) else { return false }
+    return index > 0
+  }
+
+  private func canMoveFolderDown(label: String) -> Bool {
+    guard let index = folders.firstIndex(where: { $0.label == label }) else { return false }
+    return index < folders.count - 1
+  }
+
   /// Move a category between folders (or to root) via the context menu. The
   /// new sortOrder appends past the existing peers in the target — matching
   /// what `CategoryEditSheet.save()` does.
@@ -227,6 +367,10 @@ struct CategoryManagementView: View {
 
 #Preview("Category Management - Empty") {
   categoryManagementEmptyPreview()
+}
+
+#Preview("Category Management - Multiple Folders") {
+  categoryManagementMultipleFoldersPreview()
 }
 
 @MainActor
@@ -260,6 +404,43 @@ private func categoryManagementPreview() -> some View {
 @MainActor
 private func categoryManagementEmptyPreview() -> some View {
   let container = PreviewSupport.makeContainer()
+
+  return CategoryManagementView()
+    .environment(ClassificationEngine())
+    .environment(SyncEngine())
+    .environment(AppFontSettings())
+    .modelContainer(container)
+    .frame(width: 480, height: 500)
+}
+
+/// Exercises the reorder UI states: multiple folders so Move Up / Down can be
+/// enabled or disabled depending on which row is selected (top, middle,
+/// bottom).
+@MainActor
+private func categoryManagementMultipleFoldersPreview() -> some View {
+  let container = PreviewSupport.makeContainer()
+  let context = container.mainContext
+
+  let tech = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
+  let gaming = Folder(label: "gaming", displayName: "Gaming", sortOrder: 1)
+  let science = Folder(label: "science", displayName: "Science", sortOrder: 2)
+  context.insert(tech)
+  context.insert(gaming)
+  context.insert(science)
+
+  let apple = Category(
+    label: "apple", displayName: "Apple", categoryDescription: "Apple company news.", sortOrder: 0,
+    folderLabel: "technology")
+  let ps5 = Category(
+    label: "ps5", displayName: "PlayStation 5", categoryDescription: "PS5 news.", sortOrder: 0,
+    folderLabel: "gaming")
+  let space = Category(
+    label: "space", displayName: "Space", categoryDescription: "Space science.", sortOrder: 0,
+    folderLabel: "science")
+  context.insert(apple)
+  context.insert(ps5)
+  context.insert(space)
+  try? context.save()
 
   return CategoryManagementView()
     .environment(ClassificationEngine())

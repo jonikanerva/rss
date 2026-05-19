@@ -320,4 +320,74 @@ struct DataWriterCategoryTests {
     #expect(uncatOrder == Int.max)
     #expect(worldOrder == 1)
   }
+
+  // MARK: - reorderFolders
+
+  @Test
+  func reorderFoldersUpdatesSortOrdersToMatchInput() async throws {
+    let writer = try await makeWriter()
+    try await writer.addFolder(label: "technology", displayName: "Technology", sortOrder: 0)
+    try await writer.addFolder(label: "gaming", displayName: "Gaming", sortOrder: 1)
+    try await writer.addFolder(label: "science", displayName: "Science", sortOrder: 2)
+
+    // Move "science" to the top, push the others down.
+    try await writer.reorderFolders(
+      orderedLabels: ["science", "technology", "gaming"]
+    )
+
+    let scienceOrder = try await writer.fetchFolderSortOrder(label: "science")
+    let techOrder = try await writer.fetchFolderSortOrder(label: "technology")
+    let gamingOrder = try await writer.fetchFolderSortOrder(label: "gaming")
+    #expect(scienceOrder == 0)
+    #expect(techOrder == 1)
+    #expect(gamingOrder == 2)
+  }
+
+  @Test
+  func reorderFoldersWithSingleFolderIsNoOp() async throws {
+    let writer = try await makeWriter()
+    try await writer.addFolder(label: "technology", displayName: "Technology", sortOrder: 0)
+
+    try await writer.reorderFolders(orderedLabels: ["technology"])
+
+    let order = try await writer.fetchFolderSortOrder(label: "technology")
+    #expect(order == 0)
+  }
+
+  @Test
+  func reorderFoldersSkipsUnknownLabelsGracefully() async throws {
+    let writer = try await makeWriter()
+    try await writer.addFolder(label: "technology", displayName: "Technology", sortOrder: 0)
+    try await writer.addFolder(label: "gaming", displayName: "Gaming", sortOrder: 1)
+
+    // "ghost" does not exist — its slot must not break the index assignment
+    // for the real folders that follow.
+    try await writer.reorderFolders(
+      orderedLabels: ["ghost", "gaming", "technology"]
+    )
+
+    let gamingOrder = try await writer.fetchFolderSortOrder(label: "gaming")
+    let techOrder = try await writer.fetchFolderSortOrder(label: "technology")
+    // gaming was at index 1 in the input, technology at index 2.
+    #expect(gamingOrder == 1)
+    #expect(techOrder == 2)
+  }
+
+  @Test
+  func reorderFoldersIsCaseSensitiveOnLabels() async throws {
+    let writer = try await makeWriter()
+    try await writer.addFolder(label: "technology", displayName: "Technology", sortOrder: 0)
+    try await writer.addFolder(label: "gaming", displayName: "Gaming", sortOrder: 1)
+
+    // Mixed-case input does not match canonical labels — the writer must
+    // treat the request as unknown labels and leave existing orders intact.
+    try await writer.reorderFolders(
+      orderedLabels: ["Technology", "GAMING"]
+    )
+
+    let techOrder = try await writer.fetchFolderSortOrder(label: "technology")
+    let gamingOrder = try await writer.fetchFolderSortOrder(label: "gaming")
+    #expect(techOrder == 0)
+    #expect(gamingOrder == 1)
+  }
 }
