@@ -232,6 +232,17 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
+    // Keep `pendingReadIDs` aligned with the live SQLite-side unread snapshot:
+    // when a background write (mark-read / mark-all-read / sync) flips
+    // entries out of `unreadEntries`, drop their IDs from the optimistic
+    // overlay so the set does not grow unbounded across a long session and
+    // does not mask a future cross-device unread flip on the same ID.
+    .modifier(
+      PendingReadPruneTrigger(
+        unreadCount: unreadEntries.count,
+        onUnreadCountChange: { prunePendingReadIDs() }
+      )
+    )
     // Refresh the article list (re-fires `EntryListView.task`) whenever
     // underlying article data may have changed. Replaces SwiftData's
     // `@Query` auto-refresh now that the list is fetched off MainActor.
@@ -504,7 +515,6 @@ struct ContentView: View {
   private func flushPendingReads() {
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return }
-    pendingReadIDs.removeAll()
     syncEngine.queueReadIDs(ids)
     Task {
       guard let writer = syncEngine.writer else { return }
@@ -512,8 +522,25 @@ struct ContentView: View {
       // Locally mutating isRead invalidates the article-list snapshot — refetch
       // so unread filter shrinks. Without this, scrubbed-past entries linger
       // (only dimmed via pendingReadIDs) until the next sync/classification.
+      // The matching pendingReadIDs are pruned by `prunePendingReadIDs()` once
+      // the MainActor `@Query` observes the background save — see the
+      // `PendingReadPruneTrigger` modifier on `body`. Draining eagerly here
+      // would race the auto-merge and could briefly bump the sidebar counts
+      // back up.
       bumpEntryList()
     }
+  }
+
+  /// Prune the optimistic-read set down to IDs that still appear in the
+  /// MainActor `unreadEntries` snapshot. Called whenever the snapshot
+  /// changes — typically right after a `DataWriter` save propagates via
+  /// SwiftData's auto-merge. IDs whose corresponding `Entry.isRead` has
+  /// just flipped to `true` (or whose entry was deleted) fall out here;
+  /// the sidebar's pending-aware aggregation then sees no double-counting.
+  private func prunePendingReadIDs() {
+    guard !pendingReadIDs.isEmpty else { return }
+    let currentUnreadIDs = Set(unreadEntries.map(\.feedbinEntryID))
+    pendingReadIDs.formIntersection(currentUnreadIDs)
   }
 
   private func markAllAsRead() {
@@ -526,19 +553,37 @@ struct ContentView: View {
     else { return }
     selectedEntry = nil
     let markTarget: MarkReadTarget
+    let optimisticIDs: Set<Int>
+    // Compute the optimistic set on MainActor from the already-loaded
+    // `unreadEntries` snapshot so the sidebar can drop to zero in the same
+    // frame the article list empties — without waiting for the background
+    // writer to commit and the MainActor `@Query` to observe the change.
+    // Bounded by unread inventory (the `@Query` already filters at SQLite
+    // level), so this filter is the same shape as the existing aggregation.
     switch target {
-    case .folder(let label): markTarget = .folder(label)
-    case .category(let label): markTarget = .category(label)
+    case .folder(let label):
+      markTarget = .folder(label)
+      optimisticIDs = Set(
+        unreadEntries.lazy.filter { $0.primaryFolder == label }.map(\.feedbinEntryID)
+      )
+    case .category(let label):
+      markTarget = .category(label)
+      optimisticIDs = Set(
+        unreadEntries.lazy.filter { $0.primaryCategory == label }.map(\.feedbinEntryID)
+      )
     }
+    pendingReadIDs.formUnion(optimisticIDs)
     Task {
       let markedIDs = try? await writer.markAllAsRead(
         target: markTarget, cutoffDate: syncEngine.queryCutoffDate
       )
+      // Same rationale as flushPendingReads — refetch so the now-empty unread
+      // list (or remaining unread items) appears immediately. The matching
+      // pendingReadIDs are pruned by `prunePendingReadIDs()` once the
+      // MainActor `@Query` observes the background save.
+      bumpEntryList()
       guard let ids = markedIDs, !ids.isEmpty else { return }
       syncEngine.queueReadIDs(ids)
-      // Same rationale as flushPendingReads — refetch so the now-empty unread
-      // list (or remaining unread items) appears immediately.
-      bumpEntryList()
     }
   }
 
@@ -566,8 +611,23 @@ struct ContentView: View {
     // every access, and SwiftUI accesses it once per row inside `ForEach`
     // closures. Local `let`s in the body run once per body evaluation and the
     // dictionaries are then passed by reference into the row builders.
-    let categoryUnreadCounts = unreadCounts(in: unreadEntries.map(\.primaryCategory))
-    let folderUnreadCounts = unreadCounts(in: unreadEntries.map(\.primaryFolder))
+    //
+    // `pendingReadIDs` is the optimistic-read overlay that already drives the
+    // dimmed state in `EntryRowView`. Subtracting it from the sidebar counts
+    // here keeps the badges in step with the article list in the same frame
+    // — no need to flip `isRead` eagerly and defeat the flush debounce.
+    let categoryUnreadCounts = unreadCounts(
+      in: unreadEntries.map {
+        UnreadCountInput(label: $0.primaryCategory, feedbinEntryID: $0.feedbinEntryID)
+      },
+      excludingFeedbinEntryIDs: pendingReadIDs
+    )
+    let folderUnreadCounts = unreadCounts(
+      in: unreadEntries.map {
+        UnreadCountInput(label: $0.primaryFolder, feedbinEntryID: $0.feedbinEntryID)
+      },
+      excludingFeedbinEntryIDs: pendingReadIDs
+    )
     let groups = visibleFolderGroups
 
     List(selection: $selection) {

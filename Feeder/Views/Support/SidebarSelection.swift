@@ -112,3 +112,21 @@ struct DeferredBumpDrainTrigger: ViewModifier {
     }
   }
 }
+
+/// Fires `onUnreadCountChange` whenever the MainActor `@Query` unread snapshot
+/// size changes — typically right after a `DataWriter` save (mark-read /
+/// mark-all-read / sync) propagates via SwiftData's auto-merge. The owner
+/// uses this hook to prune its optimistic `pendingReadIDs` overlay back
+/// down to the IDs still present in the live unread set. Extracted into a
+/// modifier so the prune `.onChange` stays out of `ContentView.body` and
+/// the body keeps type-checking inside SwiftUI's reasonable-time limit.
+struct PendingReadPruneTrigger: ViewModifier {
+  let unreadCount: Int
+  let onUnreadCountChange: () -> Void
+
+  func body(content: Content) -> some View {
+    content.onChange(of: unreadCount) {
+      onUnreadCountChange()
+    }
+  }
+}
