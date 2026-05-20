@@ -660,6 +660,29 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  func fetchFolderSortOrder(label: String) throws -> Int? {
+    let descriptor = FetchDescriptor<Folder>(
+      predicate: #Predicate<Folder> { $0.label == label }
+    )
+    return try modelContext.fetch(descriptor).first?.sortOrder
+  }
+
+  /// Re-assign `sortOrder` for top-level folders to match the position of each
+  /// label in `orderedLabels`. Labels not present in the store are silently
+  /// skipped — this matches `reorderCategories` and keeps the writer tolerant
+  /// of a stale UI snapshot. `[String]` is `Sendable`; no `Folder` objects
+  /// cross the actor boundary.
+  func reorderFolders(orderedLabels: [String]) throws {
+    for (index, label) in orderedLabels.enumerated() {
+      let descriptor = FetchDescriptor<Folder>(
+        predicate: #Predicate<Folder> { $0.label == label }
+      )
+      guard let folder = try modelContext.fetch(descriptor).first else { continue }
+      folder.sortOrder = index
+    }
+    try modelContext.save()
+  }
+
   // MARK: - Category management
 
   func addCategory(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String? = nil) throws {
