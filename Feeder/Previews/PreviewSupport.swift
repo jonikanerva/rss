@@ -11,10 +11,14 @@ import SwiftUI
 @MainActor
 enum PreviewSupport {
   static func makeContainer() -> ModelContainer {
-    let schema = Schema([Folder.self, Category.self, Feed.self, Entry.self])
+    let schema = Schema(versionedSchema: FeederSchemaV1.self)
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     do {
-      return try ModelContainer(for: schema, configurations: [configuration])
+      return try ModelContainer(
+        for: schema,
+        migrationPlan: FeederMigrationPlan.self,
+        configurations: configuration
+      )
     } catch {
       fatalError("Preview ModelContainer failed: \(error)")
     }

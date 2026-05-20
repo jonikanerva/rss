@@ -32,7 +32,7 @@ If any answer is `no`, document the conflict and propose the smallest framework-
 - [ ] `make test-all` (`$VERIFY_CMD` in `docs/stack.md`) ran green.
 - [ ] `make lint-fix` is idempotent (re-running produces no diff).
 - [ ] Tests added or updated for new logic.
-- [ ] SwiftData `currentSchemaVersion` bumped if the schema changed.
+- [ ] `FeederMigrationPlan` updated (new `VersionedSchema` + stage) if the schema changed (`docs/stack.md` → Persistence shape).
 - [ ] Walked through `docs/definition-of-done.md` — every applicable box checked.
 
 ## States handled
