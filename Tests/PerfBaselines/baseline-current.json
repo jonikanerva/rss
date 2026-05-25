@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "captured_on": null,
+  "captured_host_cpu": null,
+  "level2_signposts": {
+    "sidebar_click_median_ms": null,
+    "article_click_median_ms": null,
+    "detail_render_median_ms": null,
+    "tolerance_pct": 20,
+    "frame_budget_ms": 8.3
+  },
+  "level4_trace": {
+    "contentview_body_getter_pct": { "max": 9.0, "captured": null },
+    "contentview_unread_entries_getter_pct": { "max": 0.1, "captured": null },
+    "microhangs_ge_250ms_count": { "max": 5, "captured": null },
+    "full_hangs_ge_500ms_count": { "max": 0, "captured": null }
+  },
+  "previous_main_head_record": {
+    "contentview_body_getter_pct": 33.8,
+    "contentview_unread_entries_getter_pct": 28.9,
+    "microhangs_ge_250ms_count": 43,
+    "full_hangs_ge_500ms_count": 1,
+    "session_seconds": 55,
+    "captured_for": "diagnosis baseline pre-perf-fix (commit pre-92b8510)"
+  }
+}
