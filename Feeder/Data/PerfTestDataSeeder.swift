@@ -84,7 +84,12 @@ extension DataWriter {
       entry.primaryCategory = category.label
       entry.primaryFolder = category.folderLabel ?? ""
       entry.isClassified = true
-      entry.isRead = index.isMultiple(of: 2)
+      // Split read/unread roughly 50/50 within each category so the
+      // `showRead: false` query the perf tests issue returns rows for every
+      // category. Tying read state to `index` alone collapses to "all read"
+      // (or "all unread") inside a single category when `categoryCount`
+      // is even.
+      entry.isRead = (index / categories.count).isMultiple(of: 2)
       entry.plainText = "Perf scenario story \(index) for category \(category.label)."
       entry.summaryPlainText = entry.plainText
       entry.formattedDate = formatEntryDate(publishedAt)
