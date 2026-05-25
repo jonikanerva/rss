@@ -43,3 +43,30 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let label: String
   let entryIDs: [PersistentIdentifier]
 }
+
+/// Cached aggregation over the classified-unread universe used by the sidebar
+/// to render its badges. Computed off-MainActor by
+/// `DataWriter.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays
+/// the cost of `@Query unreadEntries` materialization + per-row property
+/// access — Time Profiler showed that path consuming 85% of body time at 33%
+/// of total main-thread CPU. The dictionaries are read as direct lookups; the
+/// ID sets back the optimistic-overlay subtraction in
+/// `pendingReadCountsByCategory` / `pendingReadCountsByFolder` and the
+/// mark-all-read fast path.
+nonisolated struct UnreadCountsSnapshot: Sendable, Equatable {
+  let categoryCounts: [String: Int]
+  let folderCounts: [String: Int]
+  let unreadFeedbinEntryIDs: Set<Int>
+  let unreadIDByCategory: [String: Set<Int>]
+  let unreadIDByFolder: [String: Set<Int>]
+  let totalUnread: Int
+
+  static let empty = UnreadCountsSnapshot(
+    categoryCounts: [:],
+    folderCounts: [:],
+    unreadFeedbinEntryIDs: [],
+    unreadIDByCategory: [:],
+    unreadIDByFolder: [:],
+    totalUnread: 0
+  )
+}

@@ -89,6 +89,25 @@ struct EntryListView: View {
   private var allVisibleEntryIDs: [PersistentIdentifier] = []
   @State
   private var hasLoaded = false
+  /// Carries the anchor row + alignment from `reload()`'s pre-diff inspection
+  /// to the post-diff `proxy.scrollTo` call. The pin is conditional on what
+  /// `reload()` sees in the new result and is set to `nil` when no restore is
+  /// warranted (selection cleared with no fallback, structural reload, or
+  /// empty case). Kept as state because the producer and consumer sit in the
+  /// same async function but bracket the `sections = result` assignment.
+  @State
+  private var pendingAnchorRestore: AnchorRestore?
+
+  /// Anchor + alignment pair for `ScrollViewReader.scrollTo`. `.center` keeps
+  /// a still-selected row visible after a Read/Unread filter flip or a
+  /// classification batch reshuffle; `.top` keeps the previously-first row
+  /// pinned at the top when a sync page lands new entries above it (so the
+  /// viewport stays visually stable rather than scrolling along with the
+  /// insert).
+  private struct AnchorRestore: Equatable {
+    let id: PersistentIdentifier
+    let anchor: UnitPoint
+  }
 
   // MARK: - Init
   //
@@ -119,129 +138,176 @@ struct EntryListView: View {
   }
 
   var body: some View {
-    Group {
-      if !hasLoaded {
-        ProgressView()
-          .controlSize(.regular)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .accessibilityIdentifier("timeline.loading")
-      } else if sections.isEmpty {
-        if case .authFailed = syncEngine.lastError {
-          ContentUnavailableView {
-            Label(
-              "Signed out of Feedbin",
-              systemImage: "person.crop.circle.badge.exclamationmark")
-          } description: {
-            Text("Sign in again to resume syncing your feeds.")
-          } actions: {
-            Button("Sign In Again") { openSettings() }
-              .buttonStyle(.borderedProminent)
-              .accessibilityIdentifier("timeline.authError.signIn")
-          }
-        } else if syncEngine.lastError?.isNetworkError == true {
-          ContentUnavailableView(
-            "Offline",
-            systemImage: "wifi.slash",
-            description: Text("Connect to the internet to sync new articles.")
-          )
-        } else if anyClassifiedProbe.isEmpty
-          && (classificationEngine.isClassifying || syncEngine.isSyncing)
-        {
-          // First-sync / post-reset state: entries have landed but none are
-          // classified yet, so this category-scoped fetch is empty while
-          // classification catches up. Spinner-only (no SF Symbol) by
-          // ux-guardian decision — the sidebar already carries progress
-          // counts, so the middle pane stays calm and avoids double-signalling.
-          // No trailing ellipsis on the headline per HIG: don't label a
-          // spinning progress indicator.
-          ContentUnavailableView {
-            ProgressView()
-              .controlSize(.large)
-          } description: {
-            VStack(spacing: 8) {
-              Text("Sorting your articles")
-                .font(.headline)
-                .foregroundStyle(.primary)
-              Text("We're placing fresh articles into your categories.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-          }
-          .accessibilityIdentifier("timeline.firstSync")
-        } else {
-          ContentUnavailableView {
-            Label("No Articles", systemImage: "newspaper")
-          } description: {
-            Text(
-              filter == .unread
-                ? "No unread articles in this category."
-                : "No read articles in this category."
-            )
-          }
-        }
-      } else {
-        List(selection: $selectedEntry) {
-          ForEach(sections) { section in
-            Section {
-              ForEach(section.entryIDs, id: \.self) { id in
-                if let entry = modelContext.model(for: id) as? Entry {
-                  EntryRowView(entry: entry)
-                    .tag(entry)
-                    .listRowSeparator(.hidden)
-                }
-              }
-            } header: {
-              Text(section.label)
-                .font(fontSettings.sectionLabel)
-                .foregroundStyle(.tertiary)
-                .textCase(nil)
-            }
-          }
-        }
-        .listStyle(.inset(alternatesRowBackgrounds: false))
-        .modifier(BareKeyHandler())
-        .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-        .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
-        .accessibilityIdentifier("timeline.list")
-      }
-    }
-    // Two tasks so refresh-only ticks (classification / sync completion) do
-    // not flip `hasLoaded` back to false and tear down the `List` — which
-    // would reset scroll every time. `structuralKey` captures inputs whose
-    // change means "user is looking at a different list" (category / folder
-    // / filter / cutoff); only those warrant a loading view. `refreshVersion`
-    // fires in place and `reload()` skips the assign when sections are
-    // equal, so SwiftUI's diff keeps the scroll stable.
+    // `ScrollViewReader` is transparent — it adds no chrome — and lives
+    // OUTSIDE the conditional `Group`. The `.task` modifiers attach to the
+    // ScrollViewReader's body and stay mounted for the lifetime of the view,
+    // not for the lifetime of whichever branch is currently selected.
     //
-    // The refresh task's id intentionally includes `structuralKey`: a bare
-    // `refreshVersion` id would not be cancelled when the user switches
-    // category mid-refresh, and the in-flight fetch — which captured `self`
-    // with the old category — could race the structural task and overwrite
-    // `sections` with stale rows from the previous list. Including
-    // `structuralKey` cancels the stale refresh when context changes, and
-    // the `guard hasLoaded` check keeps the restarted refresh a no-op while
-    // the structural task owns the reload.
-    .task(id: structuralKey) {
-      hasLoaded = false
-      await reload()
-      hasLoaded = true
-    }
-    .task(id: refreshTaskKey) {
-      guard hasLoaded else { return }
-      await reload()
+    // The earlier shape nested `ScrollViewReader` inside the `else` branch
+    // of `if !hasLoaded { ProgressView() } else if … else { ScrollViewReader { … } }`,
+    // so the `.task` modifiers were only attached once `hasLoaded == true`.
+    // Since `hasLoaded` only flips inside `reload()`, the tasks never ran on
+    // first render and the loading spinner stuck forever.
+    //
+    // `proxy.scrollTo(_:anchor:)` resolves `.id(...)` tags anywhere in the
+    // ScrollViewReader's subtree, so the List rows below stay reachable.
+    ScrollViewReader { proxy in
+      Group {
+        if !hasLoaded {
+          ProgressView()
+            .controlSize(.regular)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityIdentifier("timeline.loading")
+        } else if sections.isEmpty {
+          if case .authFailed = syncEngine.lastError {
+            ContentUnavailableView {
+              Label(
+                "Signed out of Feedbin",
+                systemImage: "person.crop.circle.badge.exclamationmark")
+            } description: {
+              Text("Sign in again to resume syncing your feeds.")
+            } actions: {
+              Button("Sign In Again") { openSettings() }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("timeline.authError.signIn")
+            }
+          } else if syncEngine.lastError?.isNetworkError == true {
+            ContentUnavailableView(
+              "Offline",
+              systemImage: "wifi.slash",
+              description: Text("Connect to the internet to sync new articles.")
+            )
+          } else if anyClassifiedProbe.isEmpty
+            && (classificationEngine.isClassifying || syncEngine.isSyncing)
+          {
+            // First-sync / post-reset state: entries have landed but none are
+            // classified yet, so this category-scoped fetch is empty while
+            // classification catches up. Spinner-only (no SF Symbol) by
+            // ux-guardian decision — the sidebar already carries progress
+            // counts, so the middle pane stays calm and avoids double-signalling.
+            // No trailing ellipsis on the headline per HIG: don't label a
+            // spinning progress indicator.
+            ContentUnavailableView {
+              ProgressView()
+                .controlSize(.large)
+            } description: {
+              VStack(spacing: 8) {
+                Text("Sorting your articles")
+                  .font(.headline)
+                  .foregroundStyle(.primary)
+                Text("We're placing fresh articles into your categories.")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            .accessibilityIdentifier("timeline.firstSync")
+          } else {
+            ContentUnavailableView {
+              Label("No Articles", systemImage: "newspaper")
+            } description: {
+              Text(
+                filter == .unread
+                  ? "No unread articles in this category."
+                  : "No read articles in this category."
+              )
+            }
+          }
+        } else {
+          List(selection: $selectedEntry) {
+            ForEach(sections) { section in
+              Section {
+                ForEach(section.entryIDs, id: \.self) { id in
+                  if let entry = modelContext.model(for: id) as? Entry {
+                    EntryRowView(entry: entry)
+                      .tag(entry)
+                      .id(id)
+                      .listRowSeparator(.hidden)
+                  }
+                }
+              } header: {
+                Text(section.label)
+                  .font(fontSettings.sectionLabel)
+                  .foregroundStyle(.tertiary)
+                  .textCase(nil)
+              }
+            }
+          }
+          .listStyle(.inset(alternatesRowBackgrounds: false))
+          .modifier(BareKeyHandler())
+          .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+          .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
+          .accessibilityIdentifier("timeline.list")
+        }
+      }
+      // Two tasks so refresh-only ticks (classification / sync completion)
+      // do not flip `hasLoaded` back to false and tear down the `List` —
+      // which would reset scroll every time. `structuralKey` captures
+      // inputs whose change means "user is looking at a different list"
+      // (category / folder / filter / cutoff); only those warrant a
+      // loading view. `refreshVersion` fires in place and `reload()`
+      // skips the assign when sections are equal, so SwiftUI's diff
+      // keeps the scroll stable.
+      //
+      // The refresh task's id intentionally includes `structuralKey`:
+      // a bare `refreshVersion` id would not be cancelled when the user
+      // switches category mid-refresh, and the in-flight fetch — which
+      // captured `self` with the old category — could race the
+      // structural task and overwrite `sections` with stale rows from
+      // the previous list. Including `structuralKey` cancels the stale
+      // refresh when context changes, and the `guard hasLoaded` check
+      // keeps the restarted refresh a no-op while the structural task
+      // owns the reload.
+      .task(id: structuralKey) {
+        hasLoaded = false
+        await reload(proxy: proxy)
+        hasLoaded = true
+      }
+      .task(id: refreshTaskKey) {
+        guard hasLoaded else { return }
+        await reload(proxy: proxy)
+      }
     }
   }
 
-  private func reload() async {
+  private func reload(proxy: ScrollViewProxy) async {
     let result =
       (try? await writer.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
       )) ?? []
     guard !Task.isCancelled else { return }
-    if result != sections {
-      sections = result
-      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    guard result != sections else { return }
+    // Decide whether the upcoming in-place diff warrants a scroll-anchor
+    // restore. Two reasons to pin: (1) the selected row still appears in the
+    // new result — keep it centred so a row-height shift (read/unread
+    // weight flip) doesn't push it off-screen; (2) selection cleared and
+    // the previously-first row still appears — keep the top stable when a
+    // sync page lands new entries above it (option (a) per the design's
+    // sync-arriving-entries autonomy decision). Structural reloads
+    // (`hasLoaded == false` going into `reload`) skip the fallback so we do
+    // not pin an anchor from the previous list's contents.
+    let newIDs = Set(result.lazy.flatMap(\.entryIDs))
+    let restore: AnchorRestore?
+    if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
+      restore = AnchorRestore(id: selectedID, anchor: .center)
+    } else if selectedEntry == nil, hasLoaded, let firstID = allVisibleEntryIDs.first,
+      newIDs.contains(firstID)
+    {
+      restore = AnchorRestore(id: firstID, anchor: .top)
+    } else {
+      restore = nil
+    }
+    pendingAnchorRestore = restore
+    sections = result
+    allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    // Yield one tick so SwiftUI applies the diff before we ask the proxy
+    // to scroll — without the yield `scrollTo` runs against the still-old
+    // layout and the anchor row is not yet on screen to scroll to. Instant
+    // scroll (no `withAnimation`) so the restore respects Reduce Motion.
+    if let restore = pendingAnchorRestore {
+      pendingAnchorRestore = nil
+      await Task.yield()
+      proxy.scrollTo(restore.id, anchor: restore.anchor)
     }
   }
 

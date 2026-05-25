@@ -55,25 +55,64 @@ struct CategoryFolderChangeTrigger: ViewModifier {
 /// by `SyncEngine` (per persisted page) and `ClassificationEngine` (per
 /// throttled progress snapshot), and sets the matching pending-bump flags
 /// so the deferred drain modifiers can coalesce them into
-/// `entryRefreshVersion` ticks. Extracted into a modifier so the two
-/// `.onChange` observers stay out of `ContentView.body` and the body keeps
-/// type-checking inside SwiftUI's reasonable-time limit.
-struct MidFlightBumpRouter: ViewModifier {
-  let syncPageVersion: Int
-  let classificationBatchVersion: Int
+/// `entryRefreshVersion` ticks.
+///
+/// Lives as a leaf `View` (rendered as a zero-size `Color.clear`) instead
+/// of a `ViewModifier` — `ContentView.body` would otherwise read
+/// `syncEngine.lastPersistedPageVersion` and
+/// `classificationEngine.batchProgressVersion` to pass them in, which made
+/// every body re-eval depend on both `@Observable` counters. Sync ticks
+/// these per persisted page (~once a second during sync) and classification
+/// ticks them per throttled progress snapshot (~every 200 ms during a batch),
+/// so the outer body was being invalidated continuously and re-fetching the
+/// (now-cached) unread snapshot on every tick. By reading the counters
+/// inside this leaf's own body, only this zero-size view re-evaluates —
+/// `ContentView.body` stays out of the dependency graph entirely.
+///
+/// Hosted by `ContentView` via `.background(MidFlightBumpRouter(...))` so
+/// the leaf participates in the view hierarchy and observes the
+/// `@Environment` engines, but contributes no visible chrome.
+struct MidFlightBumpRouter: View {
+  @Environment(SyncEngine.self)
+  private var syncEngine
+  @Environment(ClassificationEngine.self)
+  private var classificationEngine
+  @Binding
+  var pendingSyncBump: Bool
+  @Binding
+  var pendingClassificationBump: Bool
+
+  var body: some View {
+    Color.clear
+      .frame(width: 0, height: 0)
+      .accessibilityHidden(true)
+      .onChange(of: syncEngine.lastPersistedPageVersion) {
+        pendingSyncBump = true
+      }
+      .onChange(of: classificationEngine.batchProgressVersion) {
+        pendingClassificationBump = true
+      }
+  }
+}
+
+/// Mounts `MidFlightBumpRouter` as an invisible `.background` sibling of the
+/// host view. Kept as a `ViewModifier` so `ContentView.body`'s modifier
+/// chain stays inside SwiftUI's type-checker reasonable-time limit — the
+/// leaf-view hoisting only matters for which view re-evaluates on engine
+/// counter bumps; the call-site shape stays a single `.modifier(...)` line.
+struct MidFlightBumpRouterModifier: ViewModifier {
   @Binding
   var pendingSyncBump: Bool
   @Binding
   var pendingClassificationBump: Bool
 
   func body(content: Content) -> some View {
-    content
-      .onChange(of: syncPageVersion) {
-        pendingSyncBump = true
-      }
-      .onChange(of: classificationBatchVersion) {
-        pendingClassificationBump = true
-      }
+    content.background(
+      MidFlightBumpRouter(
+        pendingSyncBump: $pendingSyncBump,
+        pendingClassificationBump: $pendingClassificationBump
+      )
+    )
   }
 }
 
@@ -113,13 +152,14 @@ struct DeferredBumpDrainTrigger: ViewModifier {
   }
 }
 
-/// Fires `onUnreadCountChange` whenever the MainActor `@Query` unread snapshot
-/// size changes — typically right after a `DataWriter` save (mark-read /
-/// mark-all-read / sync) propagates via SwiftData's auto-merge. The owner
-/// uses this hook to prune its optimistic `pendingReadIDs` overlay back
-/// down to the IDs still present in the live unread set. Extracted into a
-/// modifier so the prune `.onChange` stays out of `ContentView.body` and
-/// the body keeps type-checking inside SwiftUI's reasonable-time limit.
+/// Fires `onUnreadCountChange` whenever the cached unread snapshot's
+/// `totalUnread` changes — typically right after a `DataWriter` save
+/// (mark-read / mark-all-read / sync) propagates via the snapshot refresh
+/// task. The owner uses this hook to prune its optimistic `pendingReadIDs`
+/// overlay back down to the IDs still present in the live unread set.
+/// Extracted into a modifier so the prune `.onChange` stays out of
+/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
+/// reasonable-time limit.
 struct PendingReadPruneTrigger: ViewModifier {
   let unreadCount: Int
   let onUnreadCountChange: () -> Void
@@ -127,6 +167,33 @@ struct PendingReadPruneTrigger: ViewModifier {
   func body(content: Content) -> some View {
     content.onChange(of: unreadCount) {
       onUnreadCountChange()
+    }
+  }
+}
+
+/// Refreshes the cached `UnreadCountsSnapshot` whenever `key` changes.
+/// Re-keyed on `entryRefreshVersion` plus folder/category counts and the
+/// active `cutoffDate` so taxonomy edits or a Settings change to
+/// `articleKeepDays` also trigger a refresh. The fetch runs on the
+/// `DataWriter` actor — MainActor only receives the resulting Sendable DTO.
+/// `cutoffDate` is forwarded to `fetchUnreadCountsSnapshot` so the sidebar
+/// snapshot and `fetchEntrySections` apply the same eligibility predicate.
+/// Extracted into a modifier so the `.task(id:)` stays out of
+/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
+/// reasonable-time limit.
+struct UnreadSnapshotRefreshTask: ViewModifier {
+  let key: String
+  let writer: DataWriter?
+  let cutoffDate: Date
+  @Binding
+  var snapshot: UnreadCountsSnapshot
+
+  func body(content: Content) -> some View {
+    content.task(id: key) {
+      guard let writer else { return }
+      let fresh = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoffDate)
+      guard !Task.isCancelled, let fresh else { return }
+      snapshot = fresh
     }
   }
 }

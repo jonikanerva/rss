@@ -1,13 +1,18 @@
 import Foundation
 
-// Pure aggregation helper for sidebar unread badges.
+// Pure aggregation helpers for sidebar unread badges.
 //
-// The sidebar runs a single `@Query` over classified-unread entries and the
-// result is projected — once per body evaluation, lifted into `let`-locals so
-// SwiftUI does not recompute on every property access — into per-category and
-// per-folder count dictionaries. Aggregation is O(unread) and runs over the
-// snapshot only; never per rendered row. Extracted as a `nonisolated` pure
-// function so it can be unit-tested without spinning up a SwiftUI host.
+// Aggregation over the live unread universe runs off-MainActor on the
+// `DataWriter` actor, producing an `UnreadCountsSnapshot` (see
+// `DataWriter.fetchUnreadCountsSnapshot()`). The sidebar then overlays
+// the optimistic `pendingReadIDs` set on top of that snapshot via the
+// `pendingReadCountsBy*` + `subtractingPendingCounts` helpers below.
+//
+// The two top-level `unreadCounts(in:)` overloads are retained as pure
+// aggregation helpers used by unit tests — they pin the same contract the
+// snapshot now implements off-actor, so a future regression in the cached
+// path can be cross-checked against the pure helper without spinning up a
+// SwiftUI host or a SwiftData container.
 
 /// Counts how many times each non-empty label appears in `labels` and returns
 /// the result as a `[label: count]` dictionary.
@@ -50,4 +55,70 @@ nonisolated func unreadCounts(
     counts[entry.label, default: 0] += 1
   }
   return counts
+}
+
+// MARK: - Pending-overlay subtraction over a cached snapshot
+
+/// Counts, per category, how many of an `UnreadCountsSnapshot`'s unread
+/// entries the user has just optimistically marked read but whose write has
+/// not yet landed in SwiftData. The sidebar subtracts these from
+/// `snapshot.categoryCounts` so the badge tracks the dimmed article-list
+/// rows in the same frame the user pressed J/K or Mark-All-Read — without
+/// having to materialize `@Query unreadEntries` on MainActor.
+///
+/// Iteration is bounded by the number of unique categories times the size of
+/// the small `pending` set (typically 1–N). The intersection runs over the
+/// stored `Set<Int>` so a pending ID that is no longer unread on disk simply
+/// matches nothing and contributes zero — cross-device read flips do not
+/// double-subtract.
+nonisolated func pendingReadCountsByCategory(
+  snapshot: UnreadCountsSnapshot, pending: Set<Int>
+) -> [String: Int] {
+  guard !pending.isEmpty else { return [:] }
+  var result: [String: Int] = [:]
+  for (category, ids) in snapshot.unreadIDByCategory {
+    let count = pending.intersection(ids).count
+    if count > 0 { result[category] = count }
+  }
+  return result
+}
+
+/// Folder-axis sibling of `pendingReadCountsByCategory`. Same shape, same
+/// contract; kept as a separate function so the sidebar's badge derivation
+/// reads as two parallel one-liners instead of branching on an axis enum.
+nonisolated func pendingReadCountsByFolder(
+  snapshot: UnreadCountsSnapshot, pending: Set<Int>
+) -> [String: Int] {
+  guard !pending.isEmpty else { return [:] }
+  var result: [String: Int] = [:]
+  for (folder, ids) in snapshot.unreadIDByFolder {
+    let count = pending.intersection(ids).count
+    if count > 0 { result[folder] = count }
+  }
+  return result
+}
+
+extension [String: Int] {
+  /// Subtract `other` from self, floored at zero. Returns a new dictionary
+  /// with the difference for every key in self. Used to overlay
+  /// pending-read counts onto a cached snapshot's `categoryCounts` /
+  /// `folderCounts` without mutating either input.
+  ///
+  /// Bounded by the number of keys in self (= unique categories or unique
+  /// folders), which is tiny — the whole operation costs less than a single
+  /// dictionary lookup did under the old MainActor aggregation.
+  nonisolated func subtractingPendingCounts(_ other: [String: Int]) -> [String: Int] {
+    guard !other.isEmpty else { return self }
+    var result = self
+    for (key, pending) in other {
+      guard let current = result[key] else { continue }
+      let next = current - pending
+      if next > 0 {
+        result[key] = next
+      } else {
+        result.removeValue(forKey: key)
+      }
+    }
+    return result
+  }
 }

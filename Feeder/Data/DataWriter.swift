@@ -450,6 +450,69 @@ actor DataWriter: ModelActor {
     return groupEntriesByDay(entries)
   }
 
+  // MARK: - Unread aggregation
+
+  /// Precompute per-category / per-folder unread counts plus the underlying
+  /// ID sets in a single streaming fetch on the `DataWriter` actor. The
+  /// resulting `UnreadCountsSnapshot` is the sole input the sidebar needs to
+  /// render its badges — the MainActor `@Query unreadEntries` that previously
+  /// drove this aggregation is gone.
+  ///
+  /// Predicate mirrors `fetchEntrySections` so sidebar badges and middle-pane
+  /// lists count the same rows; `cutoffDate` is `syncEngine.queryCutoffDate`
+  /// at call time. Without this clause, entries between `articleKeepDays`
+  /// (default 7d) and `maxRetentionAge` (30d) that are still unread+classified
+  /// would be counted in the sidebar but hidden from the article list.
+  ///
+  /// Streams via `ModelContext.enumerate(_:batchSize:)` so SwiftData hydrates
+  /// rows in 500-entry chunks rather than materializing the full unread
+  /// universe at once
+  /// (`https://developer.apple.com/documentation/swiftdata/modelcontext/enumerate(_:batchsize:allowescapingmutations:block:)`).
+  /// `propertiesToFetch` limits column hydration to the three fields the
+  /// aggregation reads, avoiding fault-handler walks over `articleBlocksData`
+  /// and friends
+  /// (`https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch`).
+  func fetchUnreadCountsSnapshot(cutoffDate: Date) throws -> UnreadCountsSnapshot {
+    var descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> {
+        $0.isClassified == true && $0.isRead == false && $0.publishedAt >= cutoffDate
+      }
+    )
+    descriptor.propertiesToFetch = [\.feedbinEntryID, \.primaryCategory, \.primaryFolder]
+
+    var categoryCounts: [String: Int] = [:]
+    var folderCounts: [String: Int] = [:]
+    var unreadFeedbinEntryIDs: Set<Int> = []
+    var unreadIDByCategory: [String: Set<Int>] = [:]
+    var unreadIDByFolder: [String: Set<Int>] = [:]
+    var totalUnread = 0
+
+    try modelContext.enumerate(descriptor, batchSize: 500) { entry in
+      let id = entry.feedbinEntryID
+      let category = entry.primaryCategory
+      let folder = entry.primaryFolder
+      unreadFeedbinEntryIDs.insert(id)
+      totalUnread += 1
+      if !category.isEmpty {
+        categoryCounts[category, default: 0] += 1
+        unreadIDByCategory[category, default: []].insert(id)
+      }
+      if !folder.isEmpty {
+        folderCounts[folder, default: 0] += 1
+        unreadIDByFolder[folder, default: []].insert(id)
+      }
+    }
+
+    return UnreadCountsSnapshot(
+      categoryCounts: categoryCounts,
+      folderCounts: folderCounts,
+      unreadFeedbinEntryIDs: unreadFeedbinEntryIDs,
+      unreadIDByCategory: unreadIDByCategory,
+      unreadIDByFolder: unreadIDByFolder,
+      totalUnread: totalUnread
+    )
+  }
+
   // MARK: - Classification
 
   func fetchUnclassifiedInputs(cutoffDate: Date) throws -> [ClassificationInput] {

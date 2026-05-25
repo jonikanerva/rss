@@ -41,7 +41,8 @@ XCODEBUILD_FLAGS = \
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
 
-.PHONY: lint lint-fix build install test test-ui test-all test-full clean artifacts help
+.PHONY: lint lint-fix build install test test-ui test-all test-full clean artifacts help \
+        perf perf-signpost perf-trace perf-record-baseline perf-preflight
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -87,14 +88,15 @@ install: ## Build Release and install to /Applications
 # Test
 # ---------------------------------------------------------------------------
 
-test: build ## Run unit tests (FeederTests)
+test: build ## Run unit tests (FeederTests, excluding the perf suite)
 	@echo "==> unit tests"
 	@mkdir -p $(dir $(UNIT_RESULT))
 	@rm -rf $(UNIT_RESULT)
 	xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UNIT_RESULT) \
-		-only-testing:FeederTests
+		-only-testing:FeederTests \
+		-skip-testing:FeederTests/PerfSignpostTests
 
 test-ui: build ## Run UI smoke tests (FeederUITests)
 	@echo "==> UI smoke tests"
@@ -134,3 +136,60 @@ clean: ## Remove derived data and test artifacts
 	rm -rf $(DERIVED_DATA)
 	rm -rf artifacts/local
 	@echo "==> done"
+
+# ---------------------------------------------------------------------------
+# Perf (local-only headless suite — not chained into test-all)
+# ---------------------------------------------------------------------------
+
+PERF_RESULT_DIR  ?= artifacts/local/perf
+PERF_BASELINE    ?= Tests/PerfBaselines/baseline-current.json
+PERF_DATASET     ?= 5000
+PERF_ITERATIONS  ?= 5
+PERF_TIME_LIMIT  ?= 20000
+
+perf: perf-preflight perf-signpost perf-trace ## Local perf regression suite (Levels 2 + 4)
+	@echo "==> perf: PASS"
+
+perf-preflight: ## Verify the host is not thermally throttled before recording
+	@./Tools/PerfParser/preflight.sh
+
+perf-signpost: build ## Level 2 — XCTOSSignpostMetric medians via XCTest
+	@mkdir -p $(PERF_RESULT_DIR)
+	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
+	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
+		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
+		-only-testing:FeederTests/PerfSignpostTests
+	@swift run --package-path Tools/PerfParser PerfParser \
+		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
+		--baseline $(PERF_BASELINE)
+
+perf-trace: install ## Level 4 — xctrace Time Profiler, median over N iterations
+	@./Tools/PerfParser/run_trace_iterations.sh \
+		--iterations $(PERF_ITERATIONS) \
+		--time-limit $(PERF_TIME_LIMIT) \
+		--output-dir $(PERF_RESULT_DIR) \
+		--dataset-size $(PERF_DATASET)
+	@swift run --package-path Tools/PerfParser PerfParser \
+		--trace-dir $(PERF_RESULT_DIR) \
+		--baseline $(PERF_BASELINE)
+
+perf-record-baseline: perf-preflight install ## Refresh baseline JSON from current run
+	@echo "==> perf-record-baseline (refreshes baseline from this run)"
+	@./Tools/PerfParser/run_trace_iterations.sh \
+		--iterations $(PERF_ITERATIONS) \
+		--time-limit $(PERF_TIME_LIMIT) \
+		--output-dir $(PERF_RESULT_DIR) \
+		--dataset-size $(PERF_DATASET)
+	@swift run --package-path Tools/PerfParser PerfParser \
+		--trace-dir $(PERF_RESULT_DIR) \
+		--baseline $(PERF_BASELINE) \
+		--write-baseline
+	@mkdir -p $(PERF_RESULT_DIR)
+	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
+	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
+		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
+		-only-testing:FeederTests/PerfSignpostTests
+	@swift run --package-path Tools/PerfParser PerfParser \
+		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
+		--baseline $(PERF_BASELINE) \
+		--write-baseline

@@ -31,6 +31,14 @@ struct EntryRowView: View {
         HStack(alignment: .top, spacing: 5) {
           Text(entry.title ?? "Untitled")
             .font(fontSettings.rowTitle)
+            // The semibold/regular swap on `isRead` shifts row height by a
+            // sub-point on the same frame the read state flips. The shift
+            // is now hidden by `ContentView`'s yield-then-insert microtask
+            // on `pendingReadIDs` (one frame later, off the selection-commit
+            // critical path) and any residual reflow is recentred by
+            // `EntryListView`'s post-refresh `ScrollViewReader.scrollTo`.
+            // Don't drop the weight — it carries the unread/read visual
+            // hierarchy the rest of the row design depends on.
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(2)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)

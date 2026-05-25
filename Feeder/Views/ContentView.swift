@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import os.signpost
 
 // MARK: - Content View root
 //
@@ -13,11 +14,6 @@ import SwiftUI
 // MARK: - Content View
 
 struct ContentView: View {
-  /// Dwell time before propagating a keyboard-driven selection change to a heavy
-  /// downstream view (WebView render or article-list background fetch). Short
-  /// enough that single intentional taps still feel instant; long enough to
-  /// suppress per-keystroke work during arrow-key scrubbing.
-  fileprivate static let renderDwell: Duration = .milliseconds(150)
   /// Hold time before a finished classification batch is allowed to refresh the
   /// article list while the user is actively browsing. Bumping
   /// `entryRefreshVersion` causes `EntryListView` to re-fetch sections; if any
@@ -52,33 +48,20 @@ struct ContentView: View {
   /// `allCategories.atRoot` in-memory filter on every render.
   @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
   private var rootCategories: [Category]
-  /// Classified-unread entries — the universe over which sidebar badges are
-  /// aggregated. Filtering happens at the SQLite level so the count of rows
-  /// pulled into MainActor is bounded by unread inventory, not total entries.
-  /// Aggregation into per-category and per-folder dictionaries is O(n) Swift
-  /// (where n = unread count), computed once per `@Query` snapshot and read
-  /// by `body` as dictionary lookups — no work during row rendering.
-  @Query(filter: #Predicate<Entry> { $0.isClassified == true && $0.isRead == false })
-  private var unreadEntries: [Entry]
+  /// Cached aggregation over the classified-unread universe. Refreshed by
+  /// `unreadSnapshotRefreshTask` whenever `entryRefreshVersion` or the
+  /// taxonomy structure changes — never re-fetched inside body. Replaces a
+  /// `@Query unreadEntries` that fired a full SQLite fetch + per-row property
+  /// access during every body re-eval (33.8% of main-thread CPU in the
+  /// 2026-05 Time Profiler trace).
+  @State
+  private var unreadSnapshot: UnreadCountsSnapshot = .empty
   @AppStorage("sidebar.collapsedFolders")
   private var collapsedFolders: SidebarCollapsedFolders = .init()
   @State
   private var selectedEntry: Entry?
-  /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
-  /// not `selectedEntry`, so rapid keyboard scrubbing doesn't trigger a WebKit
-  /// load + HTML rebuild for every intermediate article. See `.task(id:)` modifier
-  /// on `body` that drives this from `selectedEntry` after a short dwell time.
-  @State
-  private var renderedEntry: Entry?
   @State
   private var selection: SidebarSelection?
-  /// Debounced mirror of `selection`. The article-list column reads this, not
-  /// `selection`, so rapid sidebar arrow scrubbing doesn't kick off a fresh
-  /// `DataWriter.fetchEntrySections` background fetch on every keystroke (each
-  /// cancelled fetch still wastes a small amount of background work). Driven
-  /// by `.task(id: selection)` after a short dwell time.
-  @State
-  private var renderedSelection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
@@ -110,10 +93,19 @@ struct ContentView: View {
   private var pendingSyncBump = false
   @FocusState
   private var panelFocus: PanelFocus?
+  /// In-flight click → render signpost states. Held in `@State` so the begin
+  /// (fired from `.onChange`) survives across the SwiftUI commit boundary to
+  /// the matching end (fired from `.task(id:)` on the next render pass). See
+  /// `PerformanceSignposts.swift` for the `OSSignposter` itself.
+  @State
+  private var sidebarClickIntervalState: OSSignpostIntervalState?
+  @State
+  private var articleClickIntervalState: OSSignpostIntervalState?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
   private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
+  private var isPerfScenarioMode: Bool { PerfScenarioRunner.isEnabled }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
@@ -122,8 +114,8 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      if let renderedSelection {
-        entryListForSelection(renderedSelection)
+      if let selection {
+        entryListForSelection(selection)
           .focused($panelFocus, equals: .articleList)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
@@ -175,26 +167,37 @@ struct ContentView: View {
       .environment(syncEngine)
     }
     .onChange(of: selectedEntry) { _, newEntry in
+      // Defer the pending-read insertion off the selection-commit critical
+      // path. An in-frame mutation would cascade through the sidebar
+      // unread-count aggregation and the EntryRowView dimming overlay
+      // (both observe `pendingReadIDs`), nudging row metrics on the same
+      // frame the user pressed arrow-down — perceived as keyboard lag.
+      // `applyPendingReadAfterYield` yields the selection write first,
+      // then mutates next tick.
       if let entry = newEntry, !entry.isRead {
-        pendingReadIDs.insert(entry.feedbinEntryID)
+        applyPendingReadAfterYield(feedbinEntryID: entry.feedbinEntryID) { id in
+          pendingReadIDs.insert(id)
+        }
       }
       articleViewMode = .web
-      // Clear the rendered entry immediately when selection clears so the
-      // empty-state view appears without a delay.
-      if newEntry == nil {
-        renderedEntry = nil
+      // Article-click signpost begin: measures SwiftUI commit cost from
+      // writing `selectedEntry` to the detail column's `.task` firing.
+      // No begin when selection clears — empty-state has no render cost.
+      if newEntry != nil {
+        articleClickIntervalState = perfSignposter.beginInterval(
+          PerformanceSignpostName.articleClick
+        )
       }
     }
     .task(id: selectedEntry?.feedbinEntryID) {
-      // Debounce: WebView only loads HTML for entries the user dwells on long
-      // enough to matter. When selectedEntry changes again before the sleep
-      // completes, this task is cancelled and the in-flight load is skipped —
-      // so holding Down arrow no longer triggers N WebKit reloads +
-      // buildHTML cycles on MainActor.
-      guard selectedEntry != nil else { return }
-      try? await Task.sleep(for: Self.renderDwell)
-      guard !Task.isCancelled else { return }
-      renderedEntry = selectedEntry
+      // Article-click signpost end: pairs with the begin in
+      // `.onChange(of: selectedEntry)`. Runs immediately, no sleep — the
+      // dwell that used to live here is gone (see commit dropping
+      // renderDwell). Closing the interval here keeps the measurement
+      // bounded to "selection commit ⇒ next SwiftUI render pass".
+      guard let state = articleClickIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)
+      articleClickIntervalState = nil
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
@@ -203,22 +206,21 @@ struct ContentView: View {
     .onChange(of: selection) { _, newSelection in
       flushPendingReads()
       selectedEntry = nil
-      // Clear the rendered article-list column immediately when no sidebar
-      // item is selected so the empty-state appears without delay.
-      if newSelection == nil {
-        renderedSelection = nil
+      // Sidebar-click signpost begin: measures SwiftUI commit cost from
+      // writing `selection` to the content column re-rendering.
+      if newSelection != nil {
+        sidebarClickIntervalState = perfSignposter.beginInterval(
+          PerformanceSignpostName.sidebarClick
+        )
       }
     }
     .task(id: selection) {
-      // Debounce: only fire `EntryListView` (and its background
-      // `DataWriter.fetchEntrySections` call) for sidebar selections the user
-      // dwells on for >150 ms. The fetch is cancellable and non-blocking, but
-      // each cancelled fetch still wastes a small amount of background work,
-      // so debouncing keeps fast scrubbing efficient.
-      guard selection != nil else { return }
-      try? await Task.sleep(for: Self.renderDwell)
-      guard !Task.isCancelled else { return }
-      renderedSelection = selection
+      // Sidebar-click signpost end: pairs with the begin in
+      // `.onChange(of: selection)`. Same shape as the article-click end —
+      // runs immediately on the next render pass and closes the interval.
+      guard let state = sidebarClickIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.sidebarClick, state)
+      sidebarClickIntervalState = nil
     }
     .onChange(of: allCategories.count) {
       revalidateSelection()
@@ -232,14 +234,25 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Keep `pendingReadIDs` aligned with the live SQLite-side unread snapshot:
-    // when a background write (mark-read / mark-all-read / sync) flips
-    // entries out of `unreadEntries`, drop their IDs from the optimistic
-    // overlay so the set does not grow unbounded across a long session and
-    // does not mask a future cross-device unread flip on the same ID.
+    // Refresh the cached unread snapshot whenever the underlying data may
+    // have changed. The modifier owns the `.task(id:)` so the body stays
+    // inside SwiftUI's type-checker budget.
+    .modifier(
+      UnreadSnapshotRefreshTask(
+        key: unreadSnapshotKey,
+        writer: syncEngine.writer,
+        cutoffDate: syncEngine.queryCutoffDate,
+        snapshot: $unreadSnapshot
+      )
+    )
+    // Keep `pendingReadIDs` aligned with the live unread snapshot: when a
+    // background write (mark-read / mark-all-read / sync) flips entries out
+    // of the snapshot, drop their IDs from the optimistic overlay so the
+    // set does not grow unbounded across a long session and does not mask a
+    // future cross-device unread flip on the same ID.
     .modifier(
       PendingReadPruneTrigger(
-        unreadCount: unreadEntries.count,
+        unreadCount: unreadSnapshot.totalUnread,
         onUnreadCountChange: { prunePendingReadIDs() }
       )
     )
@@ -270,10 +283,18 @@ struct ContentView: View {
     // `entryRefreshVersion` tick that `EntryListView.task(id:)` consumes —
     // selection and scroll position are preserved by `List`'s stable-ID
     // diffing in `EntryListView.reload()`.
+    //
+    // `MidFlightBumpRouter` is a leaf `View` (not a `ViewModifier`) so the
+    // `syncEngine.lastPersistedPageVersion` / `classificationEngine
+    // .batchProgressVersion` reads live inside its own body, not
+    // `ContentView.body`. Without this hoisting, every sync page (~1 Hz)
+    // and every classification progress tick (~5 Hz) would invalidate
+    // `ContentView.body` and re-trigger the sidebar/snapshot derivations.
+    // The leaf is mounted as an invisible `.background` sibling via
+    // `MidFlightBumpRouterModifier` so the body chain stays a single
+    // `.modifier(...)` line — type-checker friendly.
     .modifier(
-      MidFlightBumpRouter(
-        syncPageVersion: syncEngine.lastPersistedPageVersion,
-        classificationBatchVersion: classificationEngine.batchProgressVersion,
+      MidFlightBumpRouterModifier(
         pendingSyncBump: $pendingSyncBump,
         pendingClassificationBump: $pendingClassificationBump
       )
@@ -342,7 +363,7 @@ struct ContentView: View {
         openInBrowserAction: openInBackground,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
         moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-        canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
+        canMarkAllRead: articleFilter == .unread && selection != nil,
         canOpenInBrowser: selectedEntry != nil,
         hasSelectedEntry: selectedEntry != nil,
         isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
@@ -460,6 +481,26 @@ struct ContentView: View {
     allCategories.map(\.folderLabel)
   }
 
+  /// Re-key for the unread snapshot refresh task. Bumps on:
+  /// - `entryRefreshVersion` — every mutation path that can change unread
+  ///   membership (sync edge, classification drain, mark-read flush,
+  ///   mark-all-read, category/folder reorganisation).
+  /// - `folders.count`, `allCategories.count` — taxonomy edits that change
+  ///   the dictionaries' keyspace without flipping any entry.
+  /// - `syncEngine.queryCutoffDate` — Settings changes to `articleKeepDays`
+  ///   move the cutoff and must invalidate the cached snapshot so the sidebar
+  ///   badge counts re-align with `fetchEntrySections`. Cast to `Int`
+  ///   (whole seconds since reference date) truncates sub-second jitter so
+  ///   the key only changes on a real cutoff move (e.g. when
+  ///   `refreshArticleCutoff()` runs after a Settings change), not on every
+  ///   `Date()` re-evaluation.
+  /// `entryRefreshVersion` uses `&+=` and wraps; string interpolation
+  /// compares for equality, which handles the wrap.
+  private var unreadSnapshotKey: String {
+    let cutoffSeconds = Int(syncEngine.queryCutoffDate.timeIntervalSinceReferenceDate)
+    return "\(entryRefreshVersion)|\(folders.count)|\(allCategories.count)|\(cutoffSeconds)"
+  }
+
   /// Re-key for the classification drain task. A change in either component
   /// restarts the task: selection move ⇒ fresh dwell window; pending flag flip
   /// ⇒ pick up the newly-owed bump.
@@ -474,13 +515,11 @@ struct ContentView: View {
     "sync|\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingSyncBump)"
   }
 
-  /// Tab from sidebar into the article-list column. No-ops entirely during
-  /// the `renderedSelection` debounce window — if focus moved to the outgoing
-  /// list, subsequent arrow-key navigation or Shift+A would act on the
-  /// previous category even though the sidebar already shows the new one.
-  /// The user waits ~150 ms or presses Tab again once alignment settles.
+  /// Tab from sidebar into the article-list column. Selecting the first row
+  /// is gated on `currentEntryIDs` being non-empty, which is only true once
+  /// the article list has rendered for the active `selection`. No selection
+  /// or no rendered list ⇒ Tab moves focus only.
   private func tabIntoArticleList() {
-    guard selection == renderedSelection else { return }
     panelFocus = .articleList
     guard let firstID = currentEntryIDs.first else { return }
     guard let firstEntry = modelContext.model(for: firstID) as? Entry else { return }
@@ -532,45 +571,38 @@ struct ContentView: View {
   }
 
   /// Prune the optimistic-read set down to IDs that still appear in the
-  /// MainActor `unreadEntries` snapshot. Called whenever the snapshot
-  /// changes — typically right after a `DataWriter` save propagates via
-  /// SwiftData's auto-merge. IDs whose corresponding `Entry.isRead` has
-  /// just flipped to `true` (or whose entry was deleted) fall out here;
-  /// the sidebar's pending-aware aggregation then sees no double-counting.
+  /// cached `unreadSnapshot`. Called whenever `totalUnread` changes —
+  /// typically right after a `DataWriter` save bumps `entryRefreshVersion`
+  /// and the snapshot refresh task lands. IDs whose corresponding
+  /// `Entry.isRead` has just flipped to `true` (or whose entry was deleted)
+  /// fall out here; the sidebar's pending-aware aggregation then sees no
+  /// double-counting.
   private func prunePendingReadIDs() {
     guard !pendingReadIDs.isEmpty else { return }
-    let currentUnreadIDs = Set(unreadEntries.map(\.feedbinEntryID))
-    pendingReadIDs.formIntersection(currentUnreadIDs)
+    pendingReadIDs.formIntersection(unreadSnapshot.unreadFeedbinEntryIDs)
   }
 
   private func markAllAsRead() {
-    // Target the category the user currently *sees* (renderedSelection), not the
-    // sidebar's pending selection — these diverge for ~150 ms after a sidebar
-    // arrow press while the article list is debounced. Using `selection` here
-    // would mark the wrong category read during that window.
-    guard articleFilter == .unread, let target = renderedSelection,
+    // Sidebar `selection` is both what the user sees and the source of truth
+    // for the article-list column — no separate "rendered" mirror to consult.
+    guard articleFilter == .unread, let target = selection,
       let writer = syncEngine.writer
     else { return }
     selectedEntry = nil
     let markTarget: MarkReadTarget
     let optimisticIDs: Set<Int>
-    // Compute the optimistic set on MainActor from the already-loaded
-    // `unreadEntries` snapshot so the sidebar can drop to zero in the same
-    // frame the article list empties — without waiting for the background
-    // writer to commit and the MainActor `@Query` to observe the change.
-    // Bounded by unread inventory (the `@Query` already filters at SQLite
-    // level), so this filter is the same shape as the existing aggregation.
+    // Read the optimistic set out of the cached snapshot so the sidebar can
+    // drop to zero in the same frame the article list empties — without
+    // waiting for the background writer to commit and the snapshot refresh
+    // task to land. The pre-computed `unreadIDByFolder` / `unreadIDByCategory`
+    // dictionaries already group by the same axis the user selected.
     switch target {
     case .folder(let label):
       markTarget = .folder(label)
-      optimisticIDs = Set(
-        unreadEntries.lazy.filter { $0.primaryFolder == label }.map(\.feedbinEntryID)
-      )
+      optimisticIDs = unreadSnapshot.unreadIDByFolder[label] ?? []
     case .category(let label):
       markTarget = .category(label)
-      optimisticIDs = Set(
-        unreadEntries.lazy.filter { $0.primaryCategory == label }.map(\.feedbinEntryID)
-      )
+      optimisticIDs = unreadSnapshot.unreadIDByCategory[label] ?? []
     }
     pendingReadIDs.formUnion(optimisticIDs)
     Task {
@@ -605,49 +637,76 @@ struct ContentView: View {
 
   // MARK: - Sidebar
 
+  /// Snapshot of folder groups in DTO form. Built once per `body` evaluation
+  /// and passed into the `Equatable` `SidebarView`, so SwiftUI can compare
+  /// structural snapshots without crossing the SwiftData actor boundary.
+  /// Only folders with at least one assigned category are surfaced — empty
+  /// folders carry no sidebar weight.
+  private var sidebarFolderGroupSnapshots: [SidebarFolderGroup] {
+    visibleFolderGroups.map { group in
+      SidebarFolderGroup(
+        label: group.folder.label,
+        displayName: group.folder.displayName,
+        categories: group.categories.map { category in
+          SidebarCategorySnapshot(label: category.label, displayName: category.displayName)
+        }
+      )
+    }
+  }
+
+  /// Snapshot of root-level categories in DTO form. Same rationale as
+  /// `sidebarFolderGroupSnapshots` — keeps the `Equatable` comparison
+  /// structural.
+  private var sidebarRootCategorySnapshots: [SidebarCategorySnapshot] {
+    rootCategories.map { category in
+      SidebarCategorySnapshot(label: category.label, displayName: category.displayName)
+    }
+  }
+
   @ViewBuilder
   private var sidebarView: some View {
-    // Lift aggregation out of computed properties: a computed `var` re-runs on
-    // every access, and SwiftUI accesses it once per row inside `ForEach`
-    // closures. Local `let`s in the body run once per body evaluation and the
-    // dictionaries are then passed by reference into the row builders.
+    // Sidebar badge counts derive from the cached `unreadSnapshot`, which is
+    // refreshed off-MainActor by `DataWriter.fetchUnreadCountsSnapshot()` —
+    // body never re-aggregates per evaluation. `pendingReadIDs` is the
+    // optimistic-read overlay that already drives the dimmed state in
+    // `EntryRowView`; subtracting it here keeps the badges in step with the
+    // article list in the same frame, without flipping `isRead` eagerly.
     //
-    // `pendingReadIDs` is the optimistic-read overlay that already drives the
-    // dimmed state in `EntryRowView`. Subtracting it from the sidebar counts
-    // here keeps the badges in step with the article list in the same frame
-    // — no need to flip `isRead` eagerly and defeat the flush debounce.
-    let categoryUnreadCounts = unreadCounts(
-      in: unreadEntries.map {
-        UnreadCountInput(label: $0.primaryCategory, feedbinEntryID: $0.feedbinEntryID)
-      },
-      excludingFeedbinEntryIDs: pendingReadIDs
+    // The overlay subtraction is bounded by the number of unique categories
+    // (or folders) times the size of `pendingReadIDs` — both small. The
+    // intersection against `unreadIDByCategory` / `unreadIDByFolder`
+    // naturally excludes pending IDs that are no longer unread on disk, so
+    // a stale cross-device flip cannot double-subtract.
+    let pendingByCategory = pendingReadCountsByCategory(
+      snapshot: unreadSnapshot, pending: pendingReadIDs)
+    let pendingByFolder = pendingReadCountsByFolder(
+      snapshot: unreadSnapshot, pending: pendingReadIDs)
+    let categoryUnreadCounts = unreadSnapshot.categoryCounts
+      .subtractingPendingCounts(pendingByCategory)
+    let folderUnreadCounts = unreadSnapshot.folderCounts
+      .subtractingPendingCounts(pendingByFolder)
+    // EquatableView short-circuits the sidebar body whenever the structural
+    // inputs above match the previous render — mark-read overlay flips,
+    // selectedEntry changes, and detail-pane state never cross into the
+    // sidebar's render path. Toolbar + key handlers stay outside so they
+    // remain reactive to `syncEngine.isSyncing` / class-engine state.
+    //
+    // An earlier iteration dropped this wrap, suspecting it of hiding the
+    // sidebar from XCUITest. `make test-full` on `main` (without this PR)
+    // showed the same two UI tests already failing — so EquatableView is
+    // exonerated and re-introduced. Pre-existing UI-test failures are
+    // tracked separately as a follow-up issue.
+    EquatableView(
+      content: SidebarView(
+        visibleFolderGroups: sidebarFolderGroupSnapshots,
+        rootCategories: sidebarRootCategorySnapshots,
+        categoryUnreadCounts: categoryUnreadCounts,
+        folderUnreadCounts: folderUnreadCounts,
+        fontBody: fontSettings.body,
+        selection: $selection,
+        collapsedFolders: $collapsedFolders
+      )
     )
-    let folderUnreadCounts = unreadCounts(
-      in: unreadEntries.map {
-        UnreadCountInput(label: $0.primaryFolder, feedbinEntryID: $0.feedbinEntryID)
-      },
-      excludingFeedbinEntryIDs: pendingReadIDs
-    )
-    let groups = visibleFolderGroups
-
-    List(selection: $selection) {
-      Section {
-        ForEach(groups, id: \.folder.persistentModelID) { group in
-          sidebarFolderGroup(
-            folder: group.folder,
-            categories: group.categories,
-            folderUnreadCounts: folderUnreadCounts,
-            categoryUnreadCounts: categoryUnreadCounts
-          )
-        }
-        ForEach(rootCategories) { category in
-          sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
-        }
-      } header: {
-        SyncStatusView()
-      }
-    }
-    .listStyle(.sidebar)
     .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
@@ -670,76 +729,11 @@ struct ContentView: View {
     }
   }
 
-  /// A folder row plus its child categories rendered as a `DisclosureGroup`.
-  /// The label carries the folder selection tag so the folder aggregate stays
-  /// selectable (J/K nav and click). The trailing unread count is a
-  /// `SidebarUnreadBadge` rather than `.badge(_:)` so we control its font
-  /// and contrast — `.badge` renders a high-contrast system pill on macOS
-  /// that has no public styling hook and clashed with the calm reader
-  /// surface (`docs/vision.md`). Unread counts are passed in as
-  /// already-computed dictionaries so the row builder never re-aggregates
-  /// per render.
-  @ViewBuilder
-  private func sidebarFolderGroup(
-    folder: Folder,
-    categories: [Category],
-    folderUnreadCounts: [String: Int],
-    categoryUnreadCounts: [String: Int]
-  ) -> some View {
-    DisclosureGroup(
-      isExpanded: SidebarCollapsedFolders.expansionBinding(
-        for: folder.label, store: $collapsedFolders
-      )
-    ) {
-      ForEach(categories) { category in
-        sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
-      }
-    } label: {
-      sidebarRowLabel(
-        title: folder.displayName,
-        count: folderUnreadCounts[folder.label, default: 0]
-      )
-      .tag(SidebarSelection.folder(folder.label))
-      .accessibilityIdentifier("sidebar.folder.\(folder.label)")
-    }
-  }
-
-  /// A single selectable category row with its unread badge. Shared by
-  /// in-folder children and root-level categories.
-  @ViewBuilder
-  private func sidebarCategoryRow(
-    category: Category,
-    categoryUnreadCounts: [String: Int]
-  ) -> some View {
-    sidebarRowLabel(
-      title: category.displayName,
-      count: categoryUnreadCounts[category.label, default: 0]
-    )
-    .tag(SidebarSelection.category(category.label))
-    .accessibilityIdentifier("sidebar.category.\(category.label)")
-  }
-
-  /// Shared row layout for sidebar entries — folder labels and category
-  /// labels both need "title left, quiet count right". Lifting this avoids
-  /// duplicating the `HStack` + `Spacer()` + `SidebarUnreadBadge` triplet
-  /// in two call sites and gives the count a stable trailing column.
-  @ViewBuilder
-  private func sidebarRowLabel(title: String, count: Int) -> some View {
-    HStack(spacing: 6) {
-      Text(title)
-        .font(fontSettings.body)
-        .lineLimit(1)
-      Spacer(minLength: 4)
-      SidebarUnreadBadge(count: count)
-    }
-  }
-
-  /// The navigation title reflects what the content column is currently rendering
-  /// (`renderedSelection`), not the sidebar's pending selection (`selection`).
-  /// During the 150 ms debounce window these differ — reading `renderedSelection`
-  /// keeps the title aligned with the list the user actually sees.
+  /// The navigation title tracks the sidebar `selection` directly. There is no
+  /// debounced mirror to consult — selection commits and the content column
+  /// re-renders in the same frame.
   private var navigationTitle: String {
-    switch renderedSelection {
+    switch selection {
     case .folder(let label):
       return folders.first { $0.label == label }?.displayName ?? "Articles"
     case .category(let label):
@@ -754,8 +748,8 @@ struct ContentView: View {
   @ViewBuilder
   private var detailView: some View {
     Group {
-      if let renderedEntry {
-        EntryDetailView(entry: renderedEntry, viewMode: articleViewMode)
+      if let selectedEntry {
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")
@@ -794,6 +788,10 @@ struct ContentView: View {
   // MARK: - Helpers
 
   private func checkCredentials() {
+    if isPerfScenarioMode {
+      runPerfScenario()
+      return
+    }
     if isPreviewMode {
       // Preview canvases seed their model container directly and never run
       // `startSync`/`configure`, so `syncEngine.writer` stays nil and
@@ -826,6 +824,36 @@ struct ContentView: View {
       needsSetup = true
     } else {
       startSync()
+    }
+  }
+
+  /// Drive the headless perf scenario. Attaches a `DataWriter` so
+  /// `EntryListView` can render the seeded rows, then hands control to
+  /// `PerfScenarioRunner` which mutates `selection`, `selectedEntry`, and
+  /// `articleViewMode` on MainActor — the same writes the user would make.
+  /// `exit(0)` inside the runner ends the launch so `xctrace` finalises the
+  /// recorded trace.
+  private func runPerfScenario() {
+    let container = modelContext.container
+    Task { @MainActor in
+      let writer = await DataWriter.makeDetached(modelContainer: container)
+      syncEngine.attachWriter(writer)
+      await PerfScenarioRunner.run(
+        writer: writer,
+        syncEngine: syncEngine,
+        apply: { newSelection, newEntry, newMode in
+          selection = newSelection
+          selectedEntry = newEntry
+          articleViewMode = newMode
+        },
+        visibleEntries: {
+          // Materialize the currently-rendered entry IDs into Entry refs so
+          // the runner can pick the first visible row to click.
+          currentEntryIDs.compactMap { id in
+            modelContext.model(for: id) as? Entry
+          }
+        }
+      )
     }
   }
 

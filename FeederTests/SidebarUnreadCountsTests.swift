@@ -113,6 +113,87 @@ struct UnreadCountsExcludingPendingTests {
   }
 }
 
+// MARK: - pendingReadCountsByCategory / pendingReadCountsByFolder
+
+struct PendingReadCountsFromSnapshotTests {
+  private static let snapshot = UnreadCountsSnapshot(
+    categoryCounts: ["apple": 3, "world_news": 2],
+    folderCounts: ["tech": 3],
+    unreadFeedbinEntryIDs: [1, 2, 3, 4, 5],
+    unreadIDByCategory: [
+      "apple": [1, 2, 3],
+      "world_news": [4, 5],
+    ],
+    unreadIDByFolder: [
+      "tech": [1, 2, 3]
+    ],
+    totalUnread: 5
+  )
+
+  @Test
+  func emptyPendingSetProducesEmptyOverlay() {
+    let categoryOverlay = pendingReadCountsByCategory(snapshot: Self.snapshot, pending: [])
+    let folderOverlay = pendingReadCountsByFolder(snapshot: Self.snapshot, pending: [])
+    #expect(categoryOverlay.isEmpty)
+    #expect(folderOverlay.isEmpty)
+  }
+
+  @Test
+  func pendingIDOnlyAffectsContainingBucket() {
+    // Entry 1 is in `apple` ∩ `tech`. Marking it pending must subtract from
+    // both the category and folder buckets — sidebar badges for `apple` and
+    // `tech` need to drop in the same frame.
+    let categoryOverlay = pendingReadCountsByCategory(snapshot: Self.snapshot, pending: [1])
+    let folderOverlay = pendingReadCountsByFolder(snapshot: Self.snapshot, pending: [1])
+    #expect(categoryOverlay["apple"] == 1)
+    #expect(categoryOverlay["world_news"] == nil)
+    #expect(folderOverlay["tech"] == 1)
+  }
+
+  @Test
+  func pendingIDNotInSnapshotIsIgnored() {
+    // Cross-device sync flipped the entry to read on disk and the snapshot
+    // was refreshed before `pendingReadIDs` got pruned — the lingering ID
+    // must not subtract from anything.
+    let categoryOverlay = pendingReadCountsByCategory(snapshot: Self.snapshot, pending: [999])
+    #expect(categoryOverlay.isEmpty)
+  }
+
+  @Test
+  func allUnreadPendingCollapsesEveryBucket() {
+    let categoryOverlay = pendingReadCountsByCategory(snapshot: Self.snapshot, pending: [1, 2, 3, 4, 5])
+    #expect(categoryOverlay["apple"] == 3)
+    #expect(categoryOverlay["world_news"] == 2)
+    let folderOverlay = pendingReadCountsByFolder(snapshot: Self.snapshot, pending: [1, 2, 3, 4, 5])
+    #expect(folderOverlay["tech"] == 3)
+  }
+
+  @Test
+  func subtractingPendingFloorsAtZeroAndDropsKeysAtZero() {
+    let counts: [String: Int] = ["apple": 3, "world_news": 2]
+    let overlay: [String: Int] = ["apple": 3, "world_news": 1]
+    let result = counts.subtractingPendingCounts(overlay)
+    // `apple` collapses to zero ⇒ removed; `world_news` stays at 1.
+    #expect(result["apple"] == nil)
+    #expect(result["world_news"] == 1)
+  }
+
+  @Test
+  func subtractingPendingPreservesOriginalWhenOverlayEmpty() {
+    let counts: [String: Int] = ["apple": 3, "world_news": 2]
+    let result = counts.subtractingPendingCounts([:])
+    #expect(result == counts)
+  }
+
+  @Test
+  func subtractingPendingIgnoresOverlayKeysNotInSelf() {
+    let counts: [String: Int] = ["apple": 3]
+    let overlay: [String: Int] = ["world_news": 5]
+    let result = counts.subtractingPendingCounts(overlay)
+    #expect(result == counts)
+  }
+}
+
 // MARK: - sidebarNavigationItems
 
 struct SidebarNavigationItemsTests {

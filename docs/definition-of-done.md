@@ -58,3 +58,4 @@ For every user-visible surface that the change touches, the following states are
 ## Performance
 
 - [ ] Performance budgets respected (`stack.md` → Performance budgets). Profile any change that touches the hot path.
+- [ ] If the diff touches the hot path (`ContentView`, `EntryRowView`, `EntryDetailView`, `DataWriter` queries, `UnreadCountsSnapshot`, or signpost-bounded paths), `make perf` passed without regression. See `Tests/PerfBaselines/README.md` for usage.
