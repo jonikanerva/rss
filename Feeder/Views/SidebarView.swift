@@ -31,34 +31,59 @@ nonisolated struct SidebarCategorySnapshot: Sendable, Equatable, Identifiable {
 
 // MARK: - Sidebar View
 
-/// The article-list column's sidebar, extracted from `ContentView` to
-/// reduce body-eval cost: the row builders see DTO snapshots instead of
-/// `@Model` faulting calls, and the `unreadCounts` aggregation runs once
-/// per outer body eval rather than once per row.
+/// The article-list column's sidebar, extracted from `ContentView` so
+/// SwiftUI can skip re-rendering it when nothing the sidebar depends on
+/// has changed.
+///
+/// The view is `Equatable` and its inputs are DTO snapshots (plus two
+/// `@Binding`s that SwiftUI keeps stable across body re-evaluations).
+/// `ContentView` wraps the call site in `EquatableView(content:)`, which
+/// is the documented Apple primitive for "render-skip when `==` returns
+/// true". The hot path (arrow-key keyboard nav, mark-as-read overlay
+/// flips) mutates state that does not feed any of the `let` inputs here,
+/// so the sidebar's body is no longer re-evaluated on those events.
 ///
 /// The header (`SyncStatusView`) intentionally lives inside this view
 /// and reads `SyncEngine` / `ClassificationEngine` from `@Environment`.
 /// Those reads observe their own `@Observable` properties and continue
-/// to re-render the header sub-tree when sync progresses.
-///
-/// A previous iteration of this PR wrapped the call site in
-/// `EquatableView(content:)` for an extra render-skip. That short-circuit
-/// hid the sidebar from XCUITest accessibility queries
-/// (`sidebar.folder.<label>` static texts did not register on first
-/// render in demo mode), so the wrapper was removed — SwiftUI's natural
-/// diff handles the render-skip well enough now that the row builders
-/// no longer touch `@Model` types.
-struct SidebarView: View {
+/// to re-render the header sub-tree when sync progresses — the
+/// `Equatable` skip only short-circuits the outer body, not nested
+/// observation. The toolbar stays at the `ContentView` call site (outside
+/// the `EquatableView`) so it stays reactive to
+/// `syncEngine.isSyncing || classificationEngine.isClassifying`.
+struct SidebarView: View, Equatable {
   let visibleFolderGroups: [SidebarFolderGroup]
   let rootCategories: [SidebarCategorySnapshot]
   let categoryUnreadCounts: [String: Int]
   let folderUnreadCounts: [String: Int]
-  let collapsedFolders: SidebarCollapsedFolders
   let fontBody: Font
   @Binding
   var selection: SidebarSelection?
   @Binding
-  var collapsedFoldersBinding: SidebarCollapsedFolders
+  var collapsedFolders: SidebarCollapsedFolders
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    // `@Binding`-wrapped properties expose their `wrappedValue` directly via
+    // the dot-accessor on the view instance, which is what we need here:
+    // selection identity and the collapsed-folders set are both part of the
+    // render contract. Bindings themselves are stable across re-evals —
+    // SwiftUI hands the same projection on each re-build — so comparing
+    // the wrapped value is the meaningful check.
+    //
+    // `fontBody` is read by `rowLabel(title:count:)` — without it in the
+    // comparison, changing the app text size in Settings would leave the
+    // sidebar row titles stuck at the previous font until some other
+    // structural input (sync state, selection, classification batch)
+    // changed. `SidebarUnreadBadge` and `SyncStatusView` self-observe
+    // `AppFontSettings`, but the row title text reads through this `let`.
+    lhs.visibleFolderGroups == rhs.visibleFolderGroups
+      && lhs.rootCategories == rhs.rootCategories
+      && lhs.categoryUnreadCounts == rhs.categoryUnreadCounts
+      && lhs.folderUnreadCounts == rhs.folderUnreadCounts
+      && lhs.selection == rhs.selection
+      && lhs.collapsedFolders == rhs.collapsedFolders
+      && lhs.fontBody == rhs.fontBody
+  }
 
   var body: some View {
     List(selection: $selection) {
@@ -91,7 +116,7 @@ struct SidebarView: View {
   private func folderGroup(_ group: SidebarFolderGroup) -> some View {
     DisclosureGroup(
       isExpanded: SidebarCollapsedFolders.expansionBinding(
-        for: group.label, store: $collapsedFoldersBinding
+        for: group.label, store: $collapsedFolders
       )
     ) {
       ForEach(group.categories) { category in
