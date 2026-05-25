@@ -13,11 +13,6 @@ import SwiftUI
 // MARK: - Content View
 
 struct ContentView: View {
-  /// Dwell time before propagating a keyboard-driven selection change to a heavy
-  /// downstream view (WebView render or article-list background fetch). Short
-  /// enough that single intentional taps still feel instant; long enough to
-  /// suppress per-keystroke work during arrow-key scrubbing.
-  fileprivate static let renderDwell: Duration = .milliseconds(150)
   /// Hold time before a finished classification batch is allowed to refresh the
   /// article list while the user is actively browsing. Bumping
   /// `entryRefreshVersion` causes `EntryListView` to re-fetch sections; if any
@@ -64,21 +59,8 @@ struct ContentView: View {
   private var collapsedFolders: SidebarCollapsedFolders = .init()
   @State
   private var selectedEntry: Entry?
-  /// Debounced mirror of `selectedEntry`. The detail pane (WebView) renders this,
-  /// not `selectedEntry`, so rapid keyboard scrubbing doesn't trigger a WebKit
-  /// load + HTML rebuild for every intermediate article. See `.task(id:)` modifier
-  /// on `body` that drives this from `selectedEntry` after a short dwell time.
-  @State
-  private var renderedEntry: Entry?
   @State
   private var selection: SidebarSelection?
-  /// Debounced mirror of `selection`. The article-list column reads this, not
-  /// `selection`, so rapid sidebar arrow scrubbing doesn't kick off a fresh
-  /// `DataWriter.fetchEntrySections` background fetch on every keystroke (each
-  /// cancelled fetch still wastes a small amount of background work). Driven
-  /// by `.task(id: selection)` after a short dwell time.
-  @State
-  private var renderedSelection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
@@ -122,8 +104,8 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      if let renderedSelection {
-        entryListForSelection(renderedSelection)
+      if let selection {
+        entryListForSelection(selection)
           .focused($panelFocus, equals: .articleList)
           .environment(\.pendingReadIDs, pendingReadIDs)
           .navigationTitle(navigationTitle)
@@ -188,46 +170,14 @@ struct ContentView: View {
         }
       }
       articleViewMode = .web
-      // Clear the rendered entry immediately when selection clears so the
-      // empty-state view appears without a delay.
-      if newEntry == nil {
-        renderedEntry = nil
-      }
-    }
-    .task(id: selectedEntry?.feedbinEntryID) {
-      // Debounce: WebView only loads HTML for entries the user dwells on long
-      // enough to matter. When selectedEntry changes again before the sleep
-      // completes, this task is cancelled and the in-flight load is skipped —
-      // so holding Down arrow no longer triggers N WebKit reloads +
-      // buildHTML cycles on MainActor.
-      guard selectedEntry != nil else { return }
-      try? await Task.sleep(for: Self.renderDwell)
-      guard !Task.isCancelled else { return }
-      renderedEntry = selectedEntry
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
       selectedEntry = nil
     }
-    .onChange(of: selection) { _, newSelection in
+    .onChange(of: selection) { _, _ in
       flushPendingReads()
       selectedEntry = nil
-      // Clear the rendered article-list column immediately when no sidebar
-      // item is selected so the empty-state appears without delay.
-      if newSelection == nil {
-        renderedSelection = nil
-      }
-    }
-    .task(id: selection) {
-      // Debounce: only fire `EntryListView` (and its background
-      // `DataWriter.fetchEntrySections` call) for sidebar selections the user
-      // dwells on for >150 ms. The fetch is cancellable and non-blocking, but
-      // each cancelled fetch still wastes a small amount of background work,
-      // so debouncing keeps fast scrubbing efficient.
-      guard selection != nil else { return }
-      try? await Task.sleep(for: Self.renderDwell)
-      guard !Task.isCancelled else { return }
-      renderedSelection = selection
     }
     .onChange(of: allCategories.count) {
       revalidateSelection()
@@ -351,7 +301,7 @@ struct ContentView: View {
         openInBrowserAction: openInBackground,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
         moveSelectionUpAction: { moveSidebarSelection(by: -1) },
-        canMarkAllRead: articleFilter == .unread && renderedSelection != nil,
+        canMarkAllRead: articleFilter == .unread && selection != nil,
         canOpenInBrowser: selectedEntry != nil,
         hasSelectedEntry: selectedEntry != nil,
         isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
@@ -483,13 +433,11 @@ struct ContentView: View {
     "sync|\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingSyncBump)"
   }
 
-  /// Tab from sidebar into the article-list column. No-ops entirely during
-  /// the `renderedSelection` debounce window — if focus moved to the outgoing
-  /// list, subsequent arrow-key navigation or Shift+A would act on the
-  /// previous category even though the sidebar already shows the new one.
-  /// The user waits ~150 ms or presses Tab again once alignment settles.
+  /// Tab from sidebar into the article-list column. Selecting the first row
+  /// is gated on `currentEntryIDs` being non-empty, which is only true once
+  /// the article list has rendered for the active `selection`. No selection
+  /// or no rendered list ⇒ Tab moves focus only.
   private func tabIntoArticleList() {
-    guard selection == renderedSelection else { return }
     panelFocus = .articleList
     guard let firstID = currentEntryIDs.first else { return }
     guard let firstEntry = modelContext.model(for: firstID) as? Entry else { return }
@@ -553,11 +501,9 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    // Target the category the user currently *sees* (renderedSelection), not the
-    // sidebar's pending selection — these diverge for ~150 ms after a sidebar
-    // arrow press while the article list is debounced. Using `selection` here
-    // would mark the wrong category read during that window.
-    guard articleFilter == .unread, let target = renderedSelection,
+    // Sidebar `selection` is both what the user sees and the source of truth
+    // for the article-list column — no separate "rendered" mirror to consult.
+    guard articleFilter == .unread, let target = selection,
       let writer = syncEngine.writer
     else { return }
     selectedEntry = nil
@@ -704,12 +650,11 @@ struct ContentView: View {
     }
   }
 
-  /// The navigation title reflects what the content column is currently rendering
-  /// (`renderedSelection`), not the sidebar's pending selection (`selection`).
-  /// During the 150 ms debounce window these differ — reading `renderedSelection`
-  /// keeps the title aligned with the list the user actually sees.
+  /// The navigation title tracks the sidebar `selection` directly. There is no
+  /// debounced mirror to consult — selection commits and the content column
+  /// re-renders in the same frame.
   private var navigationTitle: String {
-    switch renderedSelection {
+    switch selection {
     case .folder(let label):
       return folders.first { $0.label == label }?.displayName ?? "Articles"
     case .category(let label):
@@ -724,8 +669,8 @@ struct ContentView: View {
   @ViewBuilder
   private var detailView: some View {
     Group {
-      if let renderedEntry {
-        EntryDetailView(entry: renderedEntry, viewMode: articleViewMode)
+      if let selectedEntry {
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")
