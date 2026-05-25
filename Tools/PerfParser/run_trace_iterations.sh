@@ -60,8 +60,10 @@ run_iteration() {
 # Warm-up
 run_iteration 0 "$WARMUP_DIR"
 
-# Recorded iterations
-rm -f "$OUTPUT_DIR"/iteration-*.trace
+# Recorded iterations. xctrace .trace bundles are directories, not files,
+# so `rm -f` silently skips them and the next run aborts ("is a directory").
+# Use `rm -rf` to clear stale iteration bundles from prior runs.
+rm -rf "$OUTPUT_DIR"/iteration-*.trace
 for ((i=1; i<=ITERATIONS; i++)); do
   run_iteration "$i" "$OUTPUT_DIR"
 done
