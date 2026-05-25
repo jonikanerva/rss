@@ -1,3 +1,4 @@
+import os
 import os.signpost
 
 // MARK: - Shared OSSignposter
@@ -16,6 +17,17 @@ import os.signpost
 nonisolated let perfSignposter = OSSignposter(
   subsystem: "com.feeder.app",
   category: .pointsOfInterest
+)
+
+/// Sibling logger used only to flag mis-paired signpost intervals — a begin
+/// taken while a previous begin was still un-ended. The misuse is recorded as
+/// a debug-level entry so it surfaces under `os_log` filtering without
+/// polluting production logs. Subsystem matches `perfSignposter` per
+/// `docs/stack.md → Logging`; category is human-readable so the warnings are
+/// easy to grep for in `log stream`.
+nonisolated let perfSignpostLogger = Logger(
+  subsystem: "com.feeder.app",
+  category: "PerformanceSignposts"
 )
 
 // MARK: - Interval names
