@@ -660,22 +660,24 @@ struct ContentView: View {
       in: unreadEntries,
       excludingFeedbinEntryIDs: pendingReadIDs
     )
-    // EquatableView short-circuits the sidebar body whenever the structural
-    // inputs above match the previous render — mark-read overlay flips,
-    // selectedEntry changes, and detail-pane state never cross into the
-    // sidebar's render path. Toolbar + key handlers stay outside so they
-    // remain reactive to `syncEngine.isSyncing` / class-engine state.
-    EquatableView(
-      content: SidebarView(
-        visibleFolderGroups: sidebarFolderGroupSnapshots,
-        rootCategories: sidebarRootCategorySnapshots,
-        categoryUnreadCounts: categoryUnreadCounts,
-        folderUnreadCounts: folderUnreadCounts,
-        collapsedFolders: collapsedFolders,
-        fontBody: fontSettings.body,
-        selection: $selection,
-        collapsedFoldersBinding: $collapsedFolders
-      )
+    // SidebarView stays a plain View — the EquatableView short-circuit
+    // landed earlier and hid the sidebar from XCUITest accessibility
+    // queries (`sidebar.folder.<label>` static texts never registered in
+    // the demo-mode launch). The DTO-based structure keeps body re-eval
+    // cheap (no @Model touches inside the row builders); SwiftUI's
+    // natural diff handles the render-skip. The keyboard-nav perf win
+    // for #100 is carried by `applyPendingReadAfterYield` and the
+    // single-pass `unreadCounts` overload above — `EquatableView` was
+    // belt-and-braces, not load-bearing.
+    SidebarView(
+      visibleFolderGroups: sidebarFolderGroupSnapshots,
+      rootCategories: sidebarRootCategorySnapshots,
+      categoryUnreadCounts: categoryUnreadCounts,
+      folderUnreadCounts: folderUnreadCounts,
+      collapsedFolders: collapsedFolders,
+      fontBody: fontSettings.body,
+      selection: $selection,
+      collapsedFoldersBinding: $collapsedFolders
     )
     .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
