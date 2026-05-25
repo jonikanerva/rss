@@ -48,14 +48,14 @@ struct ContentView: View {
   /// `allCategories.atRoot` in-memory filter on every render.
   @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
   private var rootCategories: [Category]
-  /// Classified-unread entries — the universe over which sidebar badges are
-  /// aggregated. Filtering happens at the SQLite level so the count of rows
-  /// pulled into MainActor is bounded by unread inventory, not total entries.
-  /// Aggregation into per-category and per-folder dictionaries is O(n) Swift
-  /// (where n = unread count), computed once per `@Query` snapshot and read
-  /// by `body` as dictionary lookups — no work during row rendering.
-  @Query(filter: #Predicate<Entry> { $0.isClassified == true && $0.isRead == false })
-  private var unreadEntries: [Entry]
+  /// Cached aggregation over the classified-unread universe. Refreshed by
+  /// `unreadSnapshotRefreshTask` whenever `entryRefreshVersion` or the
+  /// taxonomy structure changes — never re-fetched inside body. Replaces a
+  /// `@Query unreadEntries` that fired a full SQLite fetch + per-row property
+  /// access during every body re-eval (33.8% of main-thread CPU in the
+  /// 2026-05 Time Profiler trace).
+  @State
+  private var unreadSnapshot: UnreadCountsSnapshot = .empty
   @AppStorage("sidebar.collapsedFolders")
   private var collapsedFolders: SidebarCollapsedFolders = .init()
   @State
@@ -233,14 +233,24 @@ struct ContentView: View {
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // Keep `pendingReadIDs` aligned with the live SQLite-side unread snapshot:
-    // when a background write (mark-read / mark-all-read / sync) flips
-    // entries out of `unreadEntries`, drop their IDs from the optimistic
-    // overlay so the set does not grow unbounded across a long session and
-    // does not mask a future cross-device unread flip on the same ID.
+    // Refresh the cached unread snapshot whenever the underlying data may
+    // have changed. The modifier owns the `.task(id:)` so the body stays
+    // inside SwiftUI's type-checker budget.
+    .modifier(
+      UnreadSnapshotRefreshTask(
+        key: unreadSnapshotKey,
+        writer: syncEngine.writer,
+        snapshot: $unreadSnapshot
+      )
+    )
+    // Keep `pendingReadIDs` aligned with the live unread snapshot: when a
+    // background write (mark-read / mark-all-read / sync) flips entries out
+    // of the snapshot, drop their IDs from the optimistic overlay so the
+    // set does not grow unbounded across a long session and does not mask a
+    // future cross-device unread flip on the same ID.
     .modifier(
       PendingReadPruneTrigger(
-        unreadCount: unreadEntries.count,
+        unreadCount: unreadSnapshot.totalUnread,
         onUnreadCountChange: { prunePendingReadIDs() }
       )
     )
@@ -461,6 +471,18 @@ struct ContentView: View {
     allCategories.map(\.folderLabel)
   }
 
+  /// Re-key for the unread snapshot refresh task. Bumps on:
+  /// - `entryRefreshVersion` — every mutation path that can change unread
+  ///   membership (sync edge, classification drain, mark-read flush,
+  ///   mark-all-read, category/folder reorganisation).
+  /// - `folders.count`, `allCategories.count` — taxonomy edits that change
+  ///   the dictionaries' keyspace without flipping any entry.
+  /// `entryRefreshVersion` uses `&+=` and wraps; string interpolation
+  /// compares for equality, which handles the wrap.
+  private var unreadSnapshotKey: String {
+    "\(entryRefreshVersion)|\(folders.count)|\(allCategories.count)"
+  }
+
   /// Re-key for the classification drain task. A change in either component
   /// restarts the task: selection move ⇒ fresh dwell window; pending flag flip
   /// ⇒ pick up the newly-owed bump.
@@ -531,15 +553,15 @@ struct ContentView: View {
   }
 
   /// Prune the optimistic-read set down to IDs that still appear in the
-  /// MainActor `unreadEntries` snapshot. Called whenever the snapshot
-  /// changes — typically right after a `DataWriter` save propagates via
-  /// SwiftData's auto-merge. IDs whose corresponding `Entry.isRead` has
-  /// just flipped to `true` (or whose entry was deleted) fall out here;
-  /// the sidebar's pending-aware aggregation then sees no double-counting.
+  /// cached `unreadSnapshot`. Called whenever `totalUnread` changes —
+  /// typically right after a `DataWriter` save bumps `entryRefreshVersion`
+  /// and the snapshot refresh task lands. IDs whose corresponding
+  /// `Entry.isRead` has just flipped to `true` (or whose entry was deleted)
+  /// fall out here; the sidebar's pending-aware aggregation then sees no
+  /// double-counting.
   private func prunePendingReadIDs() {
     guard !pendingReadIDs.isEmpty else { return }
-    let currentUnreadIDs = Set(unreadEntries.map(\.feedbinEntryID))
-    pendingReadIDs.formIntersection(currentUnreadIDs)
+    pendingReadIDs.formIntersection(unreadSnapshot.unreadFeedbinEntryIDs)
   }
 
   private func markAllAsRead() {
@@ -551,23 +573,18 @@ struct ContentView: View {
     selectedEntry = nil
     let markTarget: MarkReadTarget
     let optimisticIDs: Set<Int>
-    // Compute the optimistic set on MainActor from the already-loaded
-    // `unreadEntries` snapshot so the sidebar can drop to zero in the same
-    // frame the article list empties — without waiting for the background
-    // writer to commit and the MainActor `@Query` to observe the change.
-    // Bounded by unread inventory (the `@Query` already filters at SQLite
-    // level), so this filter is the same shape as the existing aggregation.
+    // Read the optimistic set out of the cached snapshot so the sidebar can
+    // drop to zero in the same frame the article list empties — without
+    // waiting for the background writer to commit and the snapshot refresh
+    // task to land. The pre-computed `unreadIDByFolder` / `unreadIDByCategory`
+    // dictionaries already group by the same axis the user selected.
     switch target {
     case .folder(let label):
       markTarget = .folder(label)
-      optimisticIDs = Set(
-        unreadEntries.lazy.filter { $0.primaryFolder == label }.map(\.feedbinEntryID)
-      )
+      optimisticIDs = unreadSnapshot.unreadIDByFolder[label] ?? []
     case .category(let label):
       markTarget = .category(label)
-      optimisticIDs = Set(
-        unreadEntries.lazy.filter { $0.primaryCategory == label }.map(\.feedbinEntryID)
-      )
+      optimisticIDs = unreadSnapshot.unreadIDByCategory[label] ?? []
     }
     pendingReadIDs.formUnion(optimisticIDs)
     Task {
@@ -630,24 +647,26 @@ struct ContentView: View {
 
   @ViewBuilder
   private var sidebarView: some View {
-    // Lift aggregation out of computed properties: a computed `var` re-runs on
-    // every access, and SwiftUI accesses it once per row inside `ForEach`
-    // closures. Local `let`s in the body run once per body evaluation and the
-    // dictionaries are then passed by reference into the row builders.
+    // Sidebar badge counts derive from the cached `unreadSnapshot`, which is
+    // refreshed off-MainActor by `DataWriter.fetchUnreadCountsSnapshot()` —
+    // body never re-aggregates per evaluation. `pendingReadIDs` is the
+    // optimistic-read overlay that already drives the dimmed state in
+    // `EntryRowView`; subtracting it here keeps the badges in step with the
+    // article list in the same frame, without flipping `isRead` eagerly.
     //
-    // `pendingReadIDs` is the optimistic-read overlay that already drives the
-    // dimmed state in `EntryRowView`. Subtracting it from the sidebar counts
-    // here keeps the badges in step with the article list in the same frame
-    // — no need to flip `isRead` eagerly and defeat the flush debounce.
-    //
-    // The single-pass overload reads each entry's `primaryCategory` and
-    // `primaryFolder` once and emits both dictionaries together — replaces
-    // the previous two-pass `Entry → UnreadCountInput → loop` projection
-    // (each pass allocated an intermediate `[UnreadCountInput]` array).
-    let (categoryUnreadCounts, folderUnreadCounts) = unreadCounts(
-      in: unreadEntries,
-      excludingFeedbinEntryIDs: pendingReadIDs
-    )
+    // The overlay subtraction is bounded by the number of unique categories
+    // (or folders) times the size of `pendingReadIDs` — both small. The
+    // intersection against `unreadIDByCategory` / `unreadIDByFolder`
+    // naturally excludes pending IDs that are no longer unread on disk, so
+    // a stale cross-device flip cannot double-subtract.
+    let pendingByCategory = pendingReadCountsByCategory(
+      snapshot: unreadSnapshot, pending: pendingReadIDs)
+    let pendingByFolder = pendingReadCountsByFolder(
+      snapshot: unreadSnapshot, pending: pendingReadIDs)
+    let categoryUnreadCounts = unreadSnapshot.categoryCounts
+      .subtractingPendingCounts(pendingByCategory)
+    let folderUnreadCounts = unreadSnapshot.folderCounts
+      .subtractingPendingCounts(pendingByFolder)
     // EquatableView short-circuits the sidebar body whenever the structural
     // inputs above match the previous render — mark-read overlay flips,
     // selectedEntry changes, and detail-pane state never cross into the

@@ -113,13 +113,14 @@ struct DeferredBumpDrainTrigger: ViewModifier {
   }
 }
 
-/// Fires `onUnreadCountChange` whenever the MainActor `@Query` unread snapshot
-/// size changes — typically right after a `DataWriter` save (mark-read /
-/// mark-all-read / sync) propagates via SwiftData's auto-merge. The owner
-/// uses this hook to prune its optimistic `pendingReadIDs` overlay back
-/// down to the IDs still present in the live unread set. Extracted into a
-/// modifier so the prune `.onChange` stays out of `ContentView.body` and
-/// the body keeps type-checking inside SwiftUI's reasonable-time limit.
+/// Fires `onUnreadCountChange` whenever the cached unread snapshot's
+/// `totalUnread` changes — typically right after a `DataWriter` save
+/// (mark-read / mark-all-read / sync) propagates via the snapshot refresh
+/// task. The owner uses this hook to prune its optimistic `pendingReadIDs`
+/// overlay back down to the IDs still present in the live unread set.
+/// Extracted into a modifier so the prune `.onChange` stays out of
+/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
+/// reasonable-time limit.
 struct PendingReadPruneTrigger: ViewModifier {
   let unreadCount: Int
   let onUnreadCountChange: () -> Void
@@ -127,6 +128,28 @@ struct PendingReadPruneTrigger: ViewModifier {
   func body(content: Content) -> some View {
     content.onChange(of: unreadCount) {
       onUnreadCountChange()
+    }
+  }
+}
+
+/// Refreshes the cached `UnreadCountsSnapshot` whenever `key` changes.
+/// Re-keyed on `entryRefreshVersion` plus folder/category counts so taxonomy
+/// edits also trigger a refresh. The fetch runs on the `DataWriter` actor —
+/// MainActor only receives the resulting Sendable DTO. Extracted into a
+/// modifier so the `.task(id:)` stays out of `ContentView.body` and the body
+/// keeps type-checking inside SwiftUI's reasonable-time limit.
+struct UnreadSnapshotRefreshTask: ViewModifier {
+  let key: String
+  let writer: DataWriter?
+  @Binding
+  var snapshot: UnreadCountsSnapshot
+
+  func body(content: Content) -> some View {
+    content.task(id: key) {
+      guard let writer else { return }
+      let fresh = try? await writer.fetchUnreadCountsSnapshot()
+      guard !Task.isCancelled, let fresh else { return }
+      snapshot = fresh
     }
   }
 }
