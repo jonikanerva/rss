@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import os.signpost
 
 // MARK: - Shared Detail Date Formatting
 
@@ -172,6 +173,13 @@ private struct ArticleWebContainer: View {
     // selected entry, the user's scroll position is preserved by WKWebView
     // as long as the document stays the same shape (same DOM, larger text).
     .task(id: renderKey) {
+      // Detail-render signpost: measures the off-MainActor HTML render itself
+      // (regex sanitisation + template injection on a detached task), not the
+      // click → task latency. Paired with the sidebar/article-click intervals
+      // in ContentView so Instruments shows commit + render as separate lanes.
+      let renderState = perfSignposter.beginInterval(
+        PerformanceSignpostName.detailRender
+      )
       // Keep the previous article's HTML visible while the new one renders
       // (~5ms). This avoids a spinner flash on every arrow-key navigation —
       // HIG advises against loading indicators for <100ms operations.
@@ -181,8 +189,12 @@ private struct ArticleWebContainer: View {
       //   • The Task.isCancelled check below blocks a late render from
       //     overwriting @State after the user has moved on.
       let html = await renderHTML(for: entry, scaleFactor: fontSettings.textSize.scaleFactor)
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else {
+        perfSignposter.endInterval(PerformanceSignpostName.detailRender, renderState)
+        return
+      }
       renderedHTML = html
+      perfSignposter.endInterval(PerformanceSignpostName.detailRender, renderState)
     }
   }
 

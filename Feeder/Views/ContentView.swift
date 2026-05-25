@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import os.signpost
 
 // MARK: - Content View root
 //
@@ -92,6 +93,14 @@ struct ContentView: View {
   private var pendingSyncBump = false
   @FocusState
   private var panelFocus: PanelFocus?
+  /// In-flight click → render signpost states. Held in `@State` so the begin
+  /// (fired from `.onChange`) survives across the SwiftUI commit boundary to
+  /// the matching end (fired from `.task(id:)` on the next render pass). See
+  /// `PerformanceSignposts.swift` for the `OSSignposter` itself.
+  @State
+  private var sidebarClickIntervalState: OSSignpostIntervalState?
+  @State
+  private var articleClickIntervalState: OSSignpostIntervalState?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -170,14 +179,47 @@ struct ContentView: View {
         }
       }
       articleViewMode = .web
+      // Article-click signpost begin: measures SwiftUI commit cost from
+      // writing `selectedEntry` to the detail column's `.task` firing.
+      // No begin when selection clears — empty-state has no render cost.
+      if newEntry != nil {
+        articleClickIntervalState = perfSignposter.beginInterval(
+          PerformanceSignpostName.articleClick
+        )
+      }
+    }
+    .task(id: selectedEntry?.feedbinEntryID) {
+      // Article-click signpost end: pairs with the begin in
+      // `.onChange(of: selectedEntry)`. Runs immediately, no sleep — the
+      // dwell that used to live here is gone (see commit dropping
+      // renderDwell). Closing the interval here keeps the measurement
+      // bounded to "selection commit ⇒ next SwiftUI render pass".
+      guard let state = articleClickIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)
+      articleClickIntervalState = nil
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
       selectedEntry = nil
     }
-    .onChange(of: selection) { _, _ in
+    .onChange(of: selection) { _, newSelection in
       flushPendingReads()
       selectedEntry = nil
+      // Sidebar-click signpost begin: measures SwiftUI commit cost from
+      // writing `selection` to the content column re-rendering.
+      if newSelection != nil {
+        sidebarClickIntervalState = perfSignposter.beginInterval(
+          PerformanceSignpostName.sidebarClick
+        )
+      }
+    }
+    .task(id: selection) {
+      // Sidebar-click signpost end: pairs with the begin in
+      // `.onChange(of: selection)`. Same shape as the article-click end —
+      // runs immediately on the next render pass and closes the interval.
+      guard let state = sidebarClickIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.sidebarClick, state)
+      sidebarClickIntervalState = nil
     }
     .onChange(of: allCategories.count) {
       revalidateSelection()
