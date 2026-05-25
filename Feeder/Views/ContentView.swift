@@ -175,8 +175,17 @@ struct ContentView: View {
       .environment(syncEngine)
     }
     .onChange(of: selectedEntry) { _, newEntry in
+      // Defer the pending-read insertion off the selection-commit critical
+      // path. An in-frame mutation would cascade through the sidebar
+      // unread-count aggregation and the EntryRowView dimming overlay
+      // (both observe `pendingReadIDs`), nudging row metrics on the same
+      // frame the user pressed arrow-down — perceived as keyboard lag.
+      // `applyPendingReadAfterYield` yields the selection write first,
+      // then mutates next tick.
       if let entry = newEntry, !entry.isRead {
-        pendingReadIDs.insert(entry.feedbinEntryID)
+        applyPendingReadAfterYield(feedbinEntryID: entry.feedbinEntryID) { id in
+          pendingReadIDs.insert(id)
+        }
       }
       articleViewMode = .web
       // Clear the rendered entry immediately when selection clears so the
@@ -605,6 +614,32 @@ struct ContentView: View {
 
   // MARK: - Sidebar
 
+  /// Snapshot of folder groups in DTO form. Built once per `body` evaluation
+  /// and passed into the `Equatable` `SidebarView`, so SwiftUI can compare
+  /// structural snapshots without crossing the SwiftData actor boundary.
+  /// Only folders with at least one assigned category are surfaced — empty
+  /// folders carry no sidebar weight.
+  private var sidebarFolderGroupSnapshots: [SidebarFolderGroup] {
+    visibleFolderGroups.map { group in
+      SidebarFolderGroup(
+        label: group.folder.label,
+        displayName: group.folder.displayName,
+        categories: group.categories.map { category in
+          SidebarCategorySnapshot(label: category.label, displayName: category.displayName)
+        }
+      )
+    }
+  }
+
+  /// Snapshot of root-level categories in DTO form. Same rationale as
+  /// `sidebarFolderGroupSnapshots` — keeps the `Equatable` comparison
+  /// structural.
+  private var sidebarRootCategorySnapshots: [SidebarCategorySnapshot] {
+    rootCategories.map { category in
+      SidebarCategorySnapshot(label: category.label, displayName: category.displayName)
+    }
+  }
+
   @ViewBuilder
   private var sidebarView: some View {
     // Lift aggregation out of computed properties: a computed `var` re-runs on
@@ -616,38 +651,32 @@ struct ContentView: View {
     // dimmed state in `EntryRowView`. Subtracting it from the sidebar counts
     // here keeps the badges in step with the article list in the same frame
     // — no need to flip `isRead` eagerly and defeat the flush debounce.
-    let categoryUnreadCounts = unreadCounts(
-      in: unreadEntries.map {
-        UnreadCountInput(label: $0.primaryCategory, feedbinEntryID: $0.feedbinEntryID)
-      },
+    //
+    // The single-pass overload reads each entry's `primaryCategory` and
+    // `primaryFolder` once and emits both dictionaries together — replaces
+    // the previous two-pass `Entry → UnreadCountInput → loop` projection
+    // (each pass allocated an intermediate `[UnreadCountInput]` array).
+    let (categoryUnreadCounts, folderUnreadCounts) = unreadCounts(
+      in: unreadEntries,
       excludingFeedbinEntryIDs: pendingReadIDs
     )
-    let folderUnreadCounts = unreadCounts(
-      in: unreadEntries.map {
-        UnreadCountInput(label: $0.primaryFolder, feedbinEntryID: $0.feedbinEntryID)
-      },
-      excludingFeedbinEntryIDs: pendingReadIDs
+    // EquatableView short-circuits the sidebar body whenever the structural
+    // inputs above match the previous render — mark-read overlay flips,
+    // selectedEntry changes, and detail-pane state never cross into the
+    // sidebar's render path. Toolbar + key handlers stay outside so they
+    // remain reactive to `syncEngine.isSyncing` / class-engine state.
+    EquatableView(
+      content: SidebarView(
+        visibleFolderGroups: sidebarFolderGroupSnapshots,
+        rootCategories: sidebarRootCategorySnapshots,
+        categoryUnreadCounts: categoryUnreadCounts,
+        folderUnreadCounts: folderUnreadCounts,
+        collapsedFolders: collapsedFolders,
+        fontBody: fontSettings.body,
+        selection: $selection,
+        collapsedFoldersBinding: $collapsedFolders
+      )
     )
-    let groups = visibleFolderGroups
-
-    List(selection: $selection) {
-      Section {
-        ForEach(groups, id: \.folder.persistentModelID) { group in
-          sidebarFolderGroup(
-            folder: group.folder,
-            categories: group.categories,
-            folderUnreadCounts: folderUnreadCounts,
-            categoryUnreadCounts: categoryUnreadCounts
-          )
-        }
-        ForEach(rootCategories) { category in
-          sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
-        }
-      } header: {
-        SyncStatusView()
-      }
-    }
-    .listStyle(.sidebar)
     .modifier(BareKeyHandler())
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
@@ -667,70 +696,6 @@ struct ContentView: View {
         .help("Sync and classify")
         .accessibilityIdentifier("toolbar.sync")
       }
-    }
-  }
-
-  /// A folder row plus its child categories rendered as a `DisclosureGroup`.
-  /// The label carries the folder selection tag so the folder aggregate stays
-  /// selectable (J/K nav and click). The trailing unread count is a
-  /// `SidebarUnreadBadge` rather than `.badge(_:)` so we control its font
-  /// and contrast — `.badge` renders a high-contrast system pill on macOS
-  /// that has no public styling hook and clashed with the calm reader
-  /// surface (`docs/vision.md`). Unread counts are passed in as
-  /// already-computed dictionaries so the row builder never re-aggregates
-  /// per render.
-  @ViewBuilder
-  private func sidebarFolderGroup(
-    folder: Folder,
-    categories: [Category],
-    folderUnreadCounts: [String: Int],
-    categoryUnreadCounts: [String: Int]
-  ) -> some View {
-    DisclosureGroup(
-      isExpanded: SidebarCollapsedFolders.expansionBinding(
-        for: folder.label, store: $collapsedFolders
-      )
-    ) {
-      ForEach(categories) { category in
-        sidebarCategoryRow(category: category, categoryUnreadCounts: categoryUnreadCounts)
-      }
-    } label: {
-      sidebarRowLabel(
-        title: folder.displayName,
-        count: folderUnreadCounts[folder.label, default: 0]
-      )
-      .tag(SidebarSelection.folder(folder.label))
-      .accessibilityIdentifier("sidebar.folder.\(folder.label)")
-    }
-  }
-
-  /// A single selectable category row with its unread badge. Shared by
-  /// in-folder children and root-level categories.
-  @ViewBuilder
-  private func sidebarCategoryRow(
-    category: Category,
-    categoryUnreadCounts: [String: Int]
-  ) -> some View {
-    sidebarRowLabel(
-      title: category.displayName,
-      count: categoryUnreadCounts[category.label, default: 0]
-    )
-    .tag(SidebarSelection.category(category.label))
-    .accessibilityIdentifier("sidebar.category.\(category.label)")
-  }
-
-  /// Shared row layout for sidebar entries — folder labels and category
-  /// labels both need "title left, quiet count right". Lifting this avoids
-  /// duplicating the `HStack` + `Spacer()` + `SidebarUnreadBadge` triplet
-  /// in two call sites and gives the count a stable trailing column.
-  @ViewBuilder
-  private func sidebarRowLabel(title: String, count: Int) -> some View {
-    HStack(spacing: 6) {
-      Text(title)
-        .font(fontSettings.body)
-        .lineLimit(1)
-      Spacer(minLength: 4)
-      SidebarUnreadBadge(count: count)
     }
   }
 

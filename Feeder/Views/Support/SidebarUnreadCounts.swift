@@ -51,3 +51,32 @@ nonisolated func unreadCounts(
   }
   return counts
 }
+
+/// Builds the per-category and per-folder unread-count dictionaries in a
+/// single pass over the `unreadEntries` snapshot.
+///
+/// The production sidebar needs both aggregations and they share the same
+/// exclusion check against `pendingReadIDs`. Running two `Entry → DTO → loop`
+/// passes (one per axis) doubled the iteration and allocated an intermediate
+/// `[UnreadCountInput]` array each time. This overload reads the model fields
+/// once per entry and emits both dictionaries together. The two-arg
+/// `UnreadCountInput` overload above is retained for unit-tested aggregation
+/// behaviour — neither shape needs to change for those tests to keep
+/// asserting the contract.
+@MainActor
+func unreadCounts(
+  in entries: [Entry],
+  excludingFeedbinEntryIDs excluded: Set<Int>
+) -> (category: [String: Int], folder: [String: Int]) {
+  var category: [String: Int] = [:]
+  var folder: [String: Int] = [:]
+  for entry in entries where !excluded.contains(entry.feedbinEntryID) {
+    if !entry.primaryCategory.isEmpty {
+      category[entry.primaryCategory, default: 0] += 1
+    }
+    if !entry.primaryFolder.isEmpty {
+      folder[entry.primaryFolder, default: 0] += 1
+    }
+  }
+  return (category, folder)
+}

@@ -89,6 +89,25 @@ struct EntryListView: View {
   private var allVisibleEntryIDs: [PersistentIdentifier] = []
   @State
   private var hasLoaded = false
+  /// Carries the anchor row + alignment from `reload()`'s pre-diff inspection
+  /// to the post-diff `proxy.scrollTo` call. The pin is conditional on what
+  /// `reload()` sees in the new result and is set to `nil` when no restore is
+  /// warranted (selection cleared with no fallback, structural reload, or
+  /// empty case). Kept as state because the producer and consumer sit in the
+  /// same async function but bracket the `sections = result` assignment.
+  @State
+  private var pendingAnchorRestore: AnchorRestore?
+
+  /// Anchor + alignment pair for `ScrollViewReader.scrollTo`. `.center` keeps
+  /// a still-selected row visible after a Read/Unread filter flip or a
+  /// classification batch reshuffle; `.top` keeps the previously-first row
+  /// pinned at the top when a sync page lands new entries above it (so the
+  /// viewport stays visually stable rather than scrolling along with the
+  /// insert).
+  private struct AnchorRestore: Equatable {
+    let id: PersistentIdentifier
+    let anchor: UnitPoint
+  }
 
   // MARK: - Init
   //
@@ -180,68 +199,108 @@ struct EntryListView: View {
           }
         }
       } else {
-        List(selection: $selectedEntry) {
-          ForEach(sections) { section in
-            Section {
-              ForEach(section.entryIDs, id: \.self) { id in
-                if let entry = modelContext.model(for: id) as? Entry {
-                  EntryRowView(entry: entry)
-                    .tag(entry)
-                    .listRowSeparator(.hidden)
+        // `ScrollViewReader` wraps the `List` so an in-place refresh
+        // (`refreshVersion` tick after a classification or sync diff lands)
+        // can re-anchor the viewport on the row the user was looking at.
+        // Default `List(selection:)` arrow-key auto-scroll-into-view is
+        // untouched — `proxy.scrollTo` fires only from inside `reload()`
+        // after a data diff, never per keystroke.
+        ScrollViewReader { proxy in
+          List(selection: $selectedEntry) {
+            ForEach(sections) { section in
+              Section {
+                ForEach(section.entryIDs, id: \.self) { id in
+                  if let entry = modelContext.model(for: id) as? Entry {
+                    EntryRowView(entry: entry)
+                      .tag(entry)
+                      .id(id)
+                      .listRowSeparator(.hidden)
+                  }
                 }
+              } header: {
+                Text(section.label)
+                  .font(fontSettings.sectionLabel)
+                  .foregroundStyle(.tertiary)
+                  .textCase(nil)
               }
-            } header: {
-              Text(section.label)
-                .font(fontSettings.sectionLabel)
-                .foregroundStyle(.tertiary)
-                .textCase(nil)
             }
           }
+          .listStyle(.inset(alternatesRowBackgrounds: false))
+          .modifier(BareKeyHandler())
+          .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+          .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
+          .accessibilityIdentifier("timeline.list")
+          // Two tasks so refresh-only ticks (classification / sync completion)
+          // do not flip `hasLoaded` back to false and tear down the `List` —
+          // which would reset scroll every time. `structuralKey` captures
+          // inputs whose change means "user is looking at a different list"
+          // (category / folder / filter / cutoff); only those warrant a
+          // loading view. `refreshVersion` fires in place and `reload()`
+          // skips the assign when sections are equal, so SwiftUI's diff
+          // keeps the scroll stable.
+          //
+          // The refresh task's id intentionally includes `structuralKey`:
+          // a bare `refreshVersion` id would not be cancelled when the user
+          // switches category mid-refresh, and the in-flight fetch — which
+          // captured `self` with the old category — could race the
+          // structural task and overwrite `sections` with stale rows from
+          // the previous list. Including `structuralKey` cancels the stale
+          // refresh when context changes, and the `guard hasLoaded` check
+          // keeps the restarted refresh a no-op while the structural task
+          // owns the reload.
+          .task(id: structuralKey) {
+            hasLoaded = false
+            await reload(proxy: proxy)
+            hasLoaded = true
+          }
+          .task(id: refreshTaskKey) {
+            guard hasLoaded else { return }
+            await reload(proxy: proxy)
+          }
         }
-        .listStyle(.inset(alternatesRowBackgrounds: false))
-        .modifier(BareKeyHandler())
-        .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-        .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
-        .accessibilityIdentifier("timeline.list")
       }
-    }
-    // Two tasks so refresh-only ticks (classification / sync completion) do
-    // not flip `hasLoaded` back to false and tear down the `List` — which
-    // would reset scroll every time. `structuralKey` captures inputs whose
-    // change means "user is looking at a different list" (category / folder
-    // / filter / cutoff); only those warrant a loading view. `refreshVersion`
-    // fires in place and `reload()` skips the assign when sections are
-    // equal, so SwiftUI's diff keeps the scroll stable.
-    //
-    // The refresh task's id intentionally includes `structuralKey`: a bare
-    // `refreshVersion` id would not be cancelled when the user switches
-    // category mid-refresh, and the in-flight fetch — which captured `self`
-    // with the old category — could race the structural task and overwrite
-    // `sections` with stale rows from the previous list. Including
-    // `structuralKey` cancels the stale refresh when context changes, and
-    // the `guard hasLoaded` check keeps the restarted refresh a no-op while
-    // the structural task owns the reload.
-    .task(id: structuralKey) {
-      hasLoaded = false
-      await reload()
-      hasLoaded = true
-    }
-    .task(id: refreshTaskKey) {
-      guard hasLoaded else { return }
-      await reload()
     }
   }
 
-  private func reload() async {
+  private func reload(proxy: ScrollViewProxy) async {
     let result =
       (try? await writer.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
       )) ?? []
     guard !Task.isCancelled else { return }
-    if result != sections {
-      sections = result
-      allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    guard result != sections else { return }
+    // Decide whether the upcoming in-place diff warrants a scroll-anchor
+    // restore. Two reasons to pin: (1) the selected row still appears in the
+    // new result — keep it centred so a row-height shift (read/unread
+    // weight flip) doesn't push it off-screen; (2) selection cleared and
+    // the previously-first row still appears — keep the top stable when a
+    // sync page lands new entries above it (option (a) per the design's
+    // sync-arriving-entries autonomy decision). Structural reloads
+    // (`hasLoaded == false` going into `reload`) skip the fallback so we do
+    // not pin an anchor from the previous list's contents.
+    let newIDs = Set(result.lazy.flatMap(\.entryIDs))
+    let restore: AnchorRestore?
+    if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
+      restore = AnchorRestore(id: selectedID, anchor: .center)
+    } else if selectedEntry == nil, hasLoaded, let firstID = allVisibleEntryIDs.first,
+      newIDs.contains(firstID)
+    {
+      restore = AnchorRestore(id: firstID, anchor: .top)
+    } else {
+      restore = nil
+    }
+    pendingAnchorRestore = restore
+    sections = result
+    allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    // Yield one tick so SwiftUI applies the diff before we ask the proxy
+    // to scroll — without the yield `scrollTo` runs against the still-old
+    // layout and the anchor row is not yet on screen to scroll to. Instant
+    // scroll (no `withAnimation`) so the restore respects Reduce Motion.
+    if let restore = pendingAnchorRestore {
+      pendingAnchorRestore = nil
+      await Task.yield()
+      proxy.scrollTo(restore.id, anchor: restore.anchor)
     }
   }
 
