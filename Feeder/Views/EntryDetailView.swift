@@ -30,6 +30,14 @@ enum DetailDateFormatting {
 struct EntryDetailView: View {
   let entry: Entry
   let viewMode: ArticleViewMode
+  /// In-flight article-click signpost interval handed down from `ContentView`.
+  /// When the rendered HTML lands in `ArticleWebContainer.task(id:)` — i.e.
+  /// the moment the user-perceptive content is ready to paint — the end is
+  /// emitted and `onArticleClickEnded` fires so `ContentView` can nil out
+  /// its `@State`. The interval therefore measures click → HTML-ready
+  /// latency, not just the next runloop tick.
+  let pendingArticleClickInterval: OSSignpostIntervalState?
+  let onArticleClickEnded: () -> Void
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
   @Environment(AppFontSettings.self)
@@ -43,11 +51,27 @@ struct EntryDetailView: View {
   @State
   private var blocks: [ArticleBlock] = []
 
+  init(
+    entry: Entry,
+    viewMode: ArticleViewMode,
+    pendingArticleClickInterval: OSSignpostIntervalState? = nil,
+    onArticleClickEnded: @escaping () -> Void = {}
+  ) {
+    self.entry = entry
+    self.viewMode = viewMode
+    self.pendingArticleClickInterval = pendingArticleClickInterval
+    self.onArticleClickEnded = onArticleClickEnded
+  }
+
   var body: some View {
     Group {
       switch viewMode {
       case .web:
-        ArticleWebContainer(entry: entry)
+        ArticleWebContainer(
+          entry: entry,
+          pendingArticleClickInterval: pendingArticleClickInterval,
+          onArticleClickEnded: onArticleClickEnded
+        )
       case .reader:
         readerView
       }
@@ -144,11 +168,24 @@ enum ArticleViewMode {
 /// avoiding spinner flashes during fast arrow-key navigation.
 private struct ArticleWebContainer: View {
   let entry: Entry
+  /// Forwarded from `EntryDetailView`. See the doc comment there — the end
+  /// fires when the new entry's HTML is ready to hand to the WKWebView.
+  /// Only ends when the *entry* actually changes; font-size changes also
+  /// trigger this `.task` but should not close the click interval (they
+  /// were not initiated by an article click).
+  let pendingArticleClickInterval: OSSignpostIntervalState?
+  let onArticleClickEnded: () -> Void
 
   @Environment(AppFontSettings.self)
   private var fontSettings
   @State
   private var renderedHTML: String?
+  /// Tracks which entry the most recent render completed against. Lets the
+  /// signpost end distinguish a real entry switch (close the click interval)
+  /// from a font-size-only re-render (interval not initiated by a click, so
+  /// must not be closed here). Nil before the first render lands.
+  @State
+  private var lastRenderedEntryID: Int?
 
   /// Bundle resources are immutable — load once on first access, reuse forever.
   /// Static so the cost is paid only at first article view, never per render.
@@ -180,6 +217,10 @@ private struct ArticleWebContainer: View {
       let renderState = perfSignposter.beginInterval(
         PerformanceSignpostName.detailRender
       )
+      // Snapshot the current entry's ID so we can decide later whether
+      // the article-click interval should end on this pass (real entry
+      // switch) or be left alone (font-size-only re-render).
+      let entryAtStart = entry.feedbinEntryID
       // Keep the previous article's HTML visible while the new one renders
       // (~5ms). This avoids a spinner flash on every arrow-key navigation —
       // HIG advises against loading indicators for <100ms operations.
@@ -191,11 +232,35 @@ private struct ArticleWebContainer: View {
       let html = await renderHTML(for: entry, scaleFactor: fontSettings.textSize.scaleFactor)
       guard !Task.isCancelled else {
         perfSignposter.endInterval(PerformanceSignpostName.detailRender, renderState)
+        // Cancellation means the user moved on (clicked another entry,
+        // cleared selection, or switched text size mid-render). The
+        // article-click interval is closed by `ContentView.onChange(of:
+        // selectedEntry)` — either by the stale-guard on a new selection
+        // or by the explicit close on selection-clear. Closing it here
+        // too would double-end the same `OSSignpostIntervalState`.
         return
       }
       renderedHTML = html
+      // Article-click signpost end: only when the entry actually changed —
+      // font-size-only re-renders re-fire this task but were not initiated
+      // by an article click and so must not close the interval. The
+      // `pendingArticleClickInterval` snapshot captured at task start is
+      // still valid here because no other code path closes it on the
+      // success route.
+      if entryAtStart != lastRenderedEntryID {
+        endPendingArticleClickInterval()
+      }
+      lastRenderedEntryID = entryAtStart
       perfSignposter.endInterval(PerformanceSignpostName.detailRender, renderState)
     }
+  }
+
+  /// Sibling of `EntryListView.endPendingSidebarClickInterval()`. Closes the
+  /// click interval and notifies `ContentView` so it can drop its `@State`.
+  private func endPendingArticleClickInterval() {
+    guard let state = pendingArticleClickInterval else { return }
+    perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)
+    onArticleClickEnded()
   }
 
   /// Composite re-render key: a new entry obviously triggers a fresh render,

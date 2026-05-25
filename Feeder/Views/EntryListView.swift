@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import os.signpost
 
 // MARK: - Visible Entry IDs Preference Key
 
@@ -52,6 +53,15 @@ struct EntryListView: View {
   @Binding
   var selectedEntry: Entry?
   let onMarkAllRead: () -> Void
+  /// In-flight sidebar-click signpost interval handed down from `ContentView`.
+  /// When the next `reload(proxy:)` settles (either by committing fresh
+  /// sections, by determining the result is unchanged, or by short-circuiting
+  /// on cancellation), this view emits the matching end and invokes
+  /// `onSidebarClickEnded` so `ContentView` can nil out its `@State`. The
+  /// interval therefore measures the user-perceptive click → article-list-
+  /// data-ready latency, not just a runloop tick.
+  let pendingSidebarClickInterval: OSSignpostIntervalState?
+  let onSidebarClickEnded: () -> Void
 
   @Environment(\.modelContext)
   private var modelContext
@@ -124,7 +134,9 @@ struct EntryListView: View {
     refreshVersion: Int,
     pinnedFeedbinEntryID: Int?,
     selectedEntry: Binding<Entry?>,
-    onMarkAllRead: @escaping () -> Void
+    onMarkAllRead: @escaping () -> Void,
+    pendingSidebarClickInterval: OSSignpostIntervalState? = nil,
+    onSidebarClickEnded: @escaping () -> Void = {}
   ) {
     self.category = category
     self.folder = folder
@@ -135,6 +147,8 @@ struct EntryListView: View {
     self.pinnedFeedbinEntryID = pinnedFeedbinEntryID
     self._selectedEntry = selectedEntry
     self.onMarkAllRead = onMarkAllRead
+    self.pendingSidebarClickInterval = pendingSidebarClickInterval
+    self.onSidebarClickEnded = onSidebarClickEnded
   }
 
   var body: some View {
@@ -259,24 +273,59 @@ struct EntryListView: View {
       // owns the reload.
       .task(id: structuralKey) {
         hasLoaded = false
-        await reload(proxy: proxy)
+        await reload(proxy: proxy, phase: .structural)
         hasLoaded = true
       }
       .task(id: refreshTaskKey) {
         guard hasLoaded else { return }
-        await reload(proxy: proxy)
+        await reload(proxy: proxy, phase: .refresh)
       }
     }
   }
 
-  private func reload(proxy: ScrollViewProxy) async {
+  /// Distinguishes a reload triggered by a structural change (user-visible
+  /// context switch — category / folder / filter / cutoff) from a refresh
+  /// tick (sync page lands, classification batch finishes). Only structural
+  /// reloads pair with the sidebar-click signpost, since the click is what
+  /// initiated the structural change; refresh ticks are background work
+  /// that the user did not request.
+  private enum ReloadPhase {
+    case structural
+    case refresh
+  }
+
+  private func reload(proxy: ScrollViewProxy, phase: ReloadPhase) async {
     let result =
       (try? await writer.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
       )) ?? []
-    guard !Task.isCancelled else { return }
-    guard result != sections else { return }
+    guard !Task.isCancelled else {
+      // The user moved on (e.g. another sidebar click landed). Close the
+      // in-flight sidebar-click interval anyway so it pairs cleanly in
+      // Instruments — leaving a begin un-ended drops the entire interval
+      // from the trace. Only the structural reload owns the click interval;
+      // the refresh task never opened one. The misuse guard in
+      // `ContentView.onChange(of: selection)` also defends against drift,
+      // but ending here is the semantically honest moment: this reload was
+      // the one that owned the interval, and it is finishing now.
+      if phase == .structural {
+        endPendingSidebarClickInterval()
+      }
+      return
+    }
+    guard result != sections else {
+      // No structural diff (background refresh tick that did not change
+      // the visible list, or the click landed on a category whose cached
+      // sections still match). Only the structural reload owns the click
+      // interval — refresh ticks must leave the click signpost alone, or
+      // a refresh that fires after the structural reload already closed
+      // the interval would double-end it.
+      if phase == .structural {
+        endPendingSidebarClickInterval()
+      }
+      return
+    }
     // Decide whether the upcoming in-place diff warrants a scroll-anchor
     // restore. Two reasons to pin: (1) the selected row still appears in the
     // new result — keep it centred so a row-height shift (read/unread
@@ -300,6 +349,16 @@ struct EntryListView: View {
     pendingAnchorRestore = restore
     sections = result
     allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    // Sidebar-click signpost end: the new sections are now committed to
+    // SwiftUI state. The List body re-evaluation, layout, and Core
+    // Animation commit will still run on the next frame, but data-readiness
+    // is the user-perceptive milestone — and is the boundary we instrument
+    // because the post-data work shows up in the system signpost lanes
+    // (`UpdateSequence`, CoreAnimation `Commit`). Only the structural
+    // reload pairs with the click; refresh ticks must not double-end.
+    if phase == .structural {
+      endPendingSidebarClickInterval()
+    }
     // Yield one tick so SwiftUI applies the diff before we ask the proxy
     // to scroll — without the yield `scrollTo` runs against the still-old
     // layout and the anchor row is not yet on screen to scroll to. Instant
@@ -309,6 +368,17 @@ struct EntryListView: View {
       await Task.yield()
       proxy.scrollTo(restore.id, anchor: restore.anchor)
     }
+  }
+
+  /// Emit the matching end for the sidebar-click interval handed down from
+  /// `ContentView`, then notify the parent so it can nil out its `@State`.
+  /// Idempotent — `onSidebarClickEnded` is only called when there was an
+  /// in-flight interval, so a refresh-version reload that runs after the
+  /// sidebar click already ended is a no-op.
+  private func endPendingSidebarClickInterval() {
+    guard let state = pendingSidebarClickInterval else { return }
+    perfSignposter.endInterval(PerformanceSignpostName.sidebarClick, state)
+    onSidebarClickEnded()
   }
 
   /// Composed key for the refresh task so a structural change (category /

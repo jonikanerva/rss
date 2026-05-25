@@ -179,24 +179,30 @@ struct ContentView: View {
         }
       }
       articleViewMode = .web
-      // Article-click signpost begin: measures SwiftUI commit cost from
-      // writing `selectedEntry` to the detail column's `.task` firing.
-      // No begin when selection clears — empty-state has no render cost.
+      // Article-click signpost lifecycle:
+      //   • On a new selection: close any un-ended previous interval as a
+      //     misuse warning (the user clicked through entries faster than
+      //     the render task could complete), then open a new one. The
+      //     matching end fires inside `ArticleWebContainer.task(id:)`
+      //     when `renderedHTML` is committed — that's the user-perceptive
+      //     "click landed" moment, not the runloop tick after the click.
+      //   • On selection clearing (newEntry == nil): close any in-flight
+      //     interval here. The detail-pane teardown does not run a render
+      //     task, so the end would otherwise leak.
       if newEntry != nil {
+        if let stale = articleClickIntervalState {
+          perfSignposter.endInterval(PerformanceSignpostName.articleClick, stale)
+          perfSignpostLogger.debug(
+            "Discarded un-ended article-click interval; previous begin had no matching end."
+          )
+        }
         articleClickIntervalState = perfSignposter.beginInterval(
           PerformanceSignpostName.articleClick
         )
+      } else if let stale = articleClickIntervalState {
+        perfSignposter.endInterval(PerformanceSignpostName.articleClick, stale)
+        articleClickIntervalState = nil
       }
-    }
-    .task(id: selectedEntry?.feedbinEntryID) {
-      // Article-click signpost end: pairs with the begin in
-      // `.onChange(of: selectedEntry)`. Runs immediately, no sleep — the
-      // dwell that used to live here is gone (see commit dropping
-      // renderDwell). Closing the interval here keeps the measurement
-      // bounded to "selection commit ⇒ next SwiftUI render pass".
-      guard let state = articleClickIntervalState else { return }
-      perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)
-      articleClickIntervalState = nil
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
@@ -205,21 +211,26 @@ struct ContentView: View {
     .onChange(of: selection) { _, newSelection in
       flushPendingReads()
       selectedEntry = nil
-      // Sidebar-click signpost begin: measures SwiftUI commit cost from
-      // writing `selection` to the content column re-rendering.
+      // Sidebar-click signpost begin: pairs with the end emitted inside
+      // `EntryListView.reload(proxy:)` once the new sections are committed
+      // (or once the reload decides the result has not changed). The
+      // interval covers the full click → article-list-data-ready latency.
+      //
+      // Misuse guard: close any in-flight sidebar-click interval before
+      // opening a new one. The user may rapid-click sidebar rows faster
+      // than `reload()` completes; without this, the older begin leaks
+      // and Instruments drops the new interval.
       if newSelection != nil {
+        if let stale = sidebarClickIntervalState {
+          perfSignposter.endInterval(PerformanceSignpostName.sidebarClick, stale)
+          perfSignpostLogger.debug(
+            "Discarded un-ended sidebar-click interval; previous begin had no matching end."
+          )
+        }
         sidebarClickIntervalState = perfSignposter.beginInterval(
           PerformanceSignpostName.sidebarClick
         )
       }
-    }
-    .task(id: selection) {
-      // Sidebar-click signpost end: pairs with the begin in
-      // `.onChange(of: selection)`. Same shape as the article-click end —
-      // runs immediately on the next render pass and closes the interval.
-      guard let state = sidebarClickIntervalState else { return }
-      perfSignposter.endInterval(PerformanceSignpostName.sidebarClick, state)
-      sidebarClickIntervalState = nil
     }
     .onChange(of: allCategories.count) {
       revalidateSelection()
@@ -438,7 +449,9 @@ struct ContentView: View {
         cutoffDate: syncEngine.queryCutoffDate, writer: writer,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead,
+        pendingSidebarClickInterval: sidebarClickIntervalState,
+        onSidebarClickEnded: { sidebarClickIntervalState = nil }
       )
     } else {
       // SyncEngine.configure hasn't completed yet (first launch path).
@@ -712,7 +725,12 @@ struct ContentView: View {
   private var detailView: some View {
     Group {
       if let selectedEntry {
-        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+        EntryDetailView(
+          entry: selectedEntry,
+          viewMode: articleViewMode,
+          pendingArticleClickInterval: articleClickIntervalState,
+          onArticleClickEnded: { articleClickIntervalState = nil }
+        )
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")
