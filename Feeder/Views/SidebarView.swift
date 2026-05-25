@@ -69,12 +69,20 @@ struct SidebarView: View, Equatable {
     // selection identity is part of the render contract. Bindings themselves
     // are stable across re-evals — SwiftUI hands the same projection on each
     // re-build — so comparing the wrapped value is the meaningful check.
+    //
+    // `fontBody` is read by `rowLabel(title:count:)` — without it in the
+    // comparison, changing the app text size in Settings would leave the
+    // sidebar row titles stuck at the previous font until some other
+    // structural input (sync state, selection, classification batch)
+    // changed. `SidebarUnreadBadge` and `SyncStatusView` self-observe
+    // `AppFontSettings`, but the row title text reads through this `let`.
     lhs.visibleFolderGroups == rhs.visibleFolderGroups
       && lhs.rootCategories == rhs.rootCategories
       && lhs.categoryUnreadCounts == rhs.categoryUnreadCounts
       && lhs.folderUnreadCounts == rhs.folderUnreadCounts
       && lhs.collapsedFolders == rhs.collapsedFolders
       && lhs.selection == rhs.selection
+      && lhs.fontBody == rhs.fontBody
   }
 
   var body: some View {
