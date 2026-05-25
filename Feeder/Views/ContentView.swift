@@ -105,6 +105,7 @@ struct ContentView: View {
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
   private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
+  private var isPerfScenarioMode: Bool { PerfScenarioRunner.isEnabled }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
@@ -778,6 +779,10 @@ struct ContentView: View {
   // MARK: - Helpers
 
   private func checkCredentials() {
+    if isPerfScenarioMode {
+      runPerfScenario()
+      return
+    }
     if isPreviewMode {
       // Preview canvases seed their model container directly and never run
       // `startSync`/`configure`, so `syncEngine.writer` stays nil and
@@ -810,6 +815,36 @@ struct ContentView: View {
       needsSetup = true
     } else {
       startSync()
+    }
+  }
+
+  /// Drive the headless perf scenario. Attaches a `DataWriter` so
+  /// `EntryListView` can render the seeded rows, then hands control to
+  /// `PerfScenarioRunner` which mutates `selection`, `selectedEntry`, and
+  /// `articleViewMode` on MainActor — the same writes the user would make.
+  /// `exit(0)` inside the runner ends the launch so `xctrace` finalises the
+  /// recorded trace.
+  private func runPerfScenario() {
+    let container = modelContext.container
+    Task { @MainActor in
+      let writer = await DataWriter.makeDetached(modelContainer: container)
+      syncEngine.attachWriter(writer)
+      await PerfScenarioRunner.run(
+        writer: writer,
+        syncEngine: syncEngine,
+        apply: { newSelection, newEntry, newMode in
+          selection = newSelection
+          selectedEntry = newEntry
+          articleViewMode = newMode
+        },
+        visibleEntries: {
+          // Materialize the currently-rendered entry IDs into Entry refs so
+          // the runner can pick the first visible row to click.
+          currentEntryIDs.compactMap { id in
+            modelContext.model(for: id) as? Entry
+          }
+        }
+      )
     }
   }
 
