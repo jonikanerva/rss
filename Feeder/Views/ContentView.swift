@@ -281,10 +281,18 @@ struct ContentView: View {
     // `entryRefreshVersion` tick that `EntryListView.task(id:)` consumes —
     // selection and scroll position are preserved by `List`'s stable-ID
     // diffing in `EntryListView.reload()`.
+    //
+    // `MidFlightBumpRouter` is a leaf `View` (not a `ViewModifier`) so the
+    // `syncEngine.lastPersistedPageVersion` / `classificationEngine
+    // .batchProgressVersion` reads live inside its own body, not
+    // `ContentView.body`. Without this hoisting, every sync page (~1 Hz)
+    // and every classification progress tick (~5 Hz) would invalidate
+    // `ContentView.body` and re-trigger the sidebar/snapshot derivations.
+    // The leaf is mounted as an invisible `.background` sibling via
+    // `MidFlightBumpRouterModifier` so the body chain stays a single
+    // `.modifier(...)` line — type-checker friendly.
     .modifier(
-      MidFlightBumpRouter(
-        syncPageVersion: syncEngine.lastPersistedPageVersion,
-        classificationBatchVersion: classificationEngine.batchProgressVersion,
+      MidFlightBumpRouterModifier(
         pendingSyncBump: $pendingSyncBump,
         pendingClassificationBump: $pendingClassificationBump
       )
