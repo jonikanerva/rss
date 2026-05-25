@@ -458,6 +458,12 @@ actor DataWriter: ModelActor {
   /// render its badges — the MainActor `@Query unreadEntries` that previously
   /// drove this aggregation is gone.
   ///
+  /// Predicate mirrors `fetchEntrySections` so sidebar badges and middle-pane
+  /// lists count the same rows; `cutoffDate` is `syncEngine.queryCutoffDate`
+  /// at call time. Without this clause, entries between `articleKeepDays`
+  /// (default 7d) and `maxRetentionAge` (30d) that are still unread+classified
+  /// would be counted in the sidebar but hidden from the article list.
+  ///
   /// Streams via `ModelContext.enumerate(_:batchSize:)` so SwiftData hydrates
   /// rows in 500-entry chunks rather than materializing the full unread
   /// universe at once
@@ -466,9 +472,11 @@ actor DataWriter: ModelActor {
   /// aggregation reads, avoiding fault-handler walks over `articleBlocksData`
   /// and friends
   /// (`https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch`).
-  func fetchUnreadCountsSnapshot() throws -> UnreadCountsSnapshot {
+  func fetchUnreadCountsSnapshot(cutoffDate: Date) throws -> UnreadCountsSnapshot {
     var descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.isClassified == true && $0.isRead == false }
+      predicate: #Predicate<Entry> {
+        $0.isClassified == true && $0.isRead == false && $0.publishedAt >= cutoffDate
+      }
     )
     descriptor.propertiesToFetch = [\.feedbinEntryID, \.primaryCategory, \.primaryFolder]
 

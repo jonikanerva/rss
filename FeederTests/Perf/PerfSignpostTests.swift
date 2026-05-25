@@ -49,7 +49,7 @@ final class PerfSignpostTests: XCTestCase {
     let folderLabel = "technology"
     let category = "perf_0"
     let writer = self.writer!
-    let baseline = try await writer.fetchUnreadCountsSnapshot()
+    let baseline = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     XCTAssertGreaterThan(baseline.totalUnread, 0, "Perf seeder must produce unread rows")
 
     let options = XCTMeasureOptions()
@@ -61,7 +61,7 @@ final class PerfSignpostTests: XCTestCase {
       group.enter()
       Task {
         defer { group.leave() }
-        _ = try? await writer.fetchUnreadCountsSnapshot()
+        _ = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
         _ = try? await writer.fetchEntrySections(
           category: nil, folder: folderLabel, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
@@ -104,7 +104,7 @@ final class PerfSignpostTests: XCTestCase {
           category: category, folder: nil, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
         )
-        _ = try? await writer.fetchUnreadCountsSnapshot()
+        _ = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
       }
       group.wait()
       perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)

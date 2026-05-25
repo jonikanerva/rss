@@ -241,6 +241,7 @@ struct ContentView: View {
       UnreadSnapshotRefreshTask(
         key: unreadSnapshotKey,
         writer: syncEngine.writer,
+        cutoffDate: syncEngine.queryCutoffDate,
         snapshot: $unreadSnapshot
       )
     )
@@ -486,10 +487,18 @@ struct ContentView: View {
   ///   mark-all-read, category/folder reorganisation).
   /// - `folders.count`, `allCategories.count` — taxonomy edits that change
   ///   the dictionaries' keyspace without flipping any entry.
+  /// - `syncEngine.queryCutoffDate` — Settings changes to `articleKeepDays`
+  ///   move the cutoff and must invalidate the cached snapshot so the sidebar
+  ///   badge counts re-align with `fetchEntrySections`. Cast to `Int`
+  ///   (whole seconds since reference date) truncates sub-second jitter so
+  ///   the key only changes on a real cutoff move (e.g. when
+  ///   `refreshArticleCutoff()` runs after a Settings change), not on every
+  ///   `Date()` re-evaluation.
   /// `entryRefreshVersion` uses `&+=` and wraps; string interpolation
   /// compares for equality, which handles the wrap.
   private var unreadSnapshotKey: String {
-    "\(entryRefreshVersion)|\(folders.count)|\(allCategories.count)"
+    let cutoffSeconds = Int(syncEngine.queryCutoffDate.timeIntervalSinceReferenceDate)
+    return "\(entryRefreshVersion)|\(folders.count)|\(allCategories.count)|\(cutoffSeconds)"
   }
 
   /// Re-key for the classification drain task. A change in either component
