@@ -41,13 +41,19 @@ run_iteration() {
   local out_file="$out_dir/iteration-${index}.trace"
   rm -rf "$out_file"
   echo "==> trace iteration $index ($out_file)"
+  # `xcrun xctrace record` stops parsing its own flags at `--launch --`;
+  # anything after that token is forwarded as argv to the launched app.
+  # Keep `--time-limit` and `--output` BEFORE `--launch` so xctrace itself
+  # honours them — otherwise it falls back to no time limit and a default
+  # `Launch_<App>_<date>_<hash>.trace` filename in the shell's cwd, and the
+  # parser sees zero traces in $OUTPUT_DIR.
   FEEDER_PERF_MODE=1 \
   FEEDER_PERF_DATASET_SIZE="$DATASET_SIZE" \
     xcrun xctrace record \
       --template 'Time Profiler' \
-      --launch -- "$APP_PATH" \
       --time-limit "${TIME_LIMIT}ms" \
       --output "$out_file" \
+      --launch -- "$APP_PATH" \
       >/dev/null
 }
 
