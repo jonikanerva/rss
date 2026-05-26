@@ -56,6 +56,41 @@ nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
 
 // MARK: - DataWriter Actor
 
+/// `UserDefaults` key that marks default taxonomy as seeded for this install.
+/// Lives in `UserDefaults` rather than the SwiftData store so a schema
+/// migration cannot accidentally drop or hide it — even if a future custom
+/// stage temporarily empties the categories table mid-migration, this flag
+/// stays put. The flag is cleared along with the store only by the
+/// catastrophic-reopen fallback in `FeederApp.init`, which is the correct
+/// behaviour for a manually-reset install.
+nonisolated let defaultsSeededUserDefaultsKey = "feeder.defaultsSeeded"
+
+/// Minimal `Sendable` flag-store abstraction backing the seeded-defaults
+/// sentinel. Production wires this to `UserDefaults.standard`; tests inject
+/// an isolated in-memory implementation so the flag from one test cannot
+/// suppress seeding in another. `UserDefaults` itself is not `Sendable`,
+/// so we cannot pass it across the actor boundary that `DataWriter`
+/// requires when constructed via `makeDetached`. The protocol stays small
+/// — just the two operations bootstrap performs.
+nonisolated protocol SeededDefaultsFlagStore: Sendable {
+  func isSeeded(forKey key: String) -> Bool
+  func setSeeded(_ value: Bool, forKey key: String)
+}
+
+/// Production implementation: read/write the live `UserDefaults.standard`
+/// suite. `Bool` and `String` are `Sendable`, so the wrapper itself is
+/// trivially `Sendable` even though `UserDefaults` is not — every call
+/// re-resolves the standard suite rather than capturing a non-`Sendable`
+/// reference.
+nonisolated struct StandardUserDefaultsFlagStore: SeededDefaultsFlagStore {
+  func isSeeded(forKey key: String) -> Bool {
+    UserDefaults.standard.bool(forKey: key)
+  }
+  func setSeeded(_ value: Bool, forKey key: String) {
+    UserDefaults.standard.set(value, forKey: key)
+  }
+}
+
 /// Background actor that owns all SwiftData write operations.
 /// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
 ///
@@ -64,9 +99,19 @@ nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
 actor DataWriter: ModelActor {
   nonisolated let modelExecutor: any ModelExecutor
   nonisolated let modelContainer: ModelContainer
+  /// Flag-store backing the seeded-defaults sentinel. `Sendable`, so it
+  /// crosses the `Task.detached` boundary in `makeDetached` cleanly.
+  /// Production passes `StandardUserDefaultsFlagStore`; tests inject an
+  /// isolated in-memory store so the flag from one test cannot suppress
+  /// seeding in another.
+  nonisolated let defaultsFlagStore: any SeededDefaultsFlagStore
 
-  init(modelContainer: ModelContainer) {
+  init(
+    modelContainer: ModelContainer,
+    defaultsFlagStore: any SeededDefaultsFlagStore = StandardUserDefaultsFlagStore()
+  ) {
     self.modelContainer = modelContainer
+    self.defaultsFlagStore = defaultsFlagStore
     let context = ModelContext(modelContainer)
     context.autosaveEnabled = false
     self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
@@ -80,38 +125,43 @@ actor DataWriter: ModelActor {
   /// shared by every production / preview / UI-test construction site,
   /// honouring `swift-code-rules.md` → "DataWriter init must happen on a
   /// background thread".
-  static func makeDetached(modelContainer: ModelContainer) async -> DataWriter {
+  static func makeDetached(
+    modelContainer: ModelContainer,
+    defaultsFlagStore: any SeededDefaultsFlagStore = StandardUserDefaultsFlagStore()
+  ) async -> DataWriter {
     await Task.detached(priority: .utility) {
-      DataWriter(modelContainer: modelContainer)
+      DataWriter(modelContainer: modelContainer, defaultsFlagStore: defaultsFlagStore)
     }.value
   }
 
   /// Reconcile the persistent store on launch.
   ///
   /// Two legitimate paths:
-  /// - Categories table empty → seed default folders + categories + the
-  ///   system `uncategorized` fallback → `.seeded` (first launch on a
-  ///   brand-new store).
-  /// - Categories table populated → `.skipped` (steady state).
+  /// - Defaults-seeded flag absent → seed default folders + categories +
+  ///   the system `uncategorized` fallback, set the flag → `.seeded`
+  ///   (first launch on a brand-new install).
+  /// - Defaults-seeded flag present → `.skipped` (steady state), regardless
+  ///   of whether the user has since deleted some or all default categories.
   ///
-  /// The old "schema version bump → wipe everything" branch is gone.
-  /// SwiftData migrates the store inside the `ModelContainer` open via
-  /// `FeederMigrationPlan`, so a schema change preserves folders,
-  /// categories, classifications, and per-entry denormalized fields. See
-  /// `docs/stack.md` → Persistence shape.
+  /// The flag lives in `UserDefaults` rather than the SwiftData store so a
+  /// schema migration that temporarily empties the categories table cannot
+  /// trigger a re-seed. This honours vision non-negotiable #1: every
+  /// ingested article keeps its user-defined category assignment across
+  /// schema bumps. See `docs/vision.md` → Non-negotiable product outcomes
+  /// and `docs/stack.md` → Persistence shape.
   ///
   /// Single entry point for startup writes — keeps `ModelContext` off the
   /// MainActor per `swift-code-rules.md` § Two-Layer Architecture.
   func bootstrap() throws -> BootstrapOutcome {
-    let preexistingCategoryCount = try modelContext.fetchCount(FetchDescriptor<Category>())
     let action: BootstrapOutcome.Action
 
-    if preexistingCategoryCount == 0 {
+    if defaultsFlagStore.isSeeded(forKey: defaultsSeededUserDefaultsKey) {
+      action = .skipped
+    } else {
       try seedDefaultTaxonomy()
       try modelContext.save()
+      defaultsFlagStore.setSeeded(true, forKey: defaultsSeededUserDefaultsKey)
       action = .seeded
-    } else {
-      action = .skipped
     }
 
     return BootstrapOutcome(

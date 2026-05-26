@@ -1,13 +1,19 @@
 import Foundation
 import SwiftData
+import Synchronization
 
 @testable import Feeder
 
 /// Shared test helpers for DataWriter integration tests.
 enum DataWriterTestSupport {
+  /// Build a writer wired to an in-memory container and an isolated
+  /// in-memory flag store. The isolated store is what keeps the seeded-
+  /// defaults sentinel deterministic across the test target — a flag set
+  /// by an earlier test cannot bleed into a later one because each writer
+  /// gets its own store instance.
   static func makeWriter() async throws -> DataWriter {
     let container = try makeInMemoryContainer()
-    return DataWriter(modelContainer: container)
+    return DataWriter(modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
   }
 
   /// Creates an in-memory `ModelContainer` with the full app schema for tests
@@ -25,6 +31,23 @@ enum DataWriterTestSupport {
       migrationPlan: FeederMigrationPlan.self,
       configurations: config
     )
+  }
+}
+
+/// Per-test in-memory implementation of `SeededDefaultsFlagStore`.
+/// `Mutex` keeps the underlying dictionary `Sendable`-safe so the store
+/// can cross the `Task.detached` boundary `DataWriter.makeDetached` uses.
+/// Bootstrap exercises a single key (`defaultsSeededUserDefaultsKey`), so
+/// the storage is intentionally minimal.
+final class InMemoryFlagStore: SeededDefaultsFlagStore {
+  private let storage = Mutex<[String: Bool]>([:])
+
+  func isSeeded(forKey key: String) -> Bool {
+    storage.withLock { $0[key] ?? false }
+  }
+
+  func setSeeded(_ value: Bool, forKey key: String) {
+    storage.withLock { $0[key] = value }
   }
 }
 
