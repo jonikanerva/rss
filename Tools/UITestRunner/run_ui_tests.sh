@@ -26,7 +26,10 @@ kill_residual_feeder_processes() {
 
 # `EXIT` fires on normal exit (pass or test failure); `INT TERM` cover
 # user-interrupted runs (Ctrl-C) so the user does not have to hand-kill
-# zombies after aborting a UI-test session.
+# zombies after aborting a UI-test session. We deliberately do NOT use
+# `exec xcodebuild` below — `exec` replaces the shell and the EXIT trap
+# would never fire. Running xcodebuild as a child keeps the wrapper shell
+# alive long enough for the trap to run post-xcodebuild.
 trap kill_residual_feeder_processes EXIT INT TERM
 
 # Belt-and-suspenders pre-kill: a prior aborted run (Ctrl-C between trap
@@ -37,4 +40,5 @@ kill_residual_feeder_processes
 # Forward all arguments to xcodebuild verbatim. The Makefile target owns
 # the full argv (scheme, destination, result bundle, only-testing filter,
 # signing settings) — this wrapper only adds the cleanup contract.
-exec xcodebuild "$@"
+# `set -e` propagates xcodebuild's exit status; the EXIT trap still runs.
+xcodebuild "$@"
