@@ -31,6 +31,16 @@ struct ArticleWebView: NSViewRepresentable {
     let config = WKWebViewConfiguration()
     // JS fully disabled — all stripping done in Swift before injection
     config.defaultWebpagePreferences.allowsContentJavaScript = false
+    // Consume the preheat pool if it landed before this view materialised —
+    // first article click reuses the warm Web Content Process instead of
+    // paying the cold-start tax (#106). Nil result is a no-op fall-through:
+    // WKWebView allocates its own pool inline as before. The configuration
+    // setup runs on MainActor (NSViewRepresentable.makeNSView), which is
+    // where `WebKitPreheat.warmedProcessPool` is also isolated, so the read
+    // is a direct property access without any actor hop.
+    if let warmedPool = WebKitPreheat.warmedProcessPool {
+      config.processPool = warmedPool
+    }
 
     let webView = WKWebView(frame: .zero, configuration: config)
     webView.navigationDelegate = context.coordinator
