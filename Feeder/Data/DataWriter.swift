@@ -805,16 +805,36 @@ actor DataWriter: ModelActor {
 
   // MARK: - Purge
 
-  func purgeEntriesOlderThan(_ cutoff: Date) throws {
+  /// Delete entries whose `publishedAt` is older than `days` ago, so the
+  /// SwiftData store does not balloon. The cutoff (`Date.now - days * 86_400`)
+  /// matches how `articleCutoffDate()` computes `queryCutoffDate` and how
+  /// `maxRetentionAge` is defined — raw seconds, no calendar boundary — so
+  /// the purge window is consistent with the read-side predicates in
+  /// `fetchEntrySections` and `fetchUnreadCountsSnapshot`.
+  ///
+  /// The day count lives in the writer's API (not as a `Date` parameter)
+  /// so callers don't recompute retention math at every call site. Production
+  /// callers pass the fixed 30-day ceiling (`maxRetentionAge / 86_400`),
+  /// which is the maximum value the keepDays picker offers — toggling the
+  /// keepDays setting between 1 and 30 days then never requires a
+  /// refetch + recategorise round-trip.
+  ///
+  /// Returns a `PurgeOutcome` so the caller can log how many rows were
+  /// removed. Purge is a pure runtime delete — not a schema migration —
+  /// so no `VersionedSchema` change is involved and no denormalised
+  /// display fields need recomputing.
+  func purgeEntriesOlderThan(_ days: Int) throws -> PurgeOutcome {
+    let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.publishedAt < cutoff }
     )
     let old = try modelContext.fetch(descriptor)
-    guard !old.isEmpty else { return }
+    guard !old.isEmpty else { return PurgeOutcome(purgedCount: 0) }
     for entry in old {
       modelContext.delete(entry)
     }
     try modelContext.save()
-    Self.logger.info("Purged \(old.count) entries older than cutoff")
+    Self.logger.info("Purged \(old.count) entries older than \(days) days")
+    return PurgeOutcome(purgedCount: old.count)
   }
 }

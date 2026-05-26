@@ -894,12 +894,18 @@ struct ContentView: View {
     syncEngine.configure(username: username, password: password)
 
     Task {
-      // Purge entries older than 30 days (max setting). The article-list
-      // fetch also passes `cutoffDate` to `DataWriter.fetchEntrySections`
-      // so purged rows never appear in the UI even before the next refresh.
+      // Purge entries older than the 30-day ceiling (`maxRetentionAge`).
+      // Disk-retention cleanup is belt-and-suspenders: `fetchEntrySections`
+      // and `fetchUnreadCountsSnapshot` already filter on `publishedAt >=
+      // cutoffDate`, so purged rows never appear in the UI even before the
+      // next refresh, but without the purge the store grows unboundedly.
+      // The writer owns the day-count math; the call site passes the
+      // ceiling derived from `maxRetentionAge` so toggling the
+      // `articleKeepDays` setting between 1 and 30 never requires a
+      // refetch + recategorise round-trip.
       if let writer = syncEngine.writer {
-        let cutoff = Date().addingTimeInterval(-maxRetentionAge)
-        try? await writer.purgeEntriesOlderThan(cutoff)
+        let days = Int(maxRetentionAge / 86_400)
+        _ = try? await writer.purgeEntriesOlderThan(days)
       }
 
       let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
