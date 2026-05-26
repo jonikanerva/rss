@@ -43,6 +43,13 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let entryIDs: [PersistentIdentifier]
 }
 
+/// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for
+/// logging the disk-retention cleanup pass. Purge is a pure runtime delete —
+/// not a schema migration — so the outcome is intentionally small.
+nonisolated struct PurgeOutcome: Sendable, Equatable {
+  let purgedCount: Int
+}
+
 /// Cached aggregation over the classified-unread universe used by the sidebar
 /// to render its badges. Computed off-MainActor by
 /// `DataWriter.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays

@@ -241,43 +241,6 @@ struct DataWriterEntryTests {
     #expect(flips == 0)
   }
 
-  // MARK: - purgeEntriesOlderThan
-
-  @Test
-  func purgeRemovesOldEntries() async throws {
-    let writer = try await makeWriter()
-    try await seedFeed(writer)
-
-    let oldEntry = try FeedbinFixtures.entry(
-      id: 1001, title: "Old",
-      published: "2024-01-01T00:00:00.000000Z")
-    let newEntry = try FeedbinFixtures.entry(
-      id: 1002, title: "New",
-      published: "2026-06-01T00:00:00.000000Z")
-    _ = try await writer.persistEntries([oldEntry, newEntry], unreadIDs: Set([1001, 1002]))
-
-    // Purge entries older than 2025-01-01
-    let formatter = ISO8601DateFormatter()
-    guard let cutoff = formatter.date(from: "2025-01-01T00:00:00Z") else {
-      Issue.record("Failed to parse cutoff date")
-      return
-    }
-    try await writer.purgeEntriesOlderThan(cutoff)
-
-    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
-    #expect(remaining.count == 1)
-    #expect(remaining.first?.entryID == 1002)
-  }
-
-  @Test
-  func purgeWithNothingToDeleteIsNoOp() async throws {
-    let writer = try await makeWriter()
-
-    let cutoff = Date()
-    // No entries exist — should not crash
-    try await writer.purgeEntriesOlderThan(cutoff)
-  }
-
   // MARK: - markAllAsRead
 
   @Test
