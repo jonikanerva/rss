@@ -1,6 +1,15 @@
 {
   "captured_host_cpu" : "Apple M3",
   "captured_on" : "2026-05-25T18:02:58Z",
+  "level1_microbench" : {
+    "captured_on" : null,
+    "notes" : "Populated on the boss's first run of `make perf-record-baseline` after PR 4 lands. Per-function entries shape: { \"<function_name>\": { \"median_ms\": <value>, \"tolerance_pct\": 20 } }. Function names match the XCTest method names in FeederTests/Perf/MicroBenchmarkTests.swift.",
+    "tolerance_pct" : 20,
+    "fetchEntrySections_category_micro" : null,
+    "fetchUnreadCountsSnapshot_micro" : null,
+    "groupEntriesByDay_micro" : null,
+    "parseHTMLToBlocks_micro" : null
+  },
   "level2_signposts" : {
     "frame_budget_ms" : 8.3,
     "tolerance_pct" : 20

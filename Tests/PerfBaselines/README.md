@@ -9,7 +9,9 @@ Headless performance regression baselines for `make perf`.
   from the diagnosis run captured before the perf refactor landed. Level 2
   signpost medians under `level2_signposts` start as `null` and are
   populated after the user hand-verifies the architectural fix with Time
-  Profiler.
+  Profiler. Level 1 function-level microbenchmarks (under
+  `level1_microbench`) shipped in PR 4 — first-run values are captured on
+  the boss's next `make perf-record-baseline` invocation.
 
 ## Usage
 
@@ -74,6 +76,7 @@ Python, no third-party dependencies (per `docs/stack.md` § 6).
 
 Filed as `[follow-up]` issues:
 
-- Phase 2 perf suite: function-level micro-benchmarks (Level 1) — deferred
-  per devils-advocate's note that predictive wrapping would not have caught
-  the architectural regressions this cycle.
+- _none open_ — Level 1 function-level micro-benchmarks landed in PR 4
+  (`feat: perf infrastructure + hot-path offload + script cleanup`),
+  superseding the original "Phase 2 perf suite" follow-up per the boss's
+  PR-4 decision that performance evidence is foundational, not deferred.

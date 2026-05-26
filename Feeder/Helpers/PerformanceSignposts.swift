@@ -38,7 +38,12 @@ nonisolated let perfSignpostLogger = Logger(
 /// legible labels in the Points of Interest lane and renames stay in one
 /// place if the surfaces are reshuffled. See `ContentView` for sidebar
 /// and article intervals; `EntryDetailView` for the detail render interval.
-enum PerformanceSignpostName {
+///
+/// `nonisolated` because the statics are immutable `StaticString` constants —
+/// callers cross MainActor (`ContentView` signpost handlers) and nonisolated
+/// actor contexts (`PerfSignpostTests` measure-blocks, off-MainActor render
+/// tasks) interchangeably, and there is no isolation invariant to enforce.
+nonisolated enum PerformanceSignpostName {
   /// Sidebar selection commit → article-list `.task(id: selection)` fires.
   /// Measures the SwiftUI commit cost between writing `selection` and the
   /// content column re-rendering.
