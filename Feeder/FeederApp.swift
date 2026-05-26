@@ -30,14 +30,16 @@ struct FeederApp: App {
       processEnvironment["UITEST_IN_MEMORY_STORE"] == "1" || processEnvironment["UITEST_DEMO_MODE"] == "1"
 
     // `Schema(versionedSchema:)` resolves the `@Model` types and version
-    // identifier `FeederSchemaV1` advertises; the resulting `Schema` is
-    // what `ModelContainer` accepts alongside the migration plan.
-    let schema = Schema(versionedSchema: FeederSchemaV1.self)
+    // identifier `FeederSchemaV2` advertises; the resulting `Schema` is
+    // what `ModelContainer` accepts alongside the migration plan. The
+    // plan in `FeederMigrationPlan` carries V1 forward via a lightweight
+    // stage, so stores still on V1 migrate up on first launch.
+    let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let config = ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: useInMemoryStore)
 
-    // SwiftData opens the store against `FeederSchemaV1` and applies any
-    // stages declared in `FeederMigrationPlan` — so a future V2 lands as
-    // a lightweight or custom stage rather than a destructive wipe. The
+    // SwiftData opens the store against `FeederSchemaV2` and applies the
+    // stages declared in `FeederMigrationPlan` — a V1-on-disk store is
+    // migrated lightweight-style to V2 here. The
     // fallback below survives non-schema corruption only (unreadable
     // store file, locked WAL, etc.). This is the only place we still do
     // a synchronous `ModelContainer` open on MainActor — `DataWriter.bootstrap()`
