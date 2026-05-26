@@ -765,6 +765,75 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
+  /// Count entries currently assigned to a category. Used by the management
+  /// UI to decide whether to show the recategorize confirmation dialog — when
+  /// the count is zero, removal proceeds without prompting the user.
+  /// Predicate runs at the SQLite level so we never materialise rows here.
+  func countEntries(primaryCategoryLabel label: String) throws -> Int {
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryCategory == label }
+    )
+    return try modelContext.fetchCount(descriptor)
+  }
+
+  /// Reassign every entry whose `primaryCategory == sourceLabel` to
+  /// `targetLabel` (and the target's folder), then delete the source category.
+  /// One atomic transaction — either the entries move and the category goes,
+  /// or nothing changes.
+  ///
+  /// Errors:
+  /// - `.sourceMissing` — no category with `sourceLabel` exists.
+  /// - `.targetMissing` — no category with `targetLabel` exists.
+  /// - `.sourceEqualsTarget` — refuses to delete the category the caller asked
+  ///   to keep its articles in.
+  /// - `.sourceIsSystem` — built-in (`uncategorized`) cannot be removed.
+  ///
+  /// Updating `primaryCategory` / `primaryFolder` in place is a runtime
+  /// mutation, not a schema change — these are denormalised display fields per
+  /// `docs/stack.md` § Persistence shape, so no migration stage is involved.
+  /// Returns a `RecategorizeOutcome` for telemetry / logging at the call site.
+  func removeCategoryAndReassignArticles(
+    _ sourceLabel: String, to targetLabel: String
+  ) throws -> RecategorizeOutcome {
+    guard sourceLabel != targetLabel else {
+      throw CategoryReassignError.sourceEqualsTarget
+    }
+    let sourceDescriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.label == sourceLabel }
+    )
+    guard let source = try modelContext.fetch(sourceDescriptor).first else {
+      throw CategoryReassignError.sourceMissing
+    }
+    guard !source.isSystem else {
+      throw CategoryReassignError.sourceIsSystem
+    }
+    let targetDescriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { $0.label == targetLabel }
+    )
+    guard let target = try modelContext.fetch(targetDescriptor).first else {
+      throw CategoryReassignError.targetMissing
+    }
+    let targetFolderLabel = target.folderLabel ?? ""
+
+    let entryDescriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.primaryCategory == sourceLabel }
+    )
+    let affected = try modelContext.fetch(entryDescriptor)
+    for entry in affected {
+      entry.primaryCategory = targetLabel
+      entry.primaryFolder = targetFolderLabel
+    }
+    modelContext.delete(source)
+    try modelContext.save()
+    Self.logger.info(
+      "Reassigned \(affected.count) entries from category \(sourceLabel, privacy: .public) to \(targetLabel, privacy: .public), then removed the source category."
+    )
+    return RecategorizeOutcome(
+      reassignedCount: affected.count,
+      targetFolderLabel: targetFolderLabel
+    )
+  }
+
   func fetchCategorySortOrder(label: String) throws -> Int? {
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
