@@ -603,7 +603,6 @@ actor DataWriter: ModelActor {
     let validLabels = Set(categories.map(\.label))
     let label = validLabels.contains(result.categoryLabel) ? result.categoryLabel : uncategorizedLabel
 
-    entry.detectedLanguage = result.detectedLanguage
     entry.isClassified = true
     entry.primaryCategory = label
     entry.primaryFolder = categories.first { $0.label == label }?.folderLabel ?? ""
@@ -614,7 +613,6 @@ actor DataWriter: ModelActor {
     let descriptor = FetchDescriptor<Entry>()
     let entries = try modelContext.fetch(descriptor)
     for entry in entries {
-      entry.detectedLanguage = nil
       entry.isClassified = false
       entry.primaryCategory = ""
       entry.primaryFolder = ""

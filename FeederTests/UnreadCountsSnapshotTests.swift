@@ -34,8 +34,7 @@ struct UnreadCountsSnapshotFetchTests {
 
   private func classify(_ writer: DataWriter, id: Int, category: String) async throws {
     let result = ClassificationResult(
-      entryID: id, categoryLabel: category,
-      detectedLanguage: "en", confidence: 0.9)
+      entryID: id, categoryLabel: category, confidence: 0.9)
     try await writer.applyClassification(entryID: id, result: result)
   }
 

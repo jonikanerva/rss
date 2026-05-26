@@ -351,7 +351,6 @@ nonisolated struct ClassificationRunner: Sendable {
         result = ClassificationResult(
           entryID: input.entryID,
           categoryLabel: uncategorizedLabel,
-          detectedLanguage: "unknown",
           confidence: 0.0
         )
       } else {
@@ -364,7 +363,6 @@ nonisolated struct ClassificationRunner: Sendable {
           result = ClassificationResult(
             entryID: input.entryID,
             categoryLabel: uncategorizedLabel,
-            detectedLanguage: lang,
             confidence: 0.0
           )
         } else {
@@ -393,14 +391,12 @@ nonisolated struct ClassificationRunner: Sendable {
             result = ClassificationResult(
               entryID: input.entryID,
               categoryLabel: gatedLabel,
-              detectedLanguage: lang,
               confidence: providerResult.confidence
             )
           } catch {
             result = ClassificationResult(
               entryID: input.entryID,
               categoryLabel: uncategorizedLabel,
-              detectedLanguage: lang,
               confidence: 0.0
             )
           }
