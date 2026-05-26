@@ -16,6 +16,14 @@ let package = Package(
       swiftSettings: [
         .swiftLanguageMode(.v6)
       ]
-    )
+    ),
+    .testTarget(
+      name: "PerfParserTests",
+      dependencies: ["PerfParser"],
+      path: "Tests/PerfParserTests",
+      swiftSettings: [
+        .swiftLanguageMode(.v6)
+      ]
+    ),
   ]
 )

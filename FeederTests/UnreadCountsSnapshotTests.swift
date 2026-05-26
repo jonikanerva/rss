@@ -197,14 +197,80 @@ struct UnreadCountsSnapshotFetchTests {
     let cutoff = isoFormatter.date(from: "2025-01-01T00:00:00Z")!
 
     let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
-    let sectionRowCount = sections.flatMap(\.entryIDs).count
+    let sectionRowCount = result.allEntryIDs.count
 
     #expect(snapshot.categoryCounts["apple"] == sectionRowCount)
     #expect(snapshot.categoryCounts["apple"] == 2)
     #expect(sectionRowCount == 2)
+  }
+
+  /// Stronger parity check: sweep the cutoff across a representative range
+  /// (distant past → 100d → 30d → 7d → 1d → now) so a future drift in
+  /// either fetcher's eligibility predicate fails this test for at least
+  /// one cutoff value instead of slipping through the single-cutoff case.
+  ///
+  /// Backs `unreadEligiblePredicate(cutoffDate:)` as the single source of
+  /// truth — both call sites must agree on the eligible row set for every
+  /// cutoff the production code can reach (Settings → `articleKeepDays`
+  /// picker offers 1–30 days, plus the 30-day `maxRetentionAge` ceiling).
+  @Test(
+    arguments: [
+      Date.distantPast,
+      Date.now.addingTimeInterval(-100 * 86_400),
+      Date.now.addingTimeInterval(-30 * 86_400),
+      Date.now.addingTimeInterval(-7 * 86_400),
+      Date.now.addingTimeInterval(-1 * 86_400),
+      Date.now,
+    ]
+  )
+  func snapshotMatchesFetchEntrySectionsAcrossCutoffs(cutoff: Date) async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+    try await seedTaxonomy(writer)
+
+    // Spread published timestamps across the cutoff sweep range so each
+    // parameterised cutoff lands somewhere meaningful (not always above or
+    // always below the seeded entries). 60 days back covers the widest
+    // production cutoff (30d maxRetentionAge) with margin.
+    let now = Date.now
+    let seedDates: [(id: Int, published: Date)] = [
+      (id: 7001, published: now.addingTimeInterval(-90 * 86_400)),
+      (id: 7002, published: now.addingTimeInterval(-45 * 86_400)),
+      (id: 7003, published: now.addingTimeInterval(-20 * 86_400)),
+      (id: 7004, published: now.addingTimeInterval(-5 * 86_400)),
+      (id: 7005, published: now.addingTimeInterval(-1 * 3_600)),
+    ]
+    let isoFormatter = ISO8601DateFormatter()
+    isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var entries: [FeedbinEntry] = []
+    for (id, published) in seedDates {
+      let entry = try FeedbinFixtures.entry(
+        id: id, title: "Entry \(id)", published: isoFormatter.string(from: published))
+      entries.append(entry)
+    }
+    _ = try await writer.persistEntries(entries, unreadIDs: Set(seedDates.map(\.id)))
+    for (id, _) in seedDates {
+      try await classify(writer, id: id, category: "apple")
+    }
+
+    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let result = try await writer.fetchEntrySections(
+      category: "apple", folder: nil, showRead: false,
+      cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+    )
+    let sectionRowCount = result.allEntryIDs.count
+
+    let snapshotCount = snapshot.categoryCounts["apple"] ?? 0
+    #expect(
+      snapshotCount == sectionRowCount,
+      Comment(
+        rawValue: "Snapshot (\(snapshotCount)) and fetchEntrySections (\(sectionRowCount)) "
+          + "disagreed for cutoff \(cutoff)"
+      )
+    )
   }
 }

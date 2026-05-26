@@ -43,6 +43,25 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let entryIDs: [PersistentIdentifier]
 }
 
+/// Background-fetched article list payload: the day-grouped sections plus the
+/// pre-flattened entry-ID list the MainActor's `VisibleEntryIDsKey` preference
+/// needs. Computing the flat list off-MainActor (the writer already walks every
+/// entry once for `groupEntriesByDay`) saves the view from a per-reload
+/// `result.flatMap(\.entryIDs)` allocation against the entire row set —
+/// meaningful for large categories ("uncategorized" with thousands of IDs)
+/// where each MainActor allocation eats into the 8.3 ms ProMotion frame budget
+/// (`stack.md` § Performance budgets).
+///
+/// `PersistentIdentifier` conforms to `Sendable`
+/// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the
+/// flattened array crosses the actor boundary cleanly.
+nonisolated struct EntryListFetchResult: Sendable, Equatable {
+  let sections: [EntryListSection]
+  let allEntryIDs: [PersistentIdentifier]
+
+  static let empty = EntryListFetchResult(sections: [], allEntryIDs: [])
+}
+
 /// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for
 /// logging the disk-retention cleanup pass. Purge is a pure runtime delete —
 /// not a schema migration — so the outcome is intentionally small.

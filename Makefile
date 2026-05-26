@@ -96,7 +96,8 @@ test: build ## Run unit tests (FeederTests, excluding the perf suite)
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UNIT_RESULT) \
 		-only-testing:FeederTests \
-		-skip-testing:FeederTests/PerfSignpostTests
+		-skip-testing:FeederTests/PerfSignpostTests \
+		-skip-testing:FeederTests/MicroBenchmarkTests
 
 test-ui: build ## Run UI smoke tests (FeederUITests)
 	@echo "==> UI smoke tests"
@@ -153,12 +154,13 @@ perf: perf-preflight perf-signpost perf-trace ## Local perf regression suite (Le
 perf-preflight: ## Verify the host is not thermally throttled before recording
 	@./Tools/PerfParser/preflight.sh
 
-perf-signpost: build ## Level 2 — XCTOSSignpostMetric medians via XCTest
+perf-signpost: build ## Levels 1 + 2 — function-level XCTest microbenchmarks + XCTOSSignpostMetric medians
 	@mkdir -p $(PERF_RESULT_DIR)
 	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
 	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
-		-only-testing:FeederTests/PerfSignpostTests
+		-only-testing:FeederTests/PerfSignpostTests \
+		-only-testing:FeederTests/MicroBenchmarkTests
 	@swift run --package-path Tools/PerfParser PerfParser \
 		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
 		--baseline $(PERF_BASELINE)
@@ -188,7 +190,8 @@ perf-record-baseline: perf-preflight install ## Refresh baseline JSON from curre
 	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
 	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
-		-only-testing:FeederTests/PerfSignpostTests
+		-only-testing:FeederTests/PerfSignpostTests \
+		-only-testing:FeederTests/MicroBenchmarkTests
 	@swift run --package-path Tools/PerfParser PerfParser \
 		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
 		--baseline $(PERF_BASELINE) \

@@ -9,7 +9,12 @@ Headless performance regression baselines for `make perf`.
   from the diagnosis run captured before the perf refactor landed. Level 2
   signpost medians under `level2_signposts` start as `null` and are
   populated after the user hand-verifies the architectural fix with Time
-  Profiler.
+  Profiler. Level 1 function-level microbenchmarks (under
+  `level1_microbench.entries`) shipped in PR 4 — each entry holds
+  `{ "median_ms": <value or null> }`. First-run values are captured on
+  the boss's next `make perf-record-baseline` invocation; `make perf`
+  reads the same xcresult bundle and compares captured medians against
+  `baseline × (1 + tolerance_pct/100)`.
 
 ## Usage
 
@@ -31,6 +36,16 @@ Per-metric, not global ±X:
 - `contentview_body_getter_pct`: absolute ≤ 9 % of total samples.
 - `contentview_unread_entries_getter_pct`: absolute ≤ 0.1 % (effectively the
   symbol should be gone).
+- Level 1 micro-benchmark medians: ≤ baseline × (1 + `tolerance_pct`/100).
+  Shared `tolerance_pct = 20` matches Level 2 — drifts under 20 % are
+  noise; drifts above 20 % deserve investigation. The four shipped
+  entries (`fetchUnreadCountsSnapshot_micro`,
+  `fetchEntrySections_category_micro`, `parseHTMLToBlocks_micro`,
+  `groupEntriesByDay_micro`) cover the hot-path functions identified
+  during PR 4 planning. New benchmarks added under
+  `FeederTests/MicroBenchmarkTests` are picked up automatically by the
+  extractor; the first `make perf-record-baseline` invocation after the
+  benchmark is added captures the baseline value.
 - Level 2 signpost medians: ≤ baseline × 1.20, and `sidebar-click` /
   `article-click` also subject to the 8.3 ms ProMotion hard ceiling per
   `docs/stack.md` § 4.
@@ -69,11 +84,17 @@ host.
 ## Notes
 
 Generated and consumed by `Tools/PerfParser` (Swift SPM executable). The
-parser uses `Foundation.XMLParser` against `xctrace export` output — no
-Python, no third-party dependencies (per `docs/stack.md` § 6).
+parser uses `Foundation.XMLParser` against `xctrace export` output and
+`JSONSerialization` against `xcresulttool get test-results tests --format json`
+output for Levels 1 + 2 — no Python, no third-party dependencies (per
+`docs/stack.md` § 6). Unit tests for the parser's Level 1 extractor +
+comparator + Codable round-trip live in
+`Tools/PerfParser/Tests/PerfParserTests` and run via
+`swift test --package-path Tools/PerfParser`.
 
 Filed as `[follow-up]` issues:
 
-- Phase 2 perf suite: function-level micro-benchmarks (Level 1) — deferred
-  per devils-advocate's note that predictive wrapping would not have caught
-  the architectural regressions this cycle.
+- _none open_ — Level 1 function-level micro-benchmarks landed in PR 4
+  (`feat: perf infrastructure + hot-path offload + script cleanup`),
+  superseding the original "Phase 2 perf suite" follow-up per the boss's
+  PR-4 decision that performance evidence is foundational, not deferred.

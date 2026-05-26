@@ -274,9 +274,9 @@ struct EntryListView: View {
       (try? await writer.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
-      )) ?? []
+      )) ?? .empty
     guard !Task.isCancelled else { return }
-    guard result != sections else { return }
+    guard result.sections != sections else { return }
     // Decide whether the upcoming in-place diff warrants a scroll-anchor
     // restore. Two reasons to pin: (1) the selected row still appears in the
     // new result — keep it centred so a row-height shift (read/unread
@@ -286,7 +286,12 @@ struct EntryListView: View {
     // sync-arriving-entries autonomy decision). Structural reloads
     // (`hasLoaded == false` going into `reload`) skip the fallback so we do
     // not pin an anchor from the previous list's contents.
-    let newIDs = Set(result.lazy.flatMap(\.entryIDs))
+    //
+    // `result.allEntryIDs` is precomputed off-MainActor by
+    // `DataWriter.fetchEntrySections` so the membership-check `Set` build is
+    // the only per-reload allocation on MainActor — the flatMap walk that
+    // used to live here moved to the writer.
+    let newIDs = Set(result.allEntryIDs)
     let restore: AnchorRestore?
     if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
       restore = AnchorRestore(id: selectedID, anchor: .center)
@@ -298,8 +303,8 @@ struct EntryListView: View {
       restore = nil
     }
     pendingAnchorRestore = restore
-    sections = result
-    allVisibleEntryIDs = result.flatMap(\.entryIDs)
+    sections = result.sections
+    allVisibleEntryIDs = result.allEntryIDs
     // Yield one tick so SwiftUI applies the diff before we ask the proxy
     // to scroll — without the yield `scrollTo` runs against the still-old
     // layout and the anchor row is not yet on screen to scroll to. Instant
