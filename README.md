@@ -1,17 +1,20 @@
 # Feeder
 
-A native macOS RSS reader focused on a calm, fast, keyboard-first reading experience.
+A chronology-first macOS RSS reader with local intelligence for categorization.
 
-Articles synced from [Feedbin](https://feedbin.com/) are categorized into user-defined categories. Classification runs either on-device via [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels) or via the OpenAI API using your own API key.
+Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-first order. Local intelligence assigns each article to one of your user-defined main categories, but it never reorders the timeline.
 
 ## Features
 
-- Feedbin sync
-- Article classification into user-defined categories
-  - On-device via Apple Foundation Models, or
-  - OpenAI API (bring your own key)
-- Strict chronological timeline
+- Feedbin sync (full article content via the Feedbin API)
+- Strict chronological timeline — newest first, within and across categories
+- One main category per article, from a user-defined taxonomy
+- Local intelligence for categorization, with two first-class options:
+  - **OpenAI API** — bring your own key. Currently the higher-quality choice.
+  - **Apple Foundation Models** — zero-config, fully on-device. The
+    privacy-preserving alternative.
 - Full keyboard navigation
+- Native macOS look and feel
 
 ## Stack
 
