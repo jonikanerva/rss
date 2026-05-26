@@ -823,7 +823,10 @@ struct ContentView: View {
     if username.isEmpty || password.isEmpty {
       needsSetup = true
     } else {
-      startSync()
+      // Pass the already-loaded password through so `startSync` does not
+      // trigger a second keychain consent prompt for the same item on
+      // first launch after install (#99).
+      startSync(username: username, password: password)
     }
   }
 
@@ -872,9 +875,18 @@ struct ContentView: View {
     }
   }
 
-  private func startSync() {
-    let username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
-    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
+  /// Start (or resume) periodic Feedbin sync.
+  ///
+  /// On cold launch `checkCredentials()` has already loaded the username /
+  /// password from `UserDefaults` / Keychain and passes them through to
+  /// avoid a second `SecItemCopyMatching` call — and therefore a second
+  /// system Keychain consent prompt for the same item — on the very first
+  /// launch after install (#99). The onboarding-completion call site (where
+  /// credentials were just written milliseconds ago and the Keychain ACL
+  /// allows silent reads) keeps the no-argument form.
+  private func startSync(username preloadedUsername: String? = nil, password preloadedPassword: String? = nil) {
+    let username = preloadedUsername ?? UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
+    let password = preloadedPassword ?? KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
     guard !username.isEmpty, !password.isEmpty else { return }
 
     // `FeederApp.runBootstrap()` has already attached the production writer
