@@ -103,7 +103,11 @@ test-ui: build ## Run UI smoke tests (FeederUITests)
 	@echo "==> UI smoke tests"
 	@mkdir -p $(dir $(UI_RESULT))
 	@rm -rf $(UI_RESULT)
-	xcodebuild test-without-building \
+	@# Invoked via the UI-test runner wrapper so residual Feeder.app
+	@# processes are reaped before and after the run (same class of
+	@# zombie-process bug fixed for `make perf` in Tools/PerfParser/run_trace_iterations.sh).
+	@# `test-full` composes `test test-ui` so it inherits the cleanup automatically.
+	./Tools/UITestRunner/run_ui_tests.sh test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UI_RESULT) \
 		-only-testing:FeederUITests
