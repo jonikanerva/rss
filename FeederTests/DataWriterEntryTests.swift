@@ -135,7 +135,6 @@ struct DataWriterEntryTests {
     let result = ClassificationResult(
       entryID: 1001,
       categoryLabel: "apple",
-      detectedLanguage: "en",
       confidence: 0.9
     )
     try await writer.applyClassification(entryID: 1001, result: result)
@@ -161,7 +160,6 @@ struct DataWriterEntryTests {
     let result = ClassificationResult(
       entryID: 1001,
       categoryLabel: "science",
-      detectedLanguage: "en",
       confidence: 0.8
     )
     try await writer.applyClassification(entryID: 1001, result: result)
@@ -182,7 +180,6 @@ struct DataWriterEntryTests {
     let result = ClassificationResult(
       entryID: 1001,
       categoryLabel: "nonexistent",
-      detectedLanguage: "en",
       confidence: 0.9
     )
     try await writer.applyClassification(entryID: 1001, result: result)
@@ -198,7 +195,6 @@ struct DataWriterEntryTests {
     let result = ClassificationResult(
       entryID: 99999,
       categoryLabel: "technology",
-      detectedLanguage: "en",
       confidence: 0.9
     )
     // Should not crash — guard returns early for missing entry
@@ -304,8 +300,7 @@ struct DataWriterEntryTests {
     // Classify entries into different categories
     for (id, cat) in [(2001, "technology"), (2002, "technology"), (2003, "world_news")] {
       let result = ClassificationResult(
-        entryID: id, categoryLabel: cat,
-        detectedLanguage: "en", confidence: 0.9)
+        entryID: id, categoryLabel: cat, confidence: 0.9)
       try await writer.applyClassification(entryID: id, result: result)
     }
 
@@ -351,8 +346,7 @@ struct DataWriterEntryTests {
       description: "Tech news", sortOrder: 0)
     for id in [3001, readEntryID] {
       let result = ClassificationResult(
-        entryID: id, categoryLabel: "technology",
-        detectedLanguage: "en", confidence: 0.9)
+        entryID: id, categoryLabel: "technology", confidence: 0.9)
       try await writer.applyClassification(entryID: id, result: result)
     }
 

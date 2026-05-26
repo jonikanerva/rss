@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 enum PreviewSupport {
   static func makeContainer() -> ModelContainer {
-    let schema = Schema(versionedSchema: FeederSchemaV1.self)
+    let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     do {
       return try ModelContainer(

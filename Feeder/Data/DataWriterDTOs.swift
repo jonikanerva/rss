@@ -15,7 +15,6 @@ nonisolated struct ClassificationInput: Sendable {
 nonisolated struct ClassificationResult: Sendable {
   let entryID: Int
   let categoryLabel: String
-  let detectedLanguage: String
   let confidence: Double
 }
 
