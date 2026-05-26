@@ -29,11 +29,15 @@ import WebKit
 // All preheat orchestration lives on a `@MainActor`-isolated helper because
 // the underlying `WKWebView` / `WKWebViewConfiguration` types are MainActor.
 // The `.task(priority: .utility)` modifier on `ContentView` schedules the
-// warm call after the first idle frame, so the launch budget in
-// `docs/stack.md` § Performance budgets (< 2 s cold start) is not consumed
-// by WebKit initialisation. The article-detail render path falls through to
-// its existing inline configuration if the warmed pool isn't ready yet —
-// preheat is best-effort, never a synchronisation point.
+// warm call after the root view appears — `.task` runs "before this view
+// appears" per Apple's docs
+// (`developer.apple.com/documentation/swiftui/view/task(name:priority:file:line:_:)`)
+// and the closure body executes once the view is on screen, before the user
+// can possibly click an article. `.utility` is a scheduler priority hint that
+// keeps the warm call below any user-initiated work that is already running;
+// it is not an idle-frame guarantee. The article-detail render path falls
+// through to its existing inline configuration if the warmed pool isn't
+// ready yet — preheat is best-effort, never a synchronisation point.
 
 /// Lifecycle of the preheat operation. Used internally to make
 /// `warmIfNeeded()` idempotent across re-entrant callers.
@@ -73,9 +77,13 @@ enum WebKitPreheat {
   private static var primingWebView: WKWebView?
 
   /// Warm the process pool. Idempotent — second and subsequent calls return
-  /// immediately. Called from `ContentView.task(priority: .utility)` after
-  /// the first idle frame so the launch budget in `docs/stack.md` §
-  /// Performance budgets is not consumed by WebKit initialisation.
+  /// immediately. Called from `ContentView.task(priority: .utility)` once the
+  /// root view appears (before the user can interact with article rows), at
+  /// `.utility` priority so the warm sits below any user-initiated work.
+  /// `.task` is not an idle-frame guarantee — it runs on appear — but the
+  /// preheat is best-effort and tolerant of running concurrently with
+  /// rendering, so the conservative scheduling shape is sufficient to keep
+  /// the launch budget in `docs/stack.md` § Performance budgets clean.
   ///
   /// Sequence:
   /// 1. Allocate the shared `WKProcessPool` instance.

@@ -778,8 +778,16 @@ actor DataWriter: ModelActor {
 
   /// Reassign every entry whose `primaryCategory == sourceLabel` to
   /// `targetLabel` (and the target's folder), then delete the source category.
-  /// One atomic transaction — either the entries move and the category goes,
-  /// or nothing changes.
+  /// The reassignment loop plus the source delete run inside
+  /// `ModelContext.transaction(block:)` — Apple's documented atomic primitive
+  /// (`developer.apple.com/documentation/swiftdata/modelcontext/transaction(block:)`).
+  /// `transaction(block:)` commits all pending changes when the closure
+  /// returns normally and discards them if the closure throws, so a save-time
+  /// failure (constraint violation, disk pressure, store-level error) leaves
+  /// the store byte-equivalent to its pre-call state. Pre-flight guards
+  /// (`sourceEqualsTarget`, `sourceMissing`, `sourceIsSystem`,
+  /// `targetMissing`) run before the transaction opens so they short-circuit
+  /// without any pending mutations to roll back.
   ///
   /// Errors:
   /// - `.sourceMissing` — no category with `sourceLabel` exists.
@@ -819,12 +827,18 @@ actor DataWriter: ModelActor {
       predicate: #Predicate<Entry> { $0.primaryCategory == sourceLabel }
     )
     let affected = try modelContext.fetch(entryDescriptor)
-    for entry in affected {
-      entry.primaryCategory = targetLabel
-      entry.primaryFolder = targetFolderLabel
+    // `transaction(block:)` commits at the closing brace and rolls back on
+    // any throw — we do NOT call `save()` again afterwards. Apple's contract
+    // guarantees rollback of every pending mutation in the closure if the
+    // commit fails, so either every entry moves AND the source is gone, or
+    // nothing changed.
+    try modelContext.transaction {
+      for entry in affected {
+        entry.primaryCategory = targetLabel
+        entry.primaryFolder = targetFolderLabel
+      }
+      modelContext.delete(source)
     }
-    modelContext.delete(source)
-    try modelContext.save()
     Self.logger.info(
       "Reassigned \(affected.count) entries from category \(sourceLabel, privacy: .public) to \(targetLabel, privacy: .public), then removed the source category."
     )

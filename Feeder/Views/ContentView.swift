@@ -159,14 +159,17 @@ struct ContentView: View {
       revalidateSelection()
       panelFocus = .sidebar
     }
-    // WebKit preheat — issue #106. `.task` fires after the first frame paints,
-    // so the launch budget in `docs/stack.md` § Performance budgets is not
-    // consumed by WebKit initialisation. `.utility` priority keeps the warm
-    // call below user-initiated work; the warm itself is a single synchronous
-    // MainActor call (it touches WKWebView, which is MainActor-only) inside an
-    // async context so SwiftUI's `.task` lifecycle can cancel it cleanly if
-    // the view tears down before the first idle. Idempotent — re-attached
-    // views (Settings reopen, etc.) are no-ops.
+    // WebKit preheat — issue #106. `.task` runs after the root view appears
+    // (Apple's docs: "before this view appears", with the closure executing
+    // once on appearance — not an idle-frame defer), so the warm fires
+    // before the user can plausibly click an article but after SwiftUI has
+    // committed the first render. `.utility` priority keeps the warm call
+    // below user-initiated work that may be running concurrently; the warm
+    // itself is a single synchronous MainActor call (it touches WKWebView,
+    // which is MainActor-only) inside an async context so SwiftUI's `.task`
+    // lifecycle can cancel it cleanly if the view tears down before
+    // completion. Idempotent — re-attached views (Settings reopen, etc.)
+    // are no-ops.
     .task(priority: .utility) {
       WebKitPreheat.warmIfNeeded()
     }

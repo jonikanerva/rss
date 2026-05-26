@@ -204,9 +204,25 @@ struct DataWriterRecategorizeTests {
 
   // MARK: - Atomicity
 
-  /// On an error path nothing must be left half-applied — neither the source
-  /// nor the target moves, and no entry flips category. The store after a
-  /// failing call should be byte-equivalent to the store before it.
+  /// Pre-flight guard rollback. `.targetMissing` is detected before the
+  /// `ModelContext.transaction(block:)` opens, so no pending mutations exist
+  /// to discard — the store is unchanged because the writer never started
+  /// the work.
+  ///
+  /// In-transaction rollback (save-time failures: constraint violation, disk
+  /// pressure, store-level error) is covered by Apple's documented
+  /// `transaction(block:)` contract
+  /// (`developer.apple.com/documentation/swiftdata/modelcontext/transaction(block:)`):
+  /// the closure's pending changes commit at the closing brace and are
+  /// discarded on any throw inside the closure. The current in-memory test
+  /// harness cannot inject a save-time failure without redesigning the
+  /// actor's save path; if we ever add a save-injection seam, a companion
+  /// test should drive that path directly. Until then, the writer's
+  /// atomicity guarantee rests on:
+  ///   1. This test, which proves pre-flight guards do not mutate state.
+  ///   2. The `transaction(block:)` call site itself (single primitive,
+  ///      no manual `save()` afterwards) — see `DataWriter`
+  ///      `removeCategoryAndReassignArticles` doc comment.
   @Test
   func removeCategoryFailureLeavesStoreUntouched() async throws {
     let writer = try await makeWriter()

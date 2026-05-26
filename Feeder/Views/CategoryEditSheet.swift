@@ -1,5 +1,8 @@
+import OSLog
 import SwiftData
 import SwiftUI
+
+private let logger = Logger(subsystem: "com.feeder.app", category: "CategoryEditSheet")
 
 struct CategoryEditSheet: View {
   @Environment(SyncEngine.self)
@@ -68,8 +71,15 @@ struct CategoryEditSheet: View {
       isPresented: $showReassignDialog,
       titleVisibility: .visible
     ) {
+      // Per-target buttons stay neutral (no `.destructive` role). The
+      // reassignment preserves data — only the source-category deletion is
+      // destructive, and the dialog title + message already disclose that
+      // ("Move N articles…", "…will be removed afterwards. This can't be
+      // undone."). Painting every target button red would conflict with HIG →
+      // Alerts → Best practices ("use destructive styling only for actions
+      // that destroy data") and with `docs/vision.md`'s calm-UX north star.
       ForEach(reassignTargets, id: \.label) { target in
-        Button("Move to \(target.displayName)", role: .destructive) {
+        Button("Move to \(target.displayName)") {
           performReassignAndDelete(targetLabel: target.label)
         }
       }
@@ -290,9 +300,18 @@ struct CategoryEditSheet: View {
         )
         dismiss()
       } catch let error as CategoryReassignError {
+        // Typed cases have localized descriptions tailored to the user
+        // (`docs/stack.md` § Logging & privacy — category labels are public
+        // taxonomy strings, safe to surface).
         errorMessage = error.localizedDescription
       } catch {
-        errorMessage = error.localizedDescription
+        // Generic SwiftData / NSError-style text would leak implementation
+        // detail. Log the underlying error privately and show a friendly
+        // fallback instead.
+        logger.error(
+          "Category reassign failed: \(error.localizedDescription, privacy: .private)"
+        )
+        errorMessage = "Couldn't remove category. Please try again."
       }
     }
   }
