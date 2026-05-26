@@ -112,6 +112,17 @@ struct SidebarView: View, Equatable {
   /// surface (`docs/vision.md`). Unread counts are passed in as
   /// already-computed dictionaries so the row builder never re-aggregates
   /// per render.
+  ///
+  /// The `sidebar.folder.<label>` identifier is attached to the inner
+  /// title `Text` rather than the `DisclosureGroup` label container. On
+  /// macOS 26, XCUITest no longer flattens an HStack-shaped
+  /// `DisclosureGroup` label down to a discoverable `staticText`, so the
+  /// previous outer placement caused UI tests to time out (#104). Putting
+  /// the identifier on the leaf `Text` exposes a real
+  /// `staticTexts["sidebar.folder.<label>"]` element while the row's
+  /// composed accessibility (label + unread badge + selection traits)
+  /// stays intact — no ancestor uses `accessibilityElement(children:
+  /// .ignore)` so VoiceOver still combines them.
   @ViewBuilder
   private func folderGroup(_ group: SidebarFolderGroup) -> some View {
     DisclosureGroup(
@@ -125,35 +136,43 @@ struct SidebarView: View, Equatable {
     } label: {
       rowLabel(
         title: group.displayName,
-        count: folderUnreadCounts[group.label, default: 0]
+        count: folderUnreadCounts[group.label, default: 0],
+        titleAccessibilityIdentifier: "sidebar.folder.\(group.label)"
       )
       .tag(SidebarSelection.folder(group.label))
-      .accessibilityIdentifier("sidebar.folder.\(group.label)")
     }
   }
 
   /// A single selectable category row with its unread badge. Shared by
   /// in-folder children and root-level categories.
+  ///
+  /// The category identifier sits on the title `Text` (same rationale as
+  /// `folderGroup` above — leaf `staticText` discoverability under macOS
+  /// 26 / Xcode 26 XCUITest).
   @ViewBuilder
   private func categoryRow(_ category: SidebarCategorySnapshot) -> some View {
     rowLabel(
       title: category.displayName,
-      count: categoryUnreadCounts[category.label, default: 0]
+      count: categoryUnreadCounts[category.label, default: 0],
+      titleAccessibilityIdentifier: "sidebar.category.\(category.label)"
     )
     .tag(SidebarSelection.category(category.label))
-    .accessibilityIdentifier("sidebar.category.\(category.label)")
   }
 
   /// Shared row layout for sidebar entries — folder labels and category
   /// labels both need "title left, quiet count right". Lifting this avoids
   /// duplicating the `HStack` + `Spacer()` + `SidebarUnreadBadge` triplet
   /// in two call sites and gives the count a stable trailing column.
+  ///
+  /// `titleAccessibilityIdentifier` is attached to the leaf `Text` so
+  /// XCUITest can find the row via `staticTexts[…]` on macOS 26.
   @ViewBuilder
-  private func rowLabel(title: String, count: Int) -> some View {
+  private func rowLabel(title: String, count: Int, titleAccessibilityIdentifier: String) -> some View {
     HStack(spacing: 6) {
       Text(title)
         .font(fontBody)
         .lineLimit(1)
+        .accessibilityIdentifier(titleAccessibilityIdentifier)
       Spacer(minLength: 4)
       SidebarUnreadBadge(count: count)
     }
