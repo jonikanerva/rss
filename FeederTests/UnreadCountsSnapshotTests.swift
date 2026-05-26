@@ -197,11 +197,11 @@ struct UnreadCountsSnapshotFetchTests {
     let cutoff = isoFormatter.date(from: "2025-01-01T00:00:00Z")!
 
     let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
-    let sectionRowCount = sections.flatMap(\.entryIDs).count
+    let sectionRowCount = result.allEntryIDs.count
 
     #expect(snapshot.categoryCounts["apple"] == sectionRowCount)
     #expect(snapshot.categoryCounts["apple"] == 2)
@@ -258,11 +258,11 @@ struct UnreadCountsSnapshotFetchTests {
     }
 
     let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
-    let sectionRowCount = sections.flatMap(\.entryIDs).count
+    let sectionRowCount = result.allEntryIDs.count
 
     let snapshotCount = snapshot.categoryCounts["apple"] ?? 0
     #expect(

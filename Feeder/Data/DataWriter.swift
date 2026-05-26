@@ -475,12 +475,14 @@ actor DataWriter: ModelActor {
   }
 
   /// Fetch entries for an article list selection and group them by calendar day.
-  /// Returns lightweight `EntryListSection` DTOs containing only persistent IDs +
-  /// a precomputed section label. The heavy SQLite fetch + Entry materialization
-  /// + grouping all happen on this background `ModelActor`, so MainActor stays
-  /// free to render the loading state immediately.
-  /// Pass either `category` or `folder`; the other should be nil. If both are nil,
-  /// returns an empty array.
+  /// Returns an `EntryListFetchResult` carrying lightweight `EntryListSection`
+  /// DTOs (persistent IDs + precomputed section labels) plus the pre-flattened
+  /// entry-ID list. The heavy SQLite fetch + Entry materialization + grouping
+  /// + flattening all happen on this background `ModelActor`, so MainActor
+  /// stays free to render the loading state immediately and never pays for a
+  /// `flatMap(\.entryIDs)` across the entire row set.
+  /// Pass either `category` or `folder`; the other should be nil. If both are
+  /// nil, returns an empty result.
   ///
   /// The classified + unread/showRead + cutoff core is built from
   /// `unreadEligiblePredicate(cutoffDate:)` plus the `showRead` / pinned-entry
@@ -488,7 +490,7 @@ actor DataWriter: ModelActor {
   func fetchEntrySections(
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
     pinnedFeedbinEntryID: Int? = nil
-  ) throws -> [EntryListSection] {
+  ) throws -> EntryListFetchResult {
     let descriptor: FetchDescriptor<Entry>
     // Secondary sort on feedbinEntryID keeps order deterministic when two entries
     // share the same publishedAt timestamp. Without it, two equal-timestamp rows
@@ -522,10 +524,17 @@ actor DataWriter: ModelActor {
         sortBy: entrySort
       )
     } else {
-      return []
+      return .empty
     }
     let entries = try modelContext.fetch(descriptor)
-    return groupEntriesByDay(entries)
+    let sections = groupEntriesByDay(entries)
+    // Sort order of `sections` matches `entries` (both descend on publishedAt
+    // then feedbinEntryID), so a single pass over `entries` produces the same
+    // identifier sequence `sections.flatMap(\.entryIDs)` would — avoids a
+    // second walk and matches what `EntryListView.reload()` consumes via
+    // `VisibleEntryIDsKey`.
+    let allEntryIDs = entries.map(\.persistentModelID)
+    return EntryListFetchResult(sections: sections, allEntryIDs: allEntryIDs)
   }
 
   // MARK: - Unread aggregation

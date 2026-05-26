@@ -80,11 +80,11 @@ final class PerfSignpostTests: XCTestCase {
     let writer = self.writer!
     let category = "perf_0"
     let cutoff = Date.distantPast
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: category, folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
-    let firstEntryID = sections.first?.entryIDs.first
+    let firstEntryID = result.allEntryIDs.first
     XCTAssertNotNil(firstEntryID, "Perf seeder must produce at least one row in category \(category)")
 
     let options = XCTMeasureOptions()

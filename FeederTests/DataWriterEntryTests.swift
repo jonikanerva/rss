@@ -322,11 +322,11 @@ struct DataWriterEntryTests {
   func fetchEntrySectionsExcludesReadEntryWithoutPin() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)
 
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil)
 
-    let ids = sections.flatMap(\.entryIDs)
+    let ids = result.allEntryIDs
     #expect(ids.count == 1)
     // Only the unread entry should appear when no pin is set.
     let unreadSnapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 3001)
@@ -337,11 +337,11 @@ struct DataWriterEntryTests {
   func fetchEntrySectionsRetainsPinnedReadEntry() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)
 
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
 
-    let ids = sections.flatMap(\.entryIDs)
+    let ids = result.allEntryIDs
     // Both the unread row and the pinned read row should appear.
     #expect(ids.count == 2)
     let readSnapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 3002)
@@ -354,11 +354,27 @@ struct DataWriterEntryTests {
     // any read row — verifies the sentinel doesn't accidentally match valid IDs.
     let writer = try await seedPinTestData(readEntryID: 3002)
 
-    let sections = try await writer.fetchEntrySections(
+    let result = try await writer.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast)
 
-    let ids = sections.flatMap(\.entryIDs)
+    let ids = result.allEntryIDs
     #expect(ids.count == 1)
+  }
+
+  /// Regression pin for the PR #107 hot-path offload: the writer must return
+  /// the same flat ID sequence the MainActor used to compute via
+  /// `result.flatMap(\.entryIDs)`. Order matters — `EntryListView` keys its
+  /// `VisibleEntryIDsKey` preference and Tab-into-list selection off the
+  /// first ID, so a reorder would land selection on the wrong row.
+  @Test
+  func fetchEntrySectionsAllEntryIDsMatchSectionsFlatMap() async throws {
+    let writer = try await seedPinTestData(readEntryID: 3002)
+
+    let result = try await writer.fetchEntrySections(
+      category: "technology", folder: nil, showRead: false,
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
+
+    #expect(result.allEntryIDs == result.sections.flatMap(\.entryIDs))
   }
 }
