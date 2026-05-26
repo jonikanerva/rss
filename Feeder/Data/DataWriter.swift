@@ -450,6 +450,30 @@ actor DataWriter: ModelActor {
 
   // MARK: - Article list (background-fetched section snapshots)
 
+  /// Predicate that captures the shared "is this row eligible to count
+  /// towards the unread sidebar badges and appear in the unread article
+  /// list" rule: classified, unread, and published on or after `cutoffDate`.
+  ///
+  /// `fetchUnreadCountsSnapshot` uses this verbatim; `fetchEntrySections`
+  /// composes the same three clauses inline alongside its per-axis
+  /// (category / folder), `showRead` override, and `pinnedFeedbinEntryID`
+  /// clauses. The two fetchers must agree on the eligible row set whenever
+  /// `showRead == false`, which is the only shape the sidebar counts —
+  /// the PR #103 regression where the snapshot's predicate drifted out of
+  /// sync with the article-list fetch (sidebar badges counted rows the
+  /// list had hidden) is what this helper prevents from recurring.
+  ///
+  /// Per `docs/swift-code-rules.md → DRY` and Apple's
+  /// [Filtering and sorting persistent data](https://developer.apple.com/documentation/swiftdata/filtering-and-sorting-persistent-data)
+  /// guide: a single `static` helper returning `Predicate<Entry>` is the
+  /// canonical reuse shape, callable from any thread (the predicate is
+  /// `Sendable`).
+  static func unreadEligiblePredicate(cutoffDate: Date) -> Predicate<Entry> {
+    #Predicate<Entry> {
+      $0.isClassified && $0.isRead == false && $0.publishedAt >= cutoffDate
+    }
+  }
+
   /// Fetch entries for an article list selection and group them by calendar day.
   /// Returns lightweight `EntryListSection` DTOs containing only persistent IDs +
   /// a precomputed section label. The heavy SQLite fetch + Entry materialization
@@ -457,6 +481,10 @@ actor DataWriter: ModelActor {
   /// free to render the loading state immediately.
   /// Pass either `category` or `folder`; the other should be nil. If both are nil,
   /// returns an empty array.
+  ///
+  /// The classified + unread/showRead + cutoff core is built from
+  /// `unreadEligiblePredicate(cutoffDate:)` plus the `showRead` / pinned-entry
+  /// overrides; per-axis category or folder clauses compose on top.
   func fetchEntrySections(
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
     pinnedFeedbinEntryID: Int? = nil
@@ -524,9 +552,7 @@ actor DataWriter: ModelActor {
   /// (`https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch`).
   func fetchUnreadCountsSnapshot(cutoffDate: Date) throws -> UnreadCountsSnapshot {
     var descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> {
-        $0.isClassified == true && $0.isRead == false && $0.publishedAt >= cutoffDate
-      }
+      predicate: Self.unreadEligiblePredicate(cutoffDate: cutoffDate)
     )
     descriptor.propertiesToFetch = [\.feedbinEntryID, \.primaryCategory, \.primaryFolder]
 
