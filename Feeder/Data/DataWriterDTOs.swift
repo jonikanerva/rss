@@ -69,6 +69,47 @@ nonisolated struct PurgeOutcome: Sendable, Equatable {
   let purgedCount: Int
 }
 
+/// Result of `DataWriter.removeCategoryAndReassignArticles(_:to:)`.
+/// Carries the number of entries whose `primaryCategory` (and possibly
+/// `primaryFolder`) was reassigned to the target category, plus the new folder
+/// label so the caller can log the user-facing summary. The category-deletion
+/// step is implicit — when this DTO returns successfully the source category
+/// is gone from the store.
+nonisolated struct RecategorizeOutcome: Sendable, Equatable {
+  let reassignedCount: Int
+  let targetFolderLabel: String
+}
+
+/// Errors thrown by category-management writes that participate in the
+/// confirm-and-reassign flow surfaced by `CategoryManagementView`.
+/// Typed so the UI can route each case to a precise alert message without
+/// string-matching `localizedDescription`.
+nonisolated enum CategoryReassignError: Error, Sendable, Equatable, LocalizedError {
+  /// The source category label does not resolve to a row in the store.
+  case sourceMissing
+  /// The target category label does not resolve to a row in the store.
+  case targetMissing
+  /// Source and target labels are equal — would delete the category the
+  /// caller asked to keep articles in.
+  case sourceEqualsTarget
+  /// The source category is system-owned (e.g. `uncategorized`) and must
+  /// not be deleted.
+  case sourceIsSystem
+
+  var errorDescription: String? {
+    switch self {
+    case .sourceMissing:
+      return "The category you tried to remove no longer exists."
+    case .targetMissing:
+      return "The category you picked as the move target no longer exists."
+    case .sourceEqualsTarget:
+      return "You can't move articles into the same category you're removing."
+    case .sourceIsSystem:
+      return "Built-in categories can't be removed."
+    }
+  }
+}
+
 /// Cached aggregation over the classified-unread universe used by the sidebar
 /// to render its badges. Computed off-MainActor by
 /// `DataWriter.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays
