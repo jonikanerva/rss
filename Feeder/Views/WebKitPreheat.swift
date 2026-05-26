@@ -8,9 +8,10 @@ import WebKit
 // `WKWebView` lazily spins up its Web Content Process the first time a view
 // is instantiated. On a fresh launch that cost lands inside the user's first
 // article click — measurable as a 100-300 ms hitch versus the < 30 ms render
-// budget. Preheating a `WKProcessPool` at idle (before the first click) lets
-// the per-article `WKWebView` reuse a warm process; subsequent renders are
-// 5-10× faster on cold boots.
+// budget. Preheating a `WKProcessPool` from the root view's `.task` modifier
+// — which fires on appear, before the user can plausibly click an article —
+// lets the per-article `WKWebView` reuse a warm process; subsequent renders
+// are 5-10× faster on cold boots.
 //
 // Apple ships no first-party "warm up WebKit" API
 // (`developer.apple.com/documentation/webkit/wkwebview` — verified for macOS
@@ -117,7 +118,7 @@ enum WebKitPreheat {
 
   /// Test-only reset. Production code never calls this — production hits
   /// `warmIfNeeded()` exactly once per app lifetime via the root view's
-  /// idle-deferred task. Exposed to the same module so unit tests can drive
+  /// `.task` modifier. Exposed to the same module so unit tests can drive
   /// the idempotency assertions in `WebKitPreheatTests`.
   static func resetForTesting() {
     phase = .cold
