@@ -165,6 +165,12 @@ struct FeederMigrationPlanTests {
     #expect(cat?.categoryDescription == "Persisted desc.")
     #expect(cat?.keywords == ["keyword-one", "keyword-two"])
     #expect(cat?.sortOrder == 0)
+    // Pin the category→folder relationship across V1→V2. Without this
+    // assertion a future custom stage could silently drop `folderLabel`
+    // (it's a plain `String?`, not a SwiftData relationship) and the
+    // sidebar grouping would collapse to "all root-level" without any
+    // test surfacing the regression.
+    #expect(cat?.folderLabel == "persisted_folder")
 
     // Feeds survive intact.
     #expect(feeds.count == 1)

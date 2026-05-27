@@ -136,12 +136,21 @@ actor DataWriter: ModelActor {
 
   /// Reconcile the persistent store on launch.
   ///
-  /// Two legitimate paths:
-  /// - Defaults-seeded flag absent → seed default folders + categories +
-  ///   the system `uncategorized` fallback, set the flag → `.seeded`
-  ///   (first launch on a brand-new install).
+  /// Three legitimate paths:
   /// - Defaults-seeded flag present → `.skipped` (steady state), regardless
   ///   of whether the user has since deleted some or all default categories.
+  /// - Defaults-seeded flag absent but `Category` rows already exist →
+  ///   `.skipped` after writing the flag. This is the back-compat path for
+  ///   stores written by builds that predate the sentinel (pre-PR-#112).
+  ///   Re-seeding here would let `@Attribute(.unique) label` upsert
+  ///   overwrite the user's customised `displayName` / `categoryDescription`
+  ///   / `sortOrder` / `folderLabel` / `keywords` on every default-labelled
+  ///   row — so we infer the seed has already happened from the presence
+  ///   of taxonomy and set the flag instead.
+  /// - Defaults-seeded flag absent and the categories table is empty →
+  ///   seed default folders + categories + the system `uncategorized`
+  ///   fallback, set the flag → `.seeded` (first launch on a brand-new
+  ///   install).
   ///
   /// The flag lives in `UserDefaults` rather than the SwiftData store so a
   /// schema migration that temporarily empties the categories table cannot
@@ -156,6 +165,21 @@ actor DataWriter: ModelActor {
     let action: BootstrapOutcome.Action
 
     if defaultsFlagStore.isSeeded(forKey: defaultsSeededUserDefaultsKey) {
+      action = .skipped
+    } else if try modelContext.fetchCount(FetchDescriptor<Category>()) > 0 {
+      // Pre-PR-#112 builds never wrote the seeded-defaults sentinel: every
+      // launch on a populated store would re-enter `seedDefaultTaxonomy()`,
+      // and the `@Attribute(.unique) label` upsert would overwrite the
+      // user's customised `displayName` / `categoryDescription` /
+      // `sortOrder` / `folderLabel` / `keywords` on every default-labelled
+      // row. The first launch after upgrade to a sentinel-aware build sees
+      // the flag absent on disk; without this guard it would re-seed once
+      // more before setting the flag, trampling user data exactly once.
+      // Infer the "already seeded" state from the presence of any
+      // `Category` rows, set the flag, and skip the seed path so the
+      // upgrade path collapses to a no-op. New installs hit neither branch
+      // and still seed via the `else` below.
+      defaultsFlagStore.setSeeded(true, forKey: defaultsSeededUserDefaultsKey)
       action = .skipped
     } else {
       try seedDefaultTaxonomy()
