@@ -16,12 +16,39 @@ import Testing
 /// The injected keychain-load closure replaces the production
 /// `KeychainHelper.load` so the test never touches the real keychain — no
 /// chance of polluting the per-process Security session or seeing a UI prompt
-/// during test runs. Provider-kind state is stored in `UserDefaults.standard`
-/// via `ClassificationProviderKind.persist`, mirroring how
-/// `ClassificationSettingsView` writes it; each test restores the prior value
-/// in `defer` so suite ordering cannot leak between cases.
+/// during test runs. Provider-kind state is stored in a per-test isolated
+/// `UserDefaults(suiteName:)` instance — mirroring `SyncEngineTests`'s
+/// per-test defaults injection — so the four cases in this suite can run in
+/// parallel (Swift Testing's default) without clobbering each other's
+/// `persist`/`current` reads through the shared `.standard` domain. The
+/// production `ClassificationProviderKind.current` (zero-arg form) and the
+/// `buildProvider(defaults:keychainLoad:)` overload that takes a
+/// `UserDefaults` keep their existing production behavior — only the test
+/// reads/writes are redirected.
 @Suite("ClassificationEngine.buildProvider")
 struct ClassificationProviderResolutionTests {
+  // MARK: - Per-test isolation
+
+  /// Per-test isolated `UserDefaults` instance. Built with a unique
+  /// `suiteName` so reads/writes of `ClassificationProviderKind.userDefaultsKey`
+  /// never touch `.standard`. Parallel suite execution (Swift Testing's
+  /// default) cannot then flip another test's `.persist` selection between
+  /// the persist and the `buildProvider` call. Pattern matches
+  /// `SyncEngineTests.init`.
+  private let defaults: UserDefaults
+
+  init() {
+    let id = "FeederTests.ClassificationProviderResolution.\(UUID().uuidString)"
+    // `init(suiteName:)` returns nil for reserved names ("standard", "main",
+    // etc.). A random UUID never hits one of those, so the force unwrap is
+    // safe and surfaces an immediate test failure if Apple changes that
+    // contract.
+    guard let defaults = UserDefaults(suiteName: id) else {
+      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
+    }
+    self.defaults = defaults
+  }
+
   // MARK: - Apple FM path
 
   /// `.appleFM` is the default kind. The on-device provider is constructed
@@ -31,12 +58,10 @@ struct ClassificationProviderResolutionTests {
   /// fails, surfacing the regression before it ships.
   @Test
   func appleFMKindSkipsKeychainEntirely() {
-    let previousKind = ClassificationProviderKind.current
-    ClassificationProviderKind.persist(.appleFM)
-    defer { ClassificationProviderKind.persist(previousKind) }
+    ClassificationProviderKind.persist(.appleFM, in: defaults)
 
     var loadCallCount = 0
-    let provider = ClassificationEngine.buildProvider { _ in
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in
       loadCallCount += 1
       return "should-not-be-read"
     }
@@ -54,11 +79,9 @@ struct ClassificationProviderResolutionTests {
   /// system-modal keychain access prompt at the *write* site.
   @Test
   func openAIKindWithMissingKeyFallsBackToAppleFM() {
-    let previousKind = ClassificationProviderKind.current
-    ClassificationProviderKind.persist(.openAI)
-    defer { ClassificationProviderKind.persist(previousKind) }
+    ClassificationProviderKind.persist(.openAI, in: defaults)
 
-    let provider = ClassificationEngine.buildProvider { _ in nil }
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in nil }
 
     #expect(provider.name == "Apple FM")
   }
@@ -69,11 +92,9 @@ struct ClassificationProviderResolutionTests {
   /// treated identically to "no key stored": fall back to Apple FM.
   @Test
   func openAIKindWithEmptyKeyFallsBackToAppleFM() {
-    let previousKind = ClassificationProviderKind.current
-    ClassificationProviderKind.persist(.openAI)
-    defer { ClassificationProviderKind.persist(previousKind) }
+    ClassificationProviderKind.persist(.openAI, in: defaults)
 
-    let provider = ClassificationEngine.buildProvider { _ in "" }
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "" }
 
     #expect(provider.name == "Apple FM")
   }
@@ -86,11 +107,9 @@ struct ClassificationProviderResolutionTests {
   /// flipped the early-return condition inadvertently.
   @Test
   func openAIKindWithStoredKeyResolvesToOpenAIProvider() {
-    let previousKind = ClassificationProviderKind.current
-    ClassificationProviderKind.persist(.openAI)
-    defer { ClassificationProviderKind.persist(previousKind) }
+    ClassificationProviderKind.persist(.openAI, in: defaults)
 
-    let provider = ClassificationEngine.buildProvider { key in
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
       // Verify the production code asked for the right keychain account.
       #expect(key == KeychainHelper.openAIAPIKeychainKey)
       return "sk-test-not-real"

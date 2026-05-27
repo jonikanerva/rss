@@ -280,9 +280,10 @@ final class ClassificationEngine {
   /// classifications until they enter a key via `ClassificationSettingsView`;
   /// once saved, the next batch picks it up via this same factory.
   nonisolated static func buildProvider(
+    defaults: UserDefaults = .standard,
     keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
   ) -> any ClassificationProvider {
-    switch ClassificationProviderKind.current {
+    switch ClassificationProviderKind.current(in: defaults) {
     case .openAI:
       guard let apiKey = keychainLoad(KeychainHelper.openAIAPIKeychainKey),
         !apiKey.isEmpty
