@@ -126,6 +126,52 @@ struct DataWriterBootstrapTests {
     #expect(outcome.categoryCount == 0)
   }
 
+  /// Pre-PR-#112 upgrade path: an existing install has a populated
+  /// taxonomy on disk but no `feeder.defaultsSeeded` flag in `UserDefaults`
+  /// (the sentinel was introduced after the user's previous install). On
+  /// the first launch of the sentinel-aware build, bootstrap must NOT
+  /// re-enter `seedDefaultTaxonomy()` — the `@Attribute(.unique) label`
+  /// upsert would otherwise overwrite every customised
+  /// `displayName` / `categoryDescription` / `sortOrder` / `folderLabel` /
+  /// `keywords` on default-labelled rows. Boss's manual-test report on
+  /// the installed app surfaced this exact regression.
+  ///
+  /// The fix: when the flag is absent but the categories table is
+  /// non-empty, treat it as "seed has happened on a previous build", set
+  /// the flag, and skip the seed path entirely. Subsequent launches see
+  /// the flag set and short-circuit through the steady-state path.
+  @Test
+  func bootstrapDoesNotReSeedWhenSentinelIsAbsentButTaxonomyExists() async throws {
+    let flagStore = InMemoryFlagStore()
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container, defaultsFlagStore: flagStore)
+
+    // Manually populate the store as if a pre-sentinel install had
+    // already seeded + customised the taxonomy. Add a custom folder, a
+    // user-edited default category, and a freshly-named user category so
+    // we can prove every kind of pre-existing data survives.
+    try await writer.addFolder(label: "technology", displayName: "Custom Tech", sortOrder: 0)
+    try await writer.addCategory(
+      label: "apple", displayName: "Custom Apple", description: "Custom desc.",
+      sortOrder: 5, folderLabel: "technology"
+    )
+
+    let outcome = try await writer.bootstrap()
+
+    #expect(outcome.action == .skipped)
+    #expect(flagStore.isSeeded(forKey: defaultsSeededUserDefaultsKey) == true)
+    let defs = try await writer.fetchCategoryDefinitions()
+    let apple = defs.first { $0.label == "apple" }
+    // Customised fields survive — the bootstrap did not overwrite them
+    // via a default-data upsert.
+    #expect(apple?.description == "Custom desc.")
+    #expect(apple?.folderLabel == "technology")
+    // Total category count matches what we wrote, with no defaults
+    // re-seeded on top.
+    #expect(outcome.categoryCount == 1)
+    #expect(outcome.folderCount == 1)
+  }
+
   /// Issue #87 acceptance: a user who customises a default category
   /// (rename, description, keyword edit) does NOT see those edits reverted
   /// by a subsequent bootstrap. The sentinel makes the first seed

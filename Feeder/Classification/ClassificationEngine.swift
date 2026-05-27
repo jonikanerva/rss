@@ -265,10 +265,31 @@ final class ClassificationEngine {
 
   /// Resolve the configured classification provider from UserDefaults + Keychain.
   /// Static + nonisolated so it can be invoked from background tasks per batch.
-  nonisolated static func buildProvider() -> any ClassificationProvider {
-    switch ClassificationProviderKind.current {
+  ///
+  /// The Keychain lookup for the OpenAI key is deferred until the batch actually
+  /// starts (called from `makeRunner`'s per-batch factory closure), and only
+  /// runs when the user has explicitly chosen `.openAI` in Settings. A user on
+  /// Apple FM never hits the keychain at all — the previous prompt on first
+  /// launch that surfaced even for on-device-only users is gone with that
+  /// branch.
+  ///
+  /// When `.openAI` is selected but no key is stored, fall back to the
+  /// on-device Apple FM provider for this batch instead of constructing
+  /// `OpenAIClassificationProvider(apiKey: "")` (which would later fail
+  /// `isAvailable` and silently swallow the batch). The user keeps getting
+  /// classifications until they enter a key via `ClassificationSettingsView`;
+  /// once saved, the next batch picks it up via this same factory.
+  nonisolated static func buildProvider(
+    defaults: UserDefaults = .standard,
+    keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
+  ) -> any ClassificationProvider {
+    switch ClassificationProviderKind.current(in: defaults) {
     case .openAI:
-      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) ?? ""
+      guard let apiKey = keychainLoad(KeychainHelper.openAIAPIKeychainKey),
+        !apiKey.isEmpty
+      else {
+        return AppleFMClassificationProvider()
+      }
       return OpenAIClassificationProvider(apiKey: apiKey)
     case .appleFM:
       return AppleFMClassificationProvider()
