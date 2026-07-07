@@ -38,6 +38,14 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// to know the stream has been entered.
   var entryPagesInitialDelay: Duration = .zero
 
+  /// Sleep inserted **between** page yields (before every page after the
+  /// first). Keeps the entry-page stream open after page 1 has been consumed,
+  /// so a test can observe `SyncEngine`'s live `totalToFetch` (set un-throttled
+  /// from each page's total the moment a page lands, SyncEngine.swift) while
+  /// `isSyncing` is still true — the regression pin for issue #124's "B is
+  /// already live" claim.
+  var entryPagesInterPageDelay: Duration = .zero
+
   // MARK: Call logs
 
   /// Each entry is the ID batch passed to one `deleteUnreadEntries` call.
@@ -94,8 +102,11 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
         if snapshot.delay > .zero {
           try? await Task.sleep(for: snapshot.delay)
         }
-        for page in snapshot.pages {
+        for (index, page) in snapshot.pages.enumerated() {
           if Task.isCancelled { break }
+          if index > 0 && snapshot.interPageDelay > .zero {
+            try? await Task.sleep(for: snapshot.interPageDelay)
+          }
           continuation.yield(page)
         }
         continuation.finish()
@@ -111,6 +122,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setEntryPagesResponse(_ value: [FeedbinEntriesPage]) { entryPagesResponse = value }
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
   func setEntryPagesInitialDelay(_ value: Duration) { entryPagesInitialDelay = value }
+  func setEntryPagesInterPageDelay(_ value: Duration) { entryPagesInterPageDelay = value }
 
   // MARK: - Internal
 
@@ -118,9 +130,11 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// actor hop. Done together so race-guard tests can use the counter as a
   /// reliable "the stream's body has started" signal without depending on
   /// `SyncEngine`'s `isSyncing` flag, which flips before any client call.
-  private func snapshotEntryPagesState() -> (pages: [FeedbinEntriesPage], delay: Duration) {
+  private func snapshotEntryPagesState() -> (
+    pages: [FeedbinEntriesPage], delay: Duration, interPageDelay: Duration
+  ) {
     fetchEntryPagesCallCount += 1
-    return (entryPagesResponse, entryPagesInitialDelay)
+    return (entryPagesResponse, entryPagesInitialDelay, entryPagesInterPageDelay)
   }
 }
 

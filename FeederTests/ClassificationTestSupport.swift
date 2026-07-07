@@ -100,6 +100,21 @@ actor FakeClassificationProvider: ClassificationProvider {
   }
 }
 
+// MARK: - Snapshot recorder
+
+/// Records the `ProgressSnapshot` timeline a `ClassificationRunner` reports.
+/// Driving the runner directly and recording every snapshot lets tests assert
+/// on the full sequence — including the drain-end snapshot the engine's
+/// MainActor `apply()` collapses into its terminal reset. An `actor` so the
+/// runner's `@Sendable` reporter closure can append without a data race.
+actor SnapshotRecorder {
+  private(set) var snapshots: [ProgressSnapshot] = []
+
+  func record(_ snapshot: ProgressSnapshot) {
+    snapshots.append(snapshot)
+  }
+}
+
 // MARK: - Test errors
 
 /// Stable error type for `errorRecoveryContinuesWithNextBatch` so the test

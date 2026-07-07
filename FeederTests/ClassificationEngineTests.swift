@@ -308,4 +308,77 @@ struct ClassificationEngineTests {
     #expect(uncategorizedCount == 1)
     #expect(techCount == entryIDs.count - 1)
   }
+
+  // MARK: - 6. Live denominator: total grows as entries arrive mid-drain
+
+  /// Regression pin for issue #124. While a classification drain runs,
+  /// entries that `SyncEngine` persists mid-flight must push the reported
+  /// denominator (`totalToClassify`) up at the next chunk boundary — the total
+  /// must not stay frozen at the first snapshot's value (the "stuck at
+  /// 1/200 while 1000 were fetched" bug). Driving the `ClassificationRunner`
+  /// directly (not via the engine) exposes the full snapshot timeline,
+  /// including the drain-end snapshot the engine's `apply()` would otherwise
+  /// collapse into its terminal reset.
+  @Test
+  func denominatorGrowsAsEntriesArriveMidDrain() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container)
+    try await seedCategories(writer)
+    try await seedEntries(writer, count: 3)
+
+    let provider = FakeClassificationProvider()
+    // A per-call delay keeps the first chunk in flight long enough for the
+    // mid-drain insert to land before the chunk-boundary re-count.
+    await provider.configureDelay(.milliseconds(80))
+
+    let recorder = SnapshotRecorder()
+    let runner = ClassificationRunner(
+      writer: writer,
+      providerFactory: { provider },
+      reportProgress: { await recorder.record($0) }
+    )
+
+    // chunkSize 50 > the 3 seeded rows, so they drain in one chunk; the two
+    // mid-drain inserts land in the second chunk fetched at the boundary.
+    let drain = Task { await runner.runOneBatch(cutoffDate: .distantPast, chunkSize: 50) }
+
+    // Once the first classify is in flight, persist two more unclassified
+    // entries — exactly the SyncEngine-persists-mid-classification case (#124).
+    try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
+    let extra = [
+      try FeedbinFixtures.entry(id: 2001, title: "Late A"),
+      try FeedbinFixtures.entry(id: 2002, title: "Late B"),
+    ]
+    _ = try await writer.persistEntries(extra, unreadIDs: Set([2001, 2002]))
+
+    await drain.value
+
+    // The provider saw all five entries in one continuous drain — the drain did
+    // not stop at the initial three.
+    #expect(await provider.callCount == 5)
+
+    let snapshots = await recorder.snapshots
+    let nonTerminal = snapshots.filter(\.isClassifying)
+    #expect(!nonTerminal.isEmpty)
+
+    // Denominator opens at the 3 seeded rows, is non-decreasing, and reaches
+    // the grown total of 5 — proving the mid-drain inserts widened it.
+    let totals = nonTerminal.map(\.totalToClassify)
+    #expect(nonTerminal.first?.totalToClassify == 3)
+    #expect(totals == totals.sorted())
+    #expect(totals.last == 5)
+
+    // classifiedCount never resets mid-drain: monotonically non-decreasing and
+    // ending at the whole-drain total.
+    let classified = nonTerminal.map(\.classifiedCount)
+    #expect(classified == classified.sorted())
+    #expect(classified.last == 5)
+
+    // AC1: the final pre-terminal snapshot is X == Y == processedCount (5/5).
+    #expect(nonTerminal.last?.totalToClassify == 5)
+    #expect(nonTerminal.last?.classifiedCount == 5)
+
+    // The terminal snapshot closes the batch.
+    #expect(snapshots.last?.isClassifying == false)
+  }
 }

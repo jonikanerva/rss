@@ -135,9 +135,13 @@ struct SyncStatusView: View {
 // MARK: - Previews
 
 /// Preview-only state seed describing each `SyncStatusView` variant the
-/// STACK.md § 0 applicable-states checklist requires (idle / syncing /
-/// success / error / offline). Tiny because it's the only thing
-/// `syncStatusPreview` needs — no production code path reads it.
+/// STACK.md § 0 applicable-states checklist requires, plus the
+/// classification-progress cases issue #124 exercises (classifying-only,
+/// sync + classify together, a mid-drain grown denominator, and the
+/// large-number layout at the 220 pt sidebar width). Each case seeds both
+/// engines so the "Fetching" and "Categorizing" rows can be shown together —
+/// the seam previously only touched `SyncEngine`, leaving the classify row
+/// with no preview coverage at all. No production code path reads this.
 private enum SyncStatusPreviewState {
   case idle
   case syncing
@@ -145,26 +149,52 @@ private enum SyncStatusPreviewState {
   case errorNetwork
   case errorAuth
   case offline
+  case classifying
+  case syncingAndClassifying
+  case midDrainGrownDenominator
+  case largeNumbers
+  case syncingNoTotal
 
-  func apply(to engine: SyncEngine) {
+  func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
     switch self {
     case .idle:
-      engine.applyPreviewState()
+      sync.applyPreviewState()
     case .syncing:
-      engine.applyPreviewState(isSyncing: true, fetchedCount: 42, totalToFetch: 120)
+      sync.applyPreviewState(isSyncing: true, fetchedCount: 42, totalToFetch: 120)
     case .success:
-      engine.applyPreviewState(lastSyncDate: .now)
+      sync.applyPreviewState(lastSyncDate: .now)
     case .errorNetwork:
-      engine.applyPreviewState(
+      sync.applyPreviewState(
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .network("The Internet connection appears to be offline."))
     case .errorAuth:
-      engine.applyPreviewState(
+      sync.applyPreviewState(
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .authFailed("Invalid Feedbin credentials"))
     case .offline:
-      engine.applyPreviewState(
+      sync.applyPreviewState(
         lastError: .network("The Internet connection appears to be offline."))
+    case .classifying:
+      classification.applyPreviewState(
+        isClassifying: true, classifiedCount: 12, totalToClassify: 200)
+    case .syncingAndClassifying:
+      sync.applyPreviewState(isSyncing: true, fetchedCount: 480, totalToFetch: 1000)
+      classification.applyPreviewState(
+        isClassifying: true, classifiedCount: 120, totalToClassify: 480)
+    case .midDrainGrownDenominator:
+      // The denominator has grown past the first snapshot's value as sync kept
+      // persisting — issue #124's core case (150/1000, not stuck at 150/200).
+      classification.applyPreviewState(
+        isClassifying: true, classifiedCount: 150, totalToClassify: 1000)
+    case .largeNumbers:
+      // Threshold layout check: widest realistic strings at the 220 pt sidebar
+      // width must not truncate (STACK.md § 11 — exercise at the threshold).
+      sync.applyPreviewState(isSyncing: true, fetchedCount: 1234, totalToFetch: 12345)
+      classification.applyPreviewState(
+        isClassifying: true, classifiedCount: 999, totalToClassify: 9999)
+    case .syncingNoTotal:
+      // totalToFetch == 0 → the fetch row falls back to "Syncing...".
+      sync.applyPreviewState(isSyncing: true, fetchedCount: 0, totalToFetch: 0)
     }
   }
 }
@@ -193,12 +223,32 @@ private enum SyncStatusPreviewState {
   syncStatusPreview(state: .offline)
 }
 
+#Preview("Classifying") {
+  syncStatusPreview(state: .classifying)
+}
+
+#Preview("Syncing + Classifying") {
+  syncStatusPreview(state: .syncingAndClassifying)
+}
+
+#Preview("Mid-drain grown denominator") {
+  syncStatusPreview(state: .midDrainGrownDenominator)
+}
+
+#Preview("Large numbers") {
+  syncStatusPreview(state: .largeNumbers)
+}
+
+#Preview("Syncing - no total") {
+  syncStatusPreview(state: .syncingNoTotal)
+}
+
 @MainActor
 private func syncStatusPreview(state: SyncStatusPreviewState) -> some View {
   let container = PreviewSupport.makeContainer()
   let syncEngine = SyncEngine()
   let classificationEngine = ClassificationEngine()
-  state.apply(to: syncEngine)
+  state.apply(toSync: syncEngine, classification: classificationEngine)
 
   return SyncStatusView()
     .environment(syncEngine)
