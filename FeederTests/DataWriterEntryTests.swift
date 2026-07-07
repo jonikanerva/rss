@@ -55,7 +55,7 @@ struct DataWriterEntryTests {
       id: 1001, content: "<p>Hello <b>world</b></p>")
     _ = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
-    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     let persisted = inputs.first { $0.entryID == 1001 }
     #expect(persisted != nil)
     #expect(persisted?.body.contains("Hello") == true)
@@ -76,7 +76,7 @@ struct DataWriterEntryTests {
     let count = try await writer.persistEntries([entry], unreadIDs: Set([1001]))
 
     #expect(count == 1)
-    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let inputs = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     #expect(inputs.count == 1)
     #expect(inputs.first?.title == "Test Article")
   }
@@ -199,6 +199,73 @@ struct DataWriterEntryTests {
     )
     // Should not crash — guard returns early for missing entry
     try await writer.applyClassification(entryID: 99999, result: result)
+  }
+
+  // MARK: - countUnclassifiedEntries / fetchUnclassifiedInputs(limit:)
+
+  /// The live "Categorizing Y/X" denominator (issue #124) is driven by
+  /// `countUnclassifiedEntries`; it must count exactly the rows the runner
+  /// would drain — unclassified AND inside the retention window — so the
+  /// count and the bounded fetch can never disagree.
+  @Test
+  func countUnclassifiedRespectsCutoffAndClassifiedFlag() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+    try await writer.addCategory(
+      label: "tech", displayName: "Tech", description: "Tech news", sortOrder: 0)
+
+    let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let nowIso = iso.string(from: Date())
+    // One entry well outside a one-year window, two inside it.
+    let old = try FeedbinFixtures.entry(id: 1001, published: "2020-01-01T00:00:00.000000Z")
+    let recentA = try FeedbinFixtures.entry(id: 1002, title: "Recent A", published: nowIso)
+    let recentB = try FeedbinFixtures.entry(id: 1003, title: "Recent B", published: nowIso)
+    _ = try await writer.persistEntries([old, recentA, recentB], unreadIDs: Set([1001, 1002, 1003]))
+
+    let oneYearAgo = Date().addingTimeInterval(-365 * 86_400)
+    // Old entry is before the cutoff → excluded; both recent are unclassified.
+    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 2)
+
+    // Classifying one recent entry drops the pending count by one.
+    try await writer.applyClassification(
+      entryID: 1002,
+      result: ClassificationResult(entryID: 1002, categoryLabel: "tech", confidence: 0.9))
+    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 1)
+
+    // A distant-past cutoff pulls the old entry back into scope → 2 pending.
+    #expect(try await writer.countUnclassifiedEntries(cutoffDate: .distantPast) == 2)
+  }
+
+  /// The runner drains in bounded chunks: `fetchUnclassifiedInputs(limit:)`
+  /// must cap the row set at `limit` and hand back the newest entries first
+  /// (createdAt-descending), so classification stays bounded in memory
+  /// (`STACK.md § 4`) and processes fresh articles ahead of the backlog.
+  @Test
+  func fetchUnclassifiedInputsHonoursLimitNewestFirst() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+
+    let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    // createdAt == published in the fixture; ascending IDs get ascending
+    // timestamps, so the newest-first sort returns them in descending-ID order.
+    let entries = try (0..<5).map { index in
+      try FeedbinFixtures.entry(
+        id: 1001 + index,
+        title: "Article \(index)",
+        published: iso.string(from: Date().addingTimeInterval(Double(index) * 60))
+      )
+    }
+    _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
+
+    let limited = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: 3)
+    #expect(limited.count == 3)
+    #expect(limited.map(\.entryID) == [1005, 1004, 1003])
+
+    // A limit past the row count returns every pending entry.
+    let all = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: 50)
+    #expect(all.count == 5)
   }
 
   // MARK: - updateReadState

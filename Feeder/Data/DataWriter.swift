@@ -624,11 +624,41 @@ actor DataWriter: ModelActor {
 
   // MARK: - Classification
 
-  func fetchUnclassifiedInputs(cutoffDate: Date) throws -> [ClassificationInput] {
-    let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { !$0.isClassified && $0.publishedAt >= cutoffDate },
+  /// Shared predicate for "not yet classified, inside the retention window".
+  /// `countUnclassifiedEntries` and `fetchUnclassifiedInputs` compose it
+  /// verbatim so the live progress denominator (a count) and the work the
+  /// runner actually drains (a bounded fetch) can never disagree about which
+  /// rows are pending — the same DRY guard `unreadEligiblePredicate` gives the
+  /// sidebar / article-list pair.
+  static func unclassifiedPredicate(cutoffDate: Date) -> Predicate<Entry> {
+    #Predicate<Entry> { !$0.isClassified && $0.publishedAt >= cutoffDate }
+  }
+
+  /// SQLite-level count of pending-classification rows. Backs the live
+  /// "Categorizing Y/X" denominator: the runner re-seeds a local `remaining`
+  /// from this at each chunk boundary so the total grows as sync persists more
+  /// entries. `fetchCount` runs the aggregate in SQLite — no `Entry`
+  /// materialization, no `plainText` hydration — so it stays cheap enough to
+  /// call at chunk-boundary cadence (well below `persistEntries`' per-page
+  /// rate; see `STACK.md § 4`).
+  func countUnclassifiedEntries(cutoffDate: Date) throws -> Int {
+    try modelContext.fetchCount(
+      FetchDescriptor<Entry>(predicate: Self.unclassifiedPredicate(cutoffDate: cutoffDate))
+    )
+  }
+
+  /// Fetch up to `limit` pending-classification inputs, newest-first. `limit`
+  /// is required: the classification runner drains in bounded chunks, so we
+  /// never materialize the whole backlog (which previously hydrated every
+  /// pending row's `plainText` at once — a memory-ceiling risk on a large
+  /// first sync, `STACK.md § 4`). The `createdAt`-descending sort keeps the
+  /// most recently ingested entries classified first.
+  func fetchUnclassifiedInputs(cutoffDate: Date, limit: Int) throws -> [ClassificationInput] {
+    var descriptor = FetchDescriptor<Entry>(
+      predicate: Self.unclassifiedPredicate(cutoffDate: cutoffDate),
       sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
     )
+    descriptor.fetchLimit = limit
     return try modelContext.fetch(descriptor).map { entry in
       ClassificationInput(
         entryID: entry.feedbinEntryID,

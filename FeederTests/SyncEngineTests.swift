@@ -214,4 +214,53 @@ struct SyncEngineTests {
     // by set equality so the test stays stable across Swift releases.
     #expect(Set(calls.first ?? []) == queuedIDs)
   }
+
+  // MARK: - 6. Fetch total (B) is live mid-stream
+
+  /// Issue #124 asks for both the "Fetching A/B" total (B) and the
+  /// "Categorizing Y/X" total (X) to update in real time. B is already live:
+  /// `SyncEngine.sync()` sets `totalToFetch` un-throttled from each page's
+  /// record-count total the instant a page lands — only the numerator
+  /// (`fetchedCount`) is 200 ms-throttled. This test pins that behaviour so a
+  /// future refactor can't silently start deferring B to the terminal edge.
+  ///
+  /// The fake holds the stream open with a 400 ms inter-page delay after
+  /// page 1, so the assertion window sees `totalToFetch == 1000` while
+  /// `isSyncing == true` and page 2 has not yet been processed.
+  @Test
+  func fetchTotalIsLiveWhileStreamOpen() async throws {
+    let client = FakeFeedbinClient()
+    let subscription = try FeedbinFixtures.subscription(id: 1, feedId: 100)
+    // Feedbin's X-Feedbin-Record-Count is the query total — the same on every
+    // page — so both pages carry totalCount 1000 even though each yields one row.
+    let pages = [
+      FeedbinFixtures.entriesPage([try FeedbinFixtures.entry(id: 5001)], totalCount: 1000),
+      FeedbinFixtures.entriesPage(
+        [try FeedbinFixtures.entry(id: 5002, title: "Page 2")], totalCount: 1000),
+    ]
+    await client.setSubscriptionsResponse([subscription])
+    await client.setEntryPagesResponse(pages)
+    await client.setUnreadIDsResponse([5001, 5002])
+    await client.setEntryPagesInterPageDelay(.milliseconds(400))
+
+    let (engine, _) = try await makeEngine(with: client)
+
+    let syncHandle = Task { await engine.sync() }
+
+    // Poll the engine on MainActor (no Sendable closure needed — the test is
+    // MainActor-isolated) until B lands from page 1. The inter-page delay keeps
+    // the stream open well past this 5 ms cadence.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+    while engine.totalToFetch == 0 && ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(5))
+    }
+
+    #expect(engine.totalToFetch == 1000, "totalToFetch (B) must be live from page 1's record-count total")
+    #expect(
+      engine.isSyncing == true,
+      "sync must still be in-flight while the inter-page delay holds the stream open")
+
+    await syncHandle.value
+    #expect(engine.isSyncing == false)
+  }
 }

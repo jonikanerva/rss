@@ -323,13 +323,26 @@ nonisolated struct ClassificationRunner: Sendable {
     await runOneBatch(cutoffDate: cutoffDate)
   }
 
-  func runOneBatch(cutoffDate: Date) async {
+  /// Drain every pending-classification entry, fetching work in bounded
+  /// chunks of `chunkSize`. The denominator reported to the UI
+  /// (`totalToClassify`) is `processedCount + remaining`, where `remaining` is
+  /// re-seeded from a fresh `countUnclassifiedEntries` at each chunk boundary
+  /// and decremented exactly per processed entry in between. So as `SyncEngine`
+  /// persists more entries mid-drain, the "Categorizing Y/X" total grows at the
+  /// next chunk boundary instead of staying pinned to the first snapshot's
+  /// value (issue #124). The count is queried only at chunk boundaries
+  /// (~0.1–0.4 Hz), never on the 200 ms display tick, so the added SQLite work
+  /// stays well below `persistEntries`' per-page cadence (`STACK.md § 4`).
+  func runOneBatch(cutoffDate: Date, chunkSize: Int = 50) async {
     guard let categories = try? await writer.fetchCategoryDefinitions(),
       !categories.isEmpty
     else { return }
 
-    guard let inputs = try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate),
-      !inputs.isEmpty
+    // Peek the first chunk. Nothing pending → clear any leftover spinner and stop.
+    guard
+      let firstChunk = try? await writer.fetchUnclassifiedInputs(
+        cutoffDate: cutoffDate, limit: chunkSize),
+      !firstChunk.isEmpty
     else {
       await reportProgress(.terminal)
       return
@@ -343,102 +356,143 @@ nonisolated struct ClassificationRunner: Sendable {
       return
     }
 
-    let totalToClassify = inputs.count
     let providerName = provider.name
-    logger.info(
-      "Classifying \(inputs.count) entries with \(categories.count) categories using \(providerName)"
-    )
-
     let instructions = buildClassificationInstructions(from: categories)
     let validLabels = Set(categories.map(\.label))
     let supportedLangCodes = await provider.supportedLanguageCodes
 
+    // Live pending count for the denominator — see the method doc comment.
+    var remaining =
+      (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? firstChunk.count
     var processedCount = 0
+    // Rows already attempted this drain. Guards the save()-throws stuck-row
+    // edge: an entry that fails to persist stays unclassified and would keep
+    // reappearing in the next chunk fetch — skipping attempted IDs lets the
+    // drain terminate and leaves the retry to the next 2 s poll, same as today.
+    var attemptedIDs = Set<Int>()
     var lastProgressUpdate: ContinuousClock.Instant = .now
+
+    logger.info(
+      "Classifying \(remaining) pending entries with \(categories.count) categories using \(providerName)"
+    )
+
     await reportProgress(
       ProgressSnapshot(
         isClassifying: true,
-        progress: "Categorizing 0/\(totalToClassify) (\(providerName))",
+        progress: "Categorizing 0/\(processedCount + remaining) (\(providerName))",
         classifiedCount: 0,
-        totalToClassify: totalToClassify
+        totalToClassify: processedCount + remaining
       )
     )
 
-    for input in inputs {
+    var chunk = firstChunk
+    drain: while !chunk.isEmpty {
       if Task.isCancelled { break }
 
-      let result: ClassificationResult
-      if shouldSkipClassification(title: input.title, body: input.body) {
-        result = ClassificationResult(
-          entryID: input.entryID,
-          categoryLabel: uncategorizedLabel,
-          confidence: 0.0
-        )
-      } else {
-        let keywordScores = keywordMatchConfidence(
-          title: input.title, body: input.body, categories: categories
-        )
-        let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
+      let pending = chunk.filter { !attemptedIDs.contains($0.entryID) }
+      // Every row in the chunk was already attempted (all stuck) → nothing new
+      // to do this drain; the next poll retries.
+      if pending.isEmpty { break }
 
-        if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
+      for input in pending {
+        if Task.isCancelled { break drain }
+        attemptedIDs.insert(input.entryID)
+
+        let result: ClassificationResult
+        if shouldSkipClassification(title: input.title, body: input.body) {
           result = ClassificationResult(
             entryID: input.entryID,
             categoryLabel: uncategorizedLabel,
             confidence: 0.0
           )
         } else {
-          do {
-            let providerResult = try await provider.classify(
-              title: input.title,
-              body: input.body,
-              url: input.url,
-              instructions: instructions
-            )
-            let rawLabel =
-              validLabels.contains(providerResult.category)
-              ? providerResult.category : uncategorizedLabel
-            let gatedLabel = applyConfidenceGate(
-              label: rawLabel,
-              llmConfidence: providerResult.confidence,
-              keywordScores: keywordScores
-            )
-            for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
-              if gatedLabel != kwCategory {
-                logger.info(
-                  "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(gatedLabel)"
-                )
-              }
-            }
-            result = ClassificationResult(
-              entryID: input.entryID,
-              categoryLabel: gatedLabel,
-              confidence: providerResult.confidence
-            )
-          } catch {
+          let keywordScores = keywordMatchConfidence(
+            title: input.title, body: input.body, categories: categories
+          )
+          let lang = detectLanguage("\(input.title) \(input.body.prefix(500))")
+
+          if let langCodes = supportedLangCodes, !langCodes.contains(lang) {
             result = ClassificationResult(
               entryID: input.entryID,
               categoryLabel: uncategorizedLabel,
               confidence: 0.0
             )
+          } else {
+            do {
+              let providerResult = try await provider.classify(
+                title: input.title,
+                body: input.body,
+                url: input.url,
+                instructions: instructions
+              )
+              let rawLabel =
+                validLabels.contains(providerResult.category)
+                ? providerResult.category : uncategorizedLabel
+              let gatedLabel = applyConfidenceGate(
+                label: rawLabel,
+                llmConfidence: providerResult.confidence,
+                keywordScores: keywordScores
+              )
+              for (kwCategory, kwScore) in keywordScores where kwScore >= 0.8 {
+                if gatedLabel != kwCategory {
+                  logger.info(
+                    "Keyword-LLM disagreement: keyword=\(kwCategory) (score=\(kwScore)), LLM chose \(gatedLabel)"
+                  )
+                }
+              }
+              result = ClassificationResult(
+                entryID: input.entryID,
+                categoryLabel: gatedLabel,
+                confidence: providerResult.confidence
+              )
+            } catch {
+              result = ClassificationResult(
+                entryID: input.entryID,
+                categoryLabel: uncategorizedLabel,
+                confidence: 0.0
+              )
+            }
           }
+        }
+
+        try? await writer.applyClassification(entryID: result.entryID, result: result)
+
+        processedCount += 1
+        remaining = max(0, remaining - 1)
+        let now = ContinuousClock.now
+        if now - lastProgressUpdate >= .milliseconds(200) {
+          await reportProgress(
+            ProgressSnapshot(
+              isClassifying: true,
+              progress: "Categorizing \(processedCount)/\(processedCount + remaining) (\(providerName))",
+              classifiedCount: processedCount,
+              totalToClassify: processedCount + remaining
+            )
+          )
+          lastProgressUpdate = now
         }
       }
 
-      try? await writer.applyClassification(entryID: result.entryID, result: result)
+      if Task.isCancelled { break }
+      // Chunk boundary: pull the next chunk and re-seed the live pending count.
+      chunk =
+        (try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate, limit: chunkSize)) ?? []
+      remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? chunk.count
+    }
 
-      processedCount += 1
-      let now = ContinuousClock.now
-      if now - lastProgressUpdate >= .milliseconds(200) || processedCount == totalToClassify {
-        await reportProgress(
-          ProgressSnapshot(
-            isClassifying: true,
-            progress: "Categorizing \(processedCount)/\(totalToClassify) (\(providerName))",
-            classifiedCount: processedCount,
-            totalToClassify: totalToClassify
-          )
+    // AC1: on a clean drain, emit exactly one final snapshot with the pending
+    // count spent, so X == Y == processedCount at the most-watched moment (the
+    // queue just emptied) before the terminal snapshot resets the row. Skipped
+    // on cancellation — the terminal snapshot below still clears the spinner.
+    if !Task.isCancelled {
+      await reportProgress(
+        ProgressSnapshot(
+          isClassifying: true,
+          progress: "Categorizing \(processedCount)/\(processedCount) (\(providerName))",
+          classifiedCount: processedCount,
+          totalToClassify: processedCount
         )
-        lastProgressUpdate = now
-      }
+      )
     }
 
     logger.info("Classification batch complete: \(processedCount) entries")

@@ -62,7 +62,7 @@ struct DataWriterPurgeTests {
 
     #expect(outcome.purgedCount == 1)
 
-    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     let remainingIDs = Set(remaining.map(\.entryID))
     #expect(remainingIDs == [1002, 1003])
   }
@@ -101,7 +101,7 @@ struct DataWriterPurgeTests {
 
     #expect(outcome.purgedCount == 1)
 
-    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     let remainingIDs = Set(remaining.map(\.entryID))
     #expect(remainingIDs == [2002])
   }
@@ -136,7 +136,7 @@ struct DataWriterPurgeTests {
     let outcome = try await writer.purgeEntriesOlderThan(30)
     #expect(outcome.purgedCount == 0)
 
-    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     #expect(remaining.count == 3)
   }
 
@@ -161,7 +161,7 @@ struct DataWriterPurgeTests {
     let outcome = try await writer.purgeEntriesOlderThan(1)
     #expect(outcome.purgedCount == 1)
 
-    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast)
+    let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     #expect(remaining.map(\.entryID) == [4002])
   }
 }
