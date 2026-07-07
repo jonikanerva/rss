@@ -50,7 +50,7 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
 /// `result.flatMap(\.entryIDs)` allocation against the entire row set —
 /// meaningful for large categories ("uncategorized" with thousands of IDs)
 /// where each MainActor allocation eats into the 8.3 ms ProMotion frame budget
-/// (`stack.md` § Performance budgets).
+/// (`STACK.md` § Performance budgets).
 ///
 /// `PersistentIdentifier` conforms to `Sendable`
 /// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the

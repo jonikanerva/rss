@@ -5,7 +5,7 @@ import os.signpost
 
 /// Shared `OSSignposter` for click → render intervals at hot UI boundaries.
 ///
-/// The subsystem matches the rest of the app per `docs/stack.md → Logging`,
+/// The subsystem matches the rest of the app per `STACK.md § 8 Logging & privacy`,
 /// and the category is the system-recognised `.pointsOfInterest` so
 /// Instruments surfaces these intervals under the default "Points of
 /// Interest" lane (Logging template) without any extra configuration.
@@ -23,7 +23,7 @@ nonisolated let perfSignposter = OSSignposter(
 /// taken while a previous begin was still un-ended. The misuse is recorded as
 /// a debug-level entry so it surfaces under `os_log` filtering without
 /// polluting production logs. Subsystem matches `perfSignposter` per
-/// `docs/stack.md → Logging`; category is human-readable so the warnings are
+/// `STACK.md § 8 Logging & privacy`; category is human-readable so the warnings are
 /// easy to grep for in `log stream`.
 nonisolated let perfSignpostLogger = Logger(
   subsystem: "com.feeder.app",

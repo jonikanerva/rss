@@ -1,19 +1,29 @@
 {
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
-  "sandbox": {
-    "filesystem": {
-      "allowWrite": ["~/.gnupg", "~/.npm"]
-    }
-  },
   "permissions": {
     "allow": [
       "Bash(make:*)",
-      "Bash(gh pr:*)",
+      "Bash(npx ctx7@latest:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr status:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh api repos/*/issues/comments:*)",
+      "Bash(gh api repos/*/pulls/*/reviews:*)",
+      "Bash(gh api repos/*/pulls/*/comments:*)",
+      "Bash(gh auth status)",
+      "Bash(gh repo view:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(git show:*)",
       "Bash(git branch:*)",
       "Bash(git switch:*)",
       "Bash(git checkout -b:*)",
@@ -21,50 +31,74 @@
       "Bash(git commit:*)",
       "Bash(git push origin:*)",
       "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git remote:*)",
       "Bash(git worktree:*)",
-      "Bash(npx ctx7@latest:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:developer.apple.com)",
       "WebFetch(domain:context7.com)",
-      "WebFetch(domain:mcp.context7.com)"
+      "WebFetch(domain:mcp.context7.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:owasp.org)",
+      "WebFetch(domain:cheatsheetseries.owasp.org)",
+      "WebFetch(domain:cwe.mitre.org)",
+      "WebFetch(domain:csrc.nist.gov)",
+      "WebFetch(domain:slsa.dev)",
+      "WebFetch(domain:openssf.org)",
+      "WebFetch(domain:12factor.net)",
+      "WebFetch(domain:opentelemetry.io)",
+      "WebFetch(domain:w3.org)",
+      "WebFetch(domain:www.w3.org)",
+      "Skill(project-manager)",
+      "Skill(implement)",
+      "Skill(codereview)"
     ],
     "deny": [
       "Bash(claude:*)",
-      "Bash(gh api repos/*/merges:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin +:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(rm -Rf:*)",
+      "Bash(rm -fR:*)",
+      "Bash(rm -r -f:*)",
+      "Bash(rm -f -r:*)",
+      "Bash(rm -R -f:*)",
+      "Bash(rm -f -R:*)",
+      "Bash(rm --recursive:*)",
+      "Bash(git reset --hard:*)",
       "Bash(git clean -fd:*)",
       "Bash(git clean -fdx:*)",
-      "Bash(git push --force:*)",
-      "Bash(git push -f:*)",
-      "Bash(git push origin +:*)",
-      "Bash(git push origin HEAD:main:*)",
-      "Bash(git push origin main:*)",
-      "Bash(git reset --hard:*)",
-      "Bash(rm --recursive:*)",
-      "Bash(rm -f -r:*)",
-      "Bash(rm -fr:*)",
-      "Bash(rm -r -f:*)",
-      "Bash(rm -rf:*)"
+      "Bash(gh api repos/*/merges:*)"
     ]
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \".env\"; then echo \"BLOCKED: reading .env files is not allowed\" >&2; exit 2; fi'"
-          }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -Eq \"(^|[[:space:];|&])claude([[:space:]]|$)\"; then echo \"BLOCKED: spawn subagents via the Agent tool, not the claude CLI\" >&2; exit 2; fi'"
+            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -qE \"git[[:space:]]+push([^[:alnum:]_-]|$)\" && echo \"$cmd\" | grep -qE \"(^|[^[:alnum:]_-])(--force|-f)([^[:alnum:]_-]|$)|origin[[:space:]]+(main|HEAD:main)([^[:alnum:]_/-]|$)\"; then echo \"BLOCKED: destructive push. Never push to main or force-push. Use --force-with-lease if absolutely required; create a PR otherwise.\" >&2; exit 2; fi'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -qE \"(^|[;&|][[:space:]]*)(claude|npx[[:space:]]+claude|env[[:space:]]+claude)([[:space:];&|<>]|$)\"; then echo \"BLOCKED: spawn subagents via the Agent tool, not the claude CLI.\" >&2; exit 2; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'p=$(jq -r \".tool_input.file_path // empty\"); case \"$(basename \"$p\")\" in .env|.env.*) echo \"BLOCKED: reading .env files is not allowed.\" >&2; exit 2;; esac'"
           }
         ]
       }
@@ -75,10 +109,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"gh pr create\"; then echo \"PR created. Run /codereview to start review.\"; fi'"
+            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -q \"gh pr create\"; then echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PostToolUse\\\",\\\"additionalContext\\\":\\\"PR created. The /codereview gate is next: in the team flow qa-enforcer runs it (lead-dev does not). If you opened this PR by hand, run /codereview yourself.\\\"}}\"; fi'"
           }
         ]
       }
     ]
+  },
+  "sandbox": {
+    "excludedCommands": ["open"],
+    "filesystem": {
+      "allowWrite": [
+        "~/.gnupg",
+        "~/.npm"
+      ]
+    }
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   }
 }

@@ -74,7 +74,7 @@ struct SyncStatusView: View {
   // MARK: - Error banner
 
   /// Inline secondary-styled banner shown beneath the sync status text.
-  /// Calm/premium per `app-rules.md` § Readability: no `.red`, no alert /
+  /// Calm/premium per `STACK.md § 11 → Readability`: no `.red`, no alert /
   /// sheet — orange-accented icon plus a contextual recovery button.
   private func errorBanner(error: SyncError) -> some View {
     HStack(spacing: 6) {
@@ -135,7 +135,7 @@ struct SyncStatusView: View {
 // MARK: - Previews
 
 /// Preview-only state seed describing each `SyncStatusView` variant the
-/// definition-of-done UI-states checklist requires (idle / syncing /
+/// STACK.md § 0 applicable-states checklist requires (idle / syncing /
 /// success / error / offline). Tiny because it's the only thing
 /// `syncStatusPreview` needs — no production code path reads it.
 private enum SyncStatusPreviewState {

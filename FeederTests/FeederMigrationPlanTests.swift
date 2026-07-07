@@ -30,7 +30,7 @@ struct FeederMigrationPlanTests {
   func planHasV1ToV2LightweightStage() {
     // The lightweight V1→V2 stage drops `Entry.detectedLanguage`. No
     // `.custom` stage is needed because that field is not an input to
-    // any denormalized display field — see `docs/stack.md` § 5.
+    // any denormalized display field — see `STACK.md` § 5.
     #expect(FeederMigrationPlan.stages.count == 1)
   }
 

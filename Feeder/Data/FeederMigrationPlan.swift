@@ -8,7 +8,7 @@ import SwiftData
 /// plus the stages that take a store between adjacent versions. The
 /// V1→V2 stage is `.lightweight` because the only diff is the removal
 /// of `Entry.detectedLanguage`, a column with no inputs flowing into
-/// any denormalized display field — see `docs/stack.md` → Persistence
+/// any denormalized display field — see `STACK.md` → Persistence
 /// shape and `FeederSchemaV2` for the rationale.
 ///
 /// When adding `FeederSchemaV3`:
