@@ -84,7 +84,7 @@ enum WebKitPreheat {
   /// `.task` is not an idle-frame guarantee — it runs on appear — but the
   /// preheat is best-effort and tolerant of running concurrently with
   /// rendering, so the conservative scheduling shape is sufficient to keep
-  /// the launch budget in `docs/stack.md` § Performance budgets clean.
+  /// the launch budget in `STACK.md` § Performance budgets clean.
   ///
   /// Sequence:
   /// 1. Allocate the shared `WKProcessPool` instance.

@@ -173,7 +173,7 @@ func compareSignpostMedians(_ medians: SignpostMedians, baseline: BaselineDocume
     if let hard = check.hardCeiling, captured > hard {
       print(
         String(
-          format: "FAIL  %@: %.2f ms > hard frame-budget ceiling %.2f ms (docs/stack.md §4)",
+          format: "FAIL  %@: %.2f ms > hard frame-budget ceiling %.2f ms (STACK.md §4)",
           check.name, captured, hard
         )
       )

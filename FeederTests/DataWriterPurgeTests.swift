@@ -9,7 +9,7 @@ import Testing
 /// runtime delete keyed on `publishedAt` and `Date.now`; tests seed entries
 /// at deterministic offsets relative to the call site's "now" so the
 /// boundary semantics (`<` strict) stay verifiable without freezing the
-/// clock. See `docs/stack.md` § Persistence shape — purge is NOT a schema
+/// clock. See `STACK.md` § Persistence shape — purge is NOT a schema
 /// migration and lives alongside the other `DataWriter` write paths.
 struct DataWriterPurgeTests {
   // MARK: - Helpers

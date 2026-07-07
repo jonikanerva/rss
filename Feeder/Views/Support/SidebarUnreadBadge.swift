@@ -3,7 +3,7 @@ import SwiftUI
 /// Sidebar trailing unread-count label. Replaces `.badge(_:)` so the count
 /// renders as quiet, scalable text instead of macOS's high-contrast system
 /// pill — which has no public styling hook on macOS and clashed with the
-/// "calm reader" tone (`docs/vision.md`). Hidden when the count is zero so
+/// "calm reader" tone (`VISION.md`). Hidden when the count is zero so
 /// a fully-read category does not render a stray "0".
 ///
 /// Why a separate view (not a `Text` view modifier soup at the call site):

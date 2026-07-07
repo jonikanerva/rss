@@ -86,7 +86,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     // hop. Doing it once up-front means the stream's task does not need to
     // hold the actor across each page yield — and crucially the stream
     // task does **not** capture `self`, sidestepping the `[weak self]`
-    // prohibition in `docs/swift-code-rules.md`.
+    // prohibition in `STACK.md § 7`.
     let snapshotTask = Task { await self.snapshotEntryPagesState() }
     return AsyncThrowingStream { continuation in
       let task = Task {

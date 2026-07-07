@@ -11,7 +11,7 @@ import XCTest
 /// in XCTest's `measure { }` so the test framework captures per-iteration
 /// duration and tracks drift over time.
 ///
-/// Per `docs/vision.md → Decision principles` (evidence over opinion) and the
+/// Per `VISION.md → Core Principles` (evidence over opinion) and the
 /// boss's explicit PR-4 decision: performance is app-rule #1, so the perf
 /// gate is foundational, not deferred. These benchmarks complement the Level
 /// 2 signposts (`PerfSignpostTests`) and Level 4 traces (`make perf-trace`)

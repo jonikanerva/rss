@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Preview-only (outside two-layer rule per docs/definition-of-done.md)
+// MARK: - Preview-only (outside the layer rules per STACK.md § 0; preview/test exemptions per § 7)
 //
 // PreviewSupport centralises the in-memory ModelContainer used by every
 // SwiftUI #Preview. Each preview retains its own fixture-insert code; only

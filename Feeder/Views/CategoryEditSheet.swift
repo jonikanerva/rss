@@ -192,7 +192,7 @@ struct CategoryEditSheet: View {
   /// Categories the user can pick as the move target. Excludes the source
   /// category (can't move articles into the category being removed); the
   /// system `uncategorized` row stays included because that's exactly the
-  /// intended fallback per `docs/stack.md` § Persistence shape
+  /// intended fallback per `STACK.md` § Persistence shape
   /// (`DefaultCategoryData` seeds it as a system category, and
   /// `applyClassification` already uses it as the validation fallback).
   private var reassignTargets: [Category] {
@@ -299,7 +299,7 @@ struct CategoryEditSheet: View {
         dismiss()
       } catch let error as CategoryReassignError {
         // Typed cases have localized descriptions tailored to the user
-        // (`docs/stack.md` § Logging & privacy — category labels are public
+        // (`STACK.md` § Logging & privacy — category labels are public
         // taxonomy strings, safe to surface). Dismiss the sheet first so the
         // alert is the only modal on screen — stacking a `.alert` on top of
         // a `.sheet` is undefined on macOS.

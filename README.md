@@ -54,7 +54,7 @@ specific code-signing identity, so a freshly built binary is treated as a
 
 **For end users.** This is a development-only phenomenon. A user who installs
 the app once and does not rebuild sees each prompt exactly once and never
-again. See `docs/stack.md` § 8 Logging & privacy for how secrets are stored.
+again. See `STACK.md` § 8 Logging & privacy for how secrets are stored.
 
 ## Status
 

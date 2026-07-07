@@ -156,8 +156,8 @@ actor DataWriter: ModelActor {
   /// schema migration that temporarily empties the categories table cannot
   /// trigger a re-seed. This honours vision non-negotiable #1: every
   /// ingested article keeps its user-defined category assignment across
-  /// schema bumps. See `docs/vision.md` → Non-negotiable product outcomes
-  /// and `docs/stack.md` → Persistence shape.
+  /// schema bumps. See `VISION.md` → Core Principles
+  /// and `STACK.md` → Persistence shape.
   ///
   /// Single entry point for startup writes — keeps `ModelContext` off the
   /// MainActor per `swift-code-rules.md` § Two-Layer Architecture.
@@ -487,7 +487,7 @@ actor DataWriter: ModelActor {
   /// sync with the article-list fetch (sidebar badges counted rows the
   /// list had hidden) is what this helper prevents from recurring.
   ///
-  /// Per `docs/swift-code-rules.md → DRY` and Apple's
+  /// Per `STACK.md § 13 → Change discipline (DRY)` and Apple's
   /// [Filtering and sorting persistent data](https://developer.apple.com/documentation/swiftdata/filtering-and-sorting-persistent-data)
   /// guide: a single `static` helper returning `Predicate<Entry>` is the
   /// canonical reuse shape, callable from any thread (the predicate is
@@ -822,7 +822,7 @@ actor DataWriter: ModelActor {
   ///
   /// Updating `primaryCategory` / `primaryFolder` in place is a runtime
   /// mutation, not a schema change — these are denormalised display fields per
-  /// `docs/stack.md` § Persistence shape, so no migration stage is involved.
+  /// `STACK.md` § Persistence shape, so no migration stage is involved.
   /// Returns a `RecategorizeOutcome` for telemetry / logging at the call site.
   func removeCategoryAndReassignArticles(
     _ sourceLabel: String, to targetLabel: String

@@ -109,7 +109,7 @@ struct SidebarView: View, Equatable {
   /// `SidebarUnreadBadge` rather than `.badge(_:)` so we control its font
   /// and contrast — `.badge` renders a high-contrast system pill on macOS
   /// that has no public styling hook and clashed with the calm reader
-  /// surface (`docs/vision.md`). Unread counts are passed in as
+  /// surface (`VISION.md`). Unread counts are passed in as
   /// already-computed dictionaries so the row builder never re-aggregates
   /// per render.
   ///

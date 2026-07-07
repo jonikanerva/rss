@@ -35,7 +35,7 @@ extension DataWriter {
   /// Returns `true` when seeding ran, `false` if the store already held data
   /// (perf launches always run against a fresh in-memory container so this
   /// guard is defensive). Kept on the `DataWriter` `@ModelActor` per
-  /// `docs/swift-code-rules.md → Two-Layer Architecture` — no MainActor work
+  /// `STACK.md § 0 Repository layout & layer convention` — no MainActor work
   /// during seeding.
   func seedPerfTestData(entryCount: Int = 5000, categoryCount: Int = 12) throws -> Bool {
     let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0

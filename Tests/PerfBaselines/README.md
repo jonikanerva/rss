@@ -48,7 +48,7 @@ Per-metric, not global ±X:
   benchmark is added captures the baseline value.
 - Level 2 signpost medians: ≤ baseline × 1.20, and `sidebar-click` /
   `article-click` also subject to the 8.3 ms ProMotion hard ceiling per
-  `docs/stack.md` § 4.
+  `STACK.md` § 4.
 
 ## Threshold rationale
 
@@ -87,7 +87,7 @@ Generated and consumed by `Tools/PerfParser` (Swift SPM executable). The
 parser uses `Foundation.XMLParser` against `xctrace export` output and
 `JSONSerialization` against `xcresulttool get test-results tests --format json`
 output for Levels 1 + 2 — no Python, no third-party dependencies (per
-`docs/stack.md` § 6). Unit tests for the parser's Level 1 extractor +
+`STACK.md` § 6). Unit tests for the parser's Level 1 extractor +
 comparator + Codable round-trip live in
 `Tools/PerfParser/Tests/PerfParserTests` and run via
 `swift test --package-path Tools/PerfParser`.
