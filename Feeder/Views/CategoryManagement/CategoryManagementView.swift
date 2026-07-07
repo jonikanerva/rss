@@ -128,7 +128,7 @@ struct CategoryManagementView: View {
 
   /// Move Up / Move Down / Move to Top / Move to Bottom buttons. Cmd+[ and
   /// Cmd+] are attached to the directional moves so the shortcuts surface in
-  /// the row's context menu — discoverable per `app-rules.md` § Keyboard
+  /// the row's context menu — discoverable per `STACK.md § 11 → Keyboard`
   /// Navigation. Move-to-Top / Move-to-Bottom have no shortcut by design
   /// (matches Finder's Edit > Move convention).
   @ViewBuilder

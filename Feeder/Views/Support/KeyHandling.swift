@@ -15,7 +15,7 @@ enum PanelFocus: Hashable {
 // ⇧A (mark all as read) does not show a confirmation dialog by design:
 // the modifier+letter chord is already a two-key gesture and is not
 // pressed accidentally. A confirmation would break the calm reading
-// flow (vision.md → UX north star). Undo support is the right answer,
+// flow (VISION.md → Core Principles, reading comfort). Undo support is the right answer,
 // not a dialog.
 struct MarkAllReadKeyHandler: ViewModifier {
   let action: () -> Void

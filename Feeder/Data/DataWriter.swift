@@ -123,7 +123,7 @@ actor DataWriter: ModelActor {
 
   /// Construct a `DataWriter` on a detached background task. Single helper
   /// shared by every production / preview / UI-test construction site,
-  /// honouring `swift-code-rules.md` → "DataWriter init must happen on a
+  /// honouring `STACK.md § 0 → Actor boundaries` → "DataWriter init must happen on a
   /// background thread".
   static func makeDetached(
     modelContainer: ModelContainer,
@@ -160,7 +160,7 @@ actor DataWriter: ModelActor {
   /// and `STACK.md` → Persistence shape.
   ///
   /// Single entry point for startup writes — keeps `ModelContext` off the
-  /// MainActor per `swift-code-rules.md` § Two-Layer Architecture.
+  /// MainActor per `STACK.md § 0 Repository layout & layer convention`.
   func bootstrap() throws -> BootstrapOutcome {
     let action: BootstrapOutcome.Action
 

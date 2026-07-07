@@ -7,7 +7,7 @@ import Foundation
 /// different test scope owned by `FeedbinClient` directly.
 ///
 /// Keep this protocol intentionally narrow: only add methods here when
-/// `SyncEngine` starts calling them. Per `STACK.md § 7` we do
+/// `SyncEngine` starts calling them. Per `STACK.md § 13 → Change discipline` we do
 /// not pre-emptively widen interfaces for future use.
 protocol FeedbinClientProtocol: Actor {
   func fetchSubscriptions() async throws -> [FeedbinSubscription]
