@@ -89,7 +89,7 @@
           },
           {
             "type": "command",
-            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -qE \"(^|[[:space:];|&])claude([[:space:]]|$)\"; then echo \"BLOCKED: spawn subagents via the Agent tool, not the claude CLI.\" >&2; exit 2; fi'"
+            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -qE \"(^|[;&|][[:space:]]*)(claude|npx[[:space:]]+claude|env[[:space:]]+claude)([[:space:];&|<>]|$)\"; then echo \"BLOCKED: spawn subagents via the Agent tool, not the claude CLI.\" >&2; exit 2; fi'"
           }
         ]
       },
