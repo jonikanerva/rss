@@ -29,6 +29,25 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+# Resolve the concrete Mach-O to launch. `xctrace record --launch` normalises
+# an executable path back to its enclosing `.app` and resolves the bundle id
+# through LaunchServices, so the launched binary is whatever LaunchServices
+# considers canonical for that id — NOT necessarily the path passed here. The
+# perf build sidesteps that by shipping under a DISTINCT bundle id
+# (`com.feeder.app.perf`, via `make install-perf`) with no competing
+# registration, so resolution is unambiguous even when the shipping
+# `com.feeder.app` is registered by an open Xcode session.
+#
+# The perf bundle is installed as `FeederPerf.app` but its executable keeps the
+# built name (`Feeder`), so derive the binary from `CFBundleExecutable` rather
+# than assuming it matches the bundle name.
+APP_EXECUTABLE="$(defaults read "$APP_PATH/Contents/Info" CFBundleExecutable 2>/dev/null || basename "$APP_PATH" .app)"
+APP_BINARY="$APP_PATH/Contents/MacOS/$APP_EXECUTABLE"
+if [[ ! -x "$APP_BINARY" ]]; then
+  echo "ERROR: $APP_BINARY not found or not executable. Run \`make install-perf\` first." >&2
+  exit 1
+fi
+
 # Pattern matching the launched binary inside the bundle.
 # `xctrace record --launch` does not always reap the launched Feeder
 # process when the recording's time-limit elapses — the trace closes but
@@ -46,6 +65,17 @@ kill_residual_feeder_processes() {
   sleep 1
   pkill -KILL -f "$FEEDER_BINARY_PATTERN" 2>/dev/null || true
 }
+
+# Register the perf bundle with LaunchServices so `xctrace --launch` resolves
+# its distinct id (`com.feeder.app.perf`) to this exact install. Because that
+# id has no competing registration (Xcode only ever builds the shipping
+# `com.feeder.app`), this resolves unambiguously even with Xcode open. The
+# perf parser still fails closed with a clear message if the `perf-nav-window`
+# interval is ever absent, so a mis-launch can never pass silently.
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+if [[ -x "$LSREGISTER" ]]; then
+  "$LSREGISTER" -f "$APP_PATH" || true
+fi
 
 mkdir -p "$OUTPUT_DIR"
 # Iteration 0 is warm-up — recorded but ignored by the parser by exclusion
@@ -74,14 +104,20 @@ run_iteration() {
   # honours them — otherwise it falls back to no time limit and a default
   # `Launch_<App>_<date>_<hash>.trace` filename in the shell's cwd, and the
   # parser sees zero traces in $OUTPUT_DIR.
+  # Capture xctrace's own stdout/stderr to a per-iteration log rather than
+  # discarding it — a failed launch (bad signature, LaunchServices mis-resolve)
+  # otherwise leaves only an opaque non-zero exit. Written under OUTPUT_DIR
+  # (which survives) rather than the warmup temp dir (which the trap deletes),
+  # so even a warmup-iteration failure leaves a readable log.
+  local xctrace_log="$OUTPUT_DIR/xctrace-${index}.log"
   FEEDER_PERF_MODE=1 \
   FEEDER_PERF_DATASET_SIZE="$DATASET_SIZE" \
     xcrun xctrace record \
       --template 'Time Profiler' \
       --time-limit "${TIME_LIMIT}ms" \
       --output "$out_file" \
-      --launch -- "$APP_PATH" \
-      >/dev/null
+      --launch -- "$APP_BINARY" \
+      >"$xctrace_log" 2>&1
   # Symmetric post-iteration kill — even on success xctrace can leave
   # the launched Feeder running. Without this, the trap on EXIT would
   # only catch the last iteration's process, not the N-1 prior ones.

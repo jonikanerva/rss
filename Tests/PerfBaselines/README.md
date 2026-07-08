@@ -27,12 +27,97 @@ make perf-record-baseline
 make perf
 ```
 
+## Nav-stutter measurement (keyboard-nav under write pressure)
+
+The Level 4 scenario also measures the felt keyboard-nav / concurrent-stutter
+symptom. `PerfScenarioRunner` (perf-mode only) brackets an interleaved
+keyboard J/K + mouse-selection walk in a `perf-nav-window` os_signpost
+interval while a fixed-count, cancel-awaited write-pressure task inserts rows
+that match the currently-selected item's `@Query` predicate — forcing the
+middle pane's refetch + re-render on the MainActor while the user navigates.
+Seeding and cold start happen BEFORE the interval, so they are excluded.
+
+The parser resolves the `perf-nav-window` interval `[start, end]` from the
+os-signpost table and windows the hang counts to it:
+
+- `microhangs_in_nav_window` / `full_hangs_in_nav_window` — hangs whose
+  start-time falls inside the nav window. This is the readable under-load
+  stutter signal, with the once-per-launch cold-start hang excluded.
+- `sidebar_nav_getter_pct` — inclusive main-thread sample share of the
+  sidebar-nav recompute symbols (`sidebarItems` / `visibleFolderGroups` /
+  `sidebarNavigationItems`) — the per-keystroke J/K work.
+
+The whole-trace `microhangs_ge_250ms_count` / `full_hangs_ge_500ms_count` are
+kept too (unwindowed), for continuity with the pre-nav-window baseline.
+
+**Three trace outcomes — deliberately not collapsed.** The taxonomy is
+load-bearing: the central risk is never blessing a stale/wrong-binary trace as
+green.
+
+- **(a) No os_signpost table at all** — the template did not record signposts.
+  The windowed metrics report as SKIP ("not captured — no signpost table"),
+  the whole-trace metrics + `sidebar_nav_getter_pct` still report, and
+  `make perf` **exits 0** (graceful degradation). End-to-end windowing is
+  simply unverified on that host; the harness stays usable.
+- **(b) os_signpost table present but no `perf-nav-window` interval** — the
+  dangerous case: LaunchServices almost certainly resolved the launch to a
+  stale/wrong `com.feeder.app` build that emits older signposts (e.g.
+  `sidebar-click`) but not `perf-nav-window`. The parser **fails loud** (a
+  stale-code trace must never pass as green) and names LaunchServices / the
+  stale build as the likely cause.
+- **(c) table present with `perf-nav-window`** — windows the hang counts as
+  designed.
+
+**Report-only until the fix is verified (Guard #1).** All hang metrics
+(whole-trace and windowed) and `sidebar_nav_getter_pct` ship with a **null
+`max`** — the comparator SKIPs them (report-only). We do NOT run
+`perf-record-baseline` for this engineered scenario on the current build: that
+would bless the sluggishness into the ceiling. The raw first-run under-load
+numbers go in the PR body for human sign-off; the baseline is deferred until
+AFTER the real fix is Time-Profiler-verified. **Interim gate-coverage gap:**
+only `contentview_body_getter_pct` (≤ 9 %) and
+`contentview_unread_entries_getter_pct` (≤ 0.1 %) actively gate in the
+meantime; a hang regression is visible in the report but does not fail the
+gate yet.
+
+**Proxy scope (Guard #4).** The write-pressure task exercises background-write
+↔ `@Query`/re-render MainActor contention ONLY. It does NOT reproduce
+Foundation Models inference-CPU contention. A green gate must not be read as
+"classification-concurrent nav is fine". Human sign-off must also confirm the
+induced stutter REPRODUCES the felt symptom (mechanism validation), not just
+eyeball the numbers.
+
+**Keyboard residual (Guard #6).** The scenario drives `bareKeyActions.onJ/onK`
+directly, which exercises the per-keystroke `sidebarItems → visibleFolderGroups
+→ inFolder` recompute + `panelFocus` resolution, but MISSES NSEvent → SwiftUI
+key dispatch, `List` scroll-to-selection, and `@FocusState` propagation timing.
+Reaching those needs a separate XCUITest / CGEvent scenario (not in this
+harness).
+
+**Launch identity (distinct perf bundle).** `xctrace --launch` normalises an
+executable path back to its `.app` and resolves the bundle id through
+LaunchServices — so the launched binary is whatever LaunchServices deems
+canonical for that id, not necessarily the path passed. When the project is
+open in Xcode, Xcode keeps a **Debug** build registered for the shipping
+`com.feeder.app` id, which wins resolution and makes xctrace trace STALE code
+(no `perf-nav-window` interval; symbols in `Feeder.debug.dylib`). To make the
+harness honest in the normal (Xcode-open) dev environment, the perf/trace
+build ships under a DISTINCT bundle id `com.feeder.app.perf` and installs as
+`FeederPerf.app` (`make install-perf`), so resolution is unambiguous. Perf
+runs therefore never overwrite the daily `/Applications/Feeder.app`. If a
+mis-launch still slips through (a stale `com.feeder.app` registration wins
+before `install-perf` lands), the trace falls into outcome (b) above and the
+parser fails loud — a mis-launch can never pass silently.
+
 ## Threshold policy
 
 Per-metric, not global ±X:
 
-- `microhangs_ge_250ms_count`: absolute ≤ 5.
-- `full_hangs_ge_500ms_count`: absolute ≤ 1.
+- `microhangs_ge_250ms_count` / `full_hangs_ge_500ms_count`: report-only
+  (null `max`) — see the nav-stutter section above.
+- `microhangs_in_nav_window` / `full_hangs_in_nav_window`: report-only
+  (null `max`).
+- `sidebar_nav_getter_pct`: report-only (null `max`).
 - `contentview_body_getter_pct`: absolute ≤ 9 % of total samples.
 - `contentview_unread_entries_getter_pct`: absolute ≤ 0.1 % (effectively the
   symbol should be gone).
@@ -52,20 +137,14 @@ Per-metric, not global ±X:
 
 ## Threshold rationale
 
-- **`full_hangs_ge_500ms_count` max = 1, not 0.** The headless `xctrace
-  record --launch /Applications/Feeder.app` scenario starts Feeder fresh
-  per iteration: dyld + SwiftUI init + SwiftData container open +
-  `seedPerfTestData(5000)` + WebKit XPC spawn cleanly exceeds the 500 ms
-  hang threshold exactly once per launch. Median across five iterations
-  is therefore a stable `1`, not a regression. A real regression that
-  adds a second long hang on the click path still fails the gate (`2 > 1`).
-  The original design's `max: 0` assumed an already-warm process driven
-  by hand — incompatible with the per-iteration cold-start tax of the
-  automated suite.
-- **`microhangs_ge_250ms_count` max = 5.** Same cold-start reasoning as
-  above plus a small budget for the once-per-launch click sequence;
-  the captured value (currently 1) sits well below the ceiling, so the
-  gate still catches a drift to 6+.
+- **Whole-trace hang counts are now report-only (null `max`).** They were
+  previously gated (`full_hangs_ge_500ms_count` max = 1 for the
+  once-per-launch cold-start hang; `microhangs_ge_250ms_count` max = 5). The
+  nav-stutter harness supersedes that gate: the meaningful signal is the
+  *windowed* count (`*_in_nav_window`), which excludes cold start by
+  construction, and per Guard #1 no hang ceiling is blessed until the real fix
+  is Time-Profiler-verified. Both whole-trace counts are retained as
+  report-only numbers for continuity with the pre-nav-window baseline.
 - **`contentview_body_getter_pct` max = 9 %.** The pre-fix diagnosis run
   hit 33.8 %. Anything > 9 % means the `body` re-eval path is doing too
   much work — the architectural rule that body must not aggregate.

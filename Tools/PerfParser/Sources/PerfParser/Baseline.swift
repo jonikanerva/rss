@@ -75,17 +75,29 @@ struct Level4Trace: Codable {
   var contentviewUnreadEntriesGetterPct: ThresholdMetric
   var microhangsGe250MsCount: ThresholdMetric
   var fullHangsGe500MsCount: ThresholdMetric
+  /// Metrics added by the nav-stutter measurement harness. Optional so a
+  /// baseline written before this shape (or one that omits them) still
+  /// decodes — a missing metric reads as "report-only, no gate".
+  var sidebarNavGetterPct: ThresholdMetric?
+  var microhangsInNavWindow: ThresholdMetric?
+  var fullHangsInNavWindow: ThresholdMetric?
 
   enum CodingKeys: String, CodingKey {
     case contentviewBodyGetterPct = "contentview_body_getter_pct"
     case contentviewUnreadEntriesGetterPct = "contentview_unread_entries_getter_pct"
     case microhangsGe250MsCount = "microhangs_ge_250ms_count"
     case fullHangsGe500MsCount = "full_hangs_ge_500ms_count"
+    case sidebarNavGetterPct = "sidebar_nav_getter_pct"
+    case microhangsInNavWindow = "microhangs_in_nav_window"
+    case fullHangsInNavWindow = "full_hangs_in_nav_window"
   }
 }
 
+/// A metric's ceiling + captured value. `max` is nullable: a null ceiling
+/// means the metric is report-only (the comparator SKIPs it) — used while a
+/// symptom is being measured but not yet blessed into a gate (Guard #1).
 struct ThresholdMetric: Codable {
-  var max: Double
+  var max: Double?
   var captured: Double?
 }
 
@@ -185,6 +197,20 @@ enum Baseline {
       .contentviewUnreadEntriesGetterPct
     doc.level4Trace.microhangsGe250MsCount.captured = Double(metrics.microhangsGe250MsCount)
     doc.level4Trace.fullHangsGe500MsCount.captured = Double(metrics.fullHangsGe500MsCount)
+    // New nav-stutter metrics: record captured values while keeping any
+    // existing `max` (null = report-only) untouched. Preserve the metric slot
+    // if the baseline already declared one; otherwise create a report-only
+    // slot (null max) so a first write does not accidentally bless a ceiling.
+    setCaptured(
+      &doc.level4Trace.sidebarNavGetterPct, to: metrics.sidebarNavGetterPct)
+    // Windowed counts may be nil (no signpost table); only record a captured
+    // value when it was actually measured.
+    if let micro = metrics.microhangsInNavWindow {
+      setCaptured(&doc.level4Trace.microhangsInNavWindow, to: Double(micro))
+    }
+    if let full = metrics.fullHangsInNavWindow {
+      setCaptured(&doc.level4Trace.fullHangsInNavWindow, to: Double(full))
+    }
     if doc.capturedOn == nil {
       doc.capturedOn = ISO8601DateFormatter().string(from: Date())
     }
@@ -192,6 +218,17 @@ enum Baseline {
       doc.capturedHostCPU = currentHostCPU() ?? "unknown"
     }
     try writeBaseline(doc, to: path)
+  }
+
+  /// Record a captured value into an optional metric slot without touching
+  /// its `max`. Creates a report-only slot (null max) when none exists, so a
+  /// first write never invents a ceiling.
+  private static func setCaptured(_ metric: inout ThresholdMetric?, to value: Double) {
+    if metric == nil {
+      metric = ThresholdMetric(max: nil, captured: value)
+    } else {
+      metric?.captured = value
+    }
   }
 
   private static func writeBaseline(_ doc: BaselineDocument, to path: String) throws {

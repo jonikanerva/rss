@@ -869,7 +869,18 @@ struct ContentView: View {
           currentEntryIDs.compactMap { id in
             modelContext.model(for: id) as? Entry
           }
-        }
+        },
+        navigate: { direction in
+          // Route through the real J/K handler so the walk pays the actual
+          // per-keystroke `sidebarItems → visibleFolderGroups → inFolder`
+          // recompute + `panelFocus` resolution — not a bare `selection =`.
+          switch direction {
+          case .next: _ = bareKeyActions.onJ()
+          case .previous: _ = bareKeyActions.onK()
+          }
+        },
+        bumpEntryList: { bumpEntryList() },
+        currentSelection: { selection }
       )
     }
   }
