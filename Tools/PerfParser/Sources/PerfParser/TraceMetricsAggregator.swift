@@ -337,14 +337,12 @@ final class TimeProfileSampleHandler: NSObject, XMLParserDelegate {
   var sidebarNavWeight: Double = 0
   private var currentSampleSymbols: [String] = []
   private var characterBuffer: String = ""
-  private var currentElement: String = ""
   private var currentWeight: Double = 0
 
   func parser(
     _ parser: XMLParser, didStartElement elementName: String,
     namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]
   ) {
-    currentElement = elementName
     characterBuffer = ""
     // Frame symbol names come either as the `name` attribute on `<frame>`
     // or inline as the text content of `<frame>`/`<backtrace>` children.
@@ -418,7 +416,6 @@ struct SignpostRow {
 /// and `duration` (element text or attribute).
 final class SignpostRowHandler: NSObject, XMLParserDelegate {
   var rows: [SignpostRow] = []
-  private var currentElement: String = ""
   private var characterBuffer: String = ""
   private var name: String = ""
   private var time: Double?
@@ -434,7 +431,6 @@ final class SignpostRowHandler: NSObject, XMLParserDelegate {
     _ parser: XMLParser, didStartElement elementName: String,
     namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]
   ) {
-    currentElement = elementName
     characterBuffer = ""
     if elementName == "row" {
       inRow = true
@@ -497,7 +493,6 @@ final class SignpostRowHandler: NSObject, XMLParserDelegate {
 /// aggregator can window the count to the nav interval.
 final class HangsHandler: NSObject, XMLParserDelegate {
   var events: [TraceMetricsAggregator.HangEvent] = []
-  private var currentElement: String = ""
   private var characterBuffer: String = ""
   private var durationText: String = ""
   private var startTime: Double?
@@ -511,7 +506,6 @@ final class HangsHandler: NSObject, XMLParserDelegate {
     _ parser: XMLParser, didStartElement elementName: String,
     namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]
   ) {
-    currentElement = elementName
     characterBuffer = ""
     if elementName == "row" || elementName == "hang" {
       inRow = true
