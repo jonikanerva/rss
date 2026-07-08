@@ -41,7 +41,17 @@ XCODEBUILD_FLAGS = \
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
 
-.PHONY: lint lint-fix build install test test-ui test-all test-full clean artifacts help \
+# Perf-trace build identity. The perf/trace Release build ships under a
+# DISTINCT bundle id and installs to a DISTINCT app path so `xctrace --launch`
+# resolves it unambiguously through LaunchServices — even when the project is
+# open in Xcode (Xcode keeps a Debug build registered for the shipping
+# `com.feeder.app` id, which otherwise wins resolution and makes xctrace trace
+# stale code). It also means perf runs never overwrite the user's daily
+# `/Applications/Feeder.app`. The shipping app identity is untouched.
+PERF_APP_NAME   ?= FeederPerf
+PERF_BUNDLE_ID  ?= com.feeder.app.perf
+
+.PHONY: lint lint-fix build install install-perf test test-ui test-all test-full clean artifacts help \
         perf perf-signpost perf-trace perf-record-baseline perf-preflight
 
 help: ## Show this help
@@ -83,6 +93,28 @@ install: ## Build Release and install to /Applications
 	@rm -rf "$(INSTALL_DIR)/$(APP_NAME).app"
 	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(APP_NAME).app"
 	@echo "==> done: $(INSTALL_DIR)/$(APP_NAME).app"
+
+install-perf: ## Build Release under the perf bundle id and install as FeederPerf.app
+	@echo "==> build Release (perf: $(PERF_BUNDLE_ID))"
+	xcodebuild build \
+		-project $(PROJECT) \
+		-scheme $(SCHEME) \
+		-configuration Release \
+		-derivedDataPath $(DERIVED_DATA) \
+		-destination '$(DESTINATION)' \
+		PRODUCT_BUNDLE_IDENTIFIER=$(PERF_BUNDLE_ID) \
+		CODE_SIGN_IDENTITY="-" \
+		ENABLE_APP_SANDBOX=NO \
+		ENABLE_HARDENED_RUNTIME=NO
+	@echo "==> install $(PERF_APP_NAME).app → $(INSTALL_DIR)"
+	@# The bundle keeps its built name (Feeder.app) inside DerivedData; it is
+	@# copied to FeederPerf.app so it does not collide with the daily app. The
+	@# executable inside stays `Feeder`, so the perf app's CFBundleExecutable is
+	@# still `Feeder` — the trace launcher reads CFBundleExecutable, not the
+	@# bundle name (see run_trace_iterations.sh).
+	@rm -rf "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
+	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
+	@echo "==> done: $(INSTALL_DIR)/$(PERF_APP_NAME).app"
 
 # ---------------------------------------------------------------------------
 # Test
@@ -169,23 +201,25 @@ perf-signpost: build ## Levels 1 + 2 — function-level XCTest microbenchmarks +
 		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
 		--baseline $(PERF_BASELINE)
 
-perf-trace: install ## Level 4 — xctrace Time Profiler, median over N iterations
+perf-trace: install-perf ## Level 4 — xctrace Time Profiler, median over N iterations
 	@./Tools/PerfParser/run_trace_iterations.sh \
 		--iterations $(PERF_ITERATIONS) \
 		--time-limit $(PERF_TIME_LIMIT) \
 		--output-dir $(PERF_RESULT_DIR) \
-		--dataset-size $(PERF_DATASET)
+		--dataset-size $(PERF_DATASET) \
+		--app-path "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
 	@swift run --package-path Tools/PerfParser PerfParser \
 		--trace-dir $(PERF_RESULT_DIR) \
 		--baseline $(PERF_BASELINE)
 
-perf-record-baseline: perf-preflight install ## Refresh baseline JSON from current run
+perf-record-baseline: perf-preflight install-perf ## Refresh baseline JSON from current run
 	@echo "==> perf-record-baseline (refreshes baseline from this run)"
 	@./Tools/PerfParser/run_trace_iterations.sh \
 		--iterations $(PERF_ITERATIONS) \
 		--time-limit $(PERF_TIME_LIMIT) \
 		--output-dir $(PERF_RESULT_DIR) \
-		--dataset-size $(PERF_DATASET)
+		--dataset-size $(PERF_DATASET) \
+		--app-path "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
 	@swift run --package-path Tools/PerfParser PerfParser \
 		--trace-dir $(PERF_RESULT_DIR) \
 		--baseline $(PERF_BASELINE) \
