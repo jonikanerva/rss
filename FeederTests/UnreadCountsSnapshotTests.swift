@@ -9,6 +9,11 @@ import Testing
 /// MainActor `@Query unreadEntries` fetch. The snapshot is the sole input the
 /// sidebar reads for badge counts, so its contract — empty case, mixed
 /// read/unread, multi-axis grouping — is what these tests pin down.
+/// `.serialized`: these tests open a `DataReader` (2nd read-only context)
+/// alongside the writer. A Swift-Testing parallelism accommodation — caps
+/// concurrent Core Data coordinators so the test target doesn't over-stress
+/// them beyond production's single reader+writer; not a production limitation.
+@Suite(.serialized)
 struct UnreadCountsSnapshotFetchTests {
   private func makeWriter() async throws -> DataWriter {
     try await DataWriterTestSupport.makeWriter()
@@ -41,18 +46,20 @@ struct UnreadCountsSnapshotFetchTests {
   @Test
   func emptyStoreReturnsEmptySnapshot() async throws {
     let writer = try await makeWriter()
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     #expect(snapshot == UnreadCountsSnapshot.empty)
   }
 
   @Test
   func unclassifiedEntriesDoNotContribute() async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     let entry = try FeedbinFixtures.entry(id: 9001)
     _ = try await writer.persistEntries([entry], unreadIDs: Set([9001]))
     // No applyClassification — entry stays `isClassified == false`.
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     #expect(snapshot.totalUnread == 0)
     #expect(snapshot.categoryCounts.isEmpty)
     #expect(snapshot.folderCounts.isEmpty)
@@ -62,6 +69,7 @@ struct UnreadCountsSnapshotFetchTests {
   @Test
   func readEntriesDoNotContribute() async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await seedTaxonomy(writer)
 
@@ -71,7 +79,7 @@ struct UnreadCountsSnapshotFetchTests {
     try await classify(writer, id: 1101, category: "apple")
     try await classify(writer, id: 1102, category: "apple")
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     #expect(snapshot.totalUnread == 1)
     #expect(snapshot.categoryCounts["apple"] == 1)
     #expect(snapshot.folderCounts["tech"] == 1)
@@ -83,6 +91,7 @@ struct UnreadCountsSnapshotFetchTests {
   @Test
   func multipleEntriesPerCategoryAggregate() async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await seedTaxonomy(writer)
 
@@ -100,7 +109,7 @@ struct UnreadCountsSnapshotFetchTests {
     try await classify(writer, id: 2204, category: "playstation")
     try await classify(writer, id: 2205, category: "world_news")
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     #expect(snapshot.totalUnread == 5)
     #expect(snapshot.categoryCounts["apple"] == 3)
     #expect(snapshot.categoryCounts["playstation"] == 1)
@@ -121,6 +130,7 @@ struct UnreadCountsSnapshotFetchTests {
     // contribute to any folder bucket — `[String: Int]` must not gain an
     // empty-string key.
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await writer.addCategory(
       label: "world_news", displayName: "World News",
@@ -130,7 +140,7 @@ struct UnreadCountsSnapshotFetchTests {
     _ = try await writer.persistEntries([entry], unreadIDs: Set([3301]))
     try await classify(writer, id: 3301, category: "world_news")
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     #expect(snapshot.categoryCounts["world_news"] == 1)
     #expect(snapshot.folderCounts.isEmpty)
     #expect(snapshot.unreadIDByFolder.isEmpty)
@@ -144,6 +154,7 @@ struct UnreadCountsSnapshotFetchTests {
   @Test
   func snapshotExcludesPreCutoffUnreadEntries() async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await seedTaxonomy(writer)
 
@@ -161,7 +172,7 @@ struct UnreadCountsSnapshotFetchTests {
     let isoFormatter = ISO8601DateFormatter()
     let cutoff = isoFormatter.date(from: "2025-01-01T00:00:00Z")!
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     #expect(snapshot.totalUnread == 1)
     #expect(snapshot.unreadFeedbinEntryIDs == [4402])
     #expect(snapshot.unreadFeedbinEntryIDs.contains(4401) == false)
@@ -177,6 +188,7 @@ struct UnreadCountsSnapshotFetchTests {
   @Test
   func snapshotMatchesFetchEntrySectionsUnderSameCutoff() async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await seedTaxonomy(writer)
 
@@ -196,8 +208,8 @@ struct UnreadCountsSnapshotFetchTests {
     let isoFormatter = ISO8601DateFormatter()
     let cutoff = isoFormatter.date(from: "2025-01-01T00:00:00Z")!
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-    let result = try await writer.fetchEntrySections(
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let result = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
@@ -229,6 +241,7 @@ struct UnreadCountsSnapshotFetchTests {
   )
   func snapshotMatchesFetchEntrySectionsAcrossCutoffs(cutoff: Date) async throws {
     let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     try await seedTaxonomy(writer)
 
@@ -257,8 +270,8 @@ struct UnreadCountsSnapshotFetchTests {
       try await classify(writer, id: id, category: "apple")
     }
 
-    let snapshot = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-    let result = try await writer.fetchEntrySections(
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let result = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )

@@ -193,6 +193,11 @@ final class SyncEngine {
 
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
+  /// Read-only companion to `writer`, on a second `ModelContext` over the same
+  /// container. Vended to the article list + sidebar so their reads run on a
+  /// separate actor and do not queue behind writes (`DataReader`). Owned by the
+  /// caller (typically `FeederApp`); the engine only holds the reference.
+  private(set) var reader: DataReader?
   private var periodicSyncTask: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
   private var extractedContentTask: Task<Void, Never>?
@@ -232,6 +237,13 @@ final class SyncEngine {
   /// here because the caller has already paid the background-init cost.
   func attachWriter(_ writer: DataWriter) {
     self.writer = writer
+  }
+
+  /// Inject the pre-built read-only `DataReader`. Same ownership contract as
+  /// `attachWriter` — the caller builds it on the same `ModelContainer` and
+  /// hands it over before `ContentView` renders the article list.
+  func attachReader(_ reader: DataReader) {
+    self.reader = reader
   }
 
   /// Inject a pre-built `FeedbinClientProtocol` implementation. Production

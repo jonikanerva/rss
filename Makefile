@@ -51,7 +51,7 @@ INSTALL_DIR     ?= /Applications
 PERF_APP_NAME   ?= FeederPerf
 PERF_BUNDLE_ID  ?= com.feeder.app.perf
 
-.PHONY: lint lint-fix build install install-perf test test-ui test-all test-full clean artifacts help \
+.PHONY: lint lint-fix build install install-perf test test-stress-tsan test-ui test-all test-full clean artifacts help \
         perf perf-signpost perf-trace perf-record-baseline perf-preflight
 
 help: ## Show this help
@@ -130,6 +130,20 @@ test: build ## Run unit tests (FeederTests, excluding the perf suite)
 		-only-testing:FeederTests \
 		-skip-testing:FeederTests/PerfSignpostTests \
 		-skip-testing:FeederTests/MicroBenchmarkTests
+
+# The DataReader 1+1 production-shape stress test self-skips (no-op) unless
+# FEEDER_RUN_STRESS=1: it drives hundreds of concurrent read-during-write rounds
+# on a shared container, which — run alongside the rest of the parallel suite's
+# many coordinators — over-stresses Core Data and can abort (a test-parallelism
+# artifact, not a product bug; see STACK.md §14). It is the ISOLATED evidence
+# gate for the shared-container topology; this target runs it alone under Thread
+# Sanitizer:
+#   make test-stress-tsan
+test-stress-tsan: build ## Isolated Thread-Sanitizer run of the DataReader 1+1 stress test
+	FEEDER_RUN_STRESS=1 xcodebuild test-without-building \
+		$(XCODEBUILD_FLAGS) \
+		-enableThreadSanitizer YES \
+		-only-testing:FeederTests/DataReaderConcurrencyTests/sharedContainerProductionShapeStress
 
 test-ui: build ## Run UI smoke tests (FeederUITests)
 	@echo "==> UI smoke tests"

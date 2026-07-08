@@ -33,6 +33,7 @@ import XCTest
 final class MicroBenchmarkTests: XCTestCase {
   private var container: ModelContainer!
   private var writer: DataWriter!
+  private var reader: DataReader!
 
   // MARK: - Setup / teardown
 
@@ -40,6 +41,9 @@ final class MicroBenchmarkTests: XCTestCase {
     try await super.setUp()
     container = try DataWriterTestSupport.makeInMemoryContainer()
     writer = await DataWriter.makeDetached(modelContainer: container)
+    // Article-list / unread reads moved to `DataReader`; benchmark them on the
+    // reader over the same container.
+    reader = await DataReader.makeDetached(modelContainer: container)
     // 1000 entries spread across 8 categories is realistic enough to make
     // SQLite predicate cost dominate, without pushing iteration time past
     // ~5s on M-series hosts.
@@ -48,6 +52,7 @@ final class MicroBenchmarkTests: XCTestCase {
 
   override func tearDown() async throws {
     writer = nil
+    reader = nil
     container = nil
     try await super.tearDown()
   }
@@ -58,13 +63,13 @@ final class MicroBenchmarkTests: XCTestCase {
   /// snapshot fetch is what drives every badge count, so any drift here
   /// shows up in the cold-launch frame budget immediately.
   func test_fetchUnreadCountsSnapshot_micro() async throws {
-    let writer = self.writer!
+    let reader = self.reader!
     let cutoff = Date.distantPast
 
     // Warm the SwiftData container so the first measured iteration does
     // not pay for cold descriptor compilation. `measure` ignores its
     // setup cost, but a cold first call still skews the median.
-    _ = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    _ = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
 
     let options = XCTMeasureOptions()
     options.iterationCount = 5
@@ -74,7 +79,7 @@ final class MicroBenchmarkTests: XCTestCase {
       group.enter()
       Task {
         defer { group.leave() }
-        _ = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+        _ = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
       }
       group.wait()
     }
@@ -86,12 +91,12 @@ final class MicroBenchmarkTests: XCTestCase {
   /// `category` axis is the more common selection — the `folder` axis is
   /// covered by `PerfSignpostTests.test_sidebar_click_signpost`.
   func test_fetchEntrySections_category_micro() async throws {
-    let writer = self.writer!
+    let reader = self.reader!
     let cutoff = Date.distantPast
     let category = "perf_0"
 
     // Warm — same rationale as above.
-    _ = try await writer.fetchEntrySections(
+    _ = try await reader.fetchEntrySections(
       category: category, folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
@@ -104,7 +109,7 @@ final class MicroBenchmarkTests: XCTestCase {
       group.enter()
       Task {
         defer { group.leave() }
-        _ = try? await writer.fetchEntrySections(
+        _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
         )

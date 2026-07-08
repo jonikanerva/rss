@@ -149,6 +149,17 @@ struct FeederApp: App {
         "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
       syncEngine.attachWriter(writer)
+      // Attach the read-only companion: a separate actor owning a SECOND
+      // read-only `ModelContext` on the SAME app container (`C_app`), created
+      // now that `C_app` is up and bootstrapped. Its own actor/executor keeps
+      // article-list + sidebar reads off the writer actor's mailbox (the
+      // panel-2 starvation fix), while sharing one container/coordinator keeps
+      // `PersistentIdentifier`s interoperable for the selection path. Because
+      // it is just a 2nd context on `C_app` (born after `C_app`, dies with it),
+      // there is no separate container to migrate or to hold a connection
+      // across `init`'s destructive-reset fallback.
+      let reader = await DataReader.makeDetached(modelContainer: modelContainer)
+      syncEngine.attachReader(reader)
       bootstrapPhase = .ready
     } catch {
       logger.error("Bootstrap failed: \(error.localizedDescription, privacy: .private)")

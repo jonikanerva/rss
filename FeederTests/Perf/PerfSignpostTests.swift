@@ -24,6 +24,7 @@ import os.signpost
 final class PerfSignpostTests: XCTestCase {
   private var container: ModelContainer!
   private var writer: DataWriter!
+  private var reader: DataReader!
 
   // MARK: - Setup / teardown
 
@@ -31,6 +32,9 @@ final class PerfSignpostTests: XCTestCase {
     try await super.setUp()
     container = try DataWriterTestSupport.makeInMemoryContainer()
     writer = await DataWriter.makeDetached(modelContainer: container)
+    // Article-list / unread reads moved to `DataReader`; the click signposts
+    // exercise them on the reader over the same container.
+    reader = await DataReader.makeDetached(modelContainer: container)
     // 200 entries is enough to spread across the categories without
     // pushing iteration time past ~5 s — Level 4 covers the 5k case.
     _ = try await writer.seedPerfTestData(entryCount: 200, categoryCount: 8)
@@ -38,6 +42,7 @@ final class PerfSignpostTests: XCTestCase {
 
   override func tearDown() async throws {
     writer = nil
+    reader = nil
     container = nil
     try await super.tearDown()
   }
@@ -48,8 +53,8 @@ final class PerfSignpostTests: XCTestCase {
     let cutoff = Date.distantPast
     let folderLabel = "technology"
     let category = "perf_0"
-    let writer = self.writer!
-    let baseline = try await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let reader = self.reader!
+    let baseline = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     XCTAssertGreaterThan(baseline.totalUnread, 0, "Perf seeder must produce unread rows")
 
     let options = XCTMeasureOptions()
@@ -61,12 +66,12 @@ final class PerfSignpostTests: XCTestCase {
       group.enter()
       Task {
         defer { group.leave() }
-        _ = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
-        _ = try? await writer.fetchEntrySections(
+        _ = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+        _ = try? await reader.fetchEntrySections(
           category: nil, folder: folderLabel, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
         )
-        _ = try? await writer.fetchEntrySections(
+        _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
         )
@@ -77,10 +82,10 @@ final class PerfSignpostTests: XCTestCase {
   }
 
   func test_article_click_signpost() async throws {
-    let writer = self.writer!
+    let reader = self.reader!
     let category = "perf_0"
     let cutoff = Date.distantPast
-    let result = try await writer.fetchEntrySections(
+    let result = try await reader.fetchEntrySections(
       category: category, folder: nil, showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil
     )
@@ -100,11 +105,11 @@ final class PerfSignpostTests: XCTestCase {
       group.enter()
       Task {
         defer { group.leave() }
-        _ = try? await writer.fetchEntrySections(
+        _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
           cutoffDate: cutoff, pinnedFeedbinEntryID: nil
         )
-        _ = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+        _ = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
       }
       group.wait()
       perfSignposter.endInterval(PerformanceSignpostName.articleClick, state)
