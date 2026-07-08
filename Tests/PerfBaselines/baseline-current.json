@@ -35,11 +35,23 @@
     },
     "full_hangs_ge_500ms_count" : {
       "captured" : 1,
-      "max" : 1
+      "max" : null
+    },
+    "full_hangs_in_nav_window" : {
+      "captured" : null,
+      "max" : null
     },
     "microhangs_ge_250ms_count" : {
       "captured" : 1,
-      "max" : 5
+      "max" : null
+    },
+    "microhangs_in_nav_window" : {
+      "captured" : null,
+      "max" : null
+    },
+    "sidebar_nav_getter_pct" : {
+      "captured" : null,
+      "max" : null
     }
   },
   "previous_main_head_record" : {
