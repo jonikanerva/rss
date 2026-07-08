@@ -56,4 +56,13 @@ nonisolated enum PerformanceSignpostName {
   /// (just before the WKWebView receives `loadHTMLString`). Measures the
   /// off-MainActor render itself, separate from the click → task latency.
   static let detailRender: StaticString = "detail-render"
+  /// Perf-scenario nav window: brackets the interleaved keyboard/mouse
+  /// navigation pass that `PerfScenarioRunner` drives WHILE a fixed-count
+  /// write-pressure task hammers the store. Seeding and cold start happen
+  /// BEFORE `beginInterval`, so they are excluded from the interval. The
+  /// perf parser reads this interval's `[start, end]` from the trace and
+  /// windows the hang counts to it, so the raw under-load stutter count is
+  /// readable instead of buried in the once-per-launch cold-start hang.
+  /// Only emitted under `FEEDER_PERF_MODE`; a no-op in shipping launches.
+  static let perfNavWindow: StaticString = "perf-nav-window"
 }

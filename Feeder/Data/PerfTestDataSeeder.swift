@@ -102,6 +102,79 @@ extension DataWriter {
     return true
   }
 
+  /// Insert one continuous write-pressure batch that lands INSIDE the
+  /// currently-selected sidebar item's `@Query` predicate, so the middle
+  /// pane's `.task(id: refreshVersion)` refetch + re-render actually fires —
+  /// the background-write ↔ MainActor coupling the perf scenario induces to
+  /// reproduce keyboard-nav stutter (`STACK.md § 4`). A bare save the visible
+  /// list ignores would not exercise the contention.
+  ///
+  /// Rows are made eligible for `fetchEntrySections(showRead: false, …)`:
+  /// classified, UNREAD, and published `now` (inside the query cutoff window).
+  /// The field carrying the match is chosen from the live `selection` — the
+  /// runner reads its current selection and passes it in as the nav walk moves
+  /// so each batch targets whatever the user is looking at.
+  ///
+  /// `startingID` must sit above `seedPerfTestData`'s range (10_000 ..<
+  /// 10_000 + entryCount); the runner starts well above it. Returns the next
+  /// free ID so the runner can thread it into the following batch and keep
+  /// `feedbinEntryID` (a `.unique` attribute) collision-free. Writes through
+  /// the `DataWriter` `@ModelActor` per `STACK.md § 0 / § 5`.
+  func seedPerfTestBatch(
+    count: Int,
+    matching selection: SidebarSelection,
+    startingID: Int
+  ) throws -> Int {
+    guard count > 0 else { return startingID }
+
+    // Reuse an existing perf feed so rows carry a display domain like the
+    // main seed's rows; fall back to a synthesized site URL if the store was
+    // seeded without feeds.
+    let feed = try? modelContext.fetch(FetchDescriptor<Feed>()).first
+    let siteURL = feed?.siteURL ?? "https://perf.example.com"
+
+    let category: String
+    let folder: String
+    switch selection {
+    case .category(let label): (category, folder) = (label, "")
+    case .folder(let label): (category, folder) = ("", label)
+    }
+
+    let now = Date()
+    for offset in 0..<count {
+      let id = startingID + offset
+      // Sub-second spread keeps each row's timestamp distinct without
+      // leaving the cutoff window; ordering is not asserted for pressure rows.
+      let publishedAt = now.addingTimeInterval(-Double(offset) * 0.001)
+      let summaryHTML = "<p>Perf pressure story \(id).</p>"
+      let entry = Entry(
+        feedbinEntryID: id,
+        title: "Perf Pressure Story \(id)",
+        author: "Perf Bot",
+        url: "https://example.com/perf-pressure/\(id)",
+        content: summaryHTML,
+        summary: "Perf pressure story \(id)",
+        extractedContentURL: nil,
+        publishedAt: publishedAt,
+        createdAt: publishedAt
+      )
+      entry.feed = feed
+      entry.primaryCategory = category
+      entry.primaryFolder = folder
+      entry.isClassified = true
+      entry.isRead = false
+      entry.plainText = "Perf pressure story \(id)."
+      entry.summaryPlainText = entry.plainText
+      entry.formattedDate = formatEntryDate(publishedAt)
+      entry.formattedPublishedTime = formatEntryTime(publishedAt)
+      entry.displayDomain = extractDomain(from: siteURL)
+      modelContext.insert(entry)
+    }
+
+    try modelContext.save()
+    return startingID + count
+  }
+
   // MARK: - Helpers
 
   private func perfSeedFolders() -> [Folder] {
