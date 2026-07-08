@@ -65,14 +65,17 @@ struct TraceWindowingTests {
     #expect(counts.fullInWindow == 1)
   }
 
-  @Test("A nil window yields zero windowed counts but full whole-trace counts")
-  func nilWindowYieldsZeroWindowed() throws {
+  @Test("A nil window yields NOT-CAPTURED windowed counts, full whole-trace counts")
+  func nilWindowYieldsNotCapturedWindowed() throws {
     let events = try TraceMetricsAggregator.parseHangEvents(xml: Data(Self.hangsXML.utf8))
     let counts = TraceMetricsAggregator.countHangs(events, window: nil)
+    // Whole-trace counts always report.
     #expect(counts.micro == 4)
     #expect(counts.full == 2)
-    #expect(counts.microInWindow == 0)
-    #expect(counts.fullInWindow == 0)
+    // Case (a) — no signpost table: windowed counts are nil ("not captured"),
+    // NOT 0. A zero would falsely read as "no stutter in the window".
+    #expect(counts.microInWindow == nil)
+    #expect(counts.fullInWindow == nil)
   }
 
   // MARK: - Sidebar-nav symbol bucket
@@ -109,6 +112,21 @@ struct TraceWindowingTests {
       microhangsGe250MsCount: 0, fullHangsGe500MsCount: 0,
       microhangsInNavWindow: 0, fullHangsInNavWindow: 0)
     #expect(compareTraceMetrics(overBody, baseline: baseline) == false)
+  }
+
+  @Test("Case (a): not-captured windowed metrics SKIP, run still passes")
+  func notCapturedWindowedMetricsSkipGracefully() throws {
+    let baseline = try JSONDecoder().decode(
+      BaselineDocument.self, from: Data(Self.navHarnessBaselineJSON.utf8))
+    // A trace with no signpost table: windowed counts nil, whole-trace + body
+    // /unread still report. Body/unread under their ceilings → the run PASSES
+    // (graceful degradation) rather than hard-failing on the missing window.
+    let noSignpostTable = TraceMetrics(
+      contentviewBodyGetterPct: 4, contentviewUnreadEntriesGetterPct: 0,
+      sidebarNavGetterPct: 12,
+      microhangsGe250MsCount: 7, fullHangsGe500MsCount: 2,
+      microhangsInNavWindow: nil, fullHangsInNavWindow: nil)
+    #expect(compareTraceMetrics(noSignpostTable, baseline: baseline) == true)
   }
 
   @Test("Null-max metrics decode as report-only, not as a zero ceiling")

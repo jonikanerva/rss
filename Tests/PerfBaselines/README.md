@@ -50,6 +50,24 @@ os-signpost table and windows the hang counts to it:
 The whole-trace `microhangs_ge_250ms_count` / `full_hangs_ge_500ms_count` are
 kept too (unwindowed), for continuity with the pre-nav-window baseline.
 
+**Three trace outcomes — deliberately not collapsed.** The taxonomy is
+load-bearing: the central risk is never blessing a stale/wrong-binary trace as
+green.
+
+- **(a) No os_signpost table at all** — the template did not record signposts.
+  The windowed metrics report as SKIP ("not captured — no signpost table"),
+  the whole-trace metrics + `sidebar_nav_getter_pct` still report, and
+  `make perf` **exits 0** (graceful degradation). End-to-end windowing is
+  simply unverified on that host; the harness stays usable.
+- **(b) os_signpost table present but no `perf-nav-window` interval** — the
+  dangerous case: LaunchServices almost certainly resolved the launch to a
+  stale/wrong `com.feeder.app` build that emits older signposts (e.g.
+  `sidebar-click`) but not `perf-nav-window`. The parser **fails loud** (a
+  stale-code trace must never pass as green) and names LaunchServices / the
+  stale build as the likely cause.
+- **(c) table present with `perf-nav-window`** — windows the hang counts as
+  designed.
+
 **Report-only until the fix is verified (Guard #1).** All hang metrics
 (whole-trace and windowed) and `sidebar_nav_getter_pct` ship with a **null
 `max`** — the comparator SKIPs them (report-only). We do NOT run
@@ -86,9 +104,10 @@ open in Xcode, Xcode keeps a **Debug** build registered for the shipping
 harness honest in the normal (Xcode-open) dev environment, the perf/trace
 build ships under a DISTINCT bundle id `com.feeder.app.perf` and installs as
 `FeederPerf.app` (`make install-perf`), so resolution is unambiguous. Perf
-runs therefore never overwrite the daily `/Applications/Feeder.app`. The
-parser still FAILS CLOSED with a clear message if the `perf-nav-window`
-interval is ever absent, so a mis-launch can never pass silently.
+runs therefore never overwrite the daily `/Applications/Feeder.app`. If a
+mis-launch still slips through (a stale `com.feeder.app` registration wins
+before `install-perf` lands), the trace falls into outcome (b) above and the
+parser fails loud — a mis-launch can never pass silently.
 
 ## Threshold policy
 

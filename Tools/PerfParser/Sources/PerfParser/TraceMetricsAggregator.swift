@@ -14,9 +14,14 @@ struct TraceMetrics {
   var microhangsGe250MsCount: Int
   var fullHangsGe500MsCount: Int
   /// Hang counts windowed to the `perf-nav-window` signpost interval — the
-  /// readable under-load stutter signal with cold start excluded.
-  var microhangsInNavWindow: Int
-  var fullHangsInNavWindow: Int
+  /// readable under-load stutter signal with cold start excluded. `nil` when
+  /// the trace carries no os_signpost table at all (the template did not
+  /// record signposts): the windowed metrics degrade to "not captured" (SKIP)
+  /// rather than failing the run. A trace that HAS a signpost table but no
+  /// `perf-nav-window` interval never reaches here — that is the wrong/stale
+  /// binary case and `extractMetrics` throws loudly.
+  var microhangsInNavWindow: Int?
+  var fullHangsInNavWindow: Int?
 }
 
 /// Drives `xctrace export` against every `.trace` bundle in the given
@@ -53,8 +58,11 @@ enum TraceMetricsAggregator {
       sidebarNavPcts.append(m.sidebarNavGetterPct)
       microhangs.append(m.microhangsGe250MsCount)
       fullHangs.append(m.fullHangsGe500MsCount)
-      microhangsInWindow.append(m.microhangsInNavWindow)
-      fullHangsInWindow.append(m.fullHangsInNavWindow)
+      // Windowed counts are absent (nil) for traces without a signpost table;
+      // only the captured ones feed the median. If NO iteration captured a
+      // window, the aggregate stays nil → the metric reports as SKIP.
+      if let micro = m.microhangsInNavWindow { microhangsInWindow.append(micro) }
+      if let full = m.fullHangsInNavWindow { fullHangsInWindow.append(full) }
     }
 
     return TraceMetrics(
@@ -63,8 +71,8 @@ enum TraceMetricsAggregator {
       sidebarNavGetterPct: sidebarNavPcts.median() ?? 0,
       microhangsGe250MsCount: medianInt(microhangs),
       fullHangsGe500MsCount: medianInt(fullHangs),
-      microhangsInNavWindow: medianInt(microhangsInWindow),
-      fullHangsInNavWindow: medianInt(fullHangsInWindow)
+      microhangsInNavWindow: microhangsInWindow.isEmpty ? nil : medianInt(microhangsInWindow),
+      fullHangsInNavWindow: fullHangsInWindow.isEmpty ? nil : medianInt(fullHangsInWindow)
     )
   }
 
@@ -98,22 +106,11 @@ enum TraceMetricsAggregator {
           + "re-record with the Time Profiler template, which includes Hangs"
       )
     }
-    guard hasSignpost else {
-      throw PerfParserError(
-        message: "trace \(traceURL.lastPathComponent) is missing os-signpost / points-of-interest "
-          + "schema; the stock 'Time Profiler' template does not record signposts headlessly — "
-          + "re-record with Tools/PerfParser/FeederPerf.tracetemplate (Time Profiler + Hangs + "
-          + "os_signpost). Without it the perf-nav-window interval cannot be resolved."
-      )
-    }
 
     let schemaName = tocXML.contains("schema=\"time-sample\"") ? "time-sample" : "time-profile"
     let hangSchema =
       tocXML.contains("schema=\"hang-events\"")
       ? "hang-events" : "potential-hangs"
-    let signpostSchema =
-      tocXML.contains("schema=\"os-signpost\"")
-      ? "os-signpost" : "points-of-interest"
 
     let timeXML = try runProcess(
       launchPath: "/usr/bin/xcrun",
@@ -124,21 +121,6 @@ enum TraceMetricsAggregator {
     )
     let shares = try parseTimeProfile(xml: timeXML)
 
-    let signpostXML = try runProcess(
-      launchPath: "/usr/bin/xcrun",
-      arguments: [
-        "xctrace", "export", "--input", traceURL.path,
-        "--xpath", "/trace-toc/run/data/table[@schema=\"\(signpostSchema)\"]",
-      ]
-    )
-    guard let window = parseSignpostWindow(xml: signpostXML, name: "perf-nav-window") else {
-      throw PerfParserError(
-        message: "trace \(traceURL.lastPathComponent) has an os-signpost table but no resolvable "
-          + "`perf-nav-window` interval; the scenario may have exited before endInterval fired. "
-          + "Re-record and confirm PerfScenarioRunner reached the end of the nav walk."
-      )
-    }
-
     let hangsXML = try runProcess(
       launchPath: "/usr/bin/xcrun",
       arguments: [
@@ -147,6 +129,51 @@ enum TraceMetricsAggregator {
       ]
     )
     let hangEvents = try parseHangEvents(xml: hangsXML)
+
+    // Signpost-window resolution — three distinct outcomes, deliberately NOT
+    // collapsed (the taxonomy is load-bearing: the central risk is never
+    // blessing a stale/wrong-binary trace as green):
+    //
+    // (a) NO os_signpost table at all → the template did not record signposts.
+    //     Degrade gracefully: window is nil, windowed metrics report SKIP,
+    //     whole-trace metrics + sidebar_nav still report, the run does NOT
+    //     fail. Hard-throwing here would make the harness unusable on a clean
+    //     host whose template happens not to capture signposts.
+    // (b) os_signpost table PRESENT but the `perf-nav-window` interval ABSENT
+    //     → the dangerous case: LaunchServices almost certainly resolved the
+    //     launch to a stale/wrong `com.feeder.app` build that emits older
+    //     signposts (e.g. `sidebar-click`) but not `perf-nav-window`. Fail
+    //     LOUD — a stale-code trace must never pass as green.
+    // (c) table present WITH `perf-nav-window` → window the hang counts.
+    let window: (start: Double, end: Double)?
+    if !hasSignpost {
+      window = nil  // (a)
+    } else {
+      let signpostSchema =
+        tocXML.contains("schema=\"os-signpost\"")
+        ? "os-signpost" : "points-of-interest"
+      let signpostXML = try runProcess(
+        launchPath: "/usr/bin/xcrun",
+        arguments: [
+          "xctrace", "export", "--input", traceURL.path,
+          "--xpath", "/trace-toc/run/data/table[@schema=\"\(signpostSchema)\"]",
+        ]
+      )
+      guard let resolved = parseSignpostWindow(xml: signpostXML, name: "perf-nav-window") else {
+        // (b) — refuse to report against a stale trace.
+        throw PerfParserError(
+          message: "trace \(traceURL.lastPathComponent) has an os_signpost table but no resolvable "
+            + "`perf-nav-window` interval. xctrace almost certainly traced the WRONG/STALE binary: "
+            + "LaunchServices resolved the launch to a different `com.feeder.app` build (a stale "
+            + "Xcode DerivedData Debug build) that emits older signposts but not `perf-nav-window`. "
+            + "Refusing to report windowed metrics against a stale trace. Clear the stale "
+            + "registration (rm -rf ~/Library/Developer/Xcode/DerivedData/Feeder-*) and re-run, or "
+            + "confirm PerfScenarioRunner reached the end of the nav walk before exit."
+        )
+      }
+      window = resolved  // (c)
+    }
+
     let counts = countHangs(hangEvents, window: window)
 
     return TraceMetrics(
@@ -255,9 +282,14 @@ enum TraceMetricsAggregator {
   /// Count hangs at the 250 ms (micro) and 500 ms (full) thresholds, both
   /// whole-trace and windowed to the given signpost interval. A hang counts as
   /// in-window when its start-time falls inside `[window.start, window.end]`.
+  ///
+  /// When `window` is `nil` (no signpost table — case (a) in `extractMetrics`),
+  /// the windowed counts are returned as `nil` ("not captured"), NOT `0` — a
+  /// zero would falsely read as "no stutter in the window". The whole-trace
+  /// counts are always returned.
   static func countHangs(
     _ events: [HangEvent], window: (start: Double, end: Double)?
-  ) -> (micro: Int, full: Int, microInWindow: Int, fullInWindow: Int) {
+  ) -> (micro: Int, full: Int, microInWindow: Int?, fullInWindow: Int?) {
     var micro = 0
     var full = 0
     var microInWindow = 0
@@ -274,6 +306,7 @@ enum TraceMetricsAggregator {
         if isFull { fullInWindow += 1 }
       }
     }
+    guard window != nil else { return (micro, full, nil, nil) }
     return (micro, full, microInWindow, fullInWindow)
   }
 }
@@ -541,8 +574,11 @@ func printTraceMetrics(_ metrics: TraceMetrics) {
   print(String(format: "  sidebar_nav_getter_pct: %.2f%%", metrics.sidebarNavGetterPct))
   print("  microhangs_ge_250ms_count (whole trace): \(metrics.microhangsGe250MsCount)")
   print("  full_hangs_ge_500ms_count (whole trace): \(metrics.fullHangsGe500MsCount)")
-  print("  microhangs_in_nav_window: \(metrics.microhangsInNavWindow)")
-  print("  full_hangs_in_nav_window: \(metrics.fullHangsInNavWindow)")
+  func windowed(_ value: Int?) -> String {
+    value.map(String.init) ?? "<not captured — no signpost table>"
+  }
+  print("  microhangs_in_nav_window: \(windowed(metrics.microhangsInNavWindow))")
+  print("  full_hangs_in_nav_window: \(windowed(metrics.fullHangsInNavWindow))")
 }
 
 func compareTraceMetrics(_ metrics: TraceMetrics, baseline: BaselineDocument) -> Bool {
@@ -606,17 +642,29 @@ func compareTraceMetrics(_ metrics: TraceMetrics, baseline: BaselineDocument) ->
     metric: baseline.level4Trace.fullHangsGe500MsCount,
     capturedFmt: "%.0f", compareFmt: "%.0f vs threshold %.0f"
   )
-  compareOptional(
+  // Windowed hang counts: SKIP with a distinct reason when the metric was not
+  // captured (no signpost table — case (a) in extractMetrics), separate from
+  // the report-only null-max SKIP.
+  func compareWindowed(name: String, captured: Int?, metric: ThresholdMetric?) {
+    guard let captured else {
+      print(
+        "SKIP  \(name): not captured — trace carried no os_signpost table, so the "
+          + "perf-nav-window interval could not be resolved (end-to-end windowing unverified)")
+      return
+    }
+    compareOptional(
+      name: name, captured: Double(captured), metric: metric,
+      capturedFmt: "%.0f", compareFmt: "%.0f vs threshold %.0f")
+  }
+  compareWindowed(
     name: "microhangs_in_nav_window",
-    captured: Double(metrics.microhangsInNavWindow),
-    metric: baseline.level4Trace.microhangsInNavWindow,
-    capturedFmt: "%.0f", compareFmt: "%.0f vs threshold %.0f"
+    captured: metrics.microhangsInNavWindow,
+    metric: baseline.level4Trace.microhangsInNavWindow
   )
-  compareOptional(
+  compareWindowed(
     name: "full_hangs_in_nav_window",
-    captured: Double(metrics.fullHangsInNavWindow),
-    metric: baseline.level4Trace.fullHangsInNavWindow,
-    capturedFmt: "%.0f", compareFmt: "%.0f vs threshold %.0f"
+    captured: metrics.fullHangsInNavWindow,
+    metric: baseline.level4Trace.fullHangsInNavWindow
   )
   return allPass
 }

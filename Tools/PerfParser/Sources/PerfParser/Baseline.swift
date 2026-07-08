@@ -203,10 +203,14 @@ enum Baseline {
     // slot (null max) so a first write does not accidentally bless a ceiling.
     setCaptured(
       &doc.level4Trace.sidebarNavGetterPct, to: metrics.sidebarNavGetterPct)
-    setCaptured(
-      &doc.level4Trace.microhangsInNavWindow, to: Double(metrics.microhangsInNavWindow))
-    setCaptured(
-      &doc.level4Trace.fullHangsInNavWindow, to: Double(metrics.fullHangsInNavWindow))
+    // Windowed counts may be nil (no signpost table); only record a captured
+    // value when it was actually measured.
+    if let micro = metrics.microhangsInNavWindow {
+      setCaptured(&doc.level4Trace.microhangsInNavWindow, to: Double(micro))
+    }
+    if let full = metrics.fullHangsInNavWindow {
+      setCaptured(&doc.level4Trace.fullHangsInNavWindow, to: Double(full))
+    }
     if doc.capturedOn == nil {
       doc.capturedOn = ISO8601DateFormatter().string(from: Date())
     }
