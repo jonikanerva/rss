@@ -40,6 +40,109 @@ struct TraceWindowingTests {
     #expect(window == nil)
   }
 
+  // MARK: - Real xctrace export format (id/ref interning, issue #132)
+
+  @Test("Resolves perf-nav-window from the real signpost format with id/ref interning")
+  func resolvesRealSignpostFormat() throws {
+    // The real export names columns <event-time>/<event-type>/<signpost-name>
+    // and interns repeats as <element ref="N"/>. The perf-nav-window End row
+    // refs BOTH its event-type and its name, so this only resolves if refs are
+    // followed back to their defining rows.
+    let window = TraceMetricsAggregator.parseSignpostWindow(
+      xml: Data(Self.realSignpostXML.utf8), name: "perf-nav-window")
+    let unwrapped = try #require(window)
+    #expect(unwrapped.start == 1000)
+    #expect(unwrapped.end == 18000)
+  }
+
+  @Test("Render floor holds on the real signpost format (ref-resolved sidebar-click)")
+  func floorHoldsOnRealFormat() {
+    let rows = TraceMetricsAggregator.parseSignpostRows(xml: Data(Self.realSignpostXML.utf8))
+    #expect(
+      TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "sidebar-click", window: (start: 1000, end: 18000)))
+  }
+
+  @Test("Time-profile shares resolve interned frames AND weights (real format)")
+  func timeProfileResolvesInterning() throws {
+    // Four samples, each weight 1.00 ms via <weight ref>. Sample 3 names
+    // ContentView.body.getter only through <frame ref>. Correct output needs
+    // BOTH resolutions: every sample weighted 1_000_000 (not 1), and sample 3
+    // counted into body. Expect body 2/4 = 50 %, sidebar-nav 1/4 = 25 %.
+    let shares = try TraceMetricsAggregator.parseTimeProfile(
+      xml: Data(Self.realTimeProfileXML.utf8))
+    #expect(shares.bodyPct == 50)
+    #expect(shares.sidebarNavPct == 25)
+    #expect(shares.unreadPct == 0)
+  }
+
+  // MARK: - Render-path non-degeneracy floor (issue #132)
+
+  @Test("Floor witness (sidebar-click) resolves inside the window")
+  func floorWitnessPresentInWindow() {
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.fullRenderSignpostXML.utf8))
+    #expect(
+      TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: TraceMetricsAggregator.requiredRenderSignpostName,
+        window: (start: 1000, end: 6000)))
+  }
+
+  @Test("Floor scans past a pre-window occurrence to a later in-window one")
+  func floorScansPastPreWindowOccurrence() {
+    // `sidebar-click` fires once from the runner's pre-window `navigate(.next)`
+    // priming step (start 100, outside [1000, 6000]) and again inside the
+    // window (start 1200). A first-match resolver would reject this healthy
+    // run; the floor must find the later in-window occurrence.
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.fullRenderSignpostXML.utf8))
+    #expect(
+      TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "sidebar-click", window: (start: 1000, end: 6000)))
+  }
+
+  @Test("Floor fails when a render signpost occurs only OUTSIDE the window")
+  func floorFailsWhenOnlyOutsideWindow() {
+    // Only the pre-window `sidebar-click` (start 100) exists — nothing rendered
+    // inside [1000, 6000], so the floor must reject it.
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.preWindowOnlySignpostXML.utf8))
+    #expect(
+      !TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "sidebar-click", window: (start: 1000, end: 6000)))
+  }
+
+  @Test("Floor fails when a render signpost is entirely absent")
+  func floorFailsWhenSignpostAbsent() {
+    // `fullRenderSignpostXML` carries sidebar/article/detail; a name that never
+    // appears (a stand-in for a missing render path) must fail the floor.
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.preWindowOnlySignpostXML.utf8))
+    #expect(
+      !TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "detail-render", window: (start: 1000, end: 6000)))
+  }
+
+  @Test("Floor accepts a Begin/End pair that opens inside the window")
+  func floorAcceptsBeginEndPair() {
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.beginEndRenderSignpostXML.utf8))
+    #expect(
+      TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "detail-render", window: (start: 1000, end: 6000)))
+  }
+
+  @Test("Floor rejects a zero-duration interval row")
+  func floorRejectsZeroDuration() {
+    // A row with duration 0 is not a positive-duration render — it must not
+    // satisfy the floor.
+    let rows = TraceMetricsAggregator.parseSignpostRows(
+      xml: Data(Self.zeroDurationRenderSignpostXML.utf8))
+    #expect(
+      !TraceMetricsAggregator.hasRenderSignpostInWindow(
+        rows: rows, name: "article-click", window: (start: 1000, end: 6000)))
+  }
+
   // MARK: - Hang parsing + windowing
 
   @Test("Parses hang start-times and durations")
@@ -159,6 +262,47 @@ struct TraceWindowingTests {
     </table>
     """
 
+  /// A healthy render trace: `perf-nav-window` [1000, 6000] plus a
+  /// `sidebar-click` BEFORE the window (start 100 — the runner's pre-window
+  /// priming nav) and one of each render signpost INSIDE the window.
+  static let fullRenderSignpostXML = """
+    <table schema="os-signpost">
+      <row><start-time>1000</start-time><duration>5000</duration><name>perf-nav-window</name></row>
+      <row><start-time>100</start-time><duration>20</duration><name>sidebar-click</name></row>
+      <row><start-time>1200</start-time><duration>30</duration><name>sidebar-click</name></row>
+      <row><start-time>2000</start-time><duration>40</duration><name>article-click</name></row>
+      <row><start-time>2500</start-time><duration>100</duration><name>detail-render</name></row>
+    </table>
+    """
+
+  /// A degenerate trace: `perf-nav-window` closed but the only render signpost
+  /// (`sidebar-click`) fired BEFORE the window and nothing rendered inside it —
+  /// the partial-render case the floor must reject.
+  static let preWindowOnlySignpostXML = """
+    <table schema="os-signpost">
+      <row><start-time>1000</start-time><duration>5000</duration><name>perf-nav-window</name></row>
+      <row><start-time>100</start-time><duration>20</duration><name>sidebar-click</name></row>
+    </table>
+    """
+
+  /// A render signpost expressed as a Begin/End pair opening inside the window.
+  static let beginEndRenderSignpostXML = """
+    <table schema="os-signpost">
+      <row><start-time>1000</start-time><duration>5000</duration><name>perf-nav-window</name></row>
+      <row><event-type>Begin</event-type><start-time>1500</start-time><name>detail-render</name></row>
+      <row><event-type>End</event-type><start-time>1800</start-time><name>detail-render</name></row>
+    </table>
+    """
+
+  /// A zero-duration `article-click` interval — present but not a positive
+  /// render, so the floor must reject it.
+  static let zeroDurationRenderSignpostXML = """
+    <table schema="os-signpost">
+      <row><start-time>1000</start-time><duration>5000</duration><name>perf-nav-window</name></row>
+      <row><start-time>2000</start-time><duration>0</duration><name>article-click</name></row>
+    </table>
+    """
+
   /// Hang durations in nanoseconds; start-times in the same base as the
   /// signpost window. Row 1: 300 ms @1500 (in), row 2: 600 ms @8000 (out),
   /// row 3: 550 ms @2000 (in), row 4: 260 ms @500 (out).
@@ -178,6 +322,33 @@ struct TraceWindowingTests {
       <row><weight>6</weight><backtrace>sidebarNavigationItems(folderGroups:rootCategoryLabels:collapsedFolderLabels:)</backtrace></row>
       <row><weight>6</weight><backtrace>ContentView.visibleFolderGroups.getter</backtrace></row>
       <row><weight>70</weight><backtrace>someUnrelatedSymbol</backtrace></row>
+    </table>
+    """
+
+  /// Mirror of the REAL `os-signpost` export: `<event-time>`/`<event-type>`/
+  /// `<signpost-name>` columns with `id`/`ref` interning. The perf-nav-window
+  /// End row (last) refs both its event-type (id 19 = End) and its name
+  /// (id 23 = perf-nav-window); the sidebar-click End row refs its name
+  /// (id 10). Resolving the window + floor requires following those refs.
+  static let realSignpostXML = """
+    <table schema="os-signpost">
+      <row><event-time id="1" fmt="00:01">1000</event-time><event-type id="7" fmt="Begin">Begin</event-type><signpost-name id="23" fmt="perf-nav-window">perf-nav-window</signpost-name></row>
+      <row><event-time id="2" fmt="00:06">6000</event-time><event-type ref="7"/><signpost-name id="10" fmt="sidebar-click">sidebar-click</signpost-name></row>
+      <row><event-time id="3" fmt="00:06">6001</event-time><event-type id="19" fmt="End">End</event-type><signpost-name ref="10"/></row>
+      <row><event-time id="4" fmt="00:18">18000</event-time><event-type ref="19"/><signpost-name ref="23"/></row>
+    </table>
+    """
+
+  /// Mirror of the REAL aggregated `time-profile` export: `<weight>` and
+  /// `<frame name="…">` with `id`/`ref` interning. Every sample after the
+  /// first refs the 1.00 ms weight (id 9); sample 3 refs the ContentView frame
+  /// (id 36). Both refs must resolve for the shares to come out right.
+  static let realTimeProfileXML = """
+    <table schema="time-profile">
+      <row><weight id="9" fmt="1.00 ms">1000000</weight><tagged-backtrace id="10"><backtrace><frame id="36" name="closure #1 in ContentView.body.getter" addr="0x1"/><frame id="40" name="SwiftUI.dispatch" addr="0x2"/></backtrace></tagged-backtrace></row>
+      <row><weight ref="9"/><tagged-backtrace id="11"><backtrace><frame id="50" name="Feeder.sidebarItems.getter" addr="0x3"/></backtrace></tagged-backtrace></row>
+      <row><weight ref="9"/><tagged-backtrace id="12"><backtrace><frame ref="36"/></backtrace></tagged-backtrace></row>
+      <row><weight ref="9"/><tagged-backtrace id="13"><backtrace><frame id="60" name="someUnrelatedSymbol" addr="0x4"/></backtrace></tagged-backtrace></row>
     </table>
     """
 

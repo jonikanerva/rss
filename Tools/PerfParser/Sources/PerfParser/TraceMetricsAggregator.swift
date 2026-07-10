@@ -29,6 +29,27 @@ struct TraceMetrics {
 /// across iterations. Fails closed on missing schemas or empty output —
 /// `make perf` must never declare a silent green.
 enum TraceMetricsAggregator {
+  /// The render-path signpost that must have at least one closed occurrence
+  /// inside `perf-nav-window` for a trace to count as a real render (the
+  /// non-degeneracy floor, issue #132). `sidebar-click` fires from the view
+  /// layer on EVERY J/K selection commit → content-column re-render task (see
+  /// `Feeder/Helpers/PerformanceSignposts.swift`), so it appears ~17-18× inside
+  /// the window and closes ONLY when SwiftUI actually commits a selection and
+  /// re-renders. `perf-nav-window` itself is emitted unconditionally by
+  /// `PerfScenarioRunner.run`, so it is NOT proof that anything rendered;
+  /// `sidebar-click` is.
+  ///
+  /// `article-click` / `detail-render` are intentionally NOT required. The
+  /// scenario emits them only when the middle-pane article LIST has populated
+  /// in time for an article-selection step, which races the `DataReader`
+  /// refresh under write pressure and does not fire on a fresh-seeded launch —
+  /// every deterministic iteration emits ZERO of them. Gating on them made the
+  /// floor unsatisfiable. The article-list under-population is a separate,
+  /// pre-existing scenario limitation (the runner is out of this change's
+  /// scope); it is tracked as a follow-up so the middle-pane render can be
+  /// re-exercised without weakening this gate.
+  static let requiredRenderSignpostName = "sidebar-click"
+
   static func run(traceDir: String) throws -> TraceMetrics {
     let url = URL(fileURLWithPath: traceDir)
     let fm = FileManager.default
@@ -107,7 +128,13 @@ enum TraceMetricsAggregator {
       )
     }
 
-    let schemaName = tocXML.contains("schema=\"time-sample\"") ? "time-sample" : "time-profile"
+    // Prefer the AGGREGATED, SYMBOLICATED `time-profile` table over the raw
+    // `time-sample` table. Only `time-profile` carries `<frame name="…">`
+    // symbol names and per-sample `<weight>`, which the getter-percentage
+    // buckets need. `time-sample` holds address-only `kperf-bt` backtraces (no
+    // symbols), so parsing it yields all-zero shares — the reason the parser
+    // reported 0 % on real traces before this was fixed (issue #132).
+    let schemaName = tocXML.contains("schema=\"time-profile\"") ? "time-profile" : "time-sample"
     let hangSchema =
       tocXML.contains("schema=\"hang-events\"")
       ? "hang-events" : "potential-hangs"
@@ -130,9 +157,9 @@ enum TraceMetricsAggregator {
     )
     let hangEvents = try parseHangEvents(xml: hangsXML)
 
-    // Signpost-window resolution — three distinct outcomes, deliberately NOT
+    // Signpost-window resolution — four distinct outcomes, deliberately NOT
     // collapsed (the taxonomy is load-bearing: the central risk is never
-    // blessing a stale/wrong-binary trace as green):
+    // blessing a stale/wrong-binary OR a non-rendering trace as green):
     //
     // (a) NO os_signpost table at all → the template did not record signposts.
     //     Degrade gracefully: window is nil, windowed metrics report SKIP,
@@ -144,7 +171,16 @@ enum TraceMetricsAggregator {
     //     launch to a stale/wrong `com.feeder.app` build that emits older
     //     signposts (e.g. `sidebar-click`) but not `perf-nav-window`. Fail
     //     LOUD — a stale-code trace must never pass as green.
-    // (c) table present WITH `perf-nav-window` → window the hang counts.
+    // (d) `perf-nav-window` present but the render/nav path is EMPTY — none of
+    //     the render-path signposts closed inside the window. `perf-nav-window`
+    //     is emitted directly by `PerfScenarioRunner.run`, so it closes even if
+    //     the List never rendered a row; the render-path signposts close ONLY
+    //     when the view-layer `.task`/render fires. Their absence means the
+    //     window never rendered (e.g. forced activation failed to bring a live
+    //     window on screen). Fail LOUD — a green here would be a false pass on
+    //     a partial-render run (issue #132, non-degeneracy floor).
+    // (c) table present WITH `perf-nav-window` AND the render-path floor met →
+    //     window the hang counts.
     let window: (start: Double, end: Double)?
     if !hasSignpost {
       window = nil  // (a)
@@ -159,7 +195,10 @@ enum TraceMetricsAggregator {
           "--xpath", "/trace-toc/run/data/table[@schema=\"\(signpostSchema)\"]",
         ]
       )
-      guard let resolved = parseSignpostWindow(xml: signpostXML, name: "perf-nav-window") else {
+      // Parse the signpost rows once — both the window resolution and the
+      // render-path floor read the same export.
+      let rows = parseSignpostRows(xml: signpostXML)
+      guard let resolved = resolveInterval(rows: rows, name: "perf-nav-window") else {
         // (b) — refuse to report against a stale trace.
         throw PerfParserError(
           message: "trace \(traceURL.lastPathComponent) has an os_signpost table but no resolvable "
@@ -169,6 +208,28 @@ enum TraceMetricsAggregator {
             + "Refusing to report windowed metrics against a stale trace. Clear the stale "
             + "registration (rm -rf ~/Library/Developer/Xcode/DerivedData/Feeder-*) and re-run, or "
             + "confirm PerfScenarioRunner reached the end of the nav walk before exit."
+        )
+      }
+      // (d) Non-degeneracy floor: the measured nav path must have actually
+      // rendered inside the window. Require at least one closed, positive-
+      // duration `sidebar-click` occurrence inside the window — it is the
+      // reliable witness that SwiftUI committed a selection and re-rendered,
+      // which `perf-nav-window` alone (emitted unconditionally by the runner)
+      // does not prove. Distinct from (b): here the window WAS resolvable.
+      guard
+        hasRenderSignpostInWindow(
+          rows: rows, name: Self.requiredRenderSignpostName, window: resolved)
+      else {
+        throw PerfParserError(
+          message: "trace \(traceURL.lastPathComponent): `perf-nav-window` is present but no "
+            + "`\(Self.requiredRenderSignpostName)` render witness closed inside the window — the "
+            + "measured nav path did NOT render. `perf-nav-window` is emitted directly by "
+            + "PerfScenarioRunner.run, so it closes even if nothing on screen re-rendered; "
+            + "`sidebar-click` closes ONLY when SwiftUI commits a selection and the content column "
+            + "re-renders. Its absence means the perf launch did not bring a live, rendering "
+            + "surface on screen (a LOCAL interactive GUI session is required). This is DISTINCT "
+            + "from the stale/wrong-binary case — the `perf-nav-window` interval WAS resolvable. "
+            + "Confirm the perf launch activated a foreground window and re-run (issue #132)."
         )
       }
       window = resolved  // (c)
@@ -229,11 +290,56 @@ enum TraceMetricsAggregator {
   /// in the modern schema) — the same base as hang start-times, so the two
   /// are directly comparable without unit conversion.
   static func parseSignpostWindow(xml: Data, name: String) -> (start: Double, end: Double)? {
+    resolveInterval(rows: parseSignpostRows(xml: xml), name: name)
+  }
+
+  /// Parse an os-signpost / points-of-interest export into raw signpost rows.
+  /// Split out so the window resolution and the render-path floor (issue #132)
+  /// share a single parse of the same export.
+  static func parseSignpostRows(xml: Data) -> [SignpostRow] {
     let handler = SignpostRowHandler()
     let parser = XMLParser(data: xml)
     parser.delegate = handler
-    guard parser.parse() else { return nil }
-    return resolveInterval(rows: handler.rows, name: name)
+    guard parser.parse() else { return [] }
+    return handler.rows
+  }
+
+  /// True when `rows` carries a CLOSED, positive-duration interval named `name`
+  /// whose start falls inside `window`. The render-path floor's per-signpost
+  /// check (issue #132): the render-path signposts only CLOSE when the view
+  /// layer actually rendered, so one closed occurrence inside the measured
+  /// window witnesses that a real render happened under load.
+  ///
+  /// Scans EVERY matching row, not just the first: `PerfScenarioRunner` fires
+  /// one `sidebar-click` from its pre-window `navigate(.next)` priming step —
+  /// BEFORE `perf-nav-window` opens — so a first-match resolver would reject a
+  /// healthy run. A later in-window occurrence still satisfies the floor.
+  static func hasRenderSignpostInWindow(
+    rows: [SignpostRow], name: String, window: (start: Double, end: Double)
+  ) -> Bool {
+    // Interval-row shape: one row carrying both start-time and duration.
+    for row in rows where row.name.contains(name) {
+      if let start = row.time, let duration = row.duration, duration > 0,
+        start >= window.start, start <= window.end
+      {
+        return true
+      }
+    }
+    // Begin/End pair shape: a Begin inside the window matched to a later End.
+    let matching = rows.filter { $0.name.contains(name) }
+    let begins = matching.filter {
+      ($0.phase?.lowercased().contains("begin") ?? false) && $0.time != nil
+    }
+    let ends = matching.filter {
+      ($0.phase?.lowercased().contains("end") ?? false) && $0.time != nil
+    }
+    for begin in begins {
+      guard let start = begin.time, start >= window.start, start <= window.end else { continue }
+      if ends.contains(where: { ($0.time ?? -1) > start }) {
+        return true
+      }
+    }
+    return false
   }
 
   /// Pure resolver, split out so it is unit-testable on hand-built rows.
@@ -325,33 +431,63 @@ func medianInt(_ values: [Int]) -> Int {
 
 // MARK: - XML handlers
 
-/// SAX-style handler for `xctrace`'s time-profile export. The export inlines
-/// symbol names as `<frame name="…"/>` children under each sample row; we sum
-/// the `<weight>` value when the sample's frames name one of the hot symbols.
-/// Unrelated rows still contribute to the total so the resulting percentage is
-/// the inclusive share of main-thread time the symbol consumed.
+/// SAX-style handler for `xctrace`'s aggregated `time-profile` export. Each
+/// `<row>` is one weighted sample: `<weight>` (nanoseconds) plus a
+/// `<tagged-backtrace>` of `<frame name="…">` symbols. We sum the weight of
+/// every sample whose backtrace names a hot symbol and divide by the total so
+/// the result is the inclusive share of main-thread time the symbol consumed.
+///
+/// Like the signpost export, `time-profile` INTERNS repeated values: a frame
+/// seen before appears as `<frame ref="N"/>` and a repeated weight as
+/// `<weight ref="N"/>`. Refs MUST be resolved against the interning tables, or
+/// most samples lose their symbols (and all but the first lose their weight),
+/// skewing every share (issue #132). Plain `<weight>` + `<backtrace>` text is
+/// still accepted for hand-built test fixtures.
 final class TimeProfileSampleHandler: NSObject, XMLParserDelegate {
   var totalWeight: Double = 0
   var bodyWeight: Double = 0
   var unreadWeight: Double = 0
   var sidebarNavWeight: Double = 0
+
+  /// `id` → frame symbol name, for resolving `<frame ref="N"/>`.
+  private var internedFrame: [String: String] = [:]
+  /// `id` → sample weight, for resolving `<weight ref="N"/>`.
+  private var internedWeight: [String: Double] = [:]
+
   private var currentSampleSymbols: [String] = []
   private var characterBuffer: String = ""
   private var currentWeight: Double = 0
+  private var currentWeightID: String?
 
   func parser(
     _ parser: XMLParser, didStartElement elementName: String,
     namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]
   ) {
     characterBuffer = ""
-    // Frame symbol names come either as the `name` attribute on `<frame>`
-    // or inline as the text content of `<frame>`/`<backtrace>` children.
-    if let name = attributeDict["name"], !name.isEmpty {
-      currentSampleSymbols.append(name)
-    }
     if elementName == "row" || elementName == "sample" {
       currentSampleSymbols = []
       currentWeight = 0
+      return
+    }
+    if elementName == "frame" {
+      // Defining frame: `<frame id="N" name="…">`. Repeat: `<frame ref="N"/>`.
+      if let id = attributeDict["id"], let name = attributeDict["name"], !name.isEmpty {
+        internedFrame[id] = name
+        currentSampleSymbols.append(name)
+      } else if let ref = attributeDict["ref"], let name = internedFrame[ref] {
+        currentSampleSymbols.append(name)
+      } else if let name = attributeDict["name"], !name.isEmpty {
+        currentSampleSymbols.append(name)
+      }
+    } else if elementName == "weight" {
+      // Defining weight carries id + text; a repeat is `<weight ref="N"/>`.
+      currentWeightID = attributeDict["id"]
+      if let ref = attributeDict["ref"], let value = internedWeight[ref] {
+        currentWeight = value
+      }
+    } else if let name = attributeDict["name"], !name.isEmpty {
+      // Fallback for other exports that inline a symbol as a `name` attribute.
+      currentSampleSymbols.append(name)
     }
   }
 
@@ -372,7 +508,9 @@ final class TimeProfileSampleHandler: NSObject, XMLParserDelegate {
     case "weight", "sample-time", "duration":
       if let value = Double(trimmed) {
         currentWeight = value
+        if let id = currentWeightID { internedWeight[id] = value }
       }
+      currentWeightID = nil
     case "row", "sample":
       let weight = currentWeight > 0 ? currentWeight : 1
       totalWeight += weight
@@ -410,49 +548,71 @@ struct SignpostRow {
 
 /// SAX-style handler for the os-signpost / points-of-interest export. Collects
 /// one `SignpostRow` per `<row>` — the resolver picks the matching interval.
-/// The signpost NAME (the `StaticString` passed to `beginInterval`) appears
-/// either as a `name`/`os-signpost-name` attribute or as element text; the
-/// start-time and duration appear as `start-time`/`sample-time`/`event-time`
-/// and `duration` (element text or attribute).
+///
+/// The real `xctrace` export names the columns `<event-time>` (nanoseconds),
+/// `<event-type>` (`Begin`/`End`), and `<signpost-name>`. It also INTERNS
+/// repeated values: the first occurrence of a value carries `id="N"` plus the
+/// value (element text, or the `fmt` attribute), and every later occurrence is
+/// a self-closing `<element ref="N"/>`. Begin/End rows almost always ref their
+/// `event-type` and `signpost-name`, so refs MUST be resolved against the
+/// interning table — otherwise the interval name and phase come back empty and
+/// no window resolves (issue #132; the pre-fix handler read `<name>` and
+/// ignored refs, so it never parsed a real trace). The synthetic `<name>` /
+/// `<start-time>` / `<duration>` shapes are still accepted for hand-built test
+/// fixtures.
 final class SignpostRowHandler: NSObject, XMLParserDelegate {
   var rows: [SignpostRow] = []
   private var characterBuffer: String = ""
+
+  /// Interning table: `id` → resolved value (element text preferred; the `fmt`
+  /// attribute as a fallback). Shared across the whole table so a later
+  /// `ref="N"` recovers the value defined earlier.
+  private var interned: [String: String] = [:]
+  private var currentID: String?
+
+  // Current-row accumulation.
+  private var inRow = false
   private var name: String = ""
   private var time: Double?
   private var duration: Double?
   private var phase: String?
-  private var inRow = false
 
   private static let timeElements: Set<String> = [
-    "start-time", "sample-time", "event-time", "time",
+    "event-time", "start-time", "sample-time", "time",
   ]
+  private static let nameElements: Set<String> = [
+    "signpost-name", "os-signpost-name", "name",
+  ]
+  private static let phaseElements: Set<String> = ["event-type", "phase"]
 
   func parser(
     _ parser: XMLParser, didStartElement elementName: String,
     namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]
   ) {
     characterBuffer = ""
+    currentID = attributeDict["id"]
     if elementName == "row" {
       inRow = true
       name = ""
       time = nil
       duration = nil
       phase = nil
+      return
     }
     guard inRow else { return }
-    if let attrName = attributeDict["name"] ?? attributeDict["os-signpost-name"], !attrName.isEmpty {
-      name = attrName
+    // A `ref` recovers a previously-interned value (self-closing, no text).
+    if let ref = attributeDict["ref"], let value = interned[ref] {
+      assign(elementName, value)
     }
-    if let phaseAttr = attributeDict["event-type"] ?? attributeDict["phase"], !phaseAttr.isEmpty {
-      phase = phaseAttr
+    // A defining occurrence may carry its value in `fmt`; record + assign it
+    // now, and let element text (if present) override in `didEndElement`.
+    if let id = attributeDict["id"], let fmt = attributeDict["fmt"] {
+      interned[id] = fmt
+      assign(elementName, fmt)
     }
+    // Duration, when present, is a plain attribute on interval-row fixtures.
     if let durationAttr = attributeDict["duration"], let value = Double(durationAttr) {
       duration = value
-    }
-    for key in Self.timeElements {
-      if let value = attributeDict[key], let parsed = Double(value) {
-        time = parsed
-      }
     }
   }
 
@@ -466,16 +626,14 @@ final class SignpostRowHandler: NSObject, XMLParserDelegate {
   ) {
     let trimmed = characterBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
     if inRow, !trimmed.isEmpty {
-      if Self.timeElements.contains(elementName), let value = Double(trimmed) {
-        time = value
-      } else if elementName == "duration", let value = Double(trimmed) {
+      if let id = currentID { interned[id] = trimmed }  // text is authoritative
+      if elementName == "duration", let value = Double(trimmed) {
         duration = value
-      } else if elementName == "os-signpost-name" || elementName == "name" {
-        name = trimmed
-      } else if elementName == "event-type" || elementName == "phase" {
-        phase = trimmed
-      } else if name.isEmpty, trimmed.contains("perf-nav-window") {
-        // Some exports carry the interval name as the row's message text.
+      } else {
+        assign(elementName, trimmed)
+      }
+      // Some exports carry the interval name only as the row's message text.
+      if name.isEmpty, trimmed.contains("perf-nav-window") {
         name = trimmed
       }
     }
@@ -484,6 +642,20 @@ final class SignpostRowHandler: NSObject, XMLParserDelegate {
       inRow = false
     }
     characterBuffer = ""
+    currentID = nil
+  }
+
+  /// Route a resolved value into the row field its element name maps to. A
+  /// non-numeric time value (e.g. the `fmt` string `00:06.231`) simply fails
+  /// the `Double` parse and leaves `time` for the authoritative element text.
+  private func assign(_ element: String, _ value: String) {
+    if Self.timeElements.contains(element) {
+      if let parsed = Double(value) { time = parsed }
+    } else if Self.phaseElements.contains(element) {
+      phase = value
+    } else if Self.nameElements.contains(element) {
+      name = value
+    }
   }
 }
 
