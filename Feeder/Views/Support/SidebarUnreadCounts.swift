@@ -3,8 +3,8 @@ import Foundation
 // Pure aggregation helpers for sidebar unread badges.
 //
 // Aggregation over the live unread universe runs off-MainActor on the
-// `DataWriter` actor, producing an `UnreadCountsSnapshot` (see
-// `DataWriter.fetchUnreadCountsSnapshot()`). The sidebar then overlays
+// `DataReader` actor, producing an `UnreadCountsSnapshot` (see
+// `DataReader.fetchUnreadCountsSnapshot()`). The sidebar then overlays
 // the optimistic `pendingReadIDs` set on top of that snapshot via the
 // `pendingReadCountsBy*` + `subtractingPendingCounts` helpers below.
 //

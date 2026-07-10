@@ -9,7 +9,7 @@ import Testing
 /// badge counts from a pre-computed `UnreadCountsSnapshot` and never
 /// re-aggregate the unread universe per render. The original issue framed
 /// this as "move aggregation off MainActor", but the planning audit found
-/// the heavy work already runs on `DataWriter.fetchUnreadCountsSnapshot()`
+/// the heavy work already runs on `DataReader.fetchUnreadCountsSnapshot()`
 /// (off-MainActor by virtue of `@ModelActor`).
 ///
 /// What remains, and what these tests pin, is the architectural contract

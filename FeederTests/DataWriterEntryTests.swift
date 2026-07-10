@@ -366,7 +366,6 @@ struct DataWriterEntryTests {
 
   /// Helper: seed a feed, two classified entries in `technology`, and mark
   /// `readEntryID` as read. Returns the writer ready for fetch assertions.
-  ///
   private func seedPinTestData(readEntryID: Int) async throws -> DataWriter {
     let writer = try await makeWriter()
     try await seedFeed(writer)

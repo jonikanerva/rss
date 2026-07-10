@@ -680,7 +680,7 @@ struct ContentView: View {
   @ViewBuilder
   private var sidebarView: some View {
     // Sidebar badge counts derive from the cached `unreadSnapshot`, which is
-    // refreshed off-MainActor by `DataWriter.fetchUnreadCountsSnapshot()` —
+    // refreshed off-MainActor by `DataReader.fetchUnreadCountsSnapshot()` —
     // body never re-aggregates per evaluation. `pendingReadIDs` is the
     // optimistic-read overlay that already drives the dimmed state in
     // `EntryRowView`; subtracting it here keeps the badges in step with the

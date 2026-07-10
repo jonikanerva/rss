@@ -16,8 +16,8 @@ import os.signpost
 ///
 /// SwiftUI commit cost is not measured here — Level 4 (`xctrace record`)
 /// covers that. Level 2 is for catching regressions in the work the click
-/// handlers perform: `DataWriter.fetchEntrySections`,
-/// `DataWriter.fetchUnreadCountsSnapshot`, and `parseHTMLToBlocks`.
+/// handlers perform: `DataReader.fetchEntrySections`,
+/// `DataReader.fetchUnreadCountsSnapshot`, and `parseHTMLToBlocks`.
 ///
 /// Not part of `make test-all`. Invoked by `make perf` via
 /// `-only-testing:FeederTests/PerfSignpostTests`.

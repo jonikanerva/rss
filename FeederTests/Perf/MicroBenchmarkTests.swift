@@ -17,8 +17,8 @@ import XCTest
 /// 2 signposts (`PerfSignpostTests`) and Level 4 traces (`make perf-trace`)
 /// by isolating individual hot functions:
 ///
-/// - `DataWriter.fetchUnreadCountsSnapshot(cutoffDate:)`
-/// - `DataWriter.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:)`
+/// - `DataReader.fetchUnreadCountsSnapshot(cutoffDate:)`
+/// - `DataReader.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:)`
 /// - `parseHTMLToBlocks(_:)`
 /// - `groupEntriesByDay(_:)`
 ///
@@ -57,7 +57,7 @@ final class MicroBenchmarkTests: XCTestCase {
     try await super.tearDown()
   }
 
-  // MARK: - DataWriter.fetchUnreadCountsSnapshot
+  // MARK: - DataReader.fetchUnreadCountsSnapshot
 
   /// Pinpoints regression risk in the sidebar's cold-render path. The
   /// snapshot fetch is what drives every badge count, so any drift here
@@ -85,7 +85,7 @@ final class MicroBenchmarkTests: XCTestCase {
     }
   }
 
-  // MARK: - DataWriter.fetchEntrySections
+  // MARK: - DataReader.fetchEntrySections
 
   /// Pinpoints regression risk in the article-list cold-render path. The
   /// `category` axis is the more common selection — the `folder` axis is

@@ -3,7 +3,7 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - DataWriter.fetchUnreadCountsSnapshot
+// MARK: - DataReader.fetchUnreadCountsSnapshot
 
 /// Integration coverage for the unread aggregation that replaces the
 /// MainActor `@Query unreadEntries` fetch. The snapshot is the sole input the

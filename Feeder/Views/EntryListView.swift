@@ -288,9 +288,9 @@ struct EntryListView: View {
     // not pin an anchor from the previous list's contents.
     //
     // `result.allEntryIDs` is precomputed off-MainActor by
-    // `DataWriter.fetchEntrySections` so the membership-check `Set` build is
+    // `DataReader.fetchEntrySections` so the membership-check `Set` build is
     // the only per-reload allocation on MainActor — the flatMap walk that
-    // used to live here moved to the writer.
+    // used to live here moved to the reader.
     let newIDs = Set(result.allEntryIDs)
     let restore: AnchorRestore?
     if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {

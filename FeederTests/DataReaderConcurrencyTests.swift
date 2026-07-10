@@ -144,11 +144,14 @@ struct DataReaderConcurrencyTests {
   /// Arch's evidence gate for shipping option (i): isolate "does the SHARED
   /// container behave at PRODUCTION concurrency (exactly ONE writer + ONE reader
   /// actor on ONE shared container)" from "the test target's dozens-of-
-  /// coordinators parallelism". MUST run in ISOLATION and NON-parallel
-  /// (`-only-testing:.../sharedContainerProductionShapeStress`) so the only
-  /// concurrency is the 1+1. Run under THREAD SANITIZER — a TSan-clean,
-  /// zero-exception pass over the high iteration count is the ship signal; a
-  /// TSan race or a 1+1 exception means fall back to contingency (c).
+  /// coordinators parallelism". `make test-stress-tsan` runs ONLY this
+  /// `.serialized` suite (`-only-testing:FeederTests/DataReaderConcurrencyTests`),
+  /// so it is the sole suite in the process and `.serialized` runs this test on
+  /// its own — the only concurrency is the 1+1. (A Swift Testing *per-test*
+  /// `-only-testing` selector matches zero cases, so the suite is the runnable
+  /// unit.) Run under THREAD SANITIZER — a TSan-clean, zero-exception pass over
+  /// the high iteration count is the ship signal; a TSan race or a 1+1 exception
+  /// means fall back to contingency (c).
   ///
   /// Workload (no artificial gate/sleep): the writer sustains INSERTS
   /// (`persistEntries`) AND UPDATES (`applyClassification` + `markEntriesRead`),
@@ -167,8 +170,10 @@ struct DataReaderConcurrencyTests {
     // read-during-write rounds on a shared on-disk container. Run alongside the
     // rest of the parallel suite's many coordinators it over-stresses Core Data
     // (a test-parallelism artifact — STACK.md § 14), so in the normal gate it
-    // self-skips (no-op) and runs only via `make test-stress-tsan`, which sets
-    // `FEEDER_RUN_STRESS=1` and enables Thread Sanitizer.
+    // self-skips (no-op) and runs only via `make test-stress-tsan`. That target
+    // sets `FEEDER_RUN_STRESS=1` in the test host via `TEST_RUNNER_FEEDER_RUN_STRESS=1`
+    // (xcodebuild strips the `TEST_RUNNER_` prefix; a plain variable on the
+    // xcodebuild process does not reach the host) and enables Thread Sanitizer.
     guard ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1" else { return }
 
     // ONE shared container (C_app-style), on-disk WAL — writer AND reader on it.
@@ -284,7 +289,7 @@ struct DataReaderConcurrencyTests {
 
   /// Asserts the reader "is NOT serially dependent on an in-flight writer op"
   /// — via EVENT ORDERING, not a wall-clock/ms bound (a ms ceiling would be
-  /// host-dependent and reintroduce flake). A long writer op (300 batch-saves)
+  /// host-dependent and reintroduce flake). A long writer op (30 batch-saves)
   /// signals `started` after its FIRST batch (29 remain) and `finished` at the
   /// end; the reader fetch is issued only after `started`, and the ordering
   /// assertion is that the reader completed while the writer was STILL running
@@ -330,8 +335,8 @@ struct DataReaderConcurrencyTests {
     let result = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
 
-    // ORDERING: the reader's single fetch completed while the writer's 300-batch
-    // op was still running (299:1 work ratio makes this host-independent, not a
+    // ORDERING: the reader's single fetch completed while the writer's 30-batch
+    // op was still running (29:1 work ratio makes this host-independent, not a
     // timing bound). A serially-dependent read path could not have returned yet.
     #expect(finished.isSet == false)
     #expect(result.allEntryIDs.count == 1)
