@@ -41,8 +41,10 @@ enum DataWriterTestSupport {
 
   /// Writer + read-only reader over ONE shared in-memory container — the
   /// canonical setup for the read/write split (option (i)). In-memory keeps the
-  /// light reader suites fast; `@Suite(.serialized)` caps concurrent
-  /// coordinators so the shared-cache store does not race under parallel load.
+  /// light reader suites fast. Concurrent coordinators are capped by the `make
+  /// test` gate's `-parallel-testing-enabled NO` (serial run), not by the
+  /// per-suite `@Suite(.serialized)` traits, which only order tests within a
+  /// suite (STACK.md §14).
   static func makeWriterAndReader() async throws -> (DataWriter, DataReader) {
     let writer = try await makeWriter()
     let reader = await DataReader.makeDetached(modelContainer: writer.modelContainer)
