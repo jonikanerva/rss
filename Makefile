@@ -251,7 +251,13 @@ PERF_RESULT_DIR  ?= artifacts/local/perf
 PERF_BASELINE    ?= Tests/PerfBaselines/baseline-current.json
 PERF_DATASET     ?= 5000
 PERF_ITERATIONS  ?= 5
-PERF_TIME_LIMIT  ?= 20000
+# Recording ceiling per iteration. The full deterministic scenario — fresh
+# 5000-row seed (~6 s) + nav walk (~12 s) + trailing flush — self-exits at
+# ~19-22 s, so the app terminates well before this ceiling and xctrace returns
+# 0. 20 s left almost no margin (the nav window alone ends ~18.5 s), so a
+# thermally-loaded iteration raced the limit and got killed before the
+# `perf-nav-window` closed. 40 s is headroom, not a target (issue #132).
+PERF_TIME_LIMIT  ?= 40000
 
 perf: perf-preflight perf-signpost perf-trace ## Local perf regression suite (Levels 2 + 4)
 	@echo "==> perf: PASS"
