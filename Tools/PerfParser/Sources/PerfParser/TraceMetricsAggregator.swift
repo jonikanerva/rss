@@ -199,15 +199,23 @@ enum TraceMetricsAggregator {
       // render-path floor read the same export.
       let rows = parseSignpostRows(xml: signpostXML)
       guard let resolved = resolveInterval(rows: rows, name: "perf-nav-window") else {
-        // (b) — refuse to report against a stale trace.
+        // (b) — no `perf-nav-window` at all. Two causes, ordered by likelihood
+        // now that the scenario runs headless: a TOTAL activation failure (the
+        // dominant future mode) is checked BEFORE the stale-binary
+        // wild-goose-chase, so a broken activation delegate does not send the
+        // dev to clear DerivedData for nothing.
         throw PerfParserError(
           message: "trace \(traceURL.lastPathComponent) has an os_signpost table but no resolvable "
-            + "`perf-nav-window` interval. xctrace almost certainly traced the WRONG/STALE binary: "
+            + "`perf-nav-window` interval — the perf scenario never reached `beginInterval`. Two "
+            + "causes, check in THIS order: (1) a TOTAL activation failure under headless launch "
+            + "(#132) — the perf launch never brought a live, rendering window on screen, so "
+            + "`ContentView.runPerfScenario()` never fired: confirm the activation delegate fired "
+            + "and a foreground window was activated (a LOCAL interactive GUI session is required) "
+            + "BEFORE assuming a stale binary or clearing DerivedData; (2) a WRONG/STALE binary — "
             + "LaunchServices resolved the launch to a different `com.feeder.app` build (a stale "
-            + "Xcode DerivedData Debug build) that emits older signposts but not `perf-nav-window`. "
-            + "Refusing to report windowed metrics against a stale trace. Clear the stale "
-            + "registration (rm -rf ~/Library/Developer/Xcode/DerivedData/Feeder-*) and re-run, or "
-            + "confirm PerfScenarioRunner reached the end of the nav walk before exit."
+            + "Xcode DerivedData Debug build) that emits older signposts but not `perf-nav-window`: "
+            + "clear the stale registration (rm -rf ~/Library/Developer/Xcode/DerivedData/Feeder-*) "
+            + "and re-run. Refusing to report windowed metrics against a trace with no nav window."
         )
       }
       // (d) Non-degeneracy floor: the measured nav path must have actually
