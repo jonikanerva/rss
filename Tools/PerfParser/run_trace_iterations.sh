@@ -246,10 +246,11 @@ run_iteration() {
   # the 54 time-limit) → crash, bad signature, or launch failure. This PRESERVES
   # PR #133's fail-loud guard.
   if [[ "$status" -ne 0 && "$status" -ne 54 ]]; then
-    echo "ERROR: iteration $index: xctrace exited $status (expected 0, or 54 for" >&2
-    echo "       the time-limit). A trace was produced but this code signals a" >&2
-    echo "       crash, bad signature, or launch failure — refusing to trust it." >&2
-    echo "       See '$xctrace_log'." >&2
+    echo "ERROR: iteration $index: unexpected xctrace exit $status with a trace present" >&2
+    echo "       (expected 0, or 54 for the time-limit). This usually signals a crash," >&2
+    echo "       bad signature, or launch failure — refusing to trust the trace. If $status" >&2
+    echo "       is a NEW xctrace time-limit code (an Instruments version change), add it" >&2
+    echo "       to the {0,54} allowlist in this check. See '$xctrace_log'." >&2
     exit 1
   fi
 
