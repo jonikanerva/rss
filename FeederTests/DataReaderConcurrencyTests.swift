@@ -22,19 +22,20 @@ import Testing
 /// DTOs carry only `PersistentIdentifier`s + write-time-immutable labels — so
 /// it only needs the `isRead` membership-drop case plus the scalar-free-DTO
 /// guard.
-/// `.serialized` serialises the tests WITHIN this suite — a Swift-Testing
-/// accommodation, NOT a production limitation and NOT masking a bug: each test
-/// spins up its own container, and running many reader+writer container-pairs at
-/// once over-stresses Core Data's coordinator concurrency far beyond production's
-/// single reader+writer — which can throw an uncatchable `NSException`. The trait
-/// alone is NOT the cap, though: Swift Testing still runs different suites in
-/// parallel (Apple's docs: the trait "does not influence how those tests run
-/// relative to unrelated tests"), so the `make test` gate disables target-wide
+/// `.serialized` serialises the tests WITHIN this suite so they run one at a
+/// time. Its job here is INTRA-suite ordering, not capping coordinators: the
+/// heavyweight `sharedContainerProductionShapeStress` (hundreds of concurrent
+/// read-during-write rounds) must run ALONE, not multiplied by sibling tests
+/// racing their own containers, and the gated / event-ordering tests
+/// (`readerNeverSeesUncommittedClassification`, `readerNotSeriallyDependentOnWriter`)
+/// want deterministic in-suite ordering. It is NOT the cross-suite coordinator
+/// cap: Swift Testing still runs different suites in parallel (Apple's docs:
+/// "This trait doesn't affect the execution of a test relative to its peers or
+/// to unrelated tests."), so the `make test` gate disables target-wide
 /// parallelism (`-parallel-testing-enabled NO`, STACK.md §14) to hold concurrent
-/// coordinators at one; `.serialized` remains for intra-suite ordering and
-/// single-suite Xcode (Cmd-U) runs. The isolated 1+1
-/// `sharedContainerProductionShapeStress` test (clean under Thread Sanitizer)
-/// proves the production-shape topology is safe.
+/// coordinators at one; `.serialized` also keeps single-suite Xcode (Cmd-U) runs
+/// safe. The isolated 1+1 `sharedContainerProductionShapeStress` test (clean
+/// under Thread Sanitizer) proves the production-shape topology is safe.
 @Suite("DataReader concurrency + freshness", .serialized)
 struct DataReaderConcurrencyTests {
   /// Writer + reader over ONE shared on-disk WAL container (production journal

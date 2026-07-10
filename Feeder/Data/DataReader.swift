@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import SwiftData
 
 // MARK: - DataReader Actor
@@ -73,8 +72,6 @@ actor DataReader: ModelActor {
     context.autosaveEnabled = false
     self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
   }
-
-  private static let logger = Logger(subsystem: "com.feeder.app", category: "DataReader")
 
   /// Construct a `DataReader` on a detached background task — same idiom as
   /// `DataWriter.makeDetached`, honouring `STACK.md § 0 → Actor boundaries`
