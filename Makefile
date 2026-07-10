@@ -124,8 +124,18 @@ test: build ## Run unit tests (FeederTests, excluding the perf suite)
 	@echo "==> unit tests"
 	@mkdir -p $(dir $(UNIT_RESULT))
 	@rm -rf $(UNIT_RESULT)
+	@# `-parallel-testing-enabled NO` runs the whole target SERIALLY. The unit
+	@# target has many suites that each spin up a fresh SwiftData `ModelContainer`
+	@# (one Core Data coordinator apiece); Swift Testing runs suites in parallel by
+	@# default, and `@Suite(.serialized)` only serialises WITHIN a suite — per
+	@# Apple's docs it "does not influence how those tests run relative to unrelated
+	@# tests", so it does NOT cap the number of coordinators alive at once across
+	@# suites. Under that concurrency the coordinators intermittently abort the test
+	@# host (a cascade of 0.000 s failures). Serialising the run caps it at one
+	@# coordinator at a time — deterministic and green (STACK.md §14).
 	xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
+		-parallel-testing-enabled NO \
 		-resultBundlePath $(UNIT_RESULT) \
 		-only-testing:FeederTests \
 		-skip-testing:FeederTests/PerfSignpostTests \
@@ -166,6 +176,7 @@ test-stress-tsan: ## Isolated Thread-Sanitizer run of the DataReader concurrency
 	@mkdir -p $(DERIVED_DATA)
 	TEST_RUNNER_FEEDER_RUN_STRESS=1 xcodebuild test \
 		$(XCODEBUILD_FLAGS) \
+		-parallel-testing-enabled NO \
 		-enableThreadSanitizer YES \
 		-only-testing:FeederTests/DataReaderConcurrencyTests
 

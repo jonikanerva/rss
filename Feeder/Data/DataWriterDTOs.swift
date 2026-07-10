@@ -37,6 +37,11 @@ nonisolated struct CategoryDefinition: Sendable {
 /// `DataReader.fetchEntrySections` and consumed by `EntryListView`.
 /// Only carries lightweight identifiers — the view materializes Entry objects
 /// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
+///
+/// Identifiers + write-time-immutable labels ONLY. Do NOT add a volatile `Entry`
+/// scalar here — it would reintroduce the stale read that `fetchEntrySections`'
+/// membership-only freshness relies on being impossible. Pinned at compile time
+/// by `DataReaderConcurrencyTests.fetchEntrySectionsDTOsAreScalarFree`.
 nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String

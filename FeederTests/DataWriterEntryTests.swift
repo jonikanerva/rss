@@ -6,8 +6,9 @@ import Testing
 // MARK: - DataWriter Entry Tests
 
 /// `.serialized`: the pinned-selection tests open a `DataReader` (2nd read-only
-/// context) alongside the writer. A Swift-Testing parallelism accommodation —
-/// caps concurrent Core Data coordinators; not a production limitation.
+/// context) alongside the writer. Serialises WITHIN this suite; the target-wide
+/// coordinator cap is the `make test` gate's `-parallel-testing-enabled NO`
+/// (STACK.md §14). Not a production limitation.
 @Suite(.serialized)
 struct DataWriterEntryTests {
   // MARK: - Helpers

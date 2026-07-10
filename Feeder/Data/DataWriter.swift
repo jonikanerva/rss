@@ -24,7 +24,8 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
 // MARK: - Day sectioning (lives here because it reads @Model Entry within the actor's context)
 
 /// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
-/// Runs in whatever context calls it (typically `DataWriter` background actor).
+/// Runs in whatever context calls it — now the `DataReader` background actor,
+/// which owns `fetchEntrySections`.
 /// `Entry` reads are local to that context — no actor hops, no MainActor work.
 nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
   let calendar = Calendar.current

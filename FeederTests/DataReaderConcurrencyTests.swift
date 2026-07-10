@@ -22,12 +22,17 @@ import Testing
 /// DTOs carry only `PersistentIdentifier`s + write-time-immutable labels — so
 /// it only needs the `isRead` membership-drop case plus the scalar-free-DTO
 /// guard.
-/// `.serialized` is a Swift-Testing PARALLELISM accommodation, NOT a production
-/// limitation and NOT masking a bug: each test spins up its own container, and
-/// running dozens of reader+writer container-pairs at once (default parallel
-/// execution) over-stresses Core Data's coordinator concurrency far beyond
-/// production's single reader+writer — which can throw an uncatchable
-/// `NSException`. Serializing caps concurrent coordinators. The isolated 1+1
+/// `.serialized` serialises the tests WITHIN this suite — a Swift-Testing
+/// accommodation, NOT a production limitation and NOT masking a bug: each test
+/// spins up its own container, and running many reader+writer container-pairs at
+/// once over-stresses Core Data's coordinator concurrency far beyond production's
+/// single reader+writer — which can throw an uncatchable `NSException`. The trait
+/// alone is NOT the cap, though: Swift Testing still runs different suites in
+/// parallel (Apple's docs: the trait "does not influence how those tests run
+/// relative to unrelated tests"), so the `make test` gate disables target-wide
+/// parallelism (`-parallel-testing-enabled NO`, STACK.md §14) to hold concurrent
+/// coordinators at one; `.serialized` remains for intra-suite ordering and
+/// single-suite Xcode (Cmd-U) runs. The isolated 1+1
 /// `sharedContainerProductionShapeStress` test (clean under Thread Sanitizer)
 /// proves the production-shape topology is safe.
 @Suite("DataReader concurrency + freshness", .serialized)
@@ -139,6 +144,35 @@ struct DataReaderConcurrencyTests {
     #expect(hasPending == false)
   }
 
+  // MARK: - AC5-part-2: fetchEntrySections DTOs stay scalar-free (compile-time pin)
+
+  /// `fetchEntrySections`'s membership-only freshness (the `readerDropsRow…`
+  /// argument above) holds ONLY because its result DTOs carry no volatile
+  /// `Entry` scalar — just `PersistentIdentifier`s plus write-time-immutable
+  /// section labels. A stale registered object therefore cannot leak a changed
+  /// value through them. Reflection could assert "no scalar" at runtime, but
+  /// `STACK.md § 7` bans it, so this is a COMPILE-TIME structural pin instead:
+  /// it builds `EntryListSection` and `EntryListFetchResult` through their full
+  /// memberwise initializers with the exact current field list. Adding a stored
+  /// field to either DTO changes the memberwise initializer's signature and
+  /// BREAKS THIS TEST'S COMPILE — forcing a reviewer to confirm the new field is
+  /// not a volatile `Entry` scalar that would reintroduce stale reads. Keep
+  /// these DTOs to identifiers + immutable labels only.
+  @Test("fetchEntrySections DTOs stay scalar-free (compile-time field-set pin)")
+  func fetchEntrySectionsDTOsAreScalarFree() {
+    // EntryListSection: id (ForEach identity) + label (write-time-immutable
+    // section title) + entryIDs — NO Entry scalar. A new stored field here
+    // fails to compile until the argument list below is updated.
+    let day = Date(timeIntervalSince1970: 0)
+    let section = EntryListSection(id: day, label: "Section", entryIDs: [])
+    // EntryListFetchResult: the sections + the pre-flattened id list — both
+    // identifier-only.
+    let result = EntryListFetchResult(sections: [section], allEntryIDs: [])
+    // Behavioural anchor so the constructions above are not dead code.
+    #expect(result.sections.first == section)
+    #expect(result.allEntryIDs.isEmpty)
+  }
+
   // MARK: - Production-shape 1+1 stress (TSan evidence gate for the shared topology)
 
   /// Arch's evidence gate for shipping option (i): isolate "does the SHARED
@@ -166,14 +200,15 @@ struct DataReaderConcurrencyTests {
   /// in flight.
   @Test("Shared container: sustained 1+1 read-during-write is clean (TSan gate)")
   func sharedContainerProductionShapeStress() async throws {
-    // ISOLATION-ONLY gate: this test drives hundreds of concurrent
-    // read-during-write rounds on a shared on-disk container. Run alongside the
-    // rest of the parallel suite's many coordinators it over-stresses Core Data
-    // (a test-parallelism artifact — STACK.md § 14), so in the normal gate it
-    // self-skips (no-op) and runs only via `make test-stress-tsan`. That target
-    // sets `FEEDER_RUN_STRESS=1` in the test host via `TEST_RUNNER_FEEDER_RUN_STRESS=1`
-    // (xcodebuild strips the `TEST_RUNNER_` prefix; a plain variable on the
-    // xcodebuild process does not reach the host) and enables Thread Sanitizer.
+    // DEDICATED-GATE ONLY: this test drives hundreds of concurrent
+    // read-during-write rounds (~100 s under Thread Sanitizer) — a heavyweight
+    // stress that belongs in its own run, not the everyday `make test-all`. So it
+    // self-skips (no-op) unless `FEEDER_RUN_STRESS=1`, which only `make
+    // test-stress-tsan` sets — via `TEST_RUNNER_FEEDER_RUN_STRESS=1` (xcodebuild
+    // strips the `TEST_RUNNER_` prefix; a plain variable on the xcodebuild process
+    // does not reach the host) — together with Thread Sanitizer. (The everyday
+    // gate also runs serially — `-parallel-testing-enabled NO`, STACK.md § 14 —
+    // so nothing over-stresses Core Data there either.)
     guard ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1" else { return }
 
     // ONE shared container (C_app-style), on-disk WAL — writer AND reader on it.

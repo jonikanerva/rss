@@ -19,7 +19,9 @@ enum DataWriterTestSupport {
   /// On-disk temp container (WAL — the production journal mode) at a unique
   /// store URL. Used ONLY by the isolated 1+1 stress test (which needs
   /// production's WAL journal mode); the light reader-using suites use the fast
-  /// in-memory container + `@Suite(.serialized)` to cap concurrent coordinators.
+  /// in-memory container. Concurrent coordinators are capped by the `make test`
+  /// gate's `-parallel-testing-enabled NO` (serial run), not by the per-suite
+  /// `@Suite(.serialized)` traits (STACK.md §14).
   static func makeOnDiskContainer() throws -> ModelContainer {
     let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let url = URL(fileURLWithPath: NSTemporaryDirectory())

@@ -10,9 +10,10 @@ import Testing
 /// sidebar reads for badge counts, so its contract — empty case, mixed
 /// read/unread, multi-axis grouping — is what these tests pin down.
 /// `.serialized`: these tests open a `DataReader` (2nd read-only context)
-/// alongside the writer. A Swift-Testing parallelism accommodation — caps
-/// concurrent Core Data coordinators so the test target doesn't over-stress
-/// them beyond production's single reader+writer; not a production limitation.
+/// alongside the writer. Serialises WITHIN this suite; the target-wide cap on
+/// concurrent Core Data coordinators is the `make test` gate's
+/// `-parallel-testing-enabled NO` (STACK.md §14), since `.serialized` does not
+/// stop other suites running in parallel. Not a production limitation.
 @Suite(.serialized)
 struct UnreadCountsSnapshotFetchTests {
   private func makeWriter() async throws -> DataWriter {
