@@ -34,9 +34,14 @@ nonisolated struct CategoryDefinition: Sendable {
 }
 
 /// One day-grouped section of the article list. Built off-MainActor by
-/// `DataWriter.fetchEntrySections` and consumed by `EntryListView`.
+/// `DataReader.fetchEntrySections` and consumed by `EntryListView`.
 /// Only carries lightweight identifiers — the view materializes Entry objects
 /// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
+///
+/// Identifiers + write-time-immutable labels ONLY. Do NOT add a volatile `Entry`
+/// scalar here — it would reintroduce the stale read that `fetchEntrySections`'
+/// membership-only freshness relies on being impossible. Pinned at compile time
+/// by `DataReaderConcurrencyTests.fetchEntrySectionsDTOsAreScalarFree`.
 nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String
@@ -112,7 +117,7 @@ nonisolated enum CategoryReassignError: Error, Sendable, Equatable, LocalizedErr
 
 /// Cached aggregation over the classified-unread universe used by the sidebar
 /// to render its badges. Computed off-MainActor by
-/// `DataWriter.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays
+/// `DataReader.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays
 /// the cost of `@Query unreadEntries` materialization + per-row property
 /// access — Time Profiler showed that path consuming 85% of body time at 33%
 /// of total main-thread CPU. The dictionaries are read as direct lookups; the

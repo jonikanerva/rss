@@ -183,15 +183,15 @@ struct PendingReadPruneTrigger: ViewModifier {
 /// reasonable-time limit.
 struct UnreadSnapshotRefreshTask: ViewModifier {
   let key: String
-  let writer: DataWriter?
+  let reader: DataReader?
   let cutoffDate: Date
   @Binding
   var snapshot: UnreadCountsSnapshot
 
   func body(content: Content) -> some View {
     content.task(id: key) {
-      guard let writer else { return }
-      let fresh = try? await writer.fetchUnreadCountsSnapshot(cutoffDate: cutoffDate)
+      guard let reader else { return }
+      let fresh = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoffDate)
       guard !Task.isCancelled, let fresh else { return }
       snapshot = fresh
     }

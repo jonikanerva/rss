@@ -254,7 +254,7 @@ struct ContentView: View {
     .modifier(
       UnreadSnapshotRefreshTask(
         key: unreadSnapshotKey,
-        writer: syncEngine.writer,
+        reader: syncEngine.reader,
         cutoffDate: syncEngine.queryCutoffDate,
         snapshot: $unreadSnapshot
       )
@@ -461,7 +461,7 @@ struct ContentView: View {
 
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
-    if let writer = syncEngine.writer {
+    if let reader = syncEngine.reader {
       let (category, folder): (String?, String?) =
         switch sel {
         case .category(let label): (label, nil)
@@ -469,7 +469,7 @@ struct ContentView: View {
         }
       EntryListView(
         category: category, folder: folder, filter: articleFilter,
-        cutoffDate: syncEngine.queryCutoffDate, writer: writer,
+        cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
         selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
@@ -680,7 +680,7 @@ struct ContentView: View {
   @ViewBuilder
   private var sidebarView: some View {
     // Sidebar badge counts derive from the cached `unreadSnapshot`, which is
-    // refreshed off-MainActor by `DataWriter.fetchUnreadCountsSnapshot()` —
+    // refreshed off-MainActor by `DataReader.fetchUnreadCountsSnapshot()` —
     // body never re-aggregates per evaluation. `pendingReadIDs` is the
     // optimistic-read overlay that already drives the dimmed state in
     // `EntryRowView`; subtracting it here keeps the badges in step with the
@@ -814,7 +814,9 @@ struct ContentView: View {
       let container = modelContext.container
       Task {
         let writer = await DataWriter.makeDetached(modelContainer: container)
+        let reader = await DataReader.makeDetached(modelContainer: container)
         syncEngine.attachWriter(writer)
+        syncEngine.attachReader(reader)
       }
       return
     }
@@ -854,7 +856,12 @@ struct ContentView: View {
     let container = modelContext.container
     Task { @MainActor in
       let writer = await DataWriter.makeDetached(modelContainer: container)
+      // Read-only companion: a separate actor with a 2nd read-only context on
+      // the SAME container (option (i)). A single perf instance is low
+      // concurrency, so the shared context is safe here.
+      let reader = await DataReader.makeDetached(modelContainer: container)
       syncEngine.attachWriter(writer)
+      syncEngine.attachReader(reader)
       await PerfScenarioRunner.run(
         writer: writer,
         syncEngine: syncEngine,
@@ -892,7 +899,9 @@ struct ContentView: View {
       // render the seeded rows (without a writer the demo-mode launch
       // sticks on `ProgressView`).
       let writer = await DataWriter.makeDetached(modelContainer: container)
+      let reader = await DataReader.makeDetached(modelContainer: container)
       syncEngine.attachWriter(writer)
+      syncEngine.attachReader(reader)
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
         selection = .folder("technology")

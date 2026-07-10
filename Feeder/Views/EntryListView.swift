@@ -41,7 +41,7 @@ struct EntryListView: View {
   let folder: String?
   let filter: ArticleFilter
   let cutoffDate: Date
-  let writer: DataWriter
+  let reader: DataReader
   let refreshVersion: Int
   /// When non-nil, the row with this Feedbin entry ID is retained in the fetch
   /// result regardless of `isRead == showRead` — keeps a selected article
@@ -120,7 +120,7 @@ struct EntryListView: View {
     folder: String?,
     filter: ArticleFilter,
     cutoffDate: Date,
-    writer: DataWriter,
+    reader: DataReader,
     refreshVersion: Int,
     pinnedFeedbinEntryID: Int?,
     selectedEntry: Binding<Entry?>,
@@ -130,7 +130,7 @@ struct EntryListView: View {
     self.folder = folder
     self.filter = filter
     self.cutoffDate = cutoffDate
-    self.writer = writer
+    self.reader = reader
     self.refreshVersion = refreshVersion
     self.pinnedFeedbinEntryID = pinnedFeedbinEntryID
     self._selectedEntry = selectedEntry
@@ -271,7 +271,7 @@ struct EntryListView: View {
 
   private func reload(proxy: ScrollViewProxy) async {
     let result =
-      (try? await writer.fetchEntrySections(
+      (try? await reader.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
       )) ?? .empty
@@ -288,9 +288,9 @@ struct EntryListView: View {
     // not pin an anchor from the previous list's contents.
     //
     // `result.allEntryIDs` is precomputed off-MainActor by
-    // `DataWriter.fetchEntrySections` so the membership-check `Set` build is
+    // `DataReader.fetchEntrySections` so the membership-check `Set` build is
     // the only per-reload allocation on MainActor — the flatMap walk that
-    // used to live here moved to the writer.
+    // used to live here moved to the reader.
     let newIDs = Set(result.allEntryIDs)
     let restore: AnchorRestore?
     if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
@@ -353,7 +353,7 @@ struct EntryListView: View {
 @MainActor
 private struct EntryListOfflinePreview: View {
   @State
-  private var writer: DataWriter?
+  private var reader: DataReader?
   @State
   private var selectedEntry: Entry?
   private let container: ModelContainer = PreviewSupport.makeContainer()
@@ -367,13 +367,13 @@ private struct EntryListOfflinePreview: View {
 
   var body: some View {
     Group {
-      if let writer {
+      if let reader {
         EntryListView(
           category: "apple",
           folder: nil,
           filter: .unread,
           cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          writer: writer,
+          reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
           selectedEntry: $selectedEntry,
@@ -388,7 +388,7 @@ private struct EntryListOfflinePreview: View {
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
-      writer = await DataWriter.makeDetached(modelContainer: container)
+      reader = await DataReader.makeDetached(modelContainer: container)
     }
     .frame(width: 360, height: 480)
   }
@@ -400,7 +400,7 @@ private struct EntryListOfflinePreview: View {
 @MainActor
 private struct EntryListAuthFailedPreview: View {
   @State
-  private var writer: DataWriter?
+  private var reader: DataReader?
   @State
   private var selectedEntry: Entry?
   private let container: ModelContainer = PreviewSupport.makeContainer()
@@ -414,13 +414,13 @@ private struct EntryListAuthFailedPreview: View {
 
   var body: some View {
     Group {
-      if let writer {
+      if let reader {
         EntryListView(
           category: "apple",
           folder: nil,
           filter: .unread,
           cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          writer: writer,
+          reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
           selectedEntry: $selectedEntry,
@@ -435,7 +435,7 @@ private struct EntryListAuthFailedPreview: View {
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
-      writer = await DataWriter.makeDetached(modelContainer: container)
+      reader = await DataReader.makeDetached(modelContainer: container)
     }
     .frame(width: 360, height: 480)
   }
@@ -448,7 +448,7 @@ private struct EntryListAuthFailedPreview: View {
 @MainActor
 private struct EntryListFirstSyncPreview: View {
   @State
-  private var writer: DataWriter?
+  private var reader: DataReader?
   @State
   private var selectedEntry: Entry?
   private let container: ModelContainer = PreviewSupport.makeContainer()
@@ -466,13 +466,13 @@ private struct EntryListFirstSyncPreview: View {
 
   var body: some View {
     Group {
-      if let writer {
+      if let reader {
         EntryListView(
           category: "apple",
           folder: nil,
           filter: .unread,
           cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          writer: writer,
+          reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
           selectedEntry: $selectedEntry,
@@ -487,7 +487,7 @@ private struct EntryListFirstSyncPreview: View {
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
-      writer = await DataWriter.makeDetached(modelContainer: container)
+      reader = await DataReader.makeDetached(modelContainer: container)
     }
     .frame(width: 360, height: 480)
   }

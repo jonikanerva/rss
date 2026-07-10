@@ -5,6 +5,11 @@ import Testing
 
 // MARK: - DataWriter Entry Tests
 
+/// `.serialized`: the pinned-selection tests open a `DataReader` (2nd read-only
+/// context) alongside the writer. Serialises WITHIN this suite; the target-wide
+/// coordinator cap is the `make test` gate's `-parallel-testing-enabled NO`
+/// (STACK.md §14). Not a production limitation.
+@Suite(.serialized)
 struct DataWriterEntryTests {
   // MARK: - Helpers
 
@@ -388,8 +393,9 @@ struct DataWriterEntryTests {
   @Test
   func fetchEntrySectionsExcludesReadEntryWithoutPin() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
-    let result = try await writer.fetchEntrySections(
+    let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil)
 
@@ -403,8 +409,9 @@ struct DataWriterEntryTests {
   @Test
   func fetchEntrySectionsRetainsPinnedReadEntry() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
-    let result = try await writer.fetchEntrySections(
+    let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
 
@@ -420,8 +427,9 @@ struct DataWriterEntryTests {
     // Pinning with `nil` (translated internally to sentinel 0) must not retain
     // any read row — verifies the sentinel doesn't accidentally match valid IDs.
     let writer = try await seedPinTestData(readEntryID: 3002)
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
-    let result = try await writer.fetchEntrySections(
+    let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast)
 
@@ -437,8 +445,9 @@ struct DataWriterEntryTests {
   @Test
   func fetchEntrySectionsAllEntryIDsMatchSectionsFlatMap() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
-    let result = try await writer.fetchEntrySections(
+    let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
 
