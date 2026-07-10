@@ -41,13 +41,17 @@ XCODEBUILD_FLAGS = \
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
 
-# Perf-trace build identity. The perf/trace Release build ships under a
-# DISTINCT bundle id and installs to a DISTINCT app path so `xctrace --launch`
-# resolves it unambiguously through LaunchServices — even when the project is
-# open in Xcode (Xcode keeps a Debug build registered for the shipping
-# `com.feeder.app` id, which otherwise wins resolution and makes xctrace trace
-# stale code). It also means perf runs never overwrite the user's daily
-# `/Applications/Feeder.app`. The shipping app identity is untouched.
+# Perf-trace build identity. The perf/trace Release build renames its
+# EXECUTABLE (PRODUCT_NAME=FeederPerf, see install-perf) and also ships under a
+# distinct bundle id at a distinct app path. The EXECUTABLE rename is what makes
+# `xctrace record --launch` resolve unambiguously: xctrace resolves its launch
+# target by EXECUTABLE NAME through LaunchServices, and the daily app plus every
+# Xcode Debug build all share the name `Feeder`, so a `Feeder`-named launch can
+# hijack to the wrong (stale) build (issue #129). Nothing else ever sets
+# PRODUCT_NAME=FeederPerf, so the perf executable name resolves to exactly this
+# install even with Xcode open. The distinct bundle id + app path additionally
+# keep perf runs from overwriting the user's daily `Feeder.app`; the shipping
+# app identity (name, id, path) is untouched.
 PERF_APP_NAME   ?= FeederPerf
 PERF_BUNDLE_ID  ?= com.feeder.app.perf
 
@@ -94,8 +98,8 @@ install: ## Build Release and install to /Applications
 	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(APP_NAME).app"
 	@echo "==> done: $(INSTALL_DIR)/$(APP_NAME).app"
 
-install-perf: ## Build Release under the perf bundle id and install as FeederPerf.app
-	@echo "==> build Release (perf: $(PERF_BUNDLE_ID))"
+install-perf: ## Build Release under the perf bundle id + executable name and install as FeederPerf.app
+	@echo "==> build Release (perf: id $(PERF_BUNDLE_ID), executable $(PERF_APP_NAME))"
 	xcodebuild build \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
@@ -103,17 +107,33 @@ install-perf: ## Build Release under the perf bundle id and install as FeederPer
 		-derivedDataPath $(DERIVED_DATA) \
 		-destination '$(DESTINATION)' \
 		PRODUCT_BUNDLE_IDENTIFIER=$(PERF_BUNDLE_ID) \
+		PRODUCT_NAME=$(PERF_APP_NAME) \
+		PRODUCT_MODULE_NAME=$(APP_NAME) \
 		CODE_SIGN_IDENTITY="-" \
 		ENABLE_APP_SANDBOX=NO \
 		ENABLE_HARDENED_RUNTIME=NO
 	@echo "==> install $(PERF_APP_NAME).app → $(INSTALL_DIR)"
-	@# The bundle keeps its built name (Feeder.app) inside DerivedData; it is
-	@# copied to FeederPerf.app so it does not collide with the daily app. The
-	@# executable inside stays `Feeder`, so the perf app's CFBundleExecutable is
-	@# still `Feeder` — the trace launcher reads CFBundleExecutable, not the
-	@# bundle name (see run_trace_iterations.sh).
+	@# PRODUCT_NAME=FeederPerf renames the built EXECUTABLE (not just the bundle
+	@# id): the app-target Release product builds as FeederPerf.app with
+	@# CFBundleExecutable `FeederPerf`, so `xctrace record --launch` — which
+	@# resolves its target by executable name through LaunchServices — can no
+	@# longer hijack the daily `Feeder` binary or an Xcode Debug build (#129).
+	@# The build compiles only the app target, so this CLI override renames the
+	@# app alone, never a test target.
+	@#
+	@# PRODUCT_MODULE_NAME is pinned back to Feeder so the Swift module — and the
+	@# module-qualified SwiftData @Model identity (Feeder.Entry, …) — stays
+	@# IDENTICAL to the shipping build, so perf measurements reflect production
+	@# code. The perf app is SANDBOXED (the Feeder.entitlements app-sandbox key
+	@# still applies despite ENABLE_APP_SANDBOX=NO), so its distinct bundle id
+	@# gives it its OWN container store (~/Library/Containers/com.feeder.app.perf/
+	@# …/Feeder.store) — fully ISOLATED from the daily app's store
+	@# (~/Library/Containers/donut.Feeder/…). Perf runs cannot touch the user's
+	@# real reading DB. The pin still earns its place: it keeps the perf
+	@# container's @Model identity stable across runs and guards a future
+	@# sandbox-off regression that would otherwise share a store.
 	@rm -rf "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
-	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
+	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(PERF_APP_NAME).app" "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
 	@echo "==> done: $(INSTALL_DIR)/$(PERF_APP_NAME).app"
 
 # ---------------------------------------------------------------------------
