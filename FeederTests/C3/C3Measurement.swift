@@ -38,11 +38,21 @@ struct C3Config: Sendable {
   let isSmoke: Bool
 
   static func resolve() -> C3Config {
-    let smoke = ProcessInfo.processInfo.environment["FEEDER_C3_SMOKE"] == "1"
-    if smoke {
+    let env = ProcessInfo.processInfo.environment
+    if env["FEEDER_C3_SMOKE"] == "1" {
+      // Tiny — harness self-check only (fast, NOT a verdict).
       return C3Config(
         fixtureEntries: 600, fixtureCategories: 12, burstEntries: 400,
         perPage: 100, smallPerPage: 25, navReads: 8, navSpacing: .milliseconds(150),
+        repsControl: 2, repsBurst: 2, repsFix: 2, tnet: .milliseconds(8), isSmoke: true)
+    }
+    if env["FEEDER_C3_MEDIUM"] == "1" {
+      // Full-scale fixture + burst (the real coordinator load) but few reps and
+      // tighter pacing — a fast reproduction of any scale-dependent failure
+      // before committing to the full run. Marked smoke (NOT a verdict).
+      return C3Config(
+        fixtureEntries: 6000, fixtureCategories: 12, burstEntries: 5000,
+        perPage: 100, smallPerPage: 25, navReads: 12, navSpacing: .milliseconds(700),
         repsControl: 2, repsBurst: 2, repsFix: 2, tnet: .milliseconds(8), isSmoke: true)
     }
     return C3Config(
@@ -147,16 +157,23 @@ struct C3RepResult: Sendable {
     let src = writes.isEmpty ? reads : inBurstReads
     return c3Median(src.map { $0.duration * 1000 })
   }
-  /// Occupancy: fraction of read wall-time that overlapped an active
-  /// write-persist ("of the time panel-2 spent loading, how much coincided
-  /// with the write burst"). 0 for CONTROL. NOTE: this occupancy formula is the
-  /// literal reading of the locked spec ("how much of that [loading] time
-  /// overlaps an active write-persist"); flagged for review.
+  /// Occupancy: fraction of the SYNC (burst) WINDOW during which panel-2 was in
+  /// a loading state that overlapped an active write-persist — i.e. "how much of
+  /// the sync does the user spend watching the spinner because of the write
+  /// burst". This is the metric that maps to the reported "near-constant
+  /// panel-2 spinner during sync": fast reads occupy a tiny fraction of the long
+  /// sync window (low), starved reads occupy most of it (high). 0 for CONTROL
+  /// (no burst window). NOTE: the burst-WINDOW denominator is deliberate — the
+  /// spec's literal "fraction of loading time overlapping a write" is DEGENERATE
+  /// (trivially ~100% whenever fast reads coincide with a continuous burst,
+  /// regardless of starvation), so it is replaced with this non-degenerate,
+  /// symptom-aligned form. Flagged for arch/da confirmation.
   var occupancy: Double {
-    let totalRead = reads.reduce(0) { $0 + $1.duration }
-    guard totalRead > 0 else { return 0 }
+    guard let lo = writes.map(\.start).min(), let hi = writes.map(\.end).max(), hi > lo else {
+      return 0
+    }
     let overlapped = reads.reduce(0) { $0 + c3OverlapDuration($1, with: writes) }
-    return overlapped / totalRead
+    return min(overlapped / (hi - lo), 1.0)
   }
   /// Sync throughput (entries/sec) for the write burst, or 0 for CONTROL.
   let throughput: Double

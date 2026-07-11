@@ -210,7 +210,16 @@ test-stress-tsan: ## Isolated Thread-Sanitizer run of the DataReader concurrency
 # `C3_SMOKE=1 make c3-measure` for a fast harness self-check (NOT a verdict).
 c3-measure: build ## C3 read-starvation measurement + disposition verdict (#138 PR A)
 	@mkdir -p $(DERIVED_DATA)
-	TEST_RUNNER_FEEDER_C3_MEASURE=1 TEST_RUNNER_FEEDER_C3_SMOKE=$(if $(C3_SMOKE),1,0) \
+	@# Quiet the app test host: an EMPTY in-memory store + forced onboarding so
+	@# FeederApp does NOT boot the real reading DB, start a periodic sync, or run
+	@# the extracted-content network/WebKit fetch — that app activity collides
+	@# with the long, heavy measurement and crashes the host. The measurement's
+	@# own on-disk WAL containers are separate and unaffected.
+	TEST_RUNNER_FEEDER_C3_MEASURE=1 \
+	TEST_RUNNER_FEEDER_C3_SMOKE=$(if $(C3_SMOKE),1,0) \
+	TEST_RUNNER_FEEDER_C3_MEDIUM=$(if $(C3_MEDIUM),1,0) \
+	TEST_RUNNER_UITEST_IN_MEMORY_STORE=1 \
+	TEST_RUNNER_UITEST_FORCE_ONBOARDING=1 \
 		xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-parallel-testing-enabled NO \

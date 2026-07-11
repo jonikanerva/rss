@@ -186,7 +186,8 @@ func c3FormatReport(
       String(format: "[%.1f,%.1f]", s.occupancyBand.q1 * 100, s.occupancyBand.q3 * 100), 18)
     out += String(format: "%.0f\n", s.throughput)
   }
-  out += "\nOccupancy = fraction of read wall-time overlapping an active write-persist (literal spec reading; flagged for review).\n"
+  out +=
+    "\nOccupancy = fraction of the SYNC (burst) WINDOW that panel-2 loading overlapped an active write-persist (symptom-aligned: 'how much of the sync is the user watching the spinner'). The spec's literal 'fraction of loading time overlapping a write' is degenerate (~100% whenever fast reads coincide with a continuous burst) — replaced with this non-degenerate form; flagged for arch/da.\n"
   out += "\nVERDICT: \(verdict.rawValue)\n"
   for n in notes { out += "  - \(n)\n" }
   out += "============================================================\n"

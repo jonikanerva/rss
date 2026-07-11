@@ -97,6 +97,11 @@ enum WebKitPreheat {
   /// Best-effort: callers do not await completion before rendering articles.
   static func warmIfNeeded() {
     guard phase == .cold else { return }
+    // Skip preheat in the C3 measurement test host (issue #138): it renders no
+    // articles, and spinning up WKWebView in the sandboxed, long-running
+    // headless host destabilises WebKit (GPU/Web-process crashes tear the host
+    // down mid-measurement). Inert in production — `FEEDER_C3_MEASURE` is unset.
+    guard ProcessInfo.processInfo.environment["FEEDER_C3_MEASURE"] != "1" else { return }
     phase = .warming
     logger.info("WebKit preheat starting")
     let pool = WKProcessPool()
