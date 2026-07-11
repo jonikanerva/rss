@@ -153,7 +153,14 @@ test: build ## Run unit tests (FeederTests, excluding the perf suite)
 	@# suites. Under that concurrency the coordinators intermittently abort the test
 	@# host (a cascade of 0.000 s failures). Serialising the run caps it at one
 	@# coordinator at a time — deterministic and green (STACK.md §14).
-	xcodebuild test-without-building \
+	@# The XCTest host boots the full Feeder app. `TEST_RUNNER_FEEDER_HEADLESS=1`
+	@# makes it boot HEADLESS (in-memory store, no Keychain read, no onboarding,
+	@# no sync) so the run is fully UNATTENDED — no macOS Keychain consent prompt
+	@# blocking on a human. A plain variable on the xcodebuild process does NOT
+	@# reach the host; xcodebuild strips the `TEST_RUNNER_` prefix and sets
+	@# `FEEDER_HEADLESS` in the host's env, where `HeadlessMode.isEnabled` reads it
+	@# (same prefix mechanism as `test-stress-tsan` below; #141).
+	TEST_RUNNER_FEEDER_HEADLESS=1 xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-parallel-testing-enabled NO \
 		-resultBundlePath $(UNIT_RESULT) \

@@ -11,8 +11,12 @@ struct FeederApp: App {
 
   @State
   private var syncEngine = SyncEngine()
+  /// Constructed via `makeClassificationEngine()` so that under `HeadlessMode`
+  /// it carries the headless no-op provider — closing the OpenAI credential seam
+  /// at construction (`buildProvider()` and its Keychain read are then never
+  /// reached on an automated launch, even if a batch fired on seeded data).
   @State
-  private var classificationEngine = ClassificationEngine()
+  private var classificationEngine = FeederApp.makeClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
   /// App-wide font settings. `AppFontSettings` is `@Observable`, owns the
@@ -36,8 +40,17 @@ struct FeederApp: App {
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
+    // Headless launches (any `FEEDER_HEADLESS=1` run — `make test` sets it on the
+    // XCTest host) boot with an EMPTY in-memory store so they never load the real
+    // reading DB. This is one half of the single-source headless gate:
+    // `HeadlessMode.isEnabled` is the SAME property the credential-skip in
+    // `ContentView.checkCredentials` reads, so the two can never diverge (no
+    // on-disk store paired with a credential skip). The UITEST_* flags remain for
+    // the existing UI-test modes.
     let useInMemoryStore =
-      processEnvironment["UITEST_IN_MEMORY_STORE"] == "1" || processEnvironment["UITEST_DEMO_MODE"] == "1"
+      HeadlessMode.isEnabled
+      || processEnvironment["UITEST_IN_MEMORY_STORE"] == "1"
+      || processEnvironment["UITEST_DEMO_MODE"] == "1"
 
     // `Schema(versionedSchema:)` resolves the `@Model` types and version
     // identifier `FeederSchemaV2` advertises; the resulting `Schema` is
@@ -76,6 +89,19 @@ struct FeederApp: App {
         fatalError("Failed to create ModelContainer after reset: \(error)")
       }
     }
+  }
+
+  /// Build the classification engine, injecting the headless no-op provider when
+  /// `HeadlessMode.isEnabled`. The override is bound to an explicitly-typed local
+  /// so the optional-closure type is unambiguous (a bare `cond ? { … } : nil` in
+  /// the `@State` initialiser defeats inference). Reads the same single-source
+  /// `HeadlessMode.isEnabled` as the store and credential gates (#141).
+  private static func makeClassificationEngine() -> ClassificationEngine {
+    let headlessOverride: (@Sendable () -> any ClassificationProvider)? =
+      HeadlessMode.isEnabled
+      ? { @Sendable () -> any ClassificationProvider in HeadlessClassificationProvider() }
+      : nil
+    return ClassificationEngine(providerFactoryOverride: headlessOverride)
   }
 
   var body: some Scene {
