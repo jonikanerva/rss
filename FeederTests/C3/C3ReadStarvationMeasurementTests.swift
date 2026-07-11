@@ -187,7 +187,7 @@ func c3FormatReport(
     out += String(format: "%.0f\n", s.throughput)
   }
   out +=
-    "\nOccupancy = fraction of the SYNC (burst) WINDOW that panel-2 loading overlapped an active write-persist (symptom-aligned: 'how much of the sync is the user watching the spinner'). The spec's literal 'fraction of loading time overlapping a write' is degenerate (~100% whenever fast reads coincide with a continuous burst) — replaced with this non-degenerate form; flagged for arch/da.\n"
+    "\nOccupancy (arch-confirmed) = Σ(structural-reload ∩ burst-window) / burst-window duration — 'how much of the sync is the user watching the spinner'. Numerator clips each loading interval to the window; NOT per-write-overlap-gated (kept distinct from the LOCK-4 in-burst gate).\n"
   out += "\nVERDICT: \(verdict.rawValue)\n"
   for n in notes { out += "  - \(n)\n" }
   out += "============================================================\n"

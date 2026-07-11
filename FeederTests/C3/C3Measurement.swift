@@ -95,19 +95,9 @@ func c3Seconds(_ d: Duration) -> Double {
   return Double(c.seconds) + Double(c.attoseconds) * 1e-18
 }
 
-/// Total overlap of `interval` with the UNION of `others` (writes), in seconds.
-func c3OverlapDuration(_ interval: C3Interval, with others: [C3Interval]) -> Double {
-  var total = 0.0
-  for o in others {
-    let lo = max(interval.start, o.start)
-    let hi = min(interval.end, o.end)
-    if hi > lo { total += hi - lo }
-  }
-  // `others` (write-persist intervals) do not overlap each other within an arm
-  // (a single writer actor serialises persists), so summing is the union.
-  return min(total, interval.duration)
-}
-
+/// True when `interval` overlaps any of `others` — the LOCK-4 in-burst gate
+/// (a structural-reload overlapping an active write-persist), used ONLY to
+/// select which reloads feed the STALL p95/median. Occupancy does NOT use this.
 func c3Overlaps(_ interval: C3Interval, _ others: [C3Interval]) -> Bool {
   for o in others where min(interval.end, o.end) > max(interval.start, o.start) { return true }
   return false
@@ -157,23 +147,32 @@ struct C3RepResult: Sendable {
     let src = writes.isEmpty ? reads : inBurstReads
     return c3Median(src.map { $0.duration * 1000 })
   }
-  /// Occupancy: fraction of the SYNC (burst) WINDOW during which panel-2 was in
-  /// a loading state that overlapped an active write-persist — i.e. "how much of
-  /// the sync does the user spend watching the spinner because of the write
-  /// burst". This is the metric that maps to the reported "near-constant
-  /// panel-2 spinner during sync": fast reads occupy a tiny fraction of the long
-  /// sync window (low), starved reads occupy most of it (high). 0 for CONTROL
-  /// (no burst window). NOTE: the burst-WINDOW denominator is deliberate — the
-  /// spec's literal "fraction of loading time overlapping a write" is DEGENERATE
-  /// (trivially ~100% whenever fast reads coincide with a continuous burst,
-  /// regardless of starvation), so it is replaced with this non-degenerate,
-  /// symptom-aligned form. Flagged for arch/da confirmation.
+  /// Occupancy (arch's confirmed locked formula, issue #138):
+  ///
+  ///   Occ = Σ(structural-reload interval ∩ burst-window) / (burst-window duration)
+  ///
+  /// Numerator: each loading (`hasLoaded` false→true) interval CLIPPED to the
+  /// burst window. Denominator: the burst window's wall-clock — first
+  /// write-persist start → last write-persist end. This is "how much of the
+  /// sync is the user watching the spinner": fast reads occupy a tiny slice of
+  /// the long sync window (low), starved reads occupy most of it (high). 0 for
+  /// CONTROL (no burst window).
+  ///
+  /// Kept DISTINCT from the LOCK-4 in-burst gate (`inBurstReads`): occupancy is
+  /// total loading time over the WINDOW and is NEVER per-reload write-gated.
+  /// (The earlier bug imported the LOCK-4 overlap notion into occupancy's
+  /// numerator, making it trivially ~100% under a continuous burst — arch
+  /// confirmed this window-clipped form restores the intended metric.)
   var occupancy: Double {
     guard let lo = writes.map(\.start).min(), let hi = writes.map(\.end).max(), hi > lo else {
       return 0
     }
-    let overlapped = reads.reduce(0) { $0 + c3OverlapDuration($1, with: writes) }
-    return min(overlapped / (hi - lo), 1.0)
+    // Reads are sequential (no self-overlap), so summing clipped reloads = the
+    // union of loading time inside [lo, hi].
+    let loadingInWindow = reads.reduce(0.0) { acc, r in
+      acc + max(0, min(r.end, hi) - max(r.start, lo))
+    }
+    return min(loadingInWindow / (hi - lo), 1.0)
   }
   /// Sync throughput (entries/sec) for the write burst, or 0 for CONTROL.
   let throughput: Double
