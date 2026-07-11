@@ -29,6 +29,10 @@ struct ContentView: View {
   /// non-disruptive. The dwell still buys a small coalescing window so a
   /// burst of pages collapses into one re-fetch instead of N.
   fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
+  /// Entry count seeded for the headless reading state (#141). Small so the
+  /// automated-launch host boots fast, but enough rows across the perf seeder's
+  /// twelve categories to render a real three-pane reading state.
+  private static let headlessSeedEntryCount = 120
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -171,7 +175,11 @@ struct ContentView: View {
     // completion. Idempotent — re-attached views (Settings reopen, etc.)
     // are no-ops.
     .task(priority: .utility) {
-      WebKitPreheat.warmIfNeeded()
+      // Skip the preheat under headless mode: WKWebView's GPU/Web processes are
+      // unstable in the sandboxed headless host and crash long unattended runs.
+      // `WebKitPreheatTests` call `warmIfNeeded()` directly, so this gate does
+      // not affect their coverage (#141).
+      if !HeadlessMode.isEnabled { WebKitPreheat.warmIfNeeded() }
     }
     .sheet(isPresented: $needsSetup) {
       OnboardingView {
@@ -806,6 +814,10 @@ struct ContentView: View {
       runPerfScenario()
       return
     }
+    if HeadlessMode.isEnabled {
+      bootHeadless()
+      return
+    }
     if isPreviewMode {
       // Preview canvases seed their model container directly and never run
       // `startSync`/`configure`, so `syncEngine.writer` stays nil and
@@ -843,6 +855,36 @@ struct ContentView: View {
       // trigger a second keychain consent prompt for the same item on
       // first launch after install (#99).
       startSync(username: username, password: password)
+    }
+  }
+
+  /// Boot the self-contained headless reading state (#141). Attaches a
+  /// writer / reader on the app's (in-memory) container, installs an inert
+  /// Feedbin client so no sync can reach the network, seeds the perf fixture so
+  /// the three panes render a real reading state, and selects the first folder.
+  ///
+  /// Crucially this returns from `checkCredentials` BEFORE any
+  /// `KeychainHelper.load`, `needsSetup`, or `startSync` — so an automated
+  /// launch never triggers a macOS Keychain consent prompt, shows onboarding, or
+  /// contacts Feedbin. The store is already in-memory (`FeederApp.init` gated on
+  /// the same `HeadlessMode.isEnabled`), so this reading state never touches the
+  /// user's real on-disk data.
+  private func bootHeadless() {
+    let container = modelContext.container
+    // Defence in depth: attach an inert client so any future/accidental sync
+    // path cannot reach Feedbin. Headless boot never starts periodic sync.
+    syncEngine.attachClient(InertFeedbinClient())
+    Task {
+      let writer = await DataWriter.makeDetached(modelContainer: container)
+      let reader = await DataReader.makeDetached(modelContainer: container)
+      syncEngine.attachWriter(writer)
+      syncEngine.attachReader(reader)
+      // Reuse the perf seeder: every entry gets exactly one category and rows
+      // are strictly newest-first, honouring the `VISION.md` invariants.
+      _ = try? await writer.seedPerfTestData(entryCount: Self.headlessSeedEntryCount)
+      if selection == nil {
+        selection = .folder("technology")
+      }
     }
   }
 
