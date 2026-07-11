@@ -65,4 +65,31 @@ nonisolated enum PerformanceSignpostName {
   /// readable instead of buried in the once-per-launch cold-start hang.
   /// Only emitted under `FEEDER_PERF_MODE`; a no-op in shipping launches.
   static let perfNavWindow: StaticString = "perf-nav-window"
+
+  // MARK: - C3 read-starvation instrumentation (issue #138)
+  //
+  // Four intervals that attribute the cold-start / large-sync read-starvation
+  // question: does a dense sync-page write burst saturate the shared SwiftData
+  // coordinator and starve the article-list read? All ride `perfSignposter`,
+  // are zero-cost when no profiler is attached (`OSSignposter`), and are pure
+  // measurement — production behaviour is unchanged.
+
+  /// `DataReader.fetchEntrySections` start → return. The ATTRIBUTION signal:
+  /// how long the article-list read itself takes, measured on the reader
+  /// actor. Windowing this against `writePersistPage` (below) isolates the
+  /// under-burst read cost from the at-rest baseline.
+  static let readFetchSections: StaticString = "read-fetch-sections"
+  /// `EntryListView` structural reload: `hasLoaded` false → true (a
+  /// user-visible "different list" load). The PERCEPTION + OCCUPANCY signal —
+  /// how long panel-2 shows its loading state, and how much of that time
+  /// overlaps an active write-persist.
+  static let structuralReload: StaticString = "structural-reload"
+  /// One sync-page network GET (`Tnet`): `FeedbinClient.fetchEntries` for a
+  /// single page. The gap this interval represents is what an unbounded
+  /// prefetch stream buffers away, collapsing the persist cadence.
+  static let netFetchPage: StaticString = "net-fetch-page"
+  /// One sync-page persist (`Tpersist`): `DataWriter.persistEntries` for a
+  /// single page. Back-to-back `writePersistPage` intervals with no
+  /// `netFetchPage` gap between them are the coordinator-saturation signature.
+  static let writePersistPage: StaticString = "write-persist-page"
 }

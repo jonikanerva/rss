@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import os.signpost
 
 // MARK: - Visible Entry IDs Preference Key
 
@@ -217,6 +218,11 @@ struct EntryListView: View {
       // keeps the restarted refresh a no-op while the structural task
       // owns the reload.
       .task(id: structuralKey) {
+        // C3 perception/occupancy (issue #138): bracket the panel-2 loading
+        // window (`hasLoaded` false → true). `defer` closes it even if the
+        // task is cancelled mid-reload by a structural-key change.
+        let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
+        defer { perfSignposter.endInterval(PerformanceSignpostName.structuralReload, signpost) }
         hasLoaded = false
         await reload(proxy: proxy)
         hasLoaded = true

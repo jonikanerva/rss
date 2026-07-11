@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 import SwiftData
+import os.signpost
 
 private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 
@@ -386,7 +387,12 @@ final class SyncEngine {
     var totalFetched = 0
     for try await page in client.fetchAllEntryPages(since: since) {
       if let total = page.totalCount { totalToFetch = total }
+      // C3 Tpersist (issue #138): time one sync-page persist. Back-to-back
+      // `write-persist-page` intervals with no `net-fetch-page` gap between
+      // them are the coordinator-saturation signature the measurement gates on.
+      let persistSignpost = perfSignposter.beginInterval(PerformanceSignpostName.writePersistPage)
       let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
+      perfSignposter.endInterval(PerformanceSignpostName.writePersistPage, persistSignpost)
       totalNew += newCount
       totalFetched += page.entries.count
       // Signal to `ContentView` that a page just landed so the middle pane
