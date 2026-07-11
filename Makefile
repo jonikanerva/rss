@@ -55,7 +55,7 @@ INSTALL_DIR     ?= /Applications
 PERF_APP_NAME   ?= FeederPerf
 PERF_BUNDLE_ID  ?= com.feeder.app.perf
 
-.PHONY: lint lint-fix build install install-perf test test-stress-tsan test-ui test-all test-full clean artifacts help \
+.PHONY: lint lint-fix build install install-perf test test-stress-tsan c3-measure test-ui test-all test-full clean artifacts help \
         perf perf-signpost perf-trace perf-record-baseline perf-preflight
 
 help: ## Show this help
@@ -166,7 +166,8 @@ test: build ## Run unit tests (FeederTests, excluding the perf suite)
 		-resultBundlePath $(UNIT_RESULT) \
 		-only-testing:FeederTests \
 		-skip-testing:FeederTests/PerfSignpostTests \
-		-skip-testing:FeederTests/MicroBenchmarkTests
+		-skip-testing:FeederTests/MicroBenchmarkTests \
+		-skip-testing:FeederTests/C3ReadStarvationMeasurementTests
 
 # Isolated Thread-Sanitizer run of the whole DataReader concurrency suite — the
 # evidence gate for the shared-container topology (STACK.md §14). Its heavyweight
@@ -206,6 +207,30 @@ test-stress-tsan: ## Isolated Thread-Sanitizer run of the DataReader concurrency
 		-parallel-testing-enabled NO \
 		-enableThreadSanitizer YES \
 		-only-testing:FeederTests/DataReaderConcurrencyTests
+
+# C3 read-starvation measurement (issue #138 PR A). HEAVY (tens of minutes at
+# locked params) — skipped in `make test-all`, run explicitly here. No Thread
+# Sanitizer (it dilates timings and would corrupt the latency measurement).
+# `TEST_RUNNER_FEEDER_C3_MEASURE=1` reaches the test-host process (xcodebuild
+# strips the `TEST_RUNNER_` prefix) so the suite's `.enabled(if:)` fires; a
+# plain env var would not (same idiom as `test-stress-tsan`). Set
+# `C3_SMOKE=1 make c3-measure` for a fast harness self-check (NOT a verdict).
+c3-measure: build ## C3 read-starvation measurement + disposition verdict (#138 PR A)
+	@mkdir -p $(DERIVED_DATA)
+	@# Quiet the app test host: an EMPTY in-memory store + forced onboarding so
+	@# FeederApp does NOT boot the real reading DB, start a periodic sync, or run
+	@# the extracted-content network/WebKit fetch — that app activity collides
+	@# with the long, heavy measurement and crashes the host. The measurement's
+	@# own on-disk WAL containers are separate and unaffected.
+	TEST_RUNNER_FEEDER_C3_MEASURE=1 \
+	TEST_RUNNER_FEEDER_C3_SMOKE=$(if $(C3_SMOKE),1,0) \
+	TEST_RUNNER_FEEDER_C3_MEDIUM=$(if $(C3_MEDIUM),1,0) \
+	TEST_RUNNER_UITEST_IN_MEMORY_STORE=1 \
+	TEST_RUNNER_UITEST_FORCE_ONBOARDING=1 \
+		xcodebuild test-without-building \
+		$(XCODEBUILD_FLAGS) \
+		-parallel-testing-enabled NO \
+		-only-testing:FeederTests/C3ReadStarvationMeasurementTests
 
 test-ui: build ## Run UI smoke tests (FeederUITests)
 	@echo "==> UI smoke tests"

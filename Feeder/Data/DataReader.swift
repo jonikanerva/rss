@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os.signpost
 
 // MARK: - DataReader Actor
 
@@ -127,6 +128,10 @@ actor DataReader: ModelActor {
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
     pinnedFeedbinEntryID: Int? = nil
   ) throws -> EntryListFetchResult {
+    // C3 attribution (issue #138): time the article-list read on the reader
+    // actor. Zero-cost when no profiler is attached; `defer` closes on throw.
+    let signpost = perfSignposter.beginInterval(PerformanceSignpostName.readFetchSections)
+    defer { perfSignposter.endInterval(PerformanceSignpostName.readFetchSections, signpost) }
     let descriptor: FetchDescriptor<Entry>
     // Secondary sort on feedbinEntryID keeps order deterministic when two entries
     // share the same publishedAt timestamp. Without it, two equal-timestamp rows
