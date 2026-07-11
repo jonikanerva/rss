@@ -63,23 +63,6 @@ struct EntryListView: View {
   private var fontSettings
   @Environment(\.openSettings)
   private var openSettings
-  /// Probe that fires while no entry has been classified yet. The static
-  /// `FetchDescriptor` caps the fetch at one row regardless of inventory size,
-  /// so the MainActor exception relative to this view's other reads (which
-  /// run on `DataWriter`) stays inside the frame budget. Predicate pushed to
-  /// SQLite — never filtered in Swift.
-  ///
-  /// Built lazily as a `static let` so the descriptor allocation happens once
-  /// at module-init time rather than per view-init.
-  private static let anyClassifiedProbeDescriptor: FetchDescriptor<Entry> = {
-    var descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.isClassified == true }
-    )
-    descriptor.fetchLimit = 1
-    return descriptor
-  }()
-  @Query(EntryListView.anyClassifiedProbeDescriptor)
-  private var anyClassifiedProbe: [Entry]
   @State
   private var sections: [EntryListSection] = []
   /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
@@ -107,34 +90,6 @@ struct EntryListView: View {
   private struct AnchorRestore: Equatable {
     let id: PersistentIdentifier
     let anchor: UnitPoint
-  }
-
-  // MARK: - Init
-  //
-  // Explicit init so Swift does not synthesize a memberwise init that exposes
-  // the `@Query`-backed `anyClassifiedProbe` storage as a public parameter.
-  // The synthesized form would require call sites to pass an `[Entry]` for the
-  // probe; this init keeps the surface area identical to the pre-probe shape.
-  init(
-    category: String?,
-    folder: String?,
-    filter: ArticleFilter,
-    cutoffDate: Date,
-    reader: DataReader,
-    refreshVersion: Int,
-    pinnedFeedbinEntryID: Int?,
-    selectedEntry: Binding<Entry?>,
-    onMarkAllRead: @escaping () -> Void
-  ) {
-    self.category = category
-    self.folder = folder
-    self.filter = filter
-    self.cutoffDate = cutoffDate
-    self.reader = reader
-    self.refreshVersion = refreshVersion
-    self.pinnedFeedbinEntryID = pinnedFeedbinEntryID
-    self._selectedEntry = selectedEntry
-    self.onMarkAllRead = onMarkAllRead
   }
 
   var body: some View {
@@ -177,16 +132,20 @@ struct EntryListView: View {
               systemImage: "wifi.slash",
               description: Text("Connect to the internet to sync new articles.")
             )
-          } else if anyClassifiedProbe.isEmpty
-            && (classificationEngine.isClassifying || syncEngine.isSyncing)
-          {
-            // First-sync / post-reset state: entries have landed but none are
-            // classified yet, so this category-scoped fetch is empty while
-            // classification catches up. Spinner-only (no SF Symbol) by
-            // ux-guardian decision — the sidebar already carries progress
-            // counts, so the middle pane stays calm and avoids double-signalling.
-            // No trailing ellipsis on the headline per HIG: don't label a
-            // spinning progress indicator.
+          } else if classificationEngine.isClassifying || syncEngine.isSyncing {
+            // Empty fetch WHILE sync/classification is active → calm loading,
+            // NEVER "No Articles". This category's rows may not be classified/
+            // persisted yet, or the reader fetch may have briefly lost to write
+            // pressure — asserting "empty" here would hide real content that is
+            // still arriving (`VISION.md → Core Principles`: the reader trusts
+            // that nothing is hidden). The gate is deliberately NOT conditioned
+            // on "no entry classified yet": once any row is classified (i.e.
+            // always, in steady state) that guard is dead, so a momentarily-
+            // empty category mid-sync fell through to a false "No Articles".
+            // Spinner-only (no SF Symbol) by ux-guardian decision — the sidebar
+            // already carries progress counts, so the middle pane stays calm and
+            // avoids double-signalling. No trailing ellipsis on the headline per
+            // HIG: don't label a spinning progress indicator.
             ContentUnavailableView {
               ProgressView()
                 .controlSize(.large)
@@ -347,6 +306,14 @@ struct EntryListView: View {
   EntryListFirstSyncPreview()
 }
 
+#Preview("Loading - Sync Active (rows exist elsewhere)") {
+  EntryListSyncActiveWithRowsPreview()
+}
+
+#Preview("Empty - No Articles (at rest)") {
+  EntryListEmptyAtRestPreview()
+}
+
 /// Renders `EntryListView` in the offline-empty state: container is seeded
 /// but contains no entries, and `SyncEngine.lastError` is set to `.network`
 /// so the view picks the `ContentUnavailableView("Offline", …)` branch.
@@ -463,6 +430,123 @@ private struct EntryListFirstSyncPreview: View {
     )
     return engine
   }()
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntry: $selectedEntry,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .environment(classificationEngine)
+    .environment(AppFontSettings())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 480)
+  }
+}
+
+/// Renders `EntryListView` in the WIDENED calm-loading state (issue #137): a
+/// classified article exists in ANOTHER category ("world"), classification is
+/// mid-batch, and the queried category ("apple") fetch returns empty. The view
+/// must show calm loading — NEVER "No Articles" — because rows may still be
+/// arriving. Before #137 this fell through to a false "No Articles" (the probe
+/// was non-empty once any row was classified). This is the regression guard.
+@MainActor
+private struct EntryListSyncActiveWithRowsPreview: View {
+  @State
+  private var reader: DataReader?
+  @State
+  private var selectedEntry: Entry?
+  private let container: ModelContainer = {
+    let container = PreviewSupport.makeContainer()
+    let context = container.mainContext
+    let feed = Feed(
+      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "World Feed",
+      feedURL: "https://world.example.com/feed", siteURL: "https://world.example.com",
+      createdAt: .now)
+    context.insert(feed)
+    let entry = Entry(
+      feedbinEntryID: 1, title: "A World Story", author: "Bot",
+      url: "https://world.example.com/1", content: "<p>Story.</p>", summary: "Story",
+      extractedContentURL: nil, publishedAt: .now, createdAt: .now)
+    entry.feed = feed
+    entry.primaryCategory = "world"
+    entry.primaryFolder = "news"
+    entry.isClassified = true
+    entry.plainText = "Story."
+    context.insert(entry)
+    try? context.save()
+    return container
+  }()
+  private let syncEngine = SyncEngine()
+  private let classificationEngine: ClassificationEngine = {
+    let engine = ClassificationEngine()
+    engine.applyPreviewState(
+      isClassifying: true,
+      progress: "Categorizing 3/8",
+      classifiedCount: 3,
+      totalToClassify: 8
+    )
+    return engine
+  }()
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntry: $selectedEntry,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .environment(classificationEngine)
+    .environment(AppFontSettings())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 480)
+  }
+}
+
+/// Renders `EntryListView` in the genuine empty state at rest (issue #137): no
+/// rows, and neither sync nor classification is active → "No Articles" stays
+/// reachable. The widened calm-loading gate must NOT swallow the real empty
+/// state once background work is at rest.
+@MainActor
+private struct EntryListEmptyAtRestPreview: View {
+  @State
+  private var reader: DataReader?
+  @State
+  private var selectedEntry: Entry?
+  private let container: ModelContainer = PreviewSupport.makeContainer()
+  private let syncEngine = SyncEngine()
+  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
