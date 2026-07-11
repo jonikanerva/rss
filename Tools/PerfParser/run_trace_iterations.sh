@@ -73,6 +73,28 @@ kill_residual_feeder_processes() {
   pkill -KILL -f "$FEEDER_BINARY_PATTERN" 2>/dev/null || true
 }
 
+# The perf app is SANDBOXED, so its SwiftData store lives in a per-bundle-id
+# container. Derive the id from the installed app (not hard-coded) so a bundle
+# rename can't silently point the reset at the wrong container.
+APP_BUNDLE_ID="$(defaults read "$APP_PATH/Contents/Info" CFBundleIdentifier 2>/dev/null || echo com.feeder.app.perf)"
+PERF_STORE_DIR="$HOME/Library/Containers/$APP_BUNDLE_ID/Data/Library/Application Support"
+
+# Reset the perf container store so EVERY iteration launches into an EMPTY
+# store and `seedPerfTestData` re-seeds the SAME deterministic 5000-row
+# dataset. That seeder guards on an empty store (returns early if data already
+# exists), so WITHOUT this reset only the first launch seeds; later iterations
+# skip seeding, their write-pressure rows accumulate, and the article list
+# degenerates to EMPTY — no detail render, which the parser's render-path floor
+# then (correctly) rejects. Deleting only the three SwiftData store files
+# (never the container directory) keeps the reset surgical. This is the perf
+# CONTAINER store — a sandboxed `com.feeder.app.perf` container, NOT the user's
+# real reading DB (a separate `donut.Feeder` container) (issue #132).
+reset_perf_store() {
+  rm -f "$PERF_STORE_DIR/Feeder.store" \
+    "$PERF_STORE_DIR/Feeder.store-shm" \
+    "$PERF_STORE_DIR/Feeder.store-wal" 2>/dev/null || true
+}
+
 # Fail-loud gate on each iteration's xctrace log — two independent tripwires,
 # both catching a class of failure the perf PARSER alone would miss:
 #
@@ -83,13 +105,13 @@ kill_residual_feeder_processes() {
 #   launched executable name is the durable guard that `--launch` resolved to
 #   the perf build, not a hijacked `Feeder`. xctrace itself prints this line, so
 #   it is reliably present in the captured log.
-#   NOTE: today this guard is DORMANT. The perf scenario does not run to
-#   completion under a headless launch (follow-up #132), so xctrace time-limits
-#   the still-running app and exits non-zero, and `set -e` aborts the script at
-#   the record command BEFORE this check runs. It becomes the active gate once
-#   #132 restores clean scenario completion (xctrace exits 0) and lands the
-#   non-zero-exit handling. The check itself is correct and verified out of
-#   band: the recorded xctrace log does contain `Launching process: FeederPerf`.
+#   This guard is now ACTIVE (issue #132). It was previously DORMANT because the
+#   scenario never ran to completion under a headless launch, so xctrace
+#   time-limited the still-running app and exited non-zero, and `set -e` aborted
+#   at the record command BEFORE this check. #132 fixed both ends: the app-side
+#   perf-activation delegate makes the scenario render and self-exit `exit(0)`,
+#   and `run_iteration` now captures xctrace's status (`|| status=$?`) and runs
+#   this assertion regardless of exit code, so it always executes.
 #
 #   OBJ-2 (container schema-identity tripwire): the perf build is SANDBOXED and
 #   opens its OWN container store (~/Library/Containers/com.feeder.app.perf/…,
@@ -158,6 +180,11 @@ run_iteration() {
   # `--time-limit` does not always reap the launched process, so without
   # this each iteration would stack another FeederPerf in the Dock.
   kill_residual_feeder_processes
+  # Fresh store per iteration (after the kill, so no process holds the file):
+  # each launch re-seeds the same deterministic dataset and renders the same
+  # article list + detail, so every iteration is comparable and the render-path
+  # floor is satisfied on all of them (issue #132).
+  reset_perf_store
   echo "==> trace iteration $index ($out_file)"
   # `xcrun xctrace record` stops parsing its own flags at `--launch --`;
   # anything after that token is forwarded as argv to the launched app.
@@ -171,18 +198,70 @@ run_iteration() {
   # (which survives) rather than the warmup temp dir (which the trap deletes),
   # so even a warmup-iteration failure leaves a readable log.
   local xctrace_log="$OUTPUT_DIR/xctrace-${index}.log"
-  FEEDER_PERF_MODE=1 \
-  FEEDER_PERF_DATASET_SIZE="$DATASET_SIZE" \
-    xcrun xctrace record \
-      --template 'Time Profiler' \
-      --time-limit "${TIME_LIMIT}ms" \
-      --output "$out_file" \
-      --launch -- "$APP_BINARY" \
-      >"$xctrace_log" 2>&1
-  # Validate the just-recorded trace: fail loud if xctrace launched the wrong/
-  # stale binary (OBJ-1) or the perf build tripped store-delete recovery
-  # (OBJ-2). Reached only when xctrace exits 0; under #132 the record command
-  # exits non-zero and `set -e` aborts before here (see assert_perf_launch).
+  # DE-CONFOUNDING (not causal): pass the perf env via xctrace `--env` flags
+  # rather than as this shell's environment. `xctrace record --launch` starts
+  # the app through LaunchServices, which does NOT reliably inherit the calling
+  # shell's environment, so `--env` guarantees the launched app actually sees
+  # `FEEDER_PERF_MODE`. This is a robustness fix, NOT the #132 root cause: the
+  # direct-exec repro had the env set correctly and STILL idled — the missing
+  # window activation was the cause (fixed in FeederApp's perf delegate). Env
+  # flags stay BEFORE `--launch --`; everything after that token is argv for
+  # the launched app, not xctrace flags.
+  local status=0
+  xcrun xctrace record \
+    --template 'Time Profiler' \
+    --time-limit "${TIME_LIMIT}ms" \
+    --output "$out_file" \
+    --env FEEDER_PERF_MODE=1 \
+    --env FEEDER_PERF_DATASET_SIZE="$DATASET_SIZE" \
+    --launch -- "$APP_BINARY" \
+    >"$xctrace_log" 2>&1 || status=$?
+
+  # xctrace's exit code is NOT a trustworthy pass/fail signal, so validate the
+  # produced trace instead (issue #132). Lifting the check out from under
+  # `set -e` (via `|| status=$?`) is what lets the tripwires below run at all —
+  # they were dead code while a non-zero exit aborted the script first, which is
+  # exactly why PR #133's OBJ-1 assertion was dormant.
+  #
+  # With the app-side activation fix the scenario self-exits `exit(0)` at the
+  # end of the nav walk, so 0 is the EXPECTED path. Exit 54 is the observed
+  # time-limit code — a bounded fallback, tolerated ONLY after a valid trace is
+  # produced and the identity tripwires pass. Any OTHER non-zero code is a hard
+  # failure. Only 0 and 54 are recognised; do NOT hard-code further codes.
+
+  # (1) No trace bundle → the record failed to launch or capture. Fail loud
+  # regardless of exit code. A host with no interactive WindowServer/GUI session
+  # cannot render a window, so no trace is produced — surface that hint rather
+  # than the misleading stale-binary text.
+  if [[ ! -d "$out_file" ]]; then
+    echo "ERROR: iteration $index produced NO trace bundle at '$out_file'" >&2
+    echo "       (xctrace exit $status) — the record failed to launch/capture." >&2
+    echo "       \`make perf\` requires a LOCAL interactive GUI session: the perf" >&2
+    echo "       app must render a window (STACK §14 — perf is a local gate)." >&2
+    echo "       Run it from a local login session and see '$xctrace_log'." >&2
+    exit 1
+  fi
+
+  # (2) A trace exists but xctrace exited with an UNEXPECTED code (not 0, not
+  # the 54 time-limit) → crash, bad signature, or launch failure. This PRESERVES
+  # PR #133's fail-loud guard.
+  if [[ "$status" -ne 0 && "$status" -ne 54 ]]; then
+    echo "ERROR: iteration $index: unexpected xctrace exit $status with a trace present" >&2
+    echo "       (expected 0, or 54 for the time-limit). This usually signals a crash," >&2
+    echo "       bad signature, or launch failure — refusing to trust the trace. If $status" >&2
+    echo "       is a NEW xctrace time-limit code (an Instruments version change), add it" >&2
+    echo "       to the {0,54} allowlist in this check. See '$xctrace_log'." >&2
+    exit 1
+  fi
+
+  # (4) Log a tolerated non-zero (54) exit per iteration so a run that hits the
+  # time-limit on EVERY iteration stays visible — never laundered into green.
+  if [[ "$status" -ne 0 ]]; then
+    echo "==> iteration $index: xctrace exit $status tolerated (time-limit); validating trace"
+  fi
+
+  # (3) Identity tripwires run REGARDLESS of exit code: OBJ-1 (launch identity,
+  # activates PR #133's dormant assertion) and OBJ-2 (no store-delete recovery).
   assert_perf_launch "$index" "$xctrace_log"
   # Symmetric post-iteration kill — even on success xctrace can leave
   # the launched FeederPerf running. Without this, the trap on EXIT would

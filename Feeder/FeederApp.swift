@@ -23,6 +23,16 @@ struct FeederApp: App {
   /// `@State` (selection, focus, scroll anchor) stays intact.
   @State
   private var fontSettings = AppFontSettings()
+  /// Perf-only activation delegate. Constructed on every launch but INERT in
+  /// shipping builds — both of its hooks early-return unless `FEEDER_PERF_MODE`
+  /// is set (`PerfActivationAppDelegate`). It exists solely so the headless
+  /// `make perf` launch (`xctrace record --launch`) foregrounds the app and
+  /// orders its window front, which is what makes SwiftUI fire the
+  /// `WindowGroup` window's `.onAppear`/`.task` — and therefore
+  /// `ContentView → runPerfScenario()`. Without it the non-activated launch
+  /// leaves the window undisplayed and the scenario never runs (issue #132).
+  @NSApplicationDelegateAdaptor(PerfActivationAppDelegate.self)
+  private var perfActivationDelegate
 
   init() {
     let processEnvironment = ProcessInfo.processInfo.environment
@@ -183,5 +193,73 @@ struct FeederApp: App {
   /// action so a user can inspect the location if bootstrap fails.
   private static func storeDirectoryURL() -> URL? {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+  }
+}
+
+// MARK: - Perf activation delegate
+
+/// `FEEDER_PERF_MODE`-gated `NSApplicationDelegate` that foregrounds the app
+/// for the headless perf run and INERT otherwise.
+///
+/// Why it exists: `make perf` launches the app through `xctrace record
+/// --launch`, which starts the process WITHOUT activating it. A non-activated
+/// macOS app may never order its `WindowGroup` window on screen, so SwiftUI
+/// never fires the window's `.onAppear`/`.task` — and `ContentView`'s
+/// `checkCredentials() → runPerfScenario()` trigger (which only runs once the
+/// window renders) never fires. The scenario then idles instead of driving the
+/// nav walk and self-exiting, so no `perf-nav-window` signpost is emitted and
+/// the parser has nothing to measure (issue #132).
+///
+/// Both hooks gate on `PerfScenarioRunner.isEnabled` as their FIRST statement —
+/// the single `FEEDER_PERF_MODE` source of truth shared with
+/// `ContentView.isPerfScenarioMode`, so the forced activation and the scenario
+/// trigger can never diverge. In a shipping launch both return immediately:
+/// the delegate is constructed-but-inert, adds no UI/menu/setting, and never
+/// calls `exit()` (that stays in `PerfScenarioRunner`, at the end of the walk).
+///
+/// MainActor-isolated by default (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`);
+/// every AppKit call here is MainActor-only, matching where AppKit delivers
+/// these launch callbacks.
+final class PerfActivationAppDelegate: NSObject, NSApplicationDelegate {
+  /// Owned handle for the one-shot window-ordering retry (`STACK.md § 9`): the
+  /// async work has an explicit owner rather than being fire-and-forget. It
+  /// completes in a single main-actor hop, so no cancellation is needed beyond
+  /// the app lifetime that bounds the delegate.
+  private var windowOrderRetry: Task<Void, Never>?
+
+  func applicationWillFinishLaunching(_ notification: Notification) {
+    // Load-bearing gate — MUST stay the first statement. `FEEDER_PERF_MODE` is
+    // the single source of truth for perf-only behaviour; a shipping launch
+    // returns here and the delegate does nothing.
+    guard PerfScenarioRunner.isEnabled else { return }
+    // Force a normal foreground app so the window can become key and order
+    // front. Set before launch finishes so the policy is in place by the time
+    // SwiftUI creates the scene.
+    NSApp.setActivationPolicy(.regular)
+  }
+
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    // Same load-bearing gate — MUST stay the first statement (see above).
+    guard PerfScenarioRunner.isEnabled else { return }
+    // `activate()` is the current macOS 14+ API (NOT the deprecated
+    // `activate(ignoringOtherApps:)`); it brings the app forward under the
+    // cooperative activation model.
+    NSApp.activate()
+    if let window = NSApp.windows.first {
+      // The load-bearing per-window primitive: activation alone does not
+      // guarantee a specific window is key/ordered — this orders it front so
+      // SwiftUI displays it and fires the window's `.onAppear`/`.task`.
+      window.makeKeyAndOrderFront(nil)
+    } else {
+      // SwiftUI may not have created the `WindowGroup` window yet at
+      // `didFinishLaunching`. ONE bounded, owned next-runloop-tick retry orders
+      // it front once the window exists — a single self-correcting Task, never
+      // a loop (`STACK.md § 7 / § 9`). If the window still is not there, no
+      // render fires and the run fails closed downstream (the parser's
+      // render-path floor refuses to report against an empty window).
+      windowOrderRetry = Task { @MainActor in
+        NSApp.windows.first?.makeKeyAndOrderFront(nil)
+      }
+    }
   }
 }
