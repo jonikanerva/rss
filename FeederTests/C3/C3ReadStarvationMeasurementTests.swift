@@ -52,11 +52,12 @@ private func c3Stamp(_ epoch: ContinuousClock.Instant) -> Double {
 /// concurrent with the arm's write condition. Collects read + write intervals
 /// on a shared epoch.
 func c3RunRep(
-  arm: C3Arm, config: C3Config, fullPages: [FeedbinEntriesPage], smallPages: [FeedbinEntriesPage]
+  arm: C3Arm, config: C3Config, writer: DataWriter, reader: DataReader,
+  fullPages: [FeedbinEntriesPage], smallPages: [FeedbinEntriesPage]
 ) async throws -> C3RepResult {
-  let container = try DataWriterTestSupport.makeOnDiskContainer()
-  let writer = DataWriter(modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
-  let reader = await DataReader.makeDetached(modelContainer: container)
+  // Reuse the caller's ONE container; reset + re-seed a fresh fixture so each
+  // rep is isolated without churning a new coordinator (crash mitigation).
+  try await writer.resetStoreForMeasurement()
   _ = try await writer.seedPerfTestData(
     entryCount: config.fixtureEntries, categoryCount: config.fixtureCategories)
 
@@ -133,12 +134,12 @@ func c3RunRep(
 
 /// B_p95 pre-run gate: p95 read latency (ms) on the largest fixture category
 /// with NO writes, at production-representative sizes. Averaged over a few reps.
-func c3MeasureBaselineP95(config: C3Config) async throws -> Double {
+func c3MeasureBaselineP95(config: C3Config, writer: DataWriter, reader: DataReader) async throws
+  -> Double
+{
   var p95s: [Double] = []
   for _ in 0..<max(3, config.repsControl) {
-    let container = try DataWriterTestSupport.makeOnDiskContainer()
-    let writer = DataWriter(modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
-    let reader = await DataReader.makeDetached(modelContainer: container)
+    try await writer.resetStoreForMeasurement()
     _ = try await writer.seedPerfTestData(
       entryCount: config.fixtureEntries, categoryCount: config.fixtureCategories)
     var durs: [Double] = []
@@ -210,7 +211,16 @@ struct C3ReadStarvationMeasurementTests {
     let smallPages = try c3BuildPages(
       entryCount: config.burstEntries, perPage: config.smallPerPage, idBase: 2_000_000, feedId: 9000)
 
-    let baselineP95 = try await c3MeasureBaselineP95(config: config)
+    // ONE on-disk WAL container reused across the baseline gate + every arm/rep
+    // (reset between reps). Creating a fresh container per rep churns Core Data
+    // coordinators and flakily crashes the long test host; one reused container
+    // is the shape `DataReaderConcurrencyTests` proves safe under heavy
+    // concurrent read+write.
+    let container = try DataWriterTestSupport.makeOnDiskContainer()
+    let writer = DataWriter(modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
+    let reader = await DataReader.makeDetached(modelContainer: container)
+
+    let baselineP95 = try await c3MeasureBaselineP95(config: config, writer: writer, reader: reader)
     let gatePassed = baselineP95 <= 25.0
 
     var stats: [C3Arm: C3ArmStats] = [:]
@@ -225,7 +235,8 @@ struct C3ReadStarvationMeasurementTests {
       for _ in 0..<reps {
         repResults.append(
           try await c3RunRep(
-            arm: arm, config: config, fullPages: fullPages, smallPages: smallPages))
+            arm: arm, config: config, writer: writer, reader: reader,
+            fullPages: fullPages, smallPages: smallPages))
       }
       stats[arm] = C3ArmStats.aggregate(arm: arm, repResults: repResults)
     }

@@ -156,6 +156,24 @@ extension DataWriter {
     try modelContext.save()
   }
 
+  /// Test-only: wipe every persisted row so a fresh fixture can be re-seeded on
+  /// the SAME container. The C3 measurement reuses ONE on-disk container across
+  /// all reps (churning many coordinators flakily crashes the test host — the
+  /// proven-safe shape is one reused container, `DataReaderConcurrencyTests`),
+  /// resetting between reps to keep each rep isolated.
+  func resetStoreForMeasurement() throws {
+    // Individual deletes (not `delete(model:)`) so the object graph is managed —
+    // a batch delete trips Entry's mandatory `feed` inverse constraint. Entries
+    // first (children), then the taxonomy/feeds.
+    for entry in try modelContext.fetch(FetchDescriptor<Entry>()) { modelContext.delete(entry) }
+    for feed in try modelContext.fetch(FetchDescriptor<Feed>()) { modelContext.delete(feed) }
+    for category in try modelContext.fetch(FetchDescriptor<Feeder.Category>()) {
+      modelContext.delete(category)
+    }
+    for folder in try modelContext.fetch(FetchDescriptor<Folder>()) { modelContext.delete(folder) }
+    try modelContext.save()
+  }
+
   func fetchEntrySnapshot(feedbinEntryID id: Int) throws -> EntrySnapshot? {
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.feedbinEntryID == id }
