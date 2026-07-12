@@ -37,7 +37,7 @@ nonisolated enum EntryListDisplayState: Sendable, Equatable {
   case offline
   /// Empty and the last sync failed with invalid Feedbin credentials.
   case authFailed
-  /// Empty and the fetch itself failed twice — store error, not sync state.
+  /// Empty and the fetch itself failed — store error, not sync state.
   case error
 }
 
