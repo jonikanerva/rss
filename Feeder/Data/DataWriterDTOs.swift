@@ -33,38 +33,81 @@ nonisolated struct CategoryDefinition: Sendable {
   }
 }
 
-/// One day-grouped section of the article list. Built off-MainActor by
-/// `DataReader.fetchEntrySections` and consumed by `EntryListView`.
-/// Only carries lightweight identifiers — the view materializes Entry objects
-/// per-row on MainActor via `modelContext.model(for:)` (lazy, only visible rows).
+/// One rendered article-list row — a value snapshot of COMMITTED store state,
+/// projected off-MainActor by `DataReader.projectEntryRow(_:)` (issue #148).
+/// `EntryRowView` renders from this DTO alone: no `modelContext.model(for:)`,
+/// no `entry.feed` relationship fault, no per-row store access on MainActor.
 ///
-/// Identifiers + write-time-immutable labels ONLY. Do NOT add a volatile `Entry`
-/// scalar here — it would reintroduce the stale read that `fetchEntrySections`'
-/// membership-only freshness relies on being impossible. Pinned at compile time
-/// by `DataReaderConcurrencyTests.fetchEntrySectionsDTOsAreScalarFree`.
+/// **Freshness contract (replaces the retired "no volatile scalar" rule).**
+/// Rows deliberately carry volatile scalars (`isRead`, `title`, …): a row is a
+/// snapshot of the last committed fetch, and freshness is bounded by the bump
+/// pipeline — mutation paths bump `entryRefreshVersion` immediately, mid-flight
+/// drains land within ≤ 1 s idle / ≤ 4 s selection dwell, and remote read-state
+/// flips land on the sync-edge tick. The optimistic `pendingReadIDs` overlay
+/// dims a row the moment the user opens it and is RETAINED until a refetched
+/// source confirms the committed `isRead == true` (two-sided prune,
+/// `retainedPendingReadIDs`), so no frame renders stale-unread regardless of
+/// fetch landing order. `@Model` objects still never cross the actor boundary
+/// (`STACK.md § 0`); the projection reads only the columns listed in
+/// `fetchEntrySections`' `propertiesToFetch` plus the prefetched `feed`.
+///
+/// FULL-content `Equatable` / `Hashable` (synthesized over every stored field)
+/// is load-bearing: content equality IS the row re-render mechanism — a
+/// refetched row with any changed field compares non-equal and SwiftUI re-diffs
+/// it. Do not shortcut either conformance to identity-only.
+nonisolated struct EntryRowDTO: Sendable, Equatable, Hashable, Identifiable {
+  let persistentID: PersistentIdentifier
+  let feedbinEntryID: Int
+  let title: String?
+  let formattedPublishedTime: String
+  let displayDomain: String?
+  let excerpt: String
+  let isRead: Bool
+  /// Grouping input for `groupRowsByDay` only — never rendered (`STACK.md
+  /// § 10`: user-facing time comes from the pre-computed display fields).
+  let publishedAt: Date
+  /// Favicon key — `feed.feedbinFeedID`, resolved once off-main from the
+  /// prefetched relationship; nil when the entry has no feed.
+  let feedFeedbinID: Int?
+  /// Fallback initial for `FaviconView` when no favicon image exists: first
+  /// letter of the feed title, uppercased; "?" when the feed is nil.
+  let feedInitial: String
+
+  var id: PersistentIdentifier { persistentID }
+}
+
+/// One day-grouped section of the article list. Built off-MainActor by
+/// `DataReader.fetchEntrySections` and rendered directly by `EntryListView` —
+/// the rows are complete `EntryRowDTO` snapshots (issue #148), so the view
+/// layer performs zero store access. Freshness contract: see `EntryRowDTO`.
 nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String
-  let entryIDs: [PersistentIdentifier]
+  let rows: [EntryRowDTO]
 }
 
-/// Background-fetched article list payload: the day-grouped sections plus the
-/// pre-flattened entry-ID list the MainActor's `VisibleEntryIDsKey` preference
-/// needs. Computing the flat list off-MainActor (the writer already walks every
-/// entry once for `groupEntriesByDay`) saves the view from a per-reload
-/// `result.flatMap(\.entryIDs)` allocation against the entire row set —
-/// meaningful for large categories ("uncategorized" with thousands of IDs)
-/// where each MainActor allocation eats into the 8.3 ms ProMotion frame budget
-/// (`STACK.md` § Performance budgets).
+/// Background-fetched article list payload: the day-grouped row sections plus
+/// three pre-flattened aggregates the MainActor consumes without walking the
+/// row set again (each MainActor allocation eats into the 8.3 ms ProMotion
+/// frame budget, `STACK.md` § Performance budgets):
+/// - `allEntryIDs` — the `VisibleEntriesKey` preference ids (Tab-into-list,
+///   anchor restore);
+/// - `distinctFeedIDs` — the favicon keys `FaviconStore.ensureLoaded` warms
+///   after each reload;
+/// - `renderedUnreadFeedbinEntryIDs` — the rendered-unread side of the
+///   two-sided `pendingReadIDs` retention prune (`retainedPendingReadIDs`).
 ///
 /// `PersistentIdentifier` conforms to `Sendable`
 /// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the
-/// flattened array crosses the actor boundary cleanly.
+/// payload crosses the actor boundary cleanly.
 nonisolated struct EntryListFetchResult: Sendable, Equatable {
   let sections: [EntryListSection]
   let allEntryIDs: [PersistentIdentifier]
+  let distinctFeedIDs: Set<Int>
+  let renderedUnreadFeedbinEntryIDs: Set<Int>
 
-  static let empty = EntryListFetchResult(sections: [], allEntryIDs: [])
+  static let empty = EntryListFetchResult(
+    sections: [], allEntryIDs: [], distinctFeedIDs: [], renderedUnreadFeedbinEntryIDs: [])
 }
 
 /// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for

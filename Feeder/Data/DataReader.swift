@@ -39,12 +39,16 @@ import os.signpost
 /// **Freshness.** `DataReader`'s context sees a writer's committed `save()` on
 /// its next fetch. `DataReaderConcurrencyTests` proves this empirically for the
 /// registered-object path rather than trusting default staleness behaviour —
-/// the load-bearing case is `fetchUnreadCountsSnapshot`, which reads
+/// the load-bearing cases are `fetchUnreadCountsSnapshot` (reads
 /// `primaryCategory` / `primaryFolder` off possibly-registered objects to
-/// bucket counts. `fetchEntrySections` is staleness-IMMUNE by construction: its
-/// DTOs carry only `PersistentIdentifier`s plus write-time-immutable section
-/// labels — no volatile `Entry` scalar is read into the result, so membership
-/// and order stay SQL-committed-truthful.
+/// bucket counts) and `fetchEntrySections`' row projection (reads `isRead`,
+/// `title`, … into `EntryRowDTO` value snapshots). The old "no volatile
+/// scalar" staleness-immunity contract is deliberately RETIRED (issue #148):
+/// rows are snapshots of COMMITTED state; freshness is bounded by the bump
+/// pipeline (immediate write bumps, ≤ 1 s idle / ≤ 4 s dwell mid-flight
+/// drains, remote read flips on the sync-edge tick); and the `pendingReadIDs`
+/// overlay is retained until a refetched source confirms `isRead == true`
+/// (`retainedPendingReadIDs`). See `EntryRowDTO`'s doc for the full contract.
 ///
 /// **No dirty reads (journal-mode-independent).** The reader never observes a
 /// writer's UNCOMMITTED changes: SQLite never exposes an open transaction's
@@ -111,13 +115,11 @@ actor DataReader: ModelActor {
     }
   }
 
-  /// Fetch entries for an article list selection and group them by calendar day.
-  /// Returns an `EntryListFetchResult` carrying lightweight `EntryListSection`
-  /// DTOs (persistent IDs + precomputed section labels) plus the pre-flattened
-  /// entry-ID list. The heavy SQLite fetch + Entry materialization + grouping
-  /// + flattening all happen on this background `ModelActor`, so MainActor
-  /// stays free to render the loading state immediately and never pays for a
-  /// `flatMap(\.entryIDs)` across the entire row set.
+  /// Fetch entries for an article list selection, project them into
+  /// `EntryRowDTO` snapshots, and group them by calendar day. The heavy SQLite
+  /// fetch + projection + grouping + aggregate flattening all happen on this
+  /// background `ModelActor`, so MainActor renders the sections without any
+  /// store access (issue #148).
   /// Pass either `category` or `folder`; the other should be nil. If both are
   /// nil, returns an empty result.
   ///
@@ -139,7 +141,7 @@ actor DataReader: ModelActor {
     // actor. Zero-cost when no profiler is attached; `defer` closes on throw.
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.readFetchSections)
     defer { perfSignposter.endInterval(PerformanceSignpostName.readFetchSections, signpost) }
-    let descriptor: FetchDescriptor<Entry>
+    var descriptor: FetchDescriptor<Entry>
     // Secondary sort on feedbinEntryID keeps order deterministic when two entries
     // share the same publishedAt timestamp. Without it, two equal-timestamp rows
     // can swap places between fetches, which defeats the Equatable diff skip in
@@ -174,18 +176,84 @@ actor DataReader: ModelActor {
     } else {
       return .empty
     }
+    // Projection contract (issue #148): hydrate ONLY the columns
+    // `projectEntryRow` reads — `plainText` is deliberately EXCLUDED (it is
+    // the full article body; the projection faults it per-row, off-main, only
+    // when `summaryPlainText` is empty) — and prefetch the `feed`
+    // relationship in the same fetch so the favicon key + fallback initial
+    // resolve without a per-row relationship fault.
+    descriptor.propertiesToFetch = [
+      \.feedbinEntryID, \.title, \.formattedPublishedTime, \.displayDomain,
+      \.summaryPlainText, \.isRead, \.publishedAt,
+    ]
+    descriptor.relationshipKeyPathsForPrefetching = [\.feed]
     let entries = try modelContext.fetch(descriptor)
-    // The fetch is the dominant cost; re-check before paying for grouping
-    // when the consuming task is already gone.
+    // The fetch is the dominant cost; re-check before paying for projection
+    // and grouping when the consuming task is already gone.
     try Task.checkCancellation()
-    let sections = groupEntriesByDay(entries)
-    // Sort order of `sections` matches `entries` (both descend on publishedAt
-    // then feedbinEntryID), so a single pass over `entries` produces the same
-    // identifier sequence `sections.flatMap(\.entryIDs)` would — avoids a
-    // second walk and matches what `EntryListView.reload()` consumes via
-    // `VisibleEntryIDsKey`.
-    let allEntryIDs = entries.map(\.persistentModelID)
-    return EntryListFetchResult(sections: sections, allEntryIDs: allEntryIDs)
+    let rows = entries.map { projectEntryRow($0) }
+    let sections = groupRowsByDay(rows)
+    // Sort order of `sections` matches `rows` (both descend on publishedAt
+    // then feedbinEntryID), so a single pass over `rows` produces the same
+    // identifier sequence the sections carry — avoids a second walk; the
+    // MainActor consumes the aggregates via `VisibleEntriesKey`.
+    return EntryListFetchResult(
+      sections: sections,
+      allEntryIDs: rows.map(\.persistentID),
+      distinctFeedIDs: Set(rows.compactMap(\.feedFeedbinID)),
+      renderedUnreadFeedbinEntryIDs: Set(rows.lazy.filter { !$0.isRead }.map(\.feedbinEntryID))
+    )
+  }
+
+  /// Project one fetched `Entry` into its Sendable row snapshot, ON this
+  /// background actor.
+  ///
+  /// REVIEW RULE: this projection may touch ONLY the columns listed in
+  /// `fetchEntrySections`' `propertiesToFetch` plus the prefetched `feed`
+  /// relationship — accessing any unlisted property fires a per-row SQLite
+  /// fault, the cost class issue #148 removes. The ONE sanctioned exception:
+  /// `plainText` (the full article body) is deliberately excluded from
+  /// `propertiesToFetch` and faulted per-row HERE, off-main, only when
+  /// `summaryPlainText` is empty.
+  private func projectEntryRow(_ entry: Entry) -> EntryRowDTO {
+    let summary = entry.summaryPlainText
+    let feed = entry.feed
+    return EntryRowDTO(
+      persistentID: entry.persistentModelID,
+      feedbinEntryID: entry.feedbinEntryID,
+      title: entry.title,
+      formattedPublishedTime: entry.formattedPublishedTime,
+      displayDomain: entry.displayDomain,
+      excerpt: rowExcerpt(
+        summaryPlainText: summary,
+        plainText: summary.isEmpty ? entry.plainText : ""
+      ),
+      isRead: entry.isRead,
+      publishedAt: entry.publishedAt,
+      feedFeedbinID: feed?.feedbinFeedID,
+      feedInitial: feedInitial(from: feed?.title)
+    )
+  }
+
+  // MARK: - Favicons
+
+  /// Fetch favicon blobs for the given feeds in ONE background query —
+  /// `propertiesToFetch` limits hydration to the key + blob columns. Returns
+  /// only feeds that HAVE data; a missing key is `FaviconStore`'s
+  /// negative-cache signal (initials fallback, never refetched).
+  func fetchFaviconData(feedbinFeedIDs: Set<Int>) throws -> [Int: Data] {
+    guard !feedbinFeedIDs.isEmpty else { return [:] }
+    let ids = Array(feedbinFeedIDs)
+    var descriptor = FetchDescriptor<Feed>(
+      predicate: #Predicate<Feed> { ids.contains($0.feedbinFeedID) }
+    )
+    descriptor.propertiesToFetch = [\.feedbinFeedID, \.faviconData]
+    let feeds = try modelContext.fetch(descriptor)
+    var faviconData: [Int: Data] = [:]
+    for feed in feeds {
+      if let data = feed.faviconData { faviconData[feed.feedbinFeedID] = data }
+    }
+    return faviconData
   }
 
   // MARK: - Unread aggregation

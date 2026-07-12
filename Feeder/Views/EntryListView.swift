@@ -8,15 +8,25 @@ import os.signpost
 /// taxonomy, so it is interpolated `.private` (`STACK.md § 8`).
 private let logger = Logger(subsystem: "com.feeder.app", category: "EntryListView")
 
-// MARK: - Visible Entry IDs Preference Key
+// MARK: - Visible Entries Preference Key
 
-/// Bubbles the current entry IDs from EntryListView up to ContentView
-/// so Tab can select the first article when switching to the article list.
-/// Carries `PersistentIdentifier`s (Sendable, lightweight) — the Tab handler
-/// materializes the first Entry on demand via `modelContext.model(for:)`.
-struct VisibleEntryIDsKey: PreferenceKey {
-  static let defaultValue: [PersistentIdentifier] = []
-  static func reduce(value: inout [PersistentIdentifier], nextValue: () -> [PersistentIdentifier]) {
+/// Payload for `VisibleEntriesKey`: the currently rendered entry ids (Tab
+/// selects the first as the new `selectedEntryID`) plus the rendered-unread
+/// feedbin ids — the rendered side of the two-sided `pendingReadIDs`
+/// retention prune (`retainedPendingReadIDs`, issue #148). Both aggregates
+/// are computed off-main by `DataReader.fetchEntrySections`; the view just
+/// bubbles them.
+nonisolated struct VisibleEntriesPayload: Sendable, Equatable {
+  let ids: [PersistentIdentifier]
+  let unreadFeedbinEntryIDs: Set<Int>
+
+  static let empty = VisibleEntriesPayload(ids: [], unreadFeedbinEntryIDs: [])
+}
+
+/// Bubbles the rendered-entries payload from EntryListView up to ContentView.
+struct VisibleEntriesKey: PreferenceKey {
+  static let defaultValue: VisibleEntriesPayload = .empty
+  static func reduce(value: inout VisibleEntriesPayload, nextValue: () -> VisibleEntriesPayload) {
     value = nextValue()
   }
 }
@@ -30,12 +40,14 @@ struct VisibleEntryIDsKey: PreferenceKey {
 /// thousands of entries), the SQLite fetch + Entry materialization + day-grouping
 /// blocks the main thread for seconds.
 ///
-/// Instead, the heavy fetch + grouping runs on `DataReader` (a `@ModelActor`,
-/// so on a background thread). The view holds lightweight `[EntryListSection]`
-/// state (`PersistentIdentifier` arrays + section labels — Sendable DTOs).
-/// Each row materializes its `Entry` lazily on MainActor via
-/// `modelContext.model(for:)` (cheap O(1) primary-key lookup, only for
-/// visible rows).
+/// Instead, the heavy fetch + projection + grouping runs on `DataReader` (a
+/// `@ModelActor`, so on a background thread). The view holds
+/// `[EntryListSection]` state whose rows are complete `EntryRowDTO` value
+/// snapshots (issue #148) — each row renders from its DTO plus the
+/// `FaviconStore` image; there is NO per-row `modelContext.model(for:)` and
+/// NO `entry.feed` relationship fault on MainActor. Selection carries the
+/// row's `PersistentIdentifier`; `ContentView` resolves the ONE full `Entry`
+/// per selection at the detail boundary.
 ///
 /// **The `List` stays mounted across reloads (issue #146).** The old shape
 /// swapped `ProgressView` ↔ `List` on a `hasLoaded` boolean, so every
@@ -68,24 +80,25 @@ struct EntryListView: View {
   /// re-fetch (avoids per-click background work).
   let pinnedFeedbinEntryID: Int?
   @Binding
-  var selectedEntry: Entry?
+  var selectedEntryID: PersistentIdentifier?
   let onMarkAllRead: () -> Void
 
-  @Environment(\.modelContext)
-  private var modelContext
   @Environment(SyncEngine.self)
   private var syncEngine
+  @Environment(FaviconStore.self)
+  private var faviconStore
   @Environment(AppFontSettings.self)
   private var fontSettings
   @Environment(\.openSettings)
   private var openSettings
   @State
   private var sections: [EntryListSection] = []
-  /// Flattened entry IDs cached for the `VisibleEntryIDsKey` preference. Computed once
-  /// per fetch (in `.task`) instead of `sections.flatMap(\.entryIDs)` on every body
-  /// re-eval — meaningful for large categories ("uncategorized" with thousands of IDs).
+  /// Rendered-entries payload cached for the `VisibleEntriesKey` preference.
+  /// Computed once per fetch (off-main, by the reader) instead of walking
+  /// `sections` on every body re-eval — meaningful for large categories
+  /// ("uncategorized" with thousands of rows).
   @State
-  private var allVisibleEntryIDs: [PersistentIdentifier] = []
+  private var visibleEntries: VisibleEntriesPayload = .empty
   /// Fetch lifecycle for the current structural context — the tagged union
   /// that replaced the `hasLoaded` boolean (issue #146). Drives
   /// `entryListDisplayState(...)` together with `sections`.
@@ -167,16 +180,20 @@ struct EntryListView: View {
             )
           }
         case .blank, .list:
-          List(selection: $selectedEntry) {
+          List(selection: $selectedEntryID) {
             ForEach(sections) { section in
               Section {
-                ForEach(section.entryIDs, id: \.self) { id in
-                  if let entry = modelContext.model(for: id) as? Entry {
-                    EntryRowView(entry: entry)
-                      .tag(entry)
-                      .id(id)
-                      .listRowSeparator(.hidden)
-                  }
+                // Rows render straight from their DTO snapshots — zero store
+                // access on MainActor (issue #148). The favicon is a sync
+                // dictionary lookup; decode happened once in `FaviconStore`.
+                ForEach(section.rows) { row in
+                  EntryRowView(
+                    row: row,
+                    faviconImage: faviconStore.image(for: row.feedFeedbinID)
+                  )
+                  .tag(row.persistentID)
+                  .id(row.persistentID)
+                  .listRowSeparator(.hidden)
                 }
               } header: {
                 Text(section.label)
@@ -189,7 +206,7 @@ struct EntryListView: View {
           .listStyle(.inset(alternatesRowBackgrounds: false))
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-          .preference(key: VisibleEntryIDsKey.self, value: allVisibleEntryIDs)
+          .preference(key: VisibleEntriesKey.self, value: visibleEntries)
           .accessibilityIdentifier("timeline.list")
         }
       }
@@ -222,7 +239,7 @@ struct EntryListView: View {
         // old category's rows while the new fetch runs.
         fetchPhase = .pending
         sections = []
-        allVisibleEntryIDs = []
+        visibleEntries = .empty
         if await reload(proxy: proxy) {
           fetchPhase = .resolved
           return
@@ -301,7 +318,7 @@ struct EntryListView: View {
     // sync page lands new entries above it (option (a) per the design's
     // sync-arriving-entries autonomy decision). Structural reloads
     // (`fetchPhase == .pending` going into `reload`; the structural prefix
-    // also cleared `allVisibleEntryIDs`) skip the fallback so we do not pin
+    // also cleared `visibleEntries`) skip the fallback so we do not pin
     // an anchor from the previous list's contents.
     //
     // `result.allEntryIDs` is precomputed off-MainActor by
@@ -310,10 +327,10 @@ struct EntryListView: View {
     // used to live here moved to the reader.
     let newIDs = Set(result.allEntryIDs)
     let restore: AnchorRestore?
-    if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
+    if let selectedID = selectedEntryID, newIDs.contains(selectedID) {
       restore = AnchorRestore(id: selectedID, anchor: .center)
-    } else if selectedEntry == nil, fetchPhase == .resolved,
-      let firstID = allVisibleEntryIDs.first,
+    } else if selectedEntryID == nil, fetchPhase == .resolved,
+      let firstID = visibleEntries.ids.first,
       newIDs.contains(firstID)
     {
       restore = AnchorRestore(id: firstID, anchor: .top)
@@ -322,7 +339,10 @@ struct EntryListView: View {
     }
     pendingAnchorRestore = restore
     sections = result.sections
-    allVisibleEntryIDs = result.allEntryIDs
+    visibleEntries = VisibleEntriesPayload(
+      ids: result.allEntryIDs,
+      unreadFeedbinEntryIDs: result.renderedUnreadFeedbinEntryIDs
+    )
     // Yield one tick so SwiftUI applies the diff before we ask the proxy
     // to scroll — without the yield `scrollTo` runs against the still-old
     // layout and the anchor row is not yet on screen to scroll to. Instant
@@ -331,6 +351,13 @@ struct EntryListView: View {
       pendingAnchorRestore = nil
       await Task.yield()
       proxy.scrollTo(restore.id, anchor: restore.anchor)
+    }
+    // Warm the favicon cache AFTER the rows are applied, in the same SwiftUI
+    // task — a structural-key change cancels the warm together with the
+    // reload, and a cancelled warm just leaves the initials fallback until
+    // the next reload. Best-effort: a warm failure never fails the reload.
+    await faviconStore.ensureLoaded(feedIDs: result.distinctFeedIDs) { ids in
+      try await reader.fetchFaviconData(feedbinFeedIDs: ids)
     }
     return true
   }
@@ -378,7 +405,7 @@ private struct EntryListOfflinePreview: View {
   @State
   private var reader: DataReader?
   @State
-  private var selectedEntry: Entry?
+  private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine: SyncEngine = {
     let engine = SyncEngine()
@@ -398,7 +425,7 @@ private struct EntryListOfflinePreview: View {
           reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
-          selectedEntry: $selectedEntry,
+          selectedEntryID: $selectedEntryID,
           onMarkAllRead: {}
         )
       } else {
@@ -407,6 +434,7 @@ private struct EntryListOfflinePreview: View {
     }
     .environment(syncEngine)
     .environment(AppFontSettings())
+    .environment(FaviconStore())
     .modelContainer(container)
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)
@@ -423,7 +451,7 @@ private struct EntryListAuthFailedPreview: View {
   @State
   private var reader: DataReader?
   @State
-  private var selectedEntry: Entry?
+  private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine: SyncEngine = {
     let engine = SyncEngine()
@@ -443,7 +471,7 @@ private struct EntryListAuthFailedPreview: View {
           reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
-          selectedEntry: $selectedEntry,
+          selectedEntryID: $selectedEntryID,
           onMarkAllRead: {}
         )
       } else {
@@ -452,6 +480,7 @@ private struct EntryListAuthFailedPreview: View {
     }
     .environment(syncEngine)
     .environment(AppFontSettings())
+    .environment(FaviconStore())
     .modelContainer(container)
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)
@@ -477,7 +506,7 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
   @State
   private var reader: DataReader?
   @State
-  private var selectedEntry: Entry?
+  private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = {
     let container = PreviewSupport.makeContainer()
     let context = container.mainContext
@@ -522,7 +551,7 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
           reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
-          selectedEntry: $selectedEntry,
+          selectedEntryID: $selectedEntryID,
           onMarkAllRead: {}
         )
       } else {
@@ -532,6 +561,7 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
     .environment(syncEngine)
     .environment(classificationEngine)
     .environment(AppFontSettings())
+    .environment(FaviconStore())
     .modelContainer(container)
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)
@@ -548,7 +578,7 @@ private struct EntryListEmptyAtRestPreview: View {
   @State
   private var reader: DataReader?
   @State
-  private var selectedEntry: Entry?
+  private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine = SyncEngine()
 
@@ -563,7 +593,7 @@ private struct EntryListEmptyAtRestPreview: View {
           reader: reader,
           refreshVersion: 0,
           pinnedFeedbinEntryID: nil,
-          selectedEntry: $selectedEntry,
+          selectedEntryID: $selectedEntryID,
           onMarkAllRead: {}
         )
       } else {
@@ -572,6 +602,7 @@ private struct EntryListEmptyAtRestPreview: View {
     }
     .environment(syncEngine)
     .environment(AppFontSettings())
+    .environment(FaviconStore())
     .modelContainer(container)
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)

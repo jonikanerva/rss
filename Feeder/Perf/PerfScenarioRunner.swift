@@ -100,8 +100,8 @@ enum PerfScenarioRunner {
   static func run(
     writer: DataWriter,
     syncEngine: SyncEngine,
-    apply: @escaping @MainActor (SidebarSelection?, Entry?, ArticleViewMode) -> Void,
-    visibleEntries: @escaping @MainActor () -> [Entry],
+    apply: @escaping @MainActor (SidebarSelection?, PersistentIdentifier?, ArticleViewMode) -> Void,
+    visibleEntryIDs: @escaping @MainActor () -> [PersistentIdentifier],
     navigate: @escaping @MainActor (SidebarNavDirection) -> Void,
     bumpEntryList: @escaping @MainActor () -> Void,
     currentSelection: @escaping @MainActor () -> SidebarSelection?
@@ -138,7 +138,7 @@ enum PerfScenarioRunner {
     let window = perfSignposter.beginInterval(PerformanceSignpostName.perfNavWindow)
     await driveNavWalk(
       apply: apply,
-      visibleEntries: visibleEntries,
+      visibleEntryIDs: visibleEntryIDs,
       navigate: navigate,
       currentSelection: currentSelection
     )
@@ -199,8 +199,8 @@ enum PerfScenarioRunner {
   /// toggle every fourth step so the detail-render path is exercised under
   /// load too. Fixed step count so the window is reproducible.
   private static func driveNavWalk(
-    apply: @MainActor (SidebarSelection?, Entry?, ArticleViewMode) -> Void,
-    visibleEntries: @MainActor () -> [Entry],
+    apply: @MainActor (SidebarSelection?, PersistentIdentifier?, ArticleViewMode) -> Void,
+    visibleEntryIDs: @MainActor () -> [PersistentIdentifier],
     navigate: @MainActor (SidebarNavDirection) -> Void,
     currentSelection: @MainActor () -> SidebarSelection?
   ) async {
@@ -214,7 +214,7 @@ enum PerfScenarioRunner {
       // Every fourth step, drive a mouse article selection on the currently
       // visible list, then toggle reader mode and back to exercise the HTML
       // renderer while write pressure churns the store.
-      if step.isMultiple(of: 4), let first = visibleEntries().first,
+      if step.isMultiple(of: 4), let first = visibleEntryIDs().first,
         let selection = currentSelection()
       {
         apply(selection, first, .web)
