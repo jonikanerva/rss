@@ -111,11 +111,13 @@ struct FaviconView: View {
 // MARK: - Preview
 
 #Preview("Unread Entry") {
-  entryRowPreview(row: unreadPreviewRow(), fontSettings: AppFontSettings())
+  entryRowPreview(
+    row: unreadPreviewRow(), fontSettings: AppFontSettings(), faviconImage: previewFaviconImage())
 }
 
 #Preview("Read Entry") {
-  entryRowPreview(row: readPreviewRow(), fontSettings: AppFontSettings())
+  entryRowPreview(
+    row: readPreviewRow(), fontSettings: AppFontSettings(), faviconImage: previewFaviconImage())
 }
 
 #Preview("Unread Entry — Huge Text") {
@@ -125,13 +127,30 @@ struct FaviconView: View {
   // through the view's regular environment slot instead — that is the
   // mechanism shipped code uses, so the preview actually shows the
   // largest layout reviewers ship to users.
-  entryRowPreview(row: unreadPreviewRow(), fontSettings: AppFontSettings(textSize: .xxLarge))
+  entryRowPreview(
+    row: unreadPreviewRow(), fontSettings: AppFontSettings(textSize: .xxLarge),
+    faviconImage: previewFaviconImage())
 }
 
 #Preview("Unread Entry — Initials Fallback") {
   // No favicon image: the fixed 24×24 slot renders the feed-initial fallback
-  // with no layout shift relative to the image case.
+  // with no layout shift relative to the image case above.
   entryRowPreview(row: unreadPreviewRow(), fontSettings: AppFontSettings())
+}
+
+/// A programmatically drawn stand-in favicon so the base previews cover the
+/// favicon-image SUCCESS state — `FaviconStore`'s primary render state — while
+/// the Initials Fallback preview keeps the distinct nil-image case.
+@MainActor
+private func previewFaviconImage() -> NSImage {
+  let image = NSImage(size: NSSize(width: 24, height: 24))
+  image.lockFocus()
+  NSColor.systemIndigo.setFill()
+  NSRect(x: 0, y: 0, width: 24, height: 24).fill()
+  NSColor.white.setFill()
+  NSRect(x: 6, y: 6, width: 12, height: 12).fill()
+  image.unlockFocus()
+  return image
 }
 
 /// Container-free row previews (issue #148): the row renders from a DTO value
