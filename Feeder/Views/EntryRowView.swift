@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import os.signpost
 
 // MARK: - Entry Row View
 
@@ -20,7 +21,12 @@ struct EntryRowView: View {
   private var isRead: Bool { row.isRead || pendingReadIDs.contains(row.feedbinEntryID) }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 15) {
+    // Whole-list-re-render check (issue #146, DIAGNOSTIC-ONLY): one event per
+    // body evaluation. Events inside a `structuralReload` window reveal whether
+    // the List rebuilds every row or only the visible ones. Mirrors the SwiftUI
+    // `Self._printChanges()` body-diagnostic idiom; zero-cost with no profiler.
+    let _ = perfSignposter.emitEvent(PerformanceSignpostName.rowBodyBuild)
+    return HStack(alignment: .top, spacing: 15) {
       // Favicon — own vertical column
       FaviconView(image: faviconImage, fallbackLetter: row.feedInitial)
         .frame(width: 24, height: 24)

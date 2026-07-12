@@ -132,6 +132,14 @@ struct ContentView: View {
   private var sidebarClickIntervalState: OSSignpostIntervalState?
   @State
   private var articleClickIntervalState: OSSignpostIntervalState?
+  /// `contentViewReeval` interval state + its render-pass token (issue #146,
+  /// DIAGNOSTIC-ONLY): begins when a `VisibleEntriesKey` payload arrives, ends on
+  /// the next ContentView render pass via `.task(id: contentReevalVersion)` —
+  /// measuring the whole-split-view re-eval a full-N preference triggers.
+  @State
+  private var contentReevalIntervalState: OSSignpostIntervalState?
+  @State
+  private var contentReevalVersion = 0
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
@@ -186,12 +194,26 @@ struct ContentView: View {
     .environment(\.bareKeyActions, bareKeyActions)
     .environment(faviconStore)
     .onPreferenceChange(VisibleEntriesKey.self) { payload in
+      // Sub-cost split (issue #146, diagnostic): open the reeval interval before
+      // the @State writes below dirty ContentView; the paired end fires on the
+      // next render pass via `.task(id: contentReevalVersion)`.
+      contentReevalIntervalState = perfSignposter.beginInterval(
+        PerformanceSignpostName.contentViewReeval
+      )
+      contentReevalVersion &+= 1
       currentEntries = payload
       // Second prune trigger (issue #148): the rendered-unread side of the
       // two-sided retention criterion just changed — re-evaluate the overlay
       // so an ID whose refetched DTO confirms `isRead == true` on BOTH sides
       // is released here, not only on the next snapshot refresh.
       prunePendingReadIDs()
+    }
+    .task(id: contentReevalVersion) {
+      // Sub-cost split (issue #146, diagnostic): close the reeval interval on
+      // the render pass that followed the preference-driven @State writes.
+      guard let state = contentReevalIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.contentViewReeval, state)
+      contentReevalIntervalState = nil
     }
     .onAppear {
       checkCredentials()
