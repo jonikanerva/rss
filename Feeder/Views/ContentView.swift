@@ -23,11 +23,20 @@ struct ContentView: View {
   /// defer the bump until the user's selection has been stable for this long
   /// (or selection clears) so the refresh lands at a quiet moment.
   fileprivate static let classificationBumpDwell: Duration = .seconds(4)
+  /// Idle throttle for classification bumps when no row is selected. The
+  /// no-selection drain used to be immediate; while the user watches a
+  /// still-empty (or just-filling) category, classification progress ticks
+  /// would each trigger a full re-fetch. One second coalesces the ticks into
+  /// a calm live-populate cadence without delaying the first row noticeably
+  /// (issue #146). The 4 s selection dwell above is untouched.
+  fileprivate static let classificationIdleThrottle: Duration = .seconds(1)
   /// Shorter dwell for sync-page bumps. New entries persisted by a sync page
   /// land at the top of the list via stable-ID diffing — `List` preserves the
   /// scroll anchor around the selected row, so a near-immediate refresh stays
   /// non-disruptive. The dwell still buys a small coalescing window so a
-  /// burst of pages collapses into one re-fetch instead of N.
+  /// burst of pages collapses into one re-fetch instead of N. Also passed as
+  /// the sync channel's no-selection `idleThrottle` (issue #146) so a page
+  /// burst coalesces there too, replacing the previous immediate drain.
   fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
   /// Entry count seeded for the headless reading state (#141). Small so the
   /// automated-launch host boots fast, but enough rows across the perf seeder's
@@ -325,6 +334,7 @@ struct ContentView: View {
       DeferredBumpDrainTrigger(
         key: classificationBumpDrainKey,
         dwell: Self.classificationBumpDwell,
+        idleThrottle: Self.classificationIdleThrottle,
         hasSelection: selectedEntry != nil,
         pendingBump: $pendingClassificationBump,
         onDrain: { bumpEntryList() }
@@ -334,6 +344,7 @@ struct ContentView: View {
       DeferredBumpDrainTrigger(
         key: syncBumpDrainKey,
         dwell: Self.syncBumpDwell,
+        idleThrottle: Self.syncBumpDwell,
         hasSelection: selectedEntry != nil,
         pendingBump: $pendingSyncBump,
         onDrain: { bumpEntryList() }
