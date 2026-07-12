@@ -240,7 +240,7 @@ struct EntryListView: View {
         defer {
           perfSignposter.endInterval(
             PerformanceSignpostName.structuralReload, signpost,
-            "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .public)"
+            "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .private)"
           )
         }
         // Synchronous prefix: enter the pending phase and drop the previous
