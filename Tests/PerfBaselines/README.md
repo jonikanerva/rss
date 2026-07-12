@@ -126,7 +126,7 @@ Per-metric, not global ±X:
   noise; drifts above 20 % deserve investigation. The four shipped
   entries (`fetchUnreadCountsSnapshot_micro`,
   `fetchEntrySections_category_micro`, `parseHTMLToBlocks_micro`,
-  `groupEntriesByDay_micro`) cover the hot-path functions identified
+  `groupRowsByDay_micro`) cover the hot-path functions identified
   during PR 4 planning. New benchmarks added under
   `FeederTests/MicroBenchmarkTests` are picked up automatically by the
   extractor; the first `make perf-record-baseline` invocation after the
