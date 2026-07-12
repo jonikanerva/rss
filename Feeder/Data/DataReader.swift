@@ -128,6 +128,13 @@ actor DataReader: ModelActor {
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
     pinnedFeedbinEntryID: Int? = nil
   ) throws -> EntryListFetchResult {
+    // Kill queued stale fetches before they touch the store: under rapid J/K
+    // the serial reader mailbox accumulates fetches whose owning `.task` was
+    // already cancelled by a structural-key change. Actor methods run in the
+    // caller's task, so this observes the SwiftUI task's cancellation.
+    // Checked BEFORE the signpost begin so aborted fetches do not skew
+    // `read-fetch-sections` stats (issue #146).
+    try Task.checkCancellation()
     // C3 attribution (issue #138): time the article-list read on the reader
     // actor. Zero-cost when no profiler is attached; `defer` closes on throw.
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.readFetchSections)
@@ -168,6 +175,9 @@ actor DataReader: ModelActor {
       return .empty
     }
     let entries = try modelContext.fetch(descriptor)
+    // The fetch is the dominant cost; re-check before paying for grouping
+    // when the consuming task is already gone.
+    try Task.checkCancellation()
     let sections = groupEntriesByDay(entries)
     // Sort order of `sections` matches `entries` (both descend on publishedAt
     // then feedbinEntryID), so a single pass over `entries` produces the same
