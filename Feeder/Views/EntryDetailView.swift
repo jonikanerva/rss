@@ -34,6 +34,8 @@ struct EntryDetailView: View {
   private var reduceMotion
   @Environment(AppFontSettings.self)
   private var fontSettings
+  @Environment(FaviconStore.self)
+  private var faviconStore
 
   /// View-level cache of decoded reader blocks. Lives here (not on `@Model Entry`) so
   /// persistence and rendering stay in separate layers. Re-decodes when the persisted
@@ -102,10 +104,17 @@ struct EntryDetailView: View {
         .font(fontSettings.articleTitle)
         .fixedSize(horizontal: false, vertical: true)
 
-      // Favicon + author/domain
+      // Favicon + author/domain. The detail pane holds the ONE live Entry,
+      // so reading `entry.feed` here is the sanctioned one-shot boundary
+      // resolve (issue #148); the image itself comes from the shared
+      // `FaviconStore` (decoded once by the list warm — a rare cache miss
+      // renders the initials fallback).
       HStack(alignment: .center, spacing: 8) {
-        FaviconView(feed: entry.feed)
-          .frame(width: 20, height: 20)
+        FaviconView(
+          image: faviconStore.image(for: entry.feed?.feedbinFeedID),
+          fallbackLetter: feedInitial(from: entry.feed?.title)
+        )
+        .frame(width: 20, height: 20)
 
         VStack(alignment: .leading, spacing: 2) {
           if let author = entry.author, !author.isEmpty {
@@ -275,6 +284,7 @@ private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
 
   return EntryDetailView(entry: entry, viewMode: .reader)
     .environment(fontSettings)
+    .environment(FaviconStore())
     .modelContainer(container)
     .frame(width: 600, height: 500)
 }

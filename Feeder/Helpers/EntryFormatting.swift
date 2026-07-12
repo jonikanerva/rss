@@ -64,6 +64,32 @@ nonisolated func extractDomain(from urlString: String) -> String {
   return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
 }
 
+/// Hard cap for `rowExcerpt` — bounds the DTO's memory when a summary-less
+/// article falls back to the full `plainText` body (issue #148). This is a
+/// data-size bound, not visual truncation; the row renders two lines
+/// regardless.
+private nonisolated let rowExcerptMaxLength = 500
+
+/// Row excerpt for the article list: the write-time `summaryPlainText` when
+/// present, otherwise the `plainText` fallback — whitespace-trimmed and capped
+/// at `rowExcerptMaxLength` characters. Callers that want to avoid faulting
+/// `plainText` pass "" for it when the summary is non-empty
+/// (`DataReader.projectEntryRow`).
+nonisolated func rowExcerpt(summaryPlainText: String, plainText: String) -> String {
+  let source = summaryPlainText.isEmpty ? plainText : summaryPlainText
+  let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+  return String(trimmed.prefix(rowExcerptMaxLength))
+}
+
+/// Fallback initial for a feed's favicon slot: first letter of the feed title,
+/// uppercased; "?" when the feed (or its title) is absent. Mirrors the letter
+/// `FaviconView` rendered before issue #148 moved the computation off-main
+/// into `DataReader.projectEntryRow`.
+nonisolated func feedInitial(from feedTitle: String?) -> String {
+  guard let feedTitle, let first = feedTitle.first else { return "?" }
+  return String(first).uppercased()
+}
+
 /// Format a section header label for a given start-of-day date.
 /// Used by the article list to show "Today", "Yesterday", or a full weekday/date.
 nonisolated func entryListSectionLabel(for date: Date) -> String {

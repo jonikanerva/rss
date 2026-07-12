@@ -16,12 +16,14 @@ import Testing
 /// insert-then-first-fetch, which hits SQLite fresh and proves nothing about
 /// the cached/registered path).
 ///
-/// The merge-blocking freshness case is `fetchUnreadCountsSnapshot` bucket
+/// The merge-blocking freshness cases are `fetchUnreadCountsSnapshot` bucket
 /// re-attribution (it reads `primaryCategory` / `primaryFolder` off
-/// possibly-registered objects). `fetchEntrySections` is staleness-IMMUNE — its
-/// DTOs carry only `PersistentIdentifier`s + write-time-immutable labels — so
-/// it only needs the `isRead` membership-drop case plus the scalar-free-DTO
-/// guard.
+/// possibly-registered objects) and — since issue #148 retired the
+/// staleness-immunity contract — `fetchEntrySections`' row projection, which
+/// reads volatile scalars (`isRead`, `title`, …) into `EntryRowDTO`
+/// snapshots. The projection therefore carries both a membership-drop case
+/// and a committed-value case (`rowDTOCarriesCommittedIsReadFlip`), plus the
+/// compile-time field-set pin.
 /// `.serialized` serialises the tests WITHIN this suite so they run one at a
 /// time. Its job here is INTRA-suite ordering, not capping coordinators: the
 /// heavyweight `sharedContainerProductionShapeStress` (hundreds of concurrent
@@ -92,12 +94,11 @@ struct DataReaderConcurrencyTests {
     #expect(snap2.categoryCounts["world_news"] == 1)
   }
 
-  /// `fetchEntrySections` freshness is a MEMBERSHIP question, not an attribution
-  /// one: its result DTOs are scalar-free (`EntryListSection` = id + immutable
-  /// label + `[PersistentIdentifier]`; `allEntryIDs` = `map(\.persistentModelID)`),
-  /// so a stale registered object cannot leak a volatile value through them —
-  /// membership + order are SQL-committed-truthful. This test pins the one thing
-  /// that CAN change: a row leaving the unread set after a committed mark-read.
+  /// Membership freshness for `fetchEntrySections`: a row leaving the unread
+  /// set after a committed mark-read must disappear from the next fetch —
+  /// membership + order are SQL-committed-truthful. (Value freshness of the
+  /// row DTOs themselves is pinned separately by
+  /// `rowDTOCarriesCommittedIsReadFlip`.)
   @Test("Reader drops a row from the unread list after a committed mark-read")
   func readerDropsRowAfterCommittedMarkRead() async throws {
     let (writer, reader) = try await makePair()
@@ -145,33 +146,84 @@ struct DataReaderConcurrencyTests {
     #expect(hasPending == false)
   }
 
-  // MARK: - AC5-part-2: fetchEntrySections DTOs stay scalar-free (compile-time pin)
+  // MARK: - AC5-part-2: fetchEntrySections DTO field-set pin (compile-time) + value freshness
 
-  /// `fetchEntrySections`'s membership-only freshness (the `readerDropsRow…`
-  /// argument above) holds ONLY because its result DTOs carry no volatile
-  /// `Entry` scalar — just `PersistentIdentifier`s plus write-time-immutable
-  /// section labels. A stale registered object therefore cannot leak a changed
-  /// value through them. Reflection could assert "no scalar" at runtime, but
-  /// `STACK.md § 7` bans it, so this is a COMPILE-TIME structural pin instead:
-  /// it builds `EntryListSection` and `EntryListFetchResult` through their full
-  /// memberwise initializers with the exact current field list. Adding a stored
-  /// field to either DTO changes the memberwise initializer's signature and
-  /// BREAKS THIS TEST'S COMPILE — forcing a reviewer to confirm the new field is
-  /// not a volatile `Entry` scalar that would reintroduce stale reads. Keep
-  /// these DTOs to identifiers + immutable labels only.
-  @Test("fetchEntrySections DTOs stay scalar-free (compile-time field-set pin)")
-  func fetchEntrySectionsDTOsAreScalarFree() {
-    // EntryListSection: id (ForEach identity) + label (write-time-immutable
-    // section title) + entryIDs — NO Entry scalar. A new stored field here
-    // fails to compile until the argument list below is updated.
+  /// Issue #148 RETIRED the "no volatile scalar" staleness-immunity contract:
+  /// rows are value snapshots of committed state (see `EntryRowDTO`'s doc).
+  /// What remains pinned — at compile time, through the full memberwise
+  /// initializers — is the DECLARED field set: adding a stored field to any
+  /// of these DTOs changes its memberwise signature and BREAKS THIS TEST'S
+  /// COMPILE, forcing the reviewer to (a) confirm the new field is projected
+  /// only from a `propertiesToFetch`-listed column or the prefetched `feed`
+  /// (`DataReader.projectEntryRow`'s review rule), and (b) extend the
+  /// freshness-contract docs if the field is volatile. Reflection stays out
+  /// per `STACK.md § 7`.
+  @Test("fetchEntrySections DTOs match the declared field set (compile-time pin)")
+  func fetchEntrySectionsDTOFieldSetPin() throws {
+    // EntryRowDTO: the declared row snapshot — persistent identity, render
+    // fields, the isRead snapshot, the grouping input, and the favicon pair.
+    let context = ModelContext(try DataWriterTestSupport.makeInMemoryContainer())
+    let minted = Entry(
+      feedbinEntryID: 4001, title: "Pin", author: nil, url: "https://example.com/pin",
+      content: nil, summary: nil, extractedContentURL: nil, publishedAt: .now, createdAt: .now)
+    context.insert(minted)
     let day = Date(timeIntervalSince1970: 0)
-    let section = EntryListSection(id: day, label: "Section", entryIDs: [])
-    // EntryListFetchResult: the sections + the pre-flattened id list — both
-    // identifier-only.
-    let result = EntryListFetchResult(sections: [section], allEntryIDs: [])
+    let row = EntryRowDTO(
+      persistentID: minted.persistentModelID,
+      feedbinEntryID: 4001,
+      title: "Pin",
+      formattedPublishedTime: "09.30",
+      displayDomain: "example.com",
+      excerpt: "Excerpt",
+      isRead: false,
+      publishedAt: day,
+      feedFeedbinID: 1,
+      feedInitial: "E"
+    )
+    // EntryListSection: id (ForEach identity) + label + the row snapshots.
+    let section = EntryListSection(id: day, label: "Section", rows: [row])
+    // EntryListFetchResult: sections + the three pre-flattened aggregates.
+    let result = EntryListFetchResult(
+      sections: [section], allEntryIDs: [row.persistentID],
+      distinctFeedIDs: [1], renderedUnreadFeedbinEntryIDs: [4001])
     // Behavioural anchor so the constructions above are not dead code.
     #expect(result.sections.first == section)
-    #expect(result.allEntryIDs.isEmpty)
+    #expect(result.allEntryIDs == [row.persistentID])
+    #expect(row.id == row.persistentID)
+  }
+
+  /// Value freshness for the row projection (issue #148): the DTO reads
+  /// volatile scalars, so it must serve COMMITTED values on the
+  /// registered-object path. The pinned-row case is the production shape —
+  /// a selected row retained in the unread fetch by `pinnedFeedbinEntryID`
+  /// after a committed mark-read flips it must refetch with
+  /// `isRead == true`, not the stale registered `false`.
+  @Test("Refetched row DTO carries a committed isRead flip (pinned-row path)")
+  func rowDTOCarriesCommittedIsReadFlip() async throws {
+    let (writer, reader) = try await makePair()
+    let entry = try FeedbinFixtures.entry(id: 9201, title: "Flip me")
+    _ = try await writer.persistEntries([entry], unreadIDs: [9201])
+    try await writer.applyClassification(
+      entryID: 9201,
+      result: ClassificationResult(entryID: 9201, categoryLabel: "apple", confidence: 0.9))
+
+    // (a) Register the row via a first unread fetch — snapshot is unread.
+    let first = try await reader.fetchEntrySections(
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast,
+      pinnedFeedbinEntryID: 9201)
+    #expect(first.sections.flatMap(\.rows).map(\.isRead) == [false])
+    #expect(first.renderedUnreadFeedbinEntryIDs == [9201])
+
+    // (b) Writer marks the SAME row read and commits.
+    try await writer.markEntriesRead(feedbinEntryIDs: [9201])
+
+    // (c) Re-fetch with the row pinned: membership retained by the pin, and
+    // the DTO reflects the COMMITTED flip.
+    let second = try await reader.fetchEntrySections(
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast,
+      pinnedFeedbinEntryID: 9201)
+    #expect(second.sections.flatMap(\.rows).map(\.isRead) == [true])
+    #expect(second.renderedUnreadFeedbinEntryIDs.isEmpty)
   }
 
   // MARK: - Production-shape 1+1 stress (TSan evidence gate for the shared topology)

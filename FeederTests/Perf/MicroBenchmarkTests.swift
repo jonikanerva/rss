@@ -20,7 +20,7 @@ import XCTest
 /// - `DataReader.fetchUnreadCountsSnapshot(cutoffDate:)`
 /// - `DataReader.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:)`
 /// - `parseHTMLToBlocks(_:)`
-/// - `groupEntriesByDay(_:)`
+/// - `groupRowsByDay(_:)`
 ///
 /// Not part of `make test-all`. Invoked by `make perf` via
 /// `-only-testing:FeederTests/MicroBenchmarkTests` so they ride the same
@@ -135,30 +135,53 @@ final class MicroBenchmarkTests: XCTestCase {
     }
   }
 
-  // MARK: - groupEntriesByDay
+  // MARK: - groupRowsByDay
 
   /// Pinpoints regression risk in the article-list grouping path. The
   /// function is called inside `fetchEntrySections` on every reload, so
   /// any regression compounds with the sidebar-click signpost cost.
   ///
-  /// `groupEntriesByDay` reads `@Model Entry` properties, which require an
-  /// active `ModelContext`. We seed entries via `DataWriter` (the
-  /// `seedPerfTestData` path), then drive the measurement from inside the
-  /// writer actor so the entries are alive in the actor's context for the
-  /// duration of the benchmark.
-  func test_groupEntriesByDay_micro() async throws {
-    let writer = self.writer!
+  /// `groupRowsByDay` is pure over `EntryRowDTO` values (issue #148 — its
+  /// `@Model`-input predecessor `groupEntriesByDay` needed an actor hop plus
+  /// a GCD bridge to measure), so the benchmark builds the row fixtures once
+  /// in setup and measures the grouping call directly. Supersedes the
+  /// baseline entry `groupEntriesByDay_micro`; the first
+  /// `make perf-record-baseline` after this lands captures the new name.
+  func test_groupRowsByDay_micro() throws {
+    // ~72 rows per day across ~14 days, descending publishedAt — the same
+    // shape `fetchEntrySections` hands the grouping in production. Only the
+    // `PersistentIdentifier` needs a store; every field the grouping reads
+    // is set right here.
+    let context = ModelContext(try DataWriterTestSupport.makeInMemoryContainer())
+    let step: TimeInterval = 86_400.0 / 72.0
+    let newest = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    let rows = (0..<1000).map { offset -> EntryRowDTO in
+      let publishedAt = newest.addingTimeInterval(-Double(offset) * step)
+      let entry = Entry(
+        feedbinEntryID: 500_000 + offset, title: "Row \(offset)", author: nil,
+        url: "https://example.com/\(offset)", content: nil, summary: nil,
+        extractedContentURL: nil, publishedAt: publishedAt, createdAt: publishedAt
+      )
+      context.insert(entry)
+      return EntryRowDTO(
+        persistentID: entry.persistentModelID,
+        feedbinEntryID: 500_000 + offset,
+        title: "Row \(offset)",
+        formattedPublishedTime: "09.30",
+        displayDomain: "example.com",
+        excerpt: "Row excerpt \(offset)",
+        isRead: offset.isMultiple(of: 2),
+        publishedAt: publishedAt,
+        feedFeedbinID: 1,
+        feedInitial: "E"
+      )
+    }
+
     let options = XCTMeasureOptions()
     options.iterationCount = 5
 
     measure(options: options) {
-      let group = DispatchGroup()
-      group.enter()
-      Task {
-        defer { group.leave() }
-        _ = try? await writer.measureGroupEntriesByDay()
-      }
-      group.wait()
+      _ = groupRowsByDay(rows)
     }
   }
 
@@ -214,19 +237,4 @@ final class MicroBenchmarkTests: XCTestCase {
       </p>
     </article>
     """
-}
-
-// MARK: - DataWriter actor entry point for grouping benchmark
-
-extension DataWriter {
-  /// Fetches the seeded entries inside the writer's actor context and
-  /// hands them to `groupEntriesByDay` — `Entry` properties are not
-  /// readable from MainActor without the model context, so the benchmark
-  /// must drive grouping from inside the actor.
-  func measureGroupEntriesByDay() throws -> [EntryListSection] {
-    let entries = try modelContext.fetch(
-      FetchDescriptor<Entry>(sortBy: [SortDescriptor(\Entry.publishedAt, order: .reverse)])
-    )
-    return groupEntriesByDay(entries)
-  }
 }

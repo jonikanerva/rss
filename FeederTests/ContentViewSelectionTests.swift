@@ -6,10 +6,11 @@ import Testing
 // MARK: - Pending-read yield-then-insert contract
 //
 // Regression coverage for the article-list keyboard-nav perf bug. Before the
-// fix `ContentView` mutated `pendingReadIDs` inline inside
-// `.onChange(of: selectedEntry)`, which cascaded through the sidebar unread
-// aggregation and `EntryRowView`'s dimming overlay on the same frame the
-// selection committed — visible as arrow-down feeling sluggish. The fix
+// fix `ContentView` mutated `pendingReadIDs` inline inside the selection
+// `.onChange` handler (now `.onChange(of: selectedEntryID)`, issue #148),
+// which cascaded through the sidebar unread aggregation and `EntryRowView`'s
+// dimming overlay on the same frame the selection committed — visible as
+// arrow-down feeling sluggish. The fix
 // routes the mutation through `applyPendingReadAfterYield`, which schedules
 // a `Task { @MainActor in await Task.yield(); apply(id) }`. Tests pin the
 // contract: synchronous observation must show the overlay unchanged; after

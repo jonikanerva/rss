@@ -437,10 +437,10 @@ struct DataWriterEntryTests {
     #expect(ids.count == 1)
   }
 
-  /// Regression pin for the PR #107 hot-path offload: the writer must return
+  /// Regression pin for the PR #107 hot-path offload: the reader must return
   /// the same flat ID sequence the MainActor used to compute via
-  /// `result.flatMap(\.entryIDs)`. Order matters — `EntryListView` keys its
-  /// `VisibleEntryIDsKey` preference and Tab-into-list selection off the
+  /// `result.flatMap(...)`. Order matters — `EntryListView` keys its
+  /// `VisibleEntriesKey` preference and Tab-into-list selection off the
   /// first ID, so a reorder would land selection on the wrong row.
   @Test
   func fetchEntrySectionsAllEntryIDsMatchSectionsFlatMap() async throws {
@@ -451,6 +451,6 @@ struct DataWriterEntryTests {
       category: "technology", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
 
-    #expect(result.allEntryIDs == result.sections.flatMap(\.entryIDs))
+    #expect(result.allEntryIDs == result.sections.flatMap(\.rows).map(\.persistentID))
   }
 }

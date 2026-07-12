@@ -21,40 +21,6 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
   let folderCount: Int
 }
 
-// MARK: - Day sectioning (lives here because it reads @Model Entry within the actor's context)
-
-/// Group entries by calendar day, preserving sort order, returning Sendable section DTOs.
-/// Runs in whatever context calls it — now the `DataReader` background actor,
-/// which owns `fetchEntrySections`.
-/// `Entry` reads are local to that context — no actor hops, no MainActor work.
-nonisolated func groupEntriesByDay(_ entries: [Entry]) -> [EntryListSection] {
-  let calendar = Calendar.current
-  var sections: [EntryListSection] = []
-  var currentDay: Date?
-  var currentIDs: [PersistentIdentifier] = []
-
-  for entry in entries {
-    let day = calendar.startOfDay(for: entry.publishedAt)
-    if day != currentDay {
-      if let prevDay = currentDay, !currentIDs.isEmpty {
-        sections.append(
-          EntryListSection(id: prevDay, label: entryListSectionLabel(for: prevDay), entryIDs: currentIDs)
-        )
-      }
-      currentDay = day
-      currentIDs = [entry.persistentModelID]
-    } else {
-      currentIDs.append(entry.persistentModelID)
-    }
-  }
-  if let lastDay = currentDay, !currentIDs.isEmpty {
-    sections.append(
-      EntryListSection(id: lastDay, label: entryListSectionLabel(for: lastDay), entryIDs: currentIDs)
-    )
-  }
-  return sections
-}
-
 // MARK: - DataWriter Actor
 
 /// `UserDefaults` key that marks default taxonomy as seeded for this install.

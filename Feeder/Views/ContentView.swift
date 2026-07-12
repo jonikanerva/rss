@@ -71,6 +71,17 @@ struct ContentView: View {
   private var unreadSnapshot: UnreadCountsSnapshot = .empty
   @AppStorage("sidebar.collapsedFolders")
   private var collapsedFolders: SidebarCollapsedFolders = .init()
+  /// Source of truth for the article-list selection (issue #148): the row
+  /// DTO's `PersistentIdentifier`, written by the `List` selection binding,
+  /// Tab-into-list, the Escape / filter / sidebar clears, mark-all-read, and
+  /// the perf runner.
+  @State
+  private var selectedEntryID: PersistentIdentifier?
+  /// Memoized live model for the selected row — the ONE full `Entry`
+  /// materialization per selection (detail pane, open-in-browser, mark-read,
+  /// drain keys, pinned-row id). SINGLE-WRITER discipline: written in EXACTLY
+  /// ONE place, the `.onChange(of: selectedEntryID)` handler; every other
+  /// consumer only reads it. Do not assign it anywhere else.
   @State
   private var selectedEntry: Entry?
   @State
@@ -83,8 +94,15 @@ struct ContentView: View {
   private var needsSetup = false
   @State
   private var pendingReadIDs: Set<Int> = []
+  /// Rendered-entries payload bubbled up from `EntryListView` — the visible
+  /// ids (Tab-into-list) plus the rendered-unread ids (one side of the
+  /// two-sided `pendingReadIDs` retention prune, issue #148).
   @State
-  private var currentEntryIDs: [PersistentIdentifier] = []
+  private var currentEntries: VisibleEntriesPayload = .empty
+  /// App-lifetime favicon cache (issue #148): decoded once per feed off the
+  /// render path, injected into the environment for `EntryListView`.
+  @State
+  private var faviconStore = FaviconStore()
   /// Bumped whenever underlying article data may have changed (sync completed,
   /// classification batch finished). `EntryListView` includes this in its
   /// `.task(id:)` key, triggering a re-fetch — replaces SwiftData's `@Query`
@@ -166,7 +184,15 @@ struct ContentView: View {
       detailView
     }
     .environment(\.bareKeyActions, bareKeyActions)
-    .onPreferenceChange(VisibleEntryIDsKey.self) { currentEntryIDs = $0 }
+    .environment(faviconStore)
+    .onPreferenceChange(VisibleEntriesKey.self) { payload in
+      currentEntries = payload
+      // Second prune trigger (issue #148): the rendered-unread side of the
+      // two-sided retention criterion just changed — re-evaluate the overlay
+      // so an ID whose refetched DTO confirms `isRead == true` on BOTH sides
+      // is released here, not only on the next snapshot refresh.
+      prunePendingReadIDs()
+    }
     .onAppear {
       checkCredentials()
       revalidateSelection()
@@ -197,14 +223,22 @@ struct ContentView: View {
       }
       .environment(syncEngine)
     }
-    .onChange(of: selectedEntry) { _, newEntry in
+    .onChange(of: selectedEntryID) { _, newID in
+      // SINGLE WRITER for `selectedEntry` (issue #148): resolve the one live
+      // model per selection commit here — an O(1) primary-key lookup for
+      // exactly one row, at the interface↔store boundary. Every other
+      // consumer (detail pane, drain keys, open-in-browser, pinned-row id)
+      // reads the memoized @State.
+      let newEntry = newID.flatMap { modelContext.model(for: $0) as? Entry }
+      selectedEntry = newEntry
       // Defer the pending-read insertion off the selection-commit critical
       // path. An in-frame mutation would cascade through the sidebar
       // unread-count aggregation and the EntryRowView dimming overlay
       // (both observe `pendingReadIDs`), nudging row metrics on the same
       // frame the user pressed arrow-down — perceived as keyboard lag.
       // `applyPendingReadAfterYield` yields the selection write first,
-      // then mutates next tick.
+      // then mutates next tick. Mark-read reads the LIVE `entry.isRead` —
+      // fresher than the row DTO's snapshot.
       if let entry = newEntry, !entry.isRead {
         applyPendingReadAfterYield(feedbinEntryID: entry.feedbinEntryID) { id in
           pendingReadIDs.insert(id)
@@ -212,7 +246,7 @@ struct ContentView: View {
       }
       articleViewMode = .web
       // Article-click signpost begin: measures SwiftUI commit cost from
-      // writing `selectedEntry` to the detail column's `.task` firing.
+      // writing the selection to the detail column's `.task` firing.
       // No begin when selection clears — empty-state has no render cost.
       if newEntry != nil {
         articleClickIntervalState = perfSignposter.beginInterval(
@@ -232,11 +266,11 @@ struct ContentView: View {
     }
     .onChange(of: articleFilter) {
       flushPendingReads()
-      selectedEntry = nil
+      selectedEntryID = nil
     }
     .onChange(of: selection) { _, newSelection in
       flushPendingReads()
-      selectedEntry = nil
+      selectedEntryID = nil
       // Sidebar-click signpost begin: measures SwiftUI commit cost from
       // writing `selection` to the content column re-rendering.
       if newSelection != nil {
@@ -360,7 +394,7 @@ struct ContentView: View {
     // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
     // as fallback for when no List has focus (e.g. after programmatic selection change).
     .onKeyPress(.escape) {
-      selectedEntry = nil
+      selectedEntryID = nil
       panelFocus = .sidebar
       return .handled
     }
@@ -491,7 +525,7 @@ struct ContentView: View {
         cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntry: $selectedEntry, onMarkAllRead: markAllAsRead
+        selectedEntryID: $selectedEntryID, onMarkAllRead: markAllAsRead
       )
     } else {
       // SyncEngine.configure hasn't completed yet (first launch path).
@@ -549,14 +583,15 @@ struct ContentView: View {
   }
 
   /// Tab from sidebar into the article-list column. Selecting the first row
-  /// is gated on `currentEntryIDs` being non-empty, which is only true once
-  /// the article list has rendered for the active `selection`. No selection
-  /// or no rendered list ⇒ Tab moves focus only.
+  /// is gated on `currentEntries.ids` being non-empty, which is only true
+  /// once the article list has rendered for the active `selection`. No
+  /// selection or no rendered list ⇒ Tab moves focus only. Selection is
+  /// ID-typed (issue #148) — the one live-model materialization happens in
+  /// the `.onChange(of: selectedEntryID)` single writer.
   private func tabIntoArticleList() {
     panelFocus = .articleList
-    guard let firstID = currentEntryIDs.first else { return }
-    guard let firstEntry = modelContext.model(for: firstID) as? Entry else { return }
-    selectedEntry = firstEntry
+    guard let firstID = currentEntries.ids.first else { return }
+    selectedEntryID = firstID
   }
 
   private func revalidateSelection() {
@@ -603,16 +638,20 @@ struct ContentView: View {
     }
   }
 
-  /// Prune the optimistic-read set down to IDs that still appear in the
-  /// cached `unreadSnapshot`. Called whenever `totalUnread` changes —
-  /// typically right after a `DataWriter` save bumps `entryRefreshVersion`
-  /// and the snapshot refresh task lands. IDs whose corresponding
-  /// `Entry.isRead` has just flipped to `true` (or whose entry was deleted)
-  /// fall out here; the sidebar's pending-aware aggregation then sees no
-  /// double-counting.
+  /// Prune the optimistic-read overlay with the TWO-SIDED retention criterion
+  /// (issue #148, `retainedPendingReadIDs`): an ID is released only once BOTH
+  /// the unread snapshot AND the currently-rendered rows confirm the
+  /// committed `isRead == true` — so a snapshot refresh landing before the
+  /// row DTOs refetch can never un-dim a row for a frame. Called from the
+  /// snapshot-change trigger (`PendingReadPruneTrigger`) and from the
+  /// `VisibleEntriesKey` preference change.
   private func prunePendingReadIDs() {
     guard !pendingReadIDs.isEmpty else { return }
-    pendingReadIDs.formIntersection(unreadSnapshot.unreadFeedbinEntryIDs)
+    pendingReadIDs = retainedPendingReadIDs(
+      pending: pendingReadIDs,
+      snapshotUnread: unreadSnapshot.unreadFeedbinEntryIDs,
+      renderedUnread: currentEntries.unreadFeedbinEntryIDs
+    )
   }
 
   private func markAllAsRead() {
@@ -621,7 +660,7 @@ struct ContentView: View {
     guard articleFilter == .unread, let target = selection,
       let writer = syncEngine.writer
     else { return }
-    selectedEntry = nil
+    selectedEntryID = nil
     let markTarget: MarkReadTarget
     let optimisticIDs: Set<Int>
     // Read the optimistic set out of the cached snapshot so the sidebar can
@@ -901,7 +940,7 @@ struct ContentView: View {
 
   /// Drive the headless perf scenario. Attaches a `DataWriter` so
   /// `EntryListView` can render the seeded rows, then hands control to
-  /// `PerfScenarioRunner` which mutates `selection`, `selectedEntry`, and
+  /// `PerfScenarioRunner` which mutates `selection`, `selectedEntryID`, and
   /// `articleViewMode` on MainActor — the same writes the user would make.
   /// `exit(0)` inside the runner ends the launch so `xctrace` finalises the
   /// recorded trace.
@@ -918,17 +957,16 @@ struct ContentView: View {
       await PerfScenarioRunner.run(
         writer: writer,
         syncEngine: syncEngine,
-        apply: { newSelection, newEntry, newMode in
+        apply: { newSelection, newEntryID, newMode in
           selection = newSelection
-          selectedEntry = newEntry
+          selectedEntryID = newEntryID
           articleViewMode = newMode
         },
-        visibleEntries: {
-          // Materialize the currently-rendered entry IDs into Entry refs so
-          // the runner can pick the first visible row to click.
-          currentEntryIDs.compactMap { id in
-            modelContext.model(for: id) as? Entry
-          }
+        visibleEntryIDs: {
+          // The runner picks the first visible row to click; selection is
+          // ID-typed (issue #148) so no Entry materialization is needed here
+          // — the `.onChange(of: selectedEntryID)` single writer resolves it.
+          currentEntries.ids
         },
         navigate: { direction in
           // Route through the real J/K handler so the walk pays the actual
