@@ -67,6 +67,30 @@ struct VisibleEntriesKey: PreferenceKey {
 /// live-populate a viewed category while classification lands rows), plus an
 /// explicit bump after `flushPendingReads` and `markAllAsRead` writes.
 struct EntryListView: View {
+  // MARK: - Render-window knobs (issue #151 — owner-trace-gated)
+  //
+  // All three are calibrated against the owner's post-#148 real-data trace
+  // and are adjustable ONLY against the owner's next re-trace — do not tune
+  // them from the synthetic harness.
+
+  /// Rows rendered on a structural reload — the bounded first paint that
+  /// kills the giant-category render hang. Band math from the p90 trace:
+  /// the worst-category structural commit measured ~0.3–0.5 ms/row; a cold
+  /// render runs ×2–4 that band, so 100 rows ⇒ ≤ ~200 ms first paint —
+  /// under the 250 ms hang bar with headroom. ~7 screens of rows, so only
+  /// giant categories ever paginate.
+  static let initialRenderLimit = 100
+  /// Rows revealed per append. Larger than the initial cap on purpose:
+  /// appends happen while content is already on screen, so their commit
+  /// cost is not a blank-pane wait.
+  static let renderGrowthStep = 200
+  /// The append fires when the row this many positions before the window
+  /// end appears — the synchronous in-memory grow lands before the user
+  /// reaches the bottom. Also self-heals bottom slippage: rows a top-insert
+  /// pushes past the window bottom re-trigger the append when the (shifted)
+  /// trigger row scrolls in.
+  static let appendTriggerMargin = 20
+
   let category: String?
   let folder: String?
   let filter: ArticleFilter
@@ -91,14 +115,49 @@ struct EntryListView: View {
   private var fontSettings
   @Environment(\.openSettings)
   private var openSettings
+  /// The FULL fetched result — every eligible row, day-grouped. The `List`
+  /// renders the bounded `renderedSections` slice of this; the full result
+  /// stays in memory so appends are synchronous and `displayState` sees the
+  /// truth (a render cap can never empty a non-empty result).
   @State
   private var sections: [EntryListSection] = []
-  /// Rendered-entries payload cached for the `VisibleEntriesKey` preference.
-  /// Computed once per fetch (off-main, by the reader) instead of walking
-  /// `sections` on every body re-eval — meaningful for large categories
-  /// ("uncategorized" with thousands of rows).
+  /// Payload cached for the `VisibleEntriesKey` preference. Computed once
+  /// per fetch (off-main, by the reader) instead of walking `sections` on
+  /// every body re-eval.
+  ///
+  /// INVARIANT (issue #151, binding — half 1 of a PAIR): this payload stays
+  /// FULL-RESULT even though the `List` renders a bounded slice. Its unread
+  /// set therefore covers every DTO the slice can ever reveal, which is
+  /// what makes revealing cached tail rows safe: a locally-read off-window
+  /// row stays in the `pendingReadIDs` overlay (the two-sided retention
+  /// prunes against THIS full set) and renders dimmed the moment it scrolls
+  /// in. Half 2 lives on `EntryRowView.isRead` — the render expression must
+  /// keep consulting the overlay. A change to EITHER half re-opens the
+  /// stale-unread reveal without touching the other. Tab-into-list and
+  /// anchor membership also rely on the full ids.
   @State
   private var visibleEntries: VisibleEntriesPayload = .empty
+  /// The bounded slice the `List` actually renders (issue #151) — computed
+  /// ONCE per change by `applyRenderSlice()` (reload / append / restore
+  /// growth), NEVER in `body`. Row DTOs share copy-on-write storage with
+  /// `sections`; the slice duplicates no row content.
+  @State
+  private var renderedSections: [EntryListSection] = []
+  /// Current render-window size. Resets to `initialRenderLimit` in the
+  /// structural task's synchronous prefix; RETAINED across refresh ticks (a
+  /// bump under a deep-scrolled user re-slices the fresh full result at the
+  /// CURRENT depth — the window never collapses); only ever grows within
+  /// one structural context. Pure view state — never a fetch parameter.
+  @State
+  private var renderLimit = Self.initialRenderLimit
+  /// Last rendered row — the keyboard append trigger compares the new
+  /// selection against this.
+  @State
+  private var renderedLastID: PersistentIdentifier?
+  /// The row whose `.onAppear` requests the next append (an O(1) id
+  /// compare); nil when the window covers every row.
+  @State
+  private var appendTriggerID: PersistentIdentifier?
   /// Fetch lifecycle for the current structural context — the tagged union
   /// that replaced the `hasLoaded` boolean (issue #146). Drives
   /// `entryListDisplayState(...)` together with `sections`.
@@ -181,7 +240,9 @@ struct EntryListView: View {
           }
         case .blank, .list:
           List(selection: $selectedEntryID) {
-            ForEach(sections) { section in
+            // The List renders the bounded slice; `sections` keeps the full
+            // result for synchronous appends and truthful display state.
+            ForEach(renderedSections) { section in
               Section {
                 // Rows render straight from their DTO snapshots — zero store
                 // access on MainActor (issue #148). The favicon is a sync
@@ -194,6 +255,13 @@ struct EntryListView: View {
                   .tag(row.persistentID)
                   .id(row.persistentID)
                   .listRowSeparator(.hidden)
+                  .onAppear {
+                    // Lazy-append trigger (issue #151): an O(1) id compare
+                    // against the precomputed trigger row — no index math
+                    // in per-row render code. The append is synchronous and
+                    // in-memory, so there is no spinner and no "Load more".
+                    if row.persistentID == appendTriggerID { requestAppend() }
+                  }
                 }
               } header: {
                 Text(section.label)
@@ -234,12 +302,18 @@ struct EntryListView: View {
         // change.
         let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
         defer { perfSignposter.endInterval(PerformanceSignpostName.structuralReload, signpost) }
-        // Synchronous prefix: enter the pending phase and drop the previous
-        // context's rows before the first await, so the pane never shows the
-        // old category's rows while the new fetch runs.
+        // Synchronous prefix: enter the pending phase, drop the previous
+        // context's rows before the first await (the pane never shows the
+        // old category's rows while the new fetch runs), and reset the
+        // render window — a different list starts from its own bounded
+        // first page (issue #151).
         fetchPhase = .pending
         sections = []
         visibleEntries = .empty
+        renderedSections = []
+        renderedLastID = nil
+        appendTriggerID = nil
+        renderLimit = Self.initialRenderLimit
         if await reload(proxy: proxy) {
           fetchPhase = .resolved
           return
@@ -263,7 +337,43 @@ struct EntryListView: View {
           fetchPhase = .resolved
         }
       }
+      .onChange(of: selectedEntryID) { _, newID in
+        // Keyboard append (issue #151): J / arrow-down onto the window's
+        // last rendered row extends the window IN THE SAME EVENT CYCLE —
+        // the append is synchronous over the in-memory full result, so
+        // repeated End / Page-Down makes monotone progress to the true
+        // oldest row with no beat. K is symmetric for free: the prefix
+        // never shrinks.
+        if let newID, newID == renderedLastID { requestAppend() }
+      }
     }
+  }
+
+  /// Grow the render window by one step — synchronous, in-memory,
+  /// instantaneous (issue #151). No async task, no spinner, no "Load more":
+  /// the full result is already fetched, so re-slicing is the whole cost.
+  /// Re-entrancy and cancellation are non-issues because nothing here
+  /// suspends (`STACK.md § 7` satisfied by having no task at all).
+  private func requestAppend() {
+    guard hasMoreRows(renderLimit: renderLimit, totalRows: visibleEntries.ids.count) else {
+      return
+    }
+    renderLimit = nextRenderLimit(current: renderLimit, growthStep: Self.renderGrowthStep)
+    applyRenderSlice()
+  }
+
+  /// Slice the full sections to the current render window and publish the
+  /// slice — called ONCE per change (reload / append / restore growth),
+  /// NEVER from `body`. Emits the zero-cost `list-slice-apply` event so the
+  /// owner's re-trace can correlate hang-lane stalls to apply moments.
+  private func applyRenderSlice() {
+    let slice = sectionsPrefix(
+      sections, limit: renderLimit, triggerMargin: Self.appendTriggerMargin)
+    renderedSections = slice.sections
+    renderedLastID = slice.lastRowID
+    appendTriggerID = slice.appendTriggerID
+    perfSignposter.emitEvent(
+      PerformanceSignpostName.listSliceApply, "rows: \(slice.rowCount)")
   }
 
   /// Single derivation point for what the pane shows — the pure precedence
@@ -343,6 +453,20 @@ struct EntryListView: View {
       ids: result.allEntryIDs,
       unreadFeedbinEntryIDs: result.renderedUnreadFeedbinEntryIDs
     )
+    // Restore-beyond-window (issue #151): if the anchor row sits deeper in
+    // the full result than the current render window, grow the window
+    // BEFORE the slice + scrollTo so the row exists to scroll to. The pin
+    // already rides the PREDICATE into the full fetch, so the row is always
+    // present — this is a pure in-memory grow (one `firstIndex(of:)` scan,
+    // restore paths only; never per-event work).
+    if let restore,
+      let index = result.allEntryIDs.firstIndex(of: restore.id),
+      index >= renderLimit
+    {
+      renderLimit = renderLimitCovering(
+        index: index, margin: Self.appendTriggerMargin, current: renderLimit)
+    }
+    applyRenderSlice()
     // Yield one tick so SwiftUI applies the diff before we ask the proxy
     // to scroll — without the yield `scrollTo` runs against the still-old
     // layout and the anchor row is not yet on screen to scroll to. Instant
@@ -395,6 +519,82 @@ struct EntryListView: View {
 
 #Preview("Empty - No Articles (at rest)") {
   EntryListEmptyAtRestPreview()
+}
+
+#Preview("Giant Category — Capped") {
+  EntryListGiantCategoryPreview()
+}
+
+/// Renders `EntryListView` over a ~300-row category (issue #151): the first
+/// paint renders only `initialRenderLimit` rows — the bounded window that
+/// kills the giant-category render hang — and scrolling past the trigger
+/// row (or arrow-keying onto the window's last row) reveals the next
+/// `renderGrowthStep` rows synchronously from the already-fetched result.
+/// Canonical newest-first order throughout; growth only appends.
+@MainActor
+private struct EntryListGiantCategoryPreview: View {
+  @State
+  private var reader: DataReader?
+  @State
+  private var selectedEntryID: PersistentIdentifier?
+  private let container: ModelContainer = {
+    let container = PreviewSupport.makeContainer()
+    let context = container.mainContext
+    let feed = Feed(
+      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "Giant Feed",
+      feedURL: "https://giant.example.com/feed", siteURL: "https://giant.example.com",
+      createdAt: .now)
+    context.insert(feed)
+    let newest = Date.now
+    for offset in 0..<300 {
+      let entry = Entry(
+        feedbinEntryID: 10_000 + offset, title: "Giant category story \(offset)",
+        author: nil, url: "https://giant.example.com/\(offset)",
+        content: "<p>Story \(offset).</p>", summary: "Story \(offset).",
+        extractedContentURL: nil,
+        publishedAt: newest.addingTimeInterval(-Double(offset) * 600), createdAt: newest)
+      entry.feed = feed
+      entry.primaryCategory = "apple"
+      entry.primaryFolder = "tech"
+      entry.isClassified = true
+      entry.plainText = "Story \(offset)."
+      entry.summaryPlainText = "Story \(offset)."
+      entry.formattedPublishedTime = "09.30"
+      entry.displayDomain = "giant.example.com"
+      context.insert(entry)
+    }
+    try? context.save()
+    return container
+  }()
+  private let syncEngine = SyncEngine()
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .distantPast,
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntryID: $selectedEntryID,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(syncEngine)
+    .environment(AppFontSettings())
+    .environment(FaviconStore())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: 360, height: 600)
+  }
 }
 
 /// Renders `EntryListView` in the offline-empty state: container is seeded

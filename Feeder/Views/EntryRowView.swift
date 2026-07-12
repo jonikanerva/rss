@@ -17,6 +17,15 @@ struct EntryRowView: View {
   @Environment(AppFontSettings.self)
   private var fontSettings
 
+  /// INVARIANT (issue #151, binding — half 2 of a PAIR): the render
+  /// expression must stay `dto.isRead || overlay.contains(feedbinEntryID)`.
+  /// Under the render cap, a cached off-window DTO can scroll into view
+  /// carrying a stale `isRead == false`; the overlay term is what renders
+  /// it dimmed. Half 1 lives on `EntryListView.visibleEntries` — the
+  /// preference payload must stay FULL-RESULT so the two-sided retention
+  /// prune keeps that overlay entry alive until a refetch confirms the
+  /// committed flip. A change to EITHER half re-opens the stale-unread
+  /// reveal without touching the other.
   private var isRead: Bool { row.isRead || pendingReadIDs.contains(row.feedbinEntryID) }
 
   var body: some View {

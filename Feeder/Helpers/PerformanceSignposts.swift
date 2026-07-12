@@ -83,7 +83,23 @@ nonisolated enum PerformanceSignpostName {
   /// replaced (a user-visible "different list" load). The PERCEPTION +
   /// OCCUPANCY signal — how long panel-2 shows its blank window, and how
   /// much of that time overlaps an active write-persist.
+  ///
+  /// MEANING NOTE (issue #151): the bracket covers the full off-main fetch
+  /// plus the slice-apply of a BOUNDED render window, and it closes at the
+  /// state write — BEFORE SwiftUI's commit/layout. First-paint render cost
+  /// therefore lands OUTSIDE this interval; the render cap's acceptance
+  /// metric is the HANG LANE correlated against `listSliceApply` events,
+  /// not this bracket. For the giant category this interval stays
+  /// fetch-bound (#149's committed indicator covers that window).
   static let structuralReload: StaticString = "structural-reload"
+  /// Render-window slice applied to the article list (issue #151): a
+  /// zero-cost EVENT emitted at every `renderedSections` assign, carrying
+  /// the rendered row count. The owner's re-trace correlates hang-lane
+  /// stalls against these apply events — the acceptance gate is "no
+  /// main-thread hang ≥ 250 ms correlating with a list-slice-apply event"
+  /// (worst-category cold start included; baseline 4119 ms) and "no
+  /// append-correlated hang > 100 ms".
+  static let listSliceApply: StaticString = "list-slice-apply"
   /// One sync-page network GET (`Tnet`): `FeedbinClient.fetchEntries` for a
   /// single page. The gap this interval represents is what an unbounded
   /// prefetch stream buffers away, collapsing the persist cadence.

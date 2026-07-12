@@ -44,4 +44,34 @@ struct PendingReadRetentionTests {
     #expect(
       retainedPendingReadIDs(pending: [1, 2], snapshotUnread: [], renderedUnread: []).isEmpty)
   }
+
+  // MARK: - Off-window overlay IDs (issue #151 — render cap)
+  //
+  // The `VisibleEntriesPayload` stays FULL-RESULT under the render cap (the
+  // binding invariant pair — see `EntryListView.visibleEntries` and
+  // `EntryRowView.isRead`), so `renderedUnread` here covers every DTO the
+  // slice can ever reveal — including rows the user read locally while they
+  // sat beyond the rendered window. These cases pin the safety story for
+  // revealing cached tail DTOs.
+
+  @Test
+  func offWindowOverlayIDIsRetainedUntilAFetchConfirms() {
+    // Row 9 was read locally while beyond the rendered window. Both sides
+    // still count it unread (no refetch has confirmed the flip), so the
+    // overlay survives — a cached stale-unread DTO scrolling into view
+    // renders DIMMED via the overlay term, never stale-unread.
+    #expect(
+      retainedPendingReadIDs(pending: [9], snapshotUnread: [9], renderedUnread: [9, 1]) == [9])
+  }
+
+  @Test
+  func offWindowOverlayIDReleasesOnlyOnDoubleConfirmation() {
+    // Only once BOTH refetched sources confirm the committed read does the
+    // overlay release the ID — by then the full-result payload no longer
+    // lists it as unread, so nothing revealable can render stale.
+    #expect(retainedPendingReadIDs(pending: [9], snapshotUnread: [], renderedUnread: []).isEmpty)
+    // One-sided confirmation retains — landing order stays irrelevant.
+    #expect(retainedPendingReadIDs(pending: [9], snapshotUnread: [9], renderedUnread: []) == [9])
+    #expect(retainedPendingReadIDs(pending: [9], snapshotUnread: [], renderedUnread: [9]) == [9])
+  }
 }
