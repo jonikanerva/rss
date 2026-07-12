@@ -223,15 +223,6 @@ enum PerfScenarioRunner {
         try? await Task.sleep(for: navStepGap)
         apply(selection, first, .web)
         try? await Task.sleep(for: navStepGap)
-        // Select the LAST fetched row too (issue #151): this drives the
-        // keyboard lazy-append trigger, so the capped-window growth path
-        // (grown-prefix refetch under write pressure) executes in the
-        // recorded leg — the reference dataset seeds ~400+ rows per
-        // category, well past the initial cap, so appends have room to fire.
-        if let last = visibleEntryIDs().last {
-          apply(selection, last, .web)
-          try? await Task.sleep(for: navStepGap)
-        }
       }
     }
   }

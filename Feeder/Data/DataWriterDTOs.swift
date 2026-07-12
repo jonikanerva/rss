@@ -100,46 +100,14 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
 /// `PersistentIdentifier` conforms to `Sendable`
 /// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the
 /// payload crosses the actor boundary cleanly.
-///
-/// Paging outputs (issue #151): `effectiveLimit` is the window actually
-/// fetched — it grows past the request only for pin coverage; nil = unpaged.
-/// `hasMore` means the window filled and the store may hold more.
-/// `appendTriggerID` is the row whose appearance requests the next append
-/// (nil when nothing more to append). `isPrefixExtension` means the new
-/// result only appends to the previous ids — the view skips its
-/// anchor-restore scroll because no rendered row moved.
 nonisolated struct EntryListFetchResult: Sendable, Equatable {
   let sections: [EntryListSection]
   let allEntryIDs: [PersistentIdentifier]
   let distinctFeedIDs: Set<Int>
   let renderedUnreadFeedbinEntryIDs: Set<Int>
-  let effectiveLimit: Int?
-  let hasMore: Bool
-  let appendTriggerID: PersistentIdentifier?
-  let isPrefixExtension: Bool
 
   static let empty = EntryListFetchResult(
-    sections: [], allEntryIDs: [], distinctFeedIDs: [], renderedUnreadFeedbinEntryIDs: [],
-    effectiveLimit: nil, hasMore: false, appendTriggerID: nil, isPrefixExtension: false)
-}
-
-/// Paging request for `fetchEntrySections` (issue #151). nil paging keeps the
-/// unpaged behaviour (tests and callers that want the full result).
-///
-/// CONTRACT (binding, da rider 2): a grown window is ALWAYS a fresh atomic
-/// refetch of the whole grown prefix — never `fetchOffset` (a second query
-/// against a moved snapshot could tear the seam between pages) and never a
-/// reveal of cached tail DTOs (appended rows must be COMMITTED state, or the
-/// two-sided pending-read prune loses its correctness base).
-nonisolated struct EntryListPageRequest: Sendable, Equatable {
-  /// Requested window size (rows). The reader may grow it to cover the
-  /// pinned row — see `EntryListFetchResult.effectiveLimit`.
-  let limit: Int
-  /// How many rows before the window end the append-trigger row sits.
-  let appendTriggerMargin: Int
-  /// The previously rendered ids, for the reader-side prefix-extension check
-  /// (`isPrefixExtension`) that drives the scroll-jump skip.
-  let previousVisibleIDs: [PersistentIdentifier]
+    sections: [], allEntryIDs: [], distinctFeedIDs: [], renderedUnreadFeedbinEntryIDs: [])
 }
 
 /// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for
