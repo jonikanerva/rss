@@ -3,10 +3,9 @@ import SwiftUI
 import os
 import os.signpost
 
-/// Flags the terminal article-list fetch failure (the structural fetch and its
-/// one bounded retry both threw). One error line per failure; the category /
-/// folder label is user-derived taxonomy, so it is interpolated `.private`
-/// (`STACK.md § 8`).
+/// Flags an article-list fetch failure (a store error thrown by the reader).
+/// One error line per failure; the category / folder label is user-derived
+/// taxonomy, so it is interpolated `.private` (`STACK.md § 8`).
 private let logger = Logger(subsystem: "com.feeder.app", category: "EntryListView")
 
 // MARK: - Visible Entry IDs Preference Key
@@ -229,20 +228,13 @@ struct EntryListView: View {
           return
         }
         guard !Task.isCancelled else { return }
-        // One bounded retry for a transient store error — the shared
-        // coordinator can briefly contend with a concurrent write
-        // (`STACK.md § 14`).
-        try? await Task.sleep(for: .milliseconds(500))
-        guard !Task.isCancelled else { return }
-        if await reload(proxy: proxy) {
-          fetchPhase = .resolved
-          return
-        }
-        guard !Task.isCancelled else { return }
+        // No retry: the shared coordinator BLOCKS rather than throws under
+        // contention (`STACK.md § 14`, `DataReader` header), so a fetch throw
+        // is almost certainly persistent — a delayed retry would only
+        // postpone showing the truth. Self-healing is free: any refresh bump
+        // re-fetches (a success sets `.resolved`), and re-selecting the
+        // category restarts this task.
         fetchPhase = .failed
-        logger.error(
-          "Article-list fetch failed after retry for \(category ?? folder ?? "none", privacy: .private)"
-        )
       }
       .task(id: refreshTaskKey) {
         guard fetchPhase != .pending else { return }
@@ -291,8 +283,12 @@ struct EntryListView: View {
       // change cancels a queued stale fetch.
       return false
     } catch {
-      // Store error: the caller decides between the bounded retry (first
-      // structural attempt) and `.failed` / keep-previous-phase.
+      // Store error — logged once per failure, here so both callers share
+      // it. The structural task shows the error pane; a failed refresh keeps
+      // the previous phase (existing rows or the error pane).
+      logger.error(
+        "Article-list fetch failed for \(category ?? folder ?? "none", privacy: .private)"
+      )
       return false
     }
     guard !Task.isCancelled else { return false }

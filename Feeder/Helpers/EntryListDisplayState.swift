@@ -14,8 +14,10 @@ nonisolated enum FetchPhase: Sendable, Equatable {
   case pending
   /// The most recent structural or refresh fetch applied its result.
   case resolved
-  /// The structural fetch and its single bounded retry both failed with a
-  /// store error. Healed by any later successful refresh reload.
+  /// The structural fetch failed with a store error (no retry — the shared
+  /// coordinator blocks rather than throws under contention, so a throw is
+  /// almost certainly persistent). Healed by any later successful refresh
+  /// reload, or by re-selecting the category.
   case failed
 }
 
