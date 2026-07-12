@@ -126,9 +126,16 @@ actor DataReader: ModelActor {
   /// The classified + unread/showRead + cutoff core is built from
   /// `unreadEligiblePredicate(cutoffDate:)` plus the `showRead` / pinned-entry
   /// overrides; per-axis category or folder clauses compose on top.
+  ///
+  /// With `paging` set (issue #151) the fetch is capped at
+  /// `paging.limit` rows via `fetchLimit` on the SAME sorted descriptor —
+  /// the result is always a PREFIX of the canonical timestamp-desc order,
+  /// never a reorder. Window growth is an atomic refetch of the grown prefix
+  /// (see `EntryListPageRequest`'s contract); the window auto-grows to cover
+  /// the pinned row (`pinCoveringLimit`).
   func fetchEntrySections(
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
-    pinnedFeedbinEntryID: Int? = nil
+    pinnedFeedbinEntryID: Int? = nil, paging: EntryListPageRequest? = nil
   ) throws -> EntryListFetchResult {
     // Kill queued stale fetches before they touch the store: under rapid J/K
     // the serial reader mailbox accumulates fetches whose owning `.task` was
@@ -176,6 +183,13 @@ actor DataReader: ModelActor {
     } else {
       return .empty
     }
+    // Row cap (issue #151): bound the fetched window on the SAME sorted
+    // descriptor — the page is a prefix of the canonical order. Growth is an
+    // atomic refetch of the grown prefix, never `fetchOffset` (see
+    // `EntryListPageRequest`'s binding contract).
+    if let paging {
+      descriptor.fetchLimit = paging.limit
+    }
     // Projection contract (issue #148): hydrate ONLY the columns
     // `projectEntryRow` reads — `plainText` is deliberately EXCLUDED (it is
     // the full article body; the projection faults it per-row, off-main, only
@@ -187,7 +201,22 @@ actor DataReader: ModelActor {
       \.summaryPlainText, \.isRead, \.publishedAt,
     ]
     descriptor.relationshipKeyPathsForPrefetching = [\.feed]
-    let entries = try modelContext.fetch(descriptor)
+    var entries = try modelContext.fetch(descriptor)
+    var effectiveLimit = paging?.limit
+    // Pin coverage (issue #151): a bare window can exclude the pinned
+    // (selected) row. Grow the window to the pin's sort position and refetch
+    // the grown prefix ONCE — chronology stays continuous; the pin is never
+    // unioned out-of-band (that would render a timeline gap).
+    if let paging, pinned > 0, !entries.contains(where: { $0.feedbinEntryID == pinned }),
+      let coveringLimit = try pinCoveringLimit(
+        category: category, folder: folder, showRead: showRead,
+        cutoffDate: cutoffDate, pinned: pinned, requested: paging.limit),
+      coveringLimit > paging.limit
+    {
+      effectiveLimit = coveringLimit
+      descriptor.fetchLimit = coveringLimit
+      entries = try modelContext.fetch(descriptor)
+    }
     // The fetch is the dominant cost; re-check before paying for projection
     // and grouping when the consuming task is already gone.
     try Task.checkCancellation()
@@ -197,12 +226,86 @@ actor DataReader: ModelActor {
     // then feedbinEntryID), so a single pass over `rows` produces the same
     // identifier sequence the sections carry — avoids a second walk; the
     // MainActor consumes the aggregates via `VisibleEntriesKey`.
+    let allEntryIDs = rows.map(\.persistentID)
+    let hasMore: Bool =
+      if let effectiveLimit {
+        hasMorePages(fetchedCount: rows.count, limit: effectiveLimit)
+      } else {
+        false
+      }
+    var appendTriggerID: PersistentIdentifier?
+    if hasMore, let paging,
+      let triggerIndex = appendTriggerIndex(
+        fetchedCount: rows.count, margin: paging.appendTriggerMargin)
+    {
+      appendTriggerID = rows[triggerIndex].persistentID
+    }
     return EntryListFetchResult(
       sections: sections,
-      allEntryIDs: rows.map(\.persistentID),
+      allEntryIDs: allEntryIDs,
       distinctFeedIDs: Set(rows.compactMap(\.feedFeedbinID)),
-      renderedUnreadFeedbinEntryIDs: Set(rows.lazy.filter { !$0.isRead }.map(\.feedbinEntryID))
+      renderedUnreadFeedbinEntryIDs: Set(rows.lazy.filter { !$0.isRead }.map(\.feedbinEntryID)),
+      effectiveLimit: effectiveLimit,
+      hasMore: hasMore,
+      appendTriggerID: appendTriggerID,
+      isPrefixExtension: paging.map {
+        isPrefixExtension(previous: $0.previousVisibleIDs, new: allEntryIDs)
+      } ?? false
     )
+  }
+
+  /// Smallest window that keeps the pinned (selected) row inside the paged
+  /// result — issue #151's pin-coverage rule. Returns nil when the pinned
+  /// row is missing or ineligible for this context (wrong category/folder,
+  /// unclassified, or beyond the cutoff) — then there is nothing to cover.
+  ///
+  /// The by-key lookup reads a handful of unlisted columns off ONE row,
+  /// off-main — the sanctioned exception scale, like `plainText` in the
+  /// projection. The count query's position clause mirrors the fetch sort
+  /// (publishedAt DESC, feedbinEntryID DESC): rows at-or-before the pin are
+  /// `publishedAt > pin's` OR (equal AND `feedbinEntryID >= pin's`), so the
+  /// count IS the pin's 1-based position in the sorted result.
+  private func pinCoveringLimit(
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
+    pinned: Int, requested: Int
+  ) throws -> Int? {
+    var pinDescriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.feedbinEntryID == pinned })
+    pinDescriptor.fetchLimit = 1
+    pinDescriptor.propertiesToFetch = [
+      \.feedbinEntryID, \.publishedAt, \.isClassified, \.primaryCategory, \.primaryFolder,
+    ]
+    guard let pin = try modelContext.fetch(pinDescriptor).first else { return nil }
+    guard pin.isClassified, pin.publishedAt >= cutoffDate else { return nil }
+    if let category, pin.primaryCategory != category { return nil }
+    if let folder, pin.primaryFolder != folder { return nil }
+    let pinDate = pin.publishedAt
+    let position: Int
+    if let category {
+      position = try modelContext.fetchCount(
+        FetchDescriptor<Entry>(
+          predicate: #Predicate<Entry> {
+            $0.isClassified && $0.primaryCategory == category
+              && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+              && $0.publishedAt >= cutoffDate
+              && ($0.publishedAt > pinDate
+                || ($0.publishedAt == pinDate && $0.feedbinEntryID >= pinned))
+          }))
+    } else if let folder {
+      position = try modelContext.fetchCount(
+        FetchDescriptor<Entry>(
+          predicate: #Predicate<Entry> {
+            $0.isClassified && $0.primaryFolder == folder
+              && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+              && $0.publishedAt >= cutoffDate
+              && ($0.publishedAt > pinDate
+                || ($0.publishedAt == pinDate && $0.feedbinEntryID >= pinned))
+          }))
+    } else {
+      return nil
+    }
+    guard position > 0 else { return nil }
+    return effectiveRowLimit(requested: requested, pinPosition: position)
   }
 
   /// Project one fetched `Entry` into its Sendable row snapshot, ON this

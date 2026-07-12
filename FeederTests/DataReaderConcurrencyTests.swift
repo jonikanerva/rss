@@ -182,14 +182,24 @@ struct DataReaderConcurrencyTests {
     )
     // EntryListSection: id (ForEach identity) + label + the row snapshots.
     let section = EntryListSection(id: day, label: "Section", rows: [row])
-    // EntryListFetchResult: sections + the three pre-flattened aggregates.
+    // EntryListFetchResult: sections + the pre-flattened aggregates + the
+    // paging outputs (issue #151: effectiveLimit / hasMore / appendTriggerID
+    // / isPrefixExtension — all derived from the SAME committed fetch, so
+    // they add no extra staleness surface).
     let result = EntryListFetchResult(
       sections: [section], allEntryIDs: [row.persistentID],
-      distinctFeedIDs: [1], renderedUnreadFeedbinEntryIDs: [4001])
+      distinctFeedIDs: [1], renderedUnreadFeedbinEntryIDs: [4001],
+      effectiveLimit: 100, hasMore: false, appendTriggerID: nil,
+      isPrefixExtension: false)
+    // EntryListPageRequest: the paging inputs (issue #151) — window size,
+    // trigger margin, and the previous ids for the prefix-extension check.
+    let paging = EntryListPageRequest(
+      limit: 100, appendTriggerMargin: 20, previousVisibleIDs: [])
     // Behavioural anchor so the constructions above are not dead code.
     #expect(result.sections.first == section)
     #expect(result.allEntryIDs == [row.persistentID])
     #expect(row.id == row.persistentID)
+    #expect(paging.limit == 100)
   }
 
   /// Value freshness for the row projection (issue #148): the DTO reads
