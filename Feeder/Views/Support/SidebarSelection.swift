@@ -117,9 +117,14 @@ struct MidFlightBumpRouterModifier: ViewModifier {
 }
 
 /// Drains a pending background refresh bump once the user is idle.
-/// Owns the dwell `Task.sleep` so the bump fires when a list rebuild will not
+/// Owns the `Task.sleep` so the bump fires when a list rebuild will not
 /// disrupt the user — re-keyed by selection identity and the pending flag so
-/// each selection change or new background tick resets the dwell window.
+/// each selection change or new background tick resets the window. With a
+/// selection the full `dwell` applies; with no selection a shorter
+/// `idleThrottle` applies instead of the previous immediate drain, so a
+/// viewed not-yet-populated category live-populates on a calm, coalesced
+/// cadence while classification lands rows (issue #146) rather than
+/// re-fetching on every progress tick.
 /// Extracted into a modifier so the task closure stays out of
 /// `ContentView.body` and the body keeps type-checking inside SwiftUI's
 /// reasonable-time limit.
@@ -131,6 +136,7 @@ struct MidFlightBumpRouterModifier: ViewModifier {
 struct DeferredBumpDrainTrigger: ViewModifier {
   let key: String
   let dwell: Duration
+  let idleThrottle: Duration
   let hasSelection: Bool
   @Binding
   var pendingBump: Bool
@@ -139,12 +145,7 @@ struct DeferredBumpDrainTrigger: ViewModifier {
   func body(content: Content) -> some View {
     content.task(id: key) {
       guard pendingBump else { return }
-      if !hasSelection {
-        pendingBump = false
-        onDrain()
-        return
-      }
-      try? await Task.sleep(for: dwell)
+      try? await Task.sleep(for: hasSelection ? dwell : idleThrottle)
       guard !Task.isCancelled, pendingBump else { return }
       pendingBump = false
       onDrain()

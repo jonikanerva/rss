@@ -79,10 +79,10 @@ nonisolated enum PerformanceSignpostName {
   /// actor. Windowing this against `writePersistPage` (below) isolates the
   /// under-burst read cost from the at-rest baseline.
   static let readFetchSections: StaticString = "read-fetch-sections"
-  /// `EntryListView` structural reload: `hasLoaded` false → true (a
-  /// user-visible "different list" load). The PERCEPTION + OCCUPANCY signal —
-  /// how long panel-2 shows its loading state, and how much of that time
-  /// overlaps an active write-persist.
+  /// `EntryListView` structural reload: structural key change → sections
+  /// replaced (a user-visible "different list" load). The PERCEPTION +
+  /// OCCUPANCY signal — how long panel-2 shows its blank window, and how
+  /// much of that time overlaps an active write-persist.
   static let structuralReload: StaticString = "structural-reload"
   /// One sync-page network GET (`Tnet`): `FeedbinClient.fetchEntries` for a
   /// single page. The gap this interval represents is what an unbounded
