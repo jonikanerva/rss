@@ -151,12 +151,13 @@ struct C3RepResult: Sendable {
   ///
   ///   Occ = Σ(structural-reload interval ∩ burst-window) / (burst-window duration)
   ///
-  /// Numerator: each loading (`hasLoaded` false→true) interval CLIPPED to the
-  /// burst window. Denominator: the burst window's wall-clock — first
-  /// write-persist start → last write-persist end. This is "how much of the
-  /// sync is the user watching the spinner": fast reads occupy a tiny slice of
-  /// the long sync window (low), starved reads occupy most of it (high). 0 for
-  /// CONTROL (no burst window).
+  /// Numerator: each structural-reload (blank-window: structural key change →
+  /// sections replaced) interval CLIPPED to the burst window. Denominator: the
+  /// burst window's wall-clock — first write-persist start → last
+  /// write-persist end. This is "how much of the sync is the user watching an
+  /// unresolved panel-2": fast reads occupy a tiny slice of the long sync
+  /// window (low), starved reads occupy most of it (high). 0 for CONTROL (no
+  /// burst window).
   ///
   /// Kept DISTINCT from the LOCK-4 in-burst gate (`inBurstReads`): occupancy is
   /// total loading time over the WINDOW and is NEVER per-reload write-gated.

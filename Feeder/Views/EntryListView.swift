@@ -1,6 +1,13 @@
 import SwiftData
 import SwiftUI
+import os
 import os.signpost
+
+/// Flags the terminal article-list fetch failure (the structural fetch and its
+/// one bounded retry both threw). One error line per failure; the category /
+/// folder label is user-derived taxonomy, so it is interpolated `.private`
+/// (`STACK.md § 8`).
+private let logger = Logger(subsystem: "com.feeder.app", category: "EntryListView")
 
 // MARK: - Visible Entry IDs Preference Key
 
@@ -22,21 +29,32 @@ struct VisibleEntryIDsKey: PreferenceKey {
 /// **Why not `@Query`**: SwiftData's `@Query` runs synchronously on MainActor
 /// during view init/body. For large categories (e.g. "uncategorized" with
 /// thousands of entries), the SQLite fetch + Entry materialization + day-grouping
-/// blocks the main thread for seconds — even a `ProgressView` placeholder
-/// can't paint because MainActor is busy.
+/// blocks the main thread for seconds.
 ///
-/// Instead, the heavy fetch + grouping runs on `DataWriter` (a `@ModelActor`,
+/// Instead, the heavy fetch + grouping runs on `DataReader` (a `@ModelActor`,
 /// so on a background thread). The view holds lightweight `[EntryListSection]`
-/// state (`PersistentIdentifier` arrays + section labels — Sendable DTOs) and
-/// shows `ProgressView` instantly while the fetch runs. Each row materializes
-/// its `Entry` lazily on MainActor via `modelContext.model(for:)` (cheap O(1)
-/// primary-key lookup, only for visible rows).
+/// state (`PersistentIdentifier` arrays + section labels — Sendable DTOs).
+/// Each row materializes its `Entry` lazily on MainActor via
+/// `modelContext.model(for:)` (cheap O(1) primary-key lookup, only for
+/// visible rows).
+///
+/// **The `List` stays mounted across reloads (issue #146).** The old shape
+/// swapped `ProgressView` ↔ `List` on a `hasLoaded` boolean, so every
+/// structural reload destroyed and rebuilt the entire row tree — an
+/// O(all-rows) view-list construction + layout that was the measured
+/// `structural-reload` tail (p90 915 ms, max 1.9 s). Now `fetchPhase`
+/// (`FetchPhase`, pure domain) feeds `entryListDisplayState(...)`, and the
+/// pending window renders the SAME mounted `List` with zero rows — a calm
+/// blank pane — so a resolved fetch applies as an incremental diff.
+/// "No Articles" is asserted only by a RESOLVED empty fetch, never during
+/// `pending` (the relocated #137 protection) and never while rows exist.
 ///
 /// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
 /// explicit refresh-version triggers driven from `ContentView` — `.onChange`
 /// handlers on `syncEngine.isSyncing` / `classificationEngine.isClassifying`
-/// false-transitions, plus an explicit bump after `flushPendingReads` and
-/// `markAllAsRead` writes.
+/// false-transitions, the mid-flight deferred-bump drains (which also
+/// live-populate a viewed category while classification lands rows), plus an
+/// explicit bump after `flushPendingReads` and `markAllAsRead` writes.
 struct EntryListView: View {
   let category: String?
   let folder: String?
@@ -58,8 +76,6 @@ struct EntryListView: View {
   private var modelContext
   @Environment(SyncEngine.self)
   private var syncEngine
-  @Environment(ClassificationEngine.self)
-  private var classificationEngine
   @Environment(AppFontSettings.self)
   private var fontSettings
   @Environment(\.openSettings)
@@ -71,8 +87,11 @@ struct EntryListView: View {
   /// re-eval — meaningful for large categories ("uncategorized" with thousands of IDs).
   @State
   private var allVisibleEntryIDs: [PersistentIdentifier] = []
+  /// Fetch lifecycle for the current structural context — the tagged union
+  /// that replaced the `hasLoaded` boolean (issue #146). Drives
+  /// `entryListDisplayState(...)` together with `sections`.
   @State
-  private var hasLoaded = false
+  private var fetchPhase: FetchPhase = .pending
   /// Carries the anchor row + alignment from `reload()`'s pre-diff inspection
   /// to the post-diff `proxy.scrollTo` call. The pin is conditional on what
   /// `reload()` sees in the new result and is set to `nil` when no restore is
@@ -95,84 +114,60 @@ struct EntryListView: View {
 
   var body: some View {
     // `ScrollViewReader` is transparent — it adds no chrome — and lives
-    // OUTSIDE the conditional `Group`. The `.task` modifiers attach to the
+    // OUTSIDE the conditional `Group`, so the `.task` modifiers attach to the
     // ScrollViewReader's body and stay mounted for the lifetime of the view,
-    // not for the lifetime of whichever branch is currently selected.
-    //
-    // The earlier shape nested `ScrollViewReader` inside the `else` branch
-    // of `if !hasLoaded { ProgressView() } else if … else { ScrollViewReader { … } }`,
-    // so the `.task` modifiers were only attached once `hasLoaded == true`.
-    // Since `hasLoaded` only flips inside `reload()`, the tasks never ran on
-    // first render and the loading spinner stuck forever.
+    // not for the lifetime of whichever branch is currently selected. (An
+    // earlier shape nested it inside one branch and the tasks never ran on
+    // first render.)
     //
     // `proxy.scrollTo(_:anchor:)` resolves `.id(...)` tags anywhere in the
     // ScrollViewReader's subtree, so the List rows below stay reachable.
     ScrollViewReader { proxy in
       Group {
-        if !hasLoaded {
-          ProgressView()
-            .controlSize(.regular)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityIdentifier("timeline.loading")
-        } else if sections.isEmpty {
-          if case .authFailed = syncEngine.lastError {
-            ContentUnavailableView {
-              Label(
-                "Signed out of Feedbin",
-                systemImage: "person.crop.circle.badge.exclamationmark")
-            } description: {
-              Text("Sign in again to resume syncing your feeds.")
-            } actions: {
-              Button("Sign In Again") { openSettings() }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("timeline.authError.signIn")
-            }
-          } else if syncEngine.lastError?.isNetworkError == true {
-            ContentUnavailableView(
-              "Offline",
-              systemImage: "wifi.slash",
-              description: Text("Connect to the internet to sync new articles.")
-            )
-          } else if classificationEngine.isClassifying || syncEngine.isSyncing {
-            // Empty fetch WHILE sync/classification is active → calm loading,
-            // NEVER "No Articles". This category's rows may not be classified/
-            // persisted yet, or the reader fetch may have briefly lost to write
-            // pressure — asserting "empty" here would hide real content that is
-            // still arriving (`VISION.md → Core Principles`: the reader trusts
-            // that nothing is hidden). The gate is deliberately NOT conditioned
-            // on "no entry classified yet": once any row is classified (i.e.
-            // always, in steady state) that guard is dead, so a momentarily-
-            // empty category mid-sync fell through to a false "No Articles".
-            // Spinner-only (no SF Symbol) by ux-guardian decision — the sidebar
-            // already carries progress counts, so the middle pane stays calm and
-            // avoids double-signalling. No trailing ellipsis on the headline per
-            // HIG: don't label a spinning progress indicator.
-            ContentUnavailableView {
-              ProgressView()
-                .controlSize(.large)
-            } description: {
-              VStack(spacing: 8) {
-                Text("Sorting your articles")
-                  .font(.headline)
-                  .foregroundStyle(.primary)
-                Text("We're placing fresh articles into your categories.")
-                  .font(.subheadline)
-                  .foregroundStyle(.secondary)
-              }
-            }
-            .accessibilityIdentifier("timeline.firstSync")
-          } else {
-            ContentUnavailableView {
-              Label("No Articles", systemImage: "newspaper")
-            } description: {
-              Text(
-                filter == .unread
-                  ? "No unread articles in this category."
-                  : "No read articles in this category."
-              )
-            }
+        // Two-branch shape (issue #146): the empty family renders ONLY when
+        // a resolved/failed fetch left zero sections; every other state —
+        // rows present, or a pending fetch — renders the SAME mounted
+        // `List`. `.blank` deliberately shares the `List` branch (zero rows
+        // = a calm blank pane): a spinner branch or a separate blank branch
+        // would remount the `List` on every structural reload, which was the
+        // O(all-rows) rebuild this issue removes.
+        switch displayState {
+        case .authFailed:
+          ContentUnavailableView {
+            Label(
+              "Signed out of Feedbin",
+              systemImage: "person.crop.circle.badge.exclamationmark")
+          } description: {
+            Text("Sign in again to resume syncing your feeds.")
+          } actions: {
+            Button("Sign In Again") { openSettings() }
+              .buttonStyle(.borderedProminent)
+              .accessibilityIdentifier("timeline.authError.signIn")
           }
-        } else {
+        case .offline:
+          ContentUnavailableView(
+            "Offline",
+            systemImage: "wifi.slash",
+            description: Text("Connect to the internet to sync new articles.")
+          )
+        case .error:
+          ContentUnavailableView {
+            Label("Couldn't Load Articles", systemImage: "exclamationmark.triangle")
+          } description: {
+            Text("Select the category again to retry.")
+          }
+          .accessibilityIdentifier("timeline.error")
+        case .noArticles:
+          ContentUnavailableView {
+            Label("No Articles", systemImage: "newspaper")
+          } description: {
+            Text(
+              filter == .unread
+                ? "No unread articles in this category."
+                : "No read articles in this category."
+            )
+          }
+        case .blank, .list:
           List(selection: $selectedEntry) {
             ForEach(sections) { section in
               Section {
@@ -200,13 +195,12 @@ struct EntryListView: View {
         }
       }
       // Two tasks so refresh-only ticks (classification / sync completion)
-      // do not flip `hasLoaded` back to false and tear down the `List` —
-      // which would reset scroll every time. `structuralKey` captures
-      // inputs whose change means "user is looking at a different list"
-      // (category / folder / filter / cutoff); only those warrant a
-      // loading view. `refreshVersion` fires in place and `reload()`
-      // skips the assign when sections are equal, so SwiftUI's diff
-      // keeps the scroll stable.
+      // do not re-run the structural path and drop the rows to the blank
+      // pane. `structuralKey` captures inputs whose change means "user is
+      // looking at a different list" (category / folder / filter / cutoff);
+      // only those clear the previous rows. `refreshVersion` fires in place
+      // and `reload()` skips the assign when sections are equal, so
+      // SwiftUI's diff keeps the scroll stable.
       //
       // The refresh task's id intentionally includes `structuralKey`:
       // a bare `refreshVersion` id would not be cancelled when the user
@@ -214,34 +208,95 @@ struct EntryListView: View {
       // captured `self` with the old category — could race the
       // structural task and overwrite `sections` with stale rows from
       // the previous list. Including `structuralKey` cancels the stale
-      // refresh when context changes, and the `guard hasLoaded` check
-      // keeps the restarted refresh a no-op while the structural task
+      // refresh when context changes, and the `guard fetchPhase != .pending`
+      // check keeps the restarted refresh a no-op while the structural task
       // owns the reload.
       .task(id: structuralKey) {
-        // C3 perception/occupancy (issue #138): bracket the panel-2 loading
-        // window (`hasLoaded` false → true). `defer` closes it even if the
-        // task is cancelled mid-reload by a structural-key change.
+        // C3 perception/occupancy (issue #138): bracket the panel-2 blank
+        // window (structural key change → sections replaced). `defer` closes
+        // it even if the task is cancelled mid-reload by a structural-key
+        // change.
         let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
         defer { perfSignposter.endInterval(PerformanceSignpostName.structuralReload, signpost) }
-        hasLoaded = false
-        await reload(proxy: proxy)
-        hasLoaded = true
+        // Synchronous prefix: enter the pending phase and drop the previous
+        // context's rows before the first await, so the pane never shows the
+        // old category's rows while the new fetch runs.
+        fetchPhase = .pending
+        sections = []
+        allVisibleEntryIDs = []
+        if await reload(proxy: proxy) {
+          fetchPhase = .resolved
+          return
+        }
+        guard !Task.isCancelled else { return }
+        // One bounded retry for a transient store error — the shared
+        // coordinator can briefly contend with a concurrent write
+        // (`STACK.md § 14`).
+        try? await Task.sleep(for: .milliseconds(500))
+        guard !Task.isCancelled else { return }
+        if await reload(proxy: proxy) {
+          fetchPhase = .resolved
+          return
+        }
+        guard !Task.isCancelled else { return }
+        fetchPhase = .failed
+        logger.error(
+          "Article-list fetch failed after retry for \(category ?? folder ?? "none", privacy: .private)"
+        )
       }
       .task(id: refreshTaskKey) {
-        guard hasLoaded else { return }
-        await reload(proxy: proxy)
+        guard fetchPhase != .pending else { return }
+        // A successful refresh sets `.resolved`, so any later bump heals an
+        // earlier `.failed` pane. A failed or cancelled refresh keeps the
+        // previous phase: existing rows stay (resolved) or the error pane
+        // stays (failed) — never a false empty.
+        if await reload(proxy: proxy) {
+          fetchPhase = .resolved
+        }
       }
     }
   }
 
-  private func reload(proxy: ScrollViewProxy) async {
-    let result =
-      (try? await reader.fetchEntrySections(
+  /// Single derivation point for what the pane shows — the pure precedence
+  /// rule in `Helpers/EntryListDisplayState.swift` (unit-tested truth table).
+  private var displayState: EntryListDisplayState {
+    entryListDisplayState(
+      phase: fetchPhase,
+      hasSections: !sections.isEmpty,
+      isAuthFailed: isAuthFailed,
+      isOffline: syncEngine.lastError?.isNetworkError == true
+    )
+  }
+
+  private var isAuthFailed: Bool {
+    if case .authFailed = syncEngine.lastError { return true }
+    return false
+  }
+
+  /// Fetch and apply the sections for the current context. Returns `true`
+  /// when the fetch resolved and its result was applied (or was identical, so
+  /// no apply was needed); `false` on failure or cancellation — callers
+  /// distinguish the two via `Task.isCancelled` before treating `false` as a
+  /// store failure.
+  private func reload(proxy: ScrollViewProxy) async -> Bool {
+    let result: EntryListFetchResult
+    do {
+      result = try await reader.fetchEntrySections(
         category: category, folder: folder, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID
-      )) ?? .empty
-    guard !Task.isCancelled else { return }
-    guard result.sections != sections else { return }
+      )
+    } catch is CancellationError {
+      // Silent exit — neither success nor failure. The reader's
+      // `Task.checkCancellation` guard surfaces here when a structural-key
+      // change cancels a queued stale fetch.
+      return false
+    } catch {
+      // Store error: the caller decides between the bounded retry (first
+      // structural attempt) and `.failed` / keep-previous-phase.
+      return false
+    }
+    guard !Task.isCancelled else { return false }
+    guard result.sections != sections else { return true }
     // Decide whether the upcoming in-place diff warrants a scroll-anchor
     // restore. Two reasons to pin: (1) the selected row still appears in the
     // new result — keep it centred so a row-height shift (read/unread
@@ -249,8 +304,9 @@ struct EntryListView: View {
     // the previously-first row still appears — keep the top stable when a
     // sync page lands new entries above it (option (a) per the design's
     // sync-arriving-entries autonomy decision). Structural reloads
-    // (`hasLoaded == false` going into `reload`) skip the fallback so we do
-    // not pin an anchor from the previous list's contents.
+    // (`fetchPhase == .pending` going into `reload`; the structural prefix
+    // also cleared `allVisibleEntryIDs`) skip the fallback so we do not pin
+    // an anchor from the previous list's contents.
     //
     // `result.allEntryIDs` is precomputed off-MainActor by
     // `DataReader.fetchEntrySections` so the membership-check `Set` build is
@@ -260,7 +316,8 @@ struct EntryListView: View {
     let restore: AnchorRestore?
     if let selectedID = selectedEntry?.persistentModelID, newIDs.contains(selectedID) {
       restore = AnchorRestore(id: selectedID, anchor: .center)
-    } else if selectedEntry == nil, hasLoaded, let firstID = allVisibleEntryIDs.first,
+    } else if selectedEntry == nil, fetchPhase == .resolved,
+      let firstID = allVisibleEntryIDs.first,
       newIDs.contains(firstID)
     {
       restore = AnchorRestore(id: firstID, anchor: .top)
@@ -279,6 +336,7 @@ struct EntryListView: View {
       await Task.yield()
       proxy.scrollTo(restore.id, anchor: restore.anchor)
     }
+    return true
   }
 
   /// Composed key for the refresh task so a structural change (category /
@@ -308,12 +366,8 @@ struct EntryListView: View {
   EntryListAuthFailedPreview()
 }
 
-#Preview("Empty - First Sync") {
-  EntryListFirstSyncPreview()
-}
-
-#Preview("Loading - Sync Active (rows exist elsewhere)") {
-  EntryListSyncActiveWithRowsPreview()
+#Preview("Empty While Classifying — No Articles") {
+  EntryListEmptyWhileClassifyingPreview()
 }
 
 #Preview("Empty - No Articles (at rest)") {
@@ -336,7 +390,6 @@ private struct EntryListOfflinePreview: View {
       lastError: .network("The Internet connection appears to be offline."))
     return engine
   }()
-  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
@@ -357,7 +410,6 @@ private struct EntryListOfflinePreview: View {
       }
     }
     .environment(syncEngine)
-    .environment(classificationEngine)
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
@@ -383,7 +435,6 @@ private struct EntryListAuthFailedPreview: View {
       lastError: .authFailed("Invalid Feedbin credentials"))
     return engine
   }()
-  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
@@ -404,7 +455,6 @@ private struct EntryListAuthFailedPreview: View {
       }
     }
     .environment(syncEngine)
-    .environment(classificationEngine)
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
@@ -414,66 +464,20 @@ private struct EntryListAuthFailedPreview: View {
   }
 }
 
-/// Renders `EntryListView` in the first-sync empty state: container is seeded
-/// but contains no classified entries, `SyncEngine.lastError` is nil and
-/// `ClassificationEngine` is mid-batch — so the view picks the "Sorting your
-/// articles" branch.
+/// Renders `EntryListView` with classification mid-batch, a classified row in
+/// ANOTHER category ("world"), and the queried category ("apple") resolving
+/// empty. EXPECTATION REVERSED by issue #146 (reverses #137): the pane shows
+/// "No Articles" — the calm-loading "Sorting your articles" state is gone. A
+/// resolved-empty fetch now asserts emptiness regardless of engine activity,
+/// because the deferred-bump drain channel re-fetches as classification lands
+/// rows: the moment the first article exists in this category, the list
+/// populates live. The false-empty flash #137 guarded against is prevented by
+/// mechanism instead — `pending ≠ resolved` in `entryListDisplayState` (the
+/// unit truth table pins it). The mid-batch `ClassificationEngine` is still
+/// injected on purpose: it documents that engine activity no longer changes
+/// this outcome (the view no longer reads it).
 @MainActor
-private struct EntryListFirstSyncPreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntry: Entry?
-  private let container: ModelContainer = PreviewSupport.makeContainer()
-  private let syncEngine = SyncEngine()
-  private let classificationEngine: ClassificationEngine = {
-    let engine = ClassificationEngine()
-    engine.applyPreviewState(
-      isClassifying: true,
-      progress: "Categorizing 12/47",
-      classifiedCount: 12,
-      totalToClassify: 47
-    )
-    return engine
-  }()
-
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntry: $selectedEntry,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(classificationEngine)
-    .environment(AppFontSettings())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
-  }
-}
-
-/// Renders `EntryListView` in the WIDENED calm-loading state (issue #137): a
-/// classified article exists in ANOTHER category ("world"), classification is
-/// mid-batch, and the queried category ("apple") fetch returns empty. The view
-/// must show calm loading — NEVER "No Articles" — because rows may still be
-/// arriving. Before #137 this fell through to a false "No Articles" (the probe
-/// was non-empty once any row was classified). This is the regression guard.
-@MainActor
-private struct EntryListSyncActiveWithRowsPreview: View {
+private struct EntryListEmptyWhileClassifyingPreview: View {
   @State
   private var reader: DataReader?
   @State
@@ -540,10 +544,9 @@ private struct EntryListSyncActiveWithRowsPreview: View {
   }
 }
 
-/// Renders `EntryListView` in the genuine empty state at rest (issue #137): no
-/// rows, and neither sync nor classification is active → "No Articles" stays
-/// reachable. The widened calm-loading gate must NOT swallow the real empty
-/// state once background work is at rest.
+/// Renders `EntryListView` in the genuine empty state at rest: no rows, no
+/// sync error → the resolved-empty fetch shows "No Articles" (the
+/// `.noArticles` case of `entryListDisplayState`).
 @MainActor
 private struct EntryListEmptyAtRestPreview: View {
   @State
@@ -552,7 +555,6 @@ private struct EntryListEmptyAtRestPreview: View {
   private var selectedEntry: Entry?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine = SyncEngine()
-  private let classificationEngine = ClassificationEngine()
 
   var body: some View {
     Group {
@@ -573,7 +575,6 @@ private struct EntryListEmptyAtRestPreview: View {
       }
     }
     .environment(syncEngine)
-    .environment(classificationEngine)
     .environment(AppFontSettings())
     .modelContainer(container)
     .task {
