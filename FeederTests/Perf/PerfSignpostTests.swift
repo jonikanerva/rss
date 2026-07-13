@@ -69,11 +69,11 @@ final class PerfSignpostTests: XCTestCase {
         _ = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
         _ = try? await reader.fetchEntrySections(
           category: nil, folder: folderLabel, showRead: false,
-          cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+          cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
         )
         _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
-          cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+          cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
         )
       }
       group.wait()
@@ -87,7 +87,7 @@ final class PerfSignpostTests: XCTestCase {
     let cutoff = Date.distantPast
     let result = try await reader.fetchEntrySections(
       category: category, folder: nil, showRead: false,
-      cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+      cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
     let firstEntryID = result.allEntryIDs.first
     XCTAssertNotNil(firstEntryID, "Perf seeder must produce at least one row in category \(category)")
@@ -107,7 +107,7 @@ final class PerfSignpostTests: XCTestCase {
         defer { group.leave() }
         _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
-          cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+          cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
         )
         _ = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
       }

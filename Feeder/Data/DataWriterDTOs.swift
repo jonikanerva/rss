@@ -86,6 +86,41 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let rows: [EntryRowDTO]
 }
 
+/// Keyset cursor into the canonical article-list order (issue #155): the
+/// `(publishedAt, feedbinEntryID)` sort key of a loaded row, always DERIVED
+/// from the currently applied sections (`entryListCursor(of:)`), never stored.
+/// The loaded window is defined entirely by its bottom edge — the cursor of
+/// the LAST loaded row.
+///
+/// Cursor keys are stable by the persistence invariant documented at
+/// `DataWriter.persistEntries`: existing rows are never re-written, so the
+/// `(publishedAt, feedbinEntryID)` pair of a persisted row never mutates.
+/// Keyset paging correctness (pages that tile exactly, no dup / no skip)
+/// depends on that invariant.
+nonisolated struct EntryListCursor: Sendable, Equatable {
+  let publishedAt: Date
+  let feedbinEntryID: Int
+}
+
+/// Which slice of the canonical order `fetchEntrySections` returns
+/// (issue #155). All three modes run the SAME eligibility predicate and the
+/// SAME sort (`publishedAt` DESC, `feedbinEntryID` DESC); they differ only in
+/// the keyset clause:
+/// - `firstPage(limit:)` — the top `limit` rows. Internally an `after` fetch
+///   from a top sentinel cursor, so the first page and its appends tile by
+///   construction. The limit GROWS past the request only for pin coverage
+///   (a pinned/selected row deeper than the page stays reachable).
+/// - `atOrAbove(cursor)` — every row at or above the cursor: the whole-window
+///   refresh. Replaces the loaded window in one snapshot; bounded by the
+///   window the user has actually grown, not by the category size.
+/// - `after(cursor, limit:)` — the next `limit` rows strictly below the
+///   cursor: the append page.
+nonisolated enum EntryListWindow: Sendable, Equatable {
+  case firstPage(limit: Int)
+  case atOrAbove(EntryListCursor)
+  case after(EntryListCursor, limit: Int)
+}
+
 /// Background-fetched article list payload: the day-grouped row sections plus
 /// three pre-flattened aggregates the MainActor consumes without walking the
 /// row set again (each MainActor allocation eats into the 8.3 ms ProMotion
@@ -97,6 +132,11 @@ nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
 /// - `renderedUnreadFeedbinEntryIDs` — the rendered-unread side of the
 ///   two-sided `pendingReadIDs` retention prune (`retainedPendingReadIDs`).
 ///
+/// `hasMore` (issue #155) is exact: for `firstPage` / `after` the reader
+/// fetches `limit + 1` rows and drops the extra; for `atOrAbove` it probes
+/// with one `after(lastRow, limit: 1)` fetch. `true` means the store holds at
+/// least one eligible row below the returned window.
+///
 /// `PersistentIdentifier` conforms to `Sendable`
 /// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the
 /// payload crosses the actor boundary cleanly.
@@ -105,9 +145,11 @@ nonisolated struct EntryListFetchResult: Sendable, Equatable {
   let allEntryIDs: [PersistentIdentifier]
   let distinctFeedIDs: Set<Int>
   let renderedUnreadFeedbinEntryIDs: Set<Int>
+  let hasMore: Bool
 
   static let empty = EntryListFetchResult(
-    sections: [], allEntryIDs: [], distinctFeedIDs: [], renderedUnreadFeedbinEntryIDs: [])
+    sections: [], allEntryIDs: [], distinctFeedIDs: [], renderedUnreadFeedbinEntryIDs: [],
+    hasMore: false)
 }
 
 /// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for

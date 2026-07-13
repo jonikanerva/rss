@@ -110,7 +110,7 @@ func c3RunRep(
     let cat = cats[i % cats.count]
     let s = c3Stamp(epoch)
     _ = try? await reader.fetchEntrySections(
-      category: cat, folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: cat, folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     let e = c3Stamp(epoch)
     reads.withLock { $0.append(C3Interval(start: s, end: e)) }
     try? await Task.sleep(for: config.navSpacing)
@@ -146,7 +146,7 @@ func c3MeasureBaselineP95(config: C3Config, writer: DataWriter, reader: DataRead
     for _ in 0..<config.navReads {
       let s = ContinuousClock.now
       _ = try? await reader.fetchEntrySections(
-        category: config.largestCategory, folder: nil, showRead: false, cutoffDate: .distantPast)
+        category: config.largestCategory, folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
       durs.append(c3Seconds(s.duration(to: .now)) * 1000)
     }
     p95s.append(c3Percentile(durs, 0.95))

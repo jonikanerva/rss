@@ -18,7 +18,7 @@ import XCTest
 /// by isolating individual hot functions:
 ///
 /// - `DataReader.fetchUnreadCountsSnapshot(cutoffDate:)`
-/// - `DataReader.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:)`
+/// - `DataReader.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:window:)`
 /// - `parseHTMLToBlocks(_:)`
 /// - `groupRowsByDay(_:)`
 ///
@@ -98,7 +98,7 @@ final class MicroBenchmarkTests: XCTestCase {
     // Warm — same rationale as above.
     _ = try await reader.fetchEntrySections(
       category: category, folder: nil, showRead: false,
-      cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+      cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
 
     let options = XCTMeasureOptions()
@@ -111,7 +111,7 @@ final class MicroBenchmarkTests: XCTestCase {
         defer { group.leave() }
         _ = try? await reader.fetchEntrySections(
           category: category, folder: nil, showRead: false,
-          cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+          cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
         )
       }
       group.wait()

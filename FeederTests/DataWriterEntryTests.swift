@@ -397,7 +397,7 @@ struct DataWriterEntryTests {
 
     let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
-      cutoffDate: .distantPast, pinnedFeedbinEntryID: nil)
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
     #expect(ids.count == 1)
@@ -413,7 +413,7 @@ struct DataWriterEntryTests {
 
     let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
-      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
     // Both the unread row and the pinned read row should appear.
@@ -431,7 +431,7 @@ struct DataWriterEntryTests {
 
     let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
-      cutoffDate: .distantPast)
+      cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
     #expect(ids.count == 1)
@@ -449,7 +449,7 @@ struct DataWriterEntryTests {
 
     let result = try await reader.fetchEntrySections(
       category: "technology", folder: nil, showRead: false,
-      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002)
+      cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002, window: .firstPage(limit: 10_000))
 
     #expect(result.allEntryIDs == result.sections.flatMap(\.rows).map(\.persistentID))
   }

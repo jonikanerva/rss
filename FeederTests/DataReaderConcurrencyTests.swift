@@ -110,7 +110,7 @@ struct DataReaderConcurrencyTests {
 
     // (a) Register entry 9001 in the reader's context via a first fetch.
     let first = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     #expect(first.allEntryIDs.count == 1)
 
     // (b) Writer marks the SAME row read and commits.
@@ -119,7 +119,7 @@ struct DataReaderConcurrencyTests {
     // (c)+(d) Re-fetch drops it from the unread list — membership is committed-
     // truthful, not served from the stale registered object.
     let second = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     #expect(second.allEntryIDs.isEmpty)
   }
 
@@ -139,7 +139,7 @@ struct DataReaderConcurrencyTests {
       result: ClassificationResult(entryID: 9401, categoryLabel: "apple", confidence: 0.9))
 
     _ = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     _ = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
 
     let hasPending = await reader.testHasPendingChanges
@@ -182,10 +182,11 @@ struct DataReaderConcurrencyTests {
     )
     // EntryListSection: id (ForEach identity) + label + the row snapshots.
     let section = EntryListSection(id: day, label: "Section", rows: [row])
-    // EntryListFetchResult: sections + the three pre-flattened aggregates.
+    // EntryListFetchResult: sections + the three pre-flattened aggregates +
+    // the exact keyset-paging hasMore flag (issue #155).
     let result = EntryListFetchResult(
       sections: [section], allEntryIDs: [row.persistentID],
-      distinctFeedIDs: [1], renderedUnreadFeedbinEntryIDs: [4001])
+      distinctFeedIDs: [1], renderedUnreadFeedbinEntryIDs: [4001], hasMore: false)
     // Behavioural anchor so the constructions above are not dead code.
     #expect(result.sections.first == section)
     #expect(result.allEntryIDs == [row.persistentID])
@@ -210,7 +211,7 @@ struct DataReaderConcurrencyTests {
     // (a) Register the row via a first unread fetch — snapshot is unread.
     let first = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast,
-      pinnedFeedbinEntryID: 9201)
+      pinnedFeedbinEntryID: 9201, window: .firstPage(limit: 10_000))
     #expect(first.sections.flatMap(\.rows).map(\.isRead) == [false])
     #expect(first.renderedUnreadFeedbinEntryIDs == [9201])
 
@@ -221,7 +222,7 @@ struct DataReaderConcurrencyTests {
     // the DTO reflects the COMMITTED flip.
     let second = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast,
-      pinnedFeedbinEntryID: 9201)
+      pinnedFeedbinEntryID: 9201, window: .firstPage(limit: 10_000))
     #expect(second.sections.flatMap(\.rows).map(\.isRead) == [true])
     #expect(second.renderedUnreadFeedbinEntryIDs.isEmpty)
   }
@@ -310,7 +311,7 @@ struct DataReaderConcurrencyTests {
       group.addTask {
         for _ in 0..<300 {
           let result = try? await reader.fetchEntrySections(
-            category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+            category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
           let snap = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
           if let snap {
             #expect(snap.categoryCounts[""] == nil)  // never a torn empty-category row
@@ -329,7 +330,7 @@ struct DataReaderConcurrencyTests {
     #expect(finalSnap.categoryCounts[""] == nil)
     #expect((finalSnap.categoryCounts["apple"] ?? 0) >= 50)
     let finalList = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     if let id = finalList.allEntryIDs.first {
       #expect(await writer.testResolveEntry(id) != nil)
     }
@@ -364,7 +365,7 @@ struct DataReaderConcurrencyTests {
 
     // The reader's context mints the PersistentIdentifier.
     let result = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     let id = try #require(result.allEntryIDs.first)
 
     // It must resolve to the SAME Entry in the writer / MainActor context via
@@ -421,7 +422,7 @@ struct DataReaderConcurrencyTests {
     // Issue the reader fetch only once the writer is started-and-still-running.
     while !started.isSet { try await Task.sleep(for: .milliseconds(1)) }
     let result = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
 
     // ORDERING: the reader's single fetch completed while the writer's 30-batch
     // op was still running (29:1 work ratio makes this host-independent, not a
@@ -458,7 +459,7 @@ struct DataReaderConcurrencyTests {
     // Never a torn "classified with empty category" row — the row is simply
     // absent from the eligible set until the commit lands.
     let mid = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     #expect(mid.allEntryIDs.isEmpty)
 
     // Release the gate → the writer commits.
@@ -468,7 +469,7 @@ struct DataReaderConcurrencyTests {
 
     // Now committed → the reader sees the fully-classified row.
     let after = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast)
+      category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
     #expect(after.allEntryIDs.count == 1)
   }
 }

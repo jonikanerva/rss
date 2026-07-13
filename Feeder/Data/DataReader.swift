@@ -131,9 +131,17 @@ actor DataReader: ModelActor {
   /// The classified + unread/showRead + cutoff core is built from
   /// `unreadEligiblePredicate(cutoffDate:)` plus the `showRead` / pinned-entry
   /// overrides; per-axis category or folder clauses compose on top.
+  ///
+  /// `window` (issue #155) bounds WHICH slice of the canonical order is
+  /// fetched — deliberately no default, so every call site states its paging
+  /// intent. All three modes run the same predicate core and the same sort;
+  /// they differ only in the keyset clause built by `entryListDescriptor`
+  /// (never `fetchOffset`, never in-Swift filtering — `STACK.md § 7`).
+  /// `firstPage` auto-grows to cover the pinned row's sort position
+  /// (`pinCoveringLimit`) so the selected row never falls outside the window.
   func fetchEntrySections(
     category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
-    pinnedFeedbinEntryID: Int? = nil
+    pinnedFeedbinEntryID: Int? = nil, window: EntryListWindow
   ) throws -> EntryListFetchResult {
     // Kill queued stale fetches before they touch the store: under rapid J/K
     // the serial reader mailbox accumulates fetches whose owning `.task` was
@@ -148,42 +156,58 @@ actor DataReader: ModelActor {
     try Task.checkCancellation()
     // C3 attribution (issue #138): time the article-list read on the reader
     // actor. Zero-cost when no profiler is attached; `defer` closes on throw.
+    // The end message carries the paging mode + row count (issue #155) so a
+    // trace can split first-page / append / refresh cost — counts only, no
+    // user-derived labels (`STACK.md § 8`).
+    let modeLabel: String
+    switch window {
+    case .firstPage: modeLabel = "first"
+    case .atOrAbove: modeLabel = "above"
+    case .after: modeLabel = "after"
+    }
+    var fetchedRowCount = 0
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.readFetchSections)
-    defer { perfSignposter.endInterval(PerformanceSignpostName.readFetchSections, signpost) }
-    var descriptor: FetchDescriptor<Entry>
-    // Secondary sort on feedbinEntryID keeps order deterministic when two entries
-    // share the same publishedAt timestamp. Without it, two equal-timestamp rows
-    // can swap places between fetches, which defeats the Equatable diff skip in
-    // EntryListView.reload() and can cause the list to reshuffle briefly.
-    let entrySort: [SortDescriptor<Entry>] = [
-      SortDescriptor(\Entry.publishedAt, order: .reverse),
-      SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
-    ]
+    defer {
+      perfSignposter.endInterval(
+        PerformanceSignpostName.readFetchSections, signpost,
+        "mode=\(modeLabel, privacy: .public) rows=\(fetchedRowCount, privacy: .public)")
+    }
     // `pinnedFeedbinEntryID` keeps the currently-selected row visible even when
     // its `isRead` flips out of the filter (typically after cross-device sync
     // marks it read elsewhere). Sentinel of 0 is safe — Feedbin assigns
     // positive entry IDs only.
     let pinned = pinnedFeedbinEntryID ?? 0
-    if let category {
-      descriptor = FetchDescriptor<Entry>(
-        predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryCategory == category
-            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
-            && $0.publishedAt >= cutoffDate
-        },
-        sortBy: entrySort
-      )
-    } else if let folder {
-      descriptor = FetchDescriptor<Entry>(
-        predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryFolder == folder
-            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
-            && $0.publishedAt >= cutoffDate
-        },
-        sortBy: entrySort
-      )
-    } else {
-      return .empty
+    // Resolve the window into the shared keyset inputs. `firstPage` is an
+    // `after` fetch from a top sentinel cursor, so the first page and its
+    // appends tile BY CONSTRUCTION — one clause family, no seam to disagree
+    // on. `atOrAbove` is the whole-window refresh: unbounded above the
+    // cursor, bounded by how far the user has actually grown the window.
+    let cursor: EntryListCursor
+    let pageLimit: Int?
+    let usesAfterClause: Bool
+    switch window {
+    case .firstPage(let limit):
+      cursor = EntryListCursor(publishedAt: .distantFuture, feedbinEntryID: Int.max)
+      pageLimit = limit
+      usesAfterClause = true
+    case .after(let pageCursor, let limit):
+      cursor = pageCursor
+      pageLimit = limit
+      usesAfterClause = true
+    case .atOrAbove(let windowCursor):
+      cursor = windowCursor
+      pageLimit = nil
+      usesAfterClause = false
+    }
+    guard
+      var descriptor = entryListDescriptor(
+        category: category, folder: folder, showRead: showRead, cutoffDate: cutoffDate,
+        pinned: pinned, cursor: cursor, usesAfterClause: usesAfterClause)
+    else { return .empty }
+    if let pageLimit {
+      // hasMore exactness: fetch ONE row past the window and drop it below —
+      // no COUNT query, no false positive at an exactly-full page.
+      descriptor.fetchLimit = pageLimit + 1
     }
     // Projection contract (issue #148): hydrate ONLY the columns
     // `projectEntryRow` reads — `plainText` is deliberately EXCLUDED (it is
@@ -196,11 +220,46 @@ actor DataReader: ModelActor {
       \.summaryPlainText, \.isRead, \.publishedAt,
     ]
     descriptor.relationshipKeyPathsForPrefetching = [\.feed]
-    let entries = try modelContext.fetch(descriptor)
+    var entries = try modelContext.fetch(descriptor)
+    var effectiveLimit = pageLimit
+    // Pin coverage (revived from PR #153, issue #155): a bare first page can
+    // exclude the pinned (selected) row. Grow the window to the pin's sort
+    // position and refetch the grown prefix ONCE — chronology stays
+    // continuous; the pin is never unioned out-of-band (that would render a
+    // timeline gap). Only `firstPage` grows: appends tile below an
+    // already-covered window, and `atOrAbove` re-fetches a window that
+    // covered the pin when it was built.
+    if case .firstPage(let requestedLimit) = window, pinned > 0,
+      !entries.contains(where: { $0.feedbinEntryID == pinned }),
+      let coveringLimit = try pinCoveringLimit(
+        category: category, folder: folder, showRead: showRead,
+        cutoffDate: cutoffDate, pinned: pinned, requested: requestedLimit),
+      coveringLimit > requestedLimit
+    {
+      effectiveLimit = coveringLimit
+      descriptor.fetchLimit = coveringLimit + 1
+      entries = try modelContext.fetch(descriptor)
+    }
+    var hasMore = false
+    if let effectiveLimit, entries.count > effectiveLimit {
+      hasMore = true
+      entries.removeLast(entries.count - effectiveLimit)
+    }
     // The fetch is the dominant cost; re-check before paying for projection
     // and grouping when the consuming task is already gone.
     try Task.checkCancellation()
     let rows = entries.map { projectEntryRow($0) }
+    fetchedRowCount = rows.count
+    // `atOrAbove` has no limit to overshoot — probe for rows below the
+    // returned window with ONE `after(lastRow, limit: 1)` fetch so `hasMore`
+    // stays exact across refreshes.
+    if case .atOrAbove = window, let lastRow = rows.last {
+      hasMore = try hasRowsBelow(
+        category: category, folder: folder, showRead: showRead, cutoffDate: cutoffDate,
+        pinned: pinned,
+        cursor: EntryListCursor(
+          publishedAt: lastRow.publishedAt, feedbinEntryID: lastRow.feedbinEntryID))
+    }
     let sections = groupRowsByDay(rows)
     // Sort order of `sections` matches `rows` (both descend on publishedAt
     // then feedbinEntryID), so a single pass over `rows` produces the same
@@ -210,8 +269,141 @@ actor DataReader: ModelActor {
       sections: sections,
       allEntryIDs: rows.map(\.persistentID),
       distinctFeedIDs: Set(rows.compactMap(\.feedFeedbinID)),
-      renderedUnreadFeedbinEntryIDs: Set(rows.lazy.filter { !$0.isRead }.map(\.feedbinEntryID))
+      renderedUnreadFeedbinEntryIDs: Set(rows.lazy.filter { !$0.isRead }.map(\.feedbinEntryID)),
+      hasMore: hasMore
     )
+  }
+
+  /// The ONE builder for every article-list descriptor (issue #155): the
+  /// eligibility core (classified + per-axis + showRead/pin override +
+  /// cutoff) composed with one of the two keyset clauses. Four `#Predicate`
+  /// literals because `#Predicate` cannot compose sub-predicates — the clause
+  /// pair is the single place the keyset ordering rule lives:
+  /// - after(C):     `publishedAt < C.date OR (== AND feedbinEntryID < C.id)`
+  /// - atOrAbove(C): `publishedAt > C.date OR (== AND feedbinEntryID >= C.id)`
+  /// The two partition the sorted result exactly at C, so pages tile with no
+  /// dup and no skip. Returns nil when neither axis is set.
+  private func entryListDescriptor(
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
+    pinned: Int, cursor: EntryListCursor, usesAfterClause: Bool
+  ) -> FetchDescriptor<Entry>? {
+    // Secondary sort on feedbinEntryID keeps order deterministic when two entries
+    // share the same publishedAt timestamp. Without it, two equal-timestamp rows
+    // can swap places between fetches, which defeats the Equatable diff skip in
+    // EntryListView.reload() and can cause the list to reshuffle briefly. The
+    // keyset clauses above break ties on the SAME key, so page seams stay
+    // deterministic through an equal-timestamp run.
+    let entrySort: [SortDescriptor<Entry>] = [
+      SortDescriptor(\Entry.publishedAt, order: .reverse),
+      SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
+    ]
+    let cursorDate = cursor.publishedAt
+    let cursorID = cursor.feedbinEntryID
+    if let category {
+      if usesAfterClause {
+        return FetchDescriptor<Entry>(
+          predicate: #Predicate<Entry> {
+            $0.isClassified && $0.primaryCategory == category
+              && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+              && $0.publishedAt >= cutoffDate
+              && ($0.publishedAt < cursorDate
+                || ($0.publishedAt == cursorDate && $0.feedbinEntryID < cursorID))
+          },
+          sortBy: entrySort
+        )
+      }
+      return FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryCategory == category
+            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+            && $0.publishedAt >= cutoffDate
+            && ($0.publishedAt > cursorDate
+              || ($0.publishedAt == cursorDate && $0.feedbinEntryID >= cursorID))
+        },
+        sortBy: entrySort
+      )
+    }
+    if let folder {
+      if usesAfterClause {
+        return FetchDescriptor<Entry>(
+          predicate: #Predicate<Entry> {
+            $0.isClassified && $0.primaryFolder == folder
+              && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+              && $0.publishedAt >= cutoffDate
+              && ($0.publishedAt < cursorDate
+                || ($0.publishedAt == cursorDate && $0.feedbinEntryID < cursorID))
+          },
+          sortBy: entrySort
+        )
+      }
+      return FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> {
+          $0.isClassified && $0.primaryFolder == folder
+            && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
+            && $0.publishedAt >= cutoffDate
+            && ($0.publishedAt > cursorDate
+              || ($0.publishedAt == cursorDate && $0.feedbinEntryID >= cursorID))
+        },
+        sortBy: entrySort
+      )
+    }
+    return nil
+  }
+
+  /// Exact `hasMore` probe for the `atOrAbove` refresh: ONE `after(lastRow,
+  /// limit: 1)` fetch through the same descriptor builder — non-empty means
+  /// the store holds at least one eligible row below the returned window.
+  private func hasRowsBelow(
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
+    pinned: Int, cursor: EntryListCursor
+  ) throws -> Bool {
+    guard
+      var probe = entryListDescriptor(
+        category: category, folder: folder, showRead: showRead, cutoffDate: cutoffDate,
+        pinned: pinned, cursor: cursor, usesAfterClause: true)
+    else { return false }
+    probe.fetchLimit = 1
+    probe.propertiesToFetch = [\.feedbinEntryID]
+    return try !modelContext.fetch(probe).isEmpty
+  }
+
+  /// Smallest window that keeps the pinned (selected) row inside the first
+  /// page — the pin-coverage rule revived from PR #153 (issue #155). Returns
+  /// nil when the pinned row is missing or ineligible for this context
+  /// (wrong category/folder, unclassified, or beyond the cutoff) — then
+  /// there is nothing to cover.
+  ///
+  /// The by-key lookup reads a handful of unlisted columns off ONE row,
+  /// off-main — the sanctioned exception scale, like `plainText` in the
+  /// projection. The pin's 1-based position in the sorted result IS the
+  /// count of rows at-or-above its key, so the count reuses the `atOrAbove`
+  /// clause family via `entryListDescriptor` — position counting and window
+  /// fetching can never disagree on the ordering rule.
+  private func pinCoveringLimit(
+    category: String?, folder: String?, showRead: Bool, cutoffDate: Date,
+    pinned: Int, requested: Int
+  ) throws -> Int? {
+    var pinDescriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { $0.feedbinEntryID == pinned })
+    pinDescriptor.fetchLimit = 1
+    pinDescriptor.propertiesToFetch = [
+      \.feedbinEntryID, \.publishedAt, \.isClassified, \.primaryCategory, \.primaryFolder,
+    ]
+    guard let pin = try modelContext.fetch(pinDescriptor).first else { return nil }
+    guard pin.isClassified, pin.publishedAt >= cutoffDate else { return nil }
+    if let category, pin.primaryCategory != category { return nil }
+    if let folder, pin.primaryFolder != folder { return nil }
+    guard
+      let positionDescriptor = entryListDescriptor(
+        category: category, folder: folder, showRead: showRead, cutoffDate: cutoffDate,
+        pinned: pinned,
+        cursor: EntryListCursor(
+          publishedAt: pin.publishedAt, feedbinEntryID: pin.feedbinEntryID),
+        usesAfterClause: false)
+    else { return nil }
+    let position = try modelContext.fetchCount(positionDescriptor)
+    guard position > 0 else { return nil }
+    return effectiveRowLimit(requested: requested, pinPosition: position)
   }
 
   /// Project one fetched `Entry` into its Sendable row snapshot, ON this

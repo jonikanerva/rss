@@ -212,7 +212,7 @@ struct UnreadCountsSnapshotFetchTests {
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     let result = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
-      cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+      cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
     let sectionRowCount = result.allEntryIDs.count
 
@@ -274,7 +274,7 @@ struct UnreadCountsSnapshotFetchTests {
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     let result = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false,
-      cutoffDate: cutoff, pinnedFeedbinEntryID: nil
+      cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
     let sectionRowCount = result.allEntryIDs.count
 

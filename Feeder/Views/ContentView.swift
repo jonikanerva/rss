@@ -667,6 +667,17 @@ struct ContentView: View {
   /// row DTOs refetch can never un-dim a row for a frame. Called from the
   /// snapshot-change trigger (`PendingReadPruneTrigger`) and from the
   /// `VisibleEntriesKey` preference change.
+  ///
+  /// WINDOW-SCOPED `renderedUnread` stays correct under keyset paging
+  /// (issue #155): the rendered side now covers only the loaded window, not
+  /// the whole category — but the overlay's job is to keep RENDERED rows
+  /// dimmed until their refetched DTOs confirm the committed read. An ID
+  /// beyond the loaded window has no rendered row to un-dim, so its
+  /// retention is governed by the UNBOUNDED snapshot side alone: it stays in
+  /// the overlay (keeping the sidebar counts optimistic, e.g. after
+  /// mark-all-read) exactly until the writer's commit lands in the refetched
+  /// snapshot. Neither side ever holds an ID longer under paging; release
+  /// still requires the committed state.
   private func prunePendingReadIDs() {
     guard !pendingReadIDs.isEmpty else { return }
     pendingReadIDs = retainedPendingReadIDs(
