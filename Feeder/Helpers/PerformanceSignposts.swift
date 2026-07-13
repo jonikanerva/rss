@@ -124,4 +124,11 @@ nonisolated enum PerformanceSignpostName {
   /// Counting the events that fall inside a `structuralReload` window shows
   /// whether the List rebuilds all rows or only the visible ones.
   static let rowBodyBuild: StaticString = "row-body-build"
+  /// One `SidebarPane` DTO construction (issue #146 final fix): a zero-cost
+  /// EVENT emitted each time the sidebar snapshots are built from the
+  /// taxonomy `@Query`s. The fix's "sidebar `@Model` reads ≈ 0 per
+  /// selection" gate becomes COUNTABLE: the owner's re-trace counts these
+  /// events inside a selection-switch window — post-fix they occur only on
+  /// taxonomy changes, never on navigation.
+  static let sidebarSnapshotBuild: StaticString = "sidebar-snapshot-build"
 }

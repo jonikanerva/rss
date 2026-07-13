@@ -2,21 +2,27 @@ import SwiftUI
 
 // MARK: - Focused Command Context
 
-/// Single bundle carrying every menu-bar action and enablement flag ContentView
-/// publishes for `FeederCommands` to consume. One `FocusedValueKey` replaces
-/// the eleven parallel keys the old implementation needed.
+/// Single bundle carrying the model REFERENCES and menu-bar action closures
+/// `ContentView` publishes for `FeederCommands` to consume.
+///
+/// Issue #146 final fix: the context deliberately carries NO enablement
+/// booleans. Computing `canMarkAllRead` / `hasSelectedEntry` in
+/// `ContentView.body` read the navigation state there, which re-dirtied the
+/// whole shell on every selection change and would have silently defeated
+/// the pane split. The enablement is computed INSIDE the `FeederCommands`
+/// scene body from the carried references, so the Commands scene forms its
+/// own Observation dependency on the nav model — the shell publishes
+/// references only (holding a reference is not a body read).
 struct FeederCommandContext {
+  let nav: ReadingSelection
+  let syncEngine: SyncEngine
+  let classificationEngine: ClassificationEngine
   let syncAction: () -> Void
   let markAllReadAction: () -> Void
   let toggleViewModeAction: () -> Void
   let openInBrowserAction: () -> Void
   let moveSelectionDownAction: () -> Void
   let moveSelectionUpAction: () -> Void
-  let canMarkAllRead: Bool
-  let canOpenInBrowser: Bool
-  let hasSelectedEntry: Bool
-  let isSyncing: Bool
-  let currentViewMode: ArticleViewMode
 }
 
 private struct FeederCommandContextKey: FocusedValueKey {
@@ -56,7 +62,7 @@ struct FeederCommands: Commands {
         context?.syncAction()
       }
       .keyboardShortcut("r", modifiers: [.command, .shift])
-      .disabled(context == nil || context?.isSyncing == true)
+      .disabled(context == nil || isSyncing)
     }
 
     // Bare-key shortcuts (R, B, J, K) are handled via BareKeyHandler
@@ -69,19 +75,19 @@ struct FeederCommands: Commands {
       Button("Mark All as Read\t ⇧A") {
         context?.markAllReadAction()
       }
-      .disabled(context == nil || context?.canMarkAllRead != true)
+      .disabled(context == nil || !canMarkAllRead)
 
       Divider()
 
-      Button("\(context?.currentViewMode == .web ? "Reader Mode" : "Web Mode")\t R") {
+      Button("\(currentViewMode == .web ? "Reader Mode" : "Web Mode")\t R") {
         context?.toggleViewModeAction()
       }
-      .disabled(context == nil || context?.hasSelectedEntry != true)
+      .disabled(context == nil || !hasSelectedEntry)
 
       Button("Open in Browser\t B") {
         context?.openInBrowserAction()
       }
-      .disabled(context == nil || context?.canOpenInBrowser != true)
+      .disabled(context == nil || !hasSelectedEntry)
     }
 
     CommandMenu("Navigate") {
@@ -95,5 +101,26 @@ struct FeederCommands: Commands {
       }
       .disabled(context == nil)
     }
+  }
+
+  // MARK: - Enablement (computed here so the shell never reads nav state)
+
+  private var canMarkAllRead: Bool {
+    guard let nav = context?.nav else { return false }
+    return nav.articleFilter == .unread && nav.selection != nil
+  }
+
+  /// Also gates "Open in Browser" — both act on the selected entry.
+  private var hasSelectedEntry: Bool {
+    context?.nav.selectedEntry != nil
+  }
+
+  private var isSyncing: Bool {
+    guard let context else { return false }
+    return context.syncEngine.isSyncing || context.classificationEngine.isClassifying
+  }
+
+  private var currentViewMode: ArticleViewMode {
+    context?.nav.articleViewMode ?? .web
   }
 }

@@ -173,28 +173,27 @@ struct PendingReadPruneTrigger: ViewModifier {
 }
 
 /// Refreshes the cached `UnreadCountsSnapshot` whenever `key` changes.
-/// Re-keyed on `entryRefreshVersion` plus folder/category counts and the
-/// active `cutoffDate` so taxonomy edits or a Settings change to
+/// Re-keyed on `UnreadState.refreshVersion` plus folder/category counts and
+/// the active `cutoffDate` so taxonomy edits or a Settings change to
 /// `articleKeepDays` also trigger a refresh. The fetch runs on the
-/// `DataWriter` actor — MainActor only receives the resulting Sendable DTO.
+/// `DataReader` actor — MainActor only receives the resulting Sendable DTO,
+/// delivered through `apply` (issue #146 final fix: the snapshot lives
+/// behind `UnreadState`'s `private(set)`, so the modifier hands the value to
+/// `applySnapshot` instead of writing a binding).
 /// `cutoffDate` is forwarded to `fetchUnreadCountsSnapshot` so the sidebar
 /// snapshot and `fetchEntrySections` apply the same eligibility predicate.
-/// Extracted into a modifier so the `.task(id:)` stays out of
-/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
-/// reasonable-time limit.
 struct UnreadSnapshotRefreshTask: ViewModifier {
   let key: String
   let reader: DataReader?
   let cutoffDate: Date
-  @Binding
-  var snapshot: UnreadCountsSnapshot
+  let apply: (UnreadCountsSnapshot) -> Void
 
   func body(content: Content) -> some View {
     content.task(id: key) {
       guard let reader else { return }
       let fresh = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoffDate)
       guard !Task.isCancelled, let fresh else { return }
-      snapshot = fresh
+      apply(fresh)
     }
   }
 }
