@@ -56,6 +56,15 @@ struct ContentPane: View {
   private var sidebarClickIntervalState: OSSignpostIntervalState?
   @State
   private var articleClickIntervalState: OSSignpostIntervalState?
+  /// `contentViewReeval` interval state + its render-pass token (issue #146,
+  /// DIAGNOSTIC-ONLY, Cut 2): re-homed here with the `VisibleEntriesKey`
+  /// preference ownership. Post-Cut-2 the interval measures THIS pane's
+  /// bounded pass; the pre-Cut-2 whole-shell interval (the previous commit)
+  /// is the comparable, and Cut 2's claim is the shell interval's ABSENCE.
+  @State
+  private var contentReevalIntervalState: OSSignpostIntervalState?
+  @State
+  private var contentReevalVersion = 0
 
   var body: some View {
     @Bindable
@@ -96,6 +105,26 @@ struct ContentPane: View {
           Text("Select a category from the sidebar.")
         }
       }
+    }
+    .onPreferenceChange(VisibleEntriesKey.self) { payload in
+      // Cut 2 (issue #146): the rendered-entries payload is owned by the
+      // unread model and handled HERE — a list render no longer writes any
+      // shell `@State`, so the preference pass re-evaluates only this pane.
+      contentReevalIntervalState = perfSignposter.beginInterval(
+        PerformanceSignpostName.contentViewReeval
+      )
+      contentReevalVersion &+= 1
+      unreadState.visibleEntries = payload
+      // Second prune trigger (issue #148): the rendered-unread side of the
+      // two-sided retention criterion just changed — re-evaluate the overlay.
+      unreadState.prune()
+    }
+    .task(id: contentReevalVersion) {
+      // Diagnostic pair: close the reeval interval on the render pass that
+      // followed the preference-driven model write.
+      guard let state = contentReevalIntervalState else { return }
+      perfSignposter.endInterval(PerformanceSignpostName.contentViewReeval, state)
+      contentReevalIntervalState = nil
     }
     .onChange(of: nav.selectedEntryID) { _, _ in
       // SINGLE-WRITER call site — the only one in the app: resolve the

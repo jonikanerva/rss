@@ -55,21 +55,6 @@ struct ContentView: View {
   private var faviconStore = FaviconStore()
   @State
   private var needsSetup = false
-  /// Rendered-entries payload mirror consumed by Tab-into-list and the perf
-  /// runner. NOTE: this `@State` write is why a `VisibleEntriesKey`
-  /// preference pass still re-evaluates the shell — Cut 2 (the follow-up
-  /// commit) moves the preference ownership into `ContentPane` and deletes
-  /// this property; the `contentViewReeval` interval below measures exactly
-  /// the cost that move removes.
-  @State
-  private var currentEntries: VisibleEntriesPayload = .empty
-  /// `contentViewReeval` interval state + its render-pass token (issue #146,
-  /// DIAGNOSTIC-ONLY): begins when a `VisibleEntriesKey` payload arrives,
-  /// ends on the next render pass via `.task(id: contentReevalVersion)`.
-  @State
-  private var contentReevalIntervalState: OSSignpostIntervalState?
-  @State
-  private var contentReevalVersion = 0
   @FocusState
   private var panelFocus: PanelFocus?
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
@@ -102,28 +87,6 @@ struct ContentView: View {
     .environment(unreadState)
     .environment(faviconStore)
     .environment(\.bareKeyActions, bareKeyActions)
-    .onPreferenceChange(VisibleEntriesKey.self) { payload in
-      // Sub-cost split (issue #146, diagnostic): open the reeval interval
-      // before the @State write below dirties the shell; the paired end
-      // fires on the next render pass. Cut 2 moves this whole handler into
-      // `ContentPane` — this interval's ABSENCE is that commit's claim.
-      contentReevalIntervalState = perfSignposter.beginInterval(
-        PerformanceSignpostName.contentViewReeval
-      )
-      contentReevalVersion &+= 1
-      currentEntries = payload
-      unreadState.visibleEntries = payload
-      // Second prune trigger (issue #148): the rendered-unread side of the
-      // two-sided retention criterion just changed — re-evaluate the overlay.
-      unreadState.prune()
-    }
-    .task(id: contentReevalVersion) {
-      // Sub-cost split (issue #146, diagnostic): close the reeval interval
-      // on the render pass that followed the preference-driven @State write.
-      guard let state = contentReevalIntervalState else { return }
-      perfSignposter.endInterval(PerformanceSignpostName.contentViewReeval, state)
-      contentReevalIntervalState = nil
-    }
     .onAppear {
       checkCredentials()
       nav.revalidateSelection()
@@ -306,9 +269,11 @@ struct ContentView: View {
   /// once the article list has rendered for the active selection. No
   /// selection or no rendered list ⇒ Tab moves focus only. The one
   /// live-model materialization happens in the single-writer resolve.
+  /// (Cut 2: reads the model's payload — a call-time closure read; the
+  /// shell no longer mirrors it in `@State`.)
   private func tabIntoArticleList() {
     panelFocus = .articleList
-    guard let firstID = currentEntries.ids.first else { return }
+    guard let firstID = unreadState.visibleEntries.ids.first else { return }
     nav.selectedEntryID = firstID
   }
 
@@ -416,7 +381,7 @@ struct ContentView: View {
           // The runner picks the first visible row to click; selection is
           // ID-typed (issue #148), so no Entry materialization is needed
           // here — the single-writer resolve handles it.
-          currentEntries.ids
+          unreadState.visibleEntries.ids
         },
         navigate: { direction in
           // Route through the real J/K handler. Post-#146 this pays the

@@ -115,10 +115,13 @@ nonisolated enum PerformanceSignpostName {
   /// Marks the view dirty; the ensuing List render + layout is the
   /// `structuralReload` residual once these named sub-intervals are subtracted.
   static let reloadStateAssign: StaticString = "reload-state-assign"
-  /// `VisibleEntriesKey` preference → `ContentView.body` re-evaluation: begins
-  /// on ContentView's `onPreferenceChange`, ends on the next ContentView render
-  /// pass (a version-token `.task(id:)`). Isolates the whole-split-view re-eval
-  /// a full-N preference payload triggers per reload.
+  /// `VisibleEntriesKey` preference → re-evaluation window: begins on the
+  /// `onPreferenceChange`, ends on the next render pass (a version-token
+  /// `.task(id:)`). PRE-Cut-2 this lived on `ContentView` and measured the
+  /// whole-split-view re-eval a full-N preference payload triggered per
+  /// reload; POST-Cut-2 (issue #146 final fix) it lives on `ContentPane` and
+  /// measures that pane's BOUNDED pass — the pre-cut interval is the
+  /// comparable, and Cut 2's claim is the shell-wide re-eval's ABSENCE.
   static let contentViewReeval: StaticString = "contentview-reeval"
   /// One `EntryRowView.body` evaluation (da's whole-list-re-render check).
   /// Counting the events that fall inside a `structuralReload` window shows
