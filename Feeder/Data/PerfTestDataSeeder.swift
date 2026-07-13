@@ -38,6 +38,7 @@ extension DataWriter {
   /// `STACK.md § 0 Repository layout & layer convention` — no MainActor work
   /// during seeding.
   func seedPerfTestData(entryCount: Int = 5000, categoryCount: Int = 12) throws -> Bool {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
     guard existingCount == 0 else { return false }
 
@@ -125,6 +126,7 @@ extension DataWriter {
     matching selection: SidebarSelection,
     startingID: Int
   ) throws -> Int {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard count > 0 else { return startingID }
 
     // Reuse an existing perf feed so rows carry a display domain like the

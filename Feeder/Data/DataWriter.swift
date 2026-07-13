@@ -61,8 +61,11 @@ nonisolated struct StandardUserDefaultsFlagStore: SeededDefaultsFlagStore {
 /// Background actor that owns all SwiftData write operations.
 /// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
 ///
-/// Uses ModelActor protocol with explicit init to guarantee the ModelContext
-/// and its serial executor run on a background thread (not the cooperative pool's main thread).
+/// Off-main execution comes from the custom `BackgroundSerialModelExecutor`
+/// binding, NOT from the `ModelActor` conformance or the explicit init: issue
+/// #135 proved `DefaultSerialModelExecutor` only serialises context access and
+/// runs on the awaiting caller's thread — main, for every MainActor call site
+/// (issue #159). Every actor-isolated method asserts the off-main invariant.
 actor DataWriter: ModelActor {
   nonisolated let modelExecutor: any ModelExecutor
   nonisolated let modelContainer: ModelContainer
@@ -81,7 +84,16 @@ actor DataWriter: ModelActor {
     self.defaultsFlagStore = defaultsFlagStore
     let context = ModelContext(modelContainer)
     context.autosaveEnabled = false
-    self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
+    // Off-main custom executor (issues #135 / #159, STACK.md § 14).
+    // `DefaultSerialModelExecutor` guarantees only SERIALISED context access —
+    // awaited from a MainActor caller it runs the write on the MAIN thread,
+    // silently, so sync page persistence / classification writes / mark-read
+    // flushes were hanging the UI. `BackgroundSerialModelExecutor` binds this
+    // actor to its own dedicated background serial queue. Own instance — never
+    // share the reader's executor, or reads re-serialise behind writes and the
+    // panel-2 starvation PR #160 fixed comes back.
+    self.modelExecutor = BackgroundSerialModelExecutor(
+      modelContext: context, queueLabel: "com.feeder.datawriter")
   }
 
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
@@ -129,6 +141,11 @@ actor DataWriter: ModelActor {
   /// Single entry point for startup writes — keeps `ModelContext` off the
   /// MainActor per `STACK.md § 0 Repository layout & layer convention`.
   func bootstrap() throws -> BootstrapOutcome {
+    // Off-main invariant (issues #135/#159): `BackgroundSerialModelExecutor`
+    // must keep every write off the main thread. Fails loudly if a regression
+    // ever puts it back on main. Asserted at the top of every actor-isolated
+    // method on this actor (STACK.md § 5).
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let action: BootstrapOutcome.Action
 
     if defaultsFlagStore.isSeeded(forKey: defaultsSeededUserDefaultsKey) {
@@ -198,6 +215,7 @@ actor DataWriter: ModelActor {
   // MARK: - Feed persistence
 
   func syncFeeds(_ subscriptions: [FeedbinSubscription]) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Feed>()
     let existingFeeds = try modelContext.fetch(descriptor)
     let existingByID = Dictionary(uniqueKeysWithValues: existingFeeds.map { ($0.feedbinSubscriptionID, $0) })
@@ -227,6 +245,7 @@ actor DataWriter: ModelActor {
   /// Identify icon URLs that need downloading — URL changed or cached data is missing.
   /// Returns the set of distinct icon URLs that need fetching, without modifying any feeds.
   func iconURLsNeedingFetch(_ icons: [FeedbinIcon]) throws -> Set<String> {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !icons.isEmpty else { return [] }
     let (iconsByHost, feeds) = try resolveIconMapping(icons)
 
@@ -245,6 +264,7 @@ actor DataWriter: ModelActor {
   /// Only updates feeds whose icon URL changed or whose data was missing.
   /// Preserves existing faviconData when the replacement download failed.
   func syncIcons(_ icons: [FeedbinIcon], prefetchedData: [String: Data]) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !icons.isEmpty else { return }
     let (iconsByHost, feeds) = try resolveIconMapping(icons)
 
@@ -284,6 +304,7 @@ actor DataWriter: ModelActor {
   // MARK: - Entry persistence
 
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !entries.isEmpty else { return 0 }
 
     let entryIDs = entries.map(\.id)
@@ -338,6 +359,7 @@ actor DataWriter: ModelActor {
   /// callers can tell whether a sync changed anything (cross-device read-state
   /// propagation), not just whether new entries were inserted.
   func updateReadState(unreadIDs: Set<Int>) throws -> Int {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
@@ -359,6 +381,7 @@ actor DataWriter: ModelActor {
 
   /// Batch mark multiple entries as read in a single save.
   func markEntriesRead(feedbinEntryIDs ids: Set<Int>) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !ids.isEmpty else { return }
     let idArray = Array(ids)
     let descriptor = FetchDescriptor<Entry>(
@@ -375,6 +398,7 @@ actor DataWriter: ModelActor {
   /// Mark all unread classified entries in a folder or category as read.
   /// Returns the feedbin entry IDs that were flipped from unread → read.
   func markAllAsRead(target: MarkReadTarget, cutoffDate: Date) throws -> Set<Int> {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor: FetchDescriptor<Entry>
     switch target {
     case .folder(let label):
@@ -407,6 +431,7 @@ actor DataWriter: ModelActor {
   // MARK: - Extracted content
 
   func fetchExtractedContentRequests() throws -> [(entryID: Int, url: String)] {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.extractedContentURL != nil && $0.extractedContent == nil }
     )
@@ -417,6 +442,7 @@ actor DataWriter: ModelActor {
   }
 
   func applyExtractedContent(results: [(entryID: Int, content: String)]) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !results.isEmpty else { return }
     let resultsByID = Dictionary(uniqueKeysWithValues: results.map { ($0.entryID, $0.content) })
     let ids = results.map(\.entryID)
@@ -469,7 +495,8 @@ actor DataWriter: ModelActor {
   /// call at chunk-boundary cadence (well below `persistEntries`' per-page
   /// rate; see `STACK.md § 4`).
   func countUnclassifiedEntries(cutoffDate: Date) throws -> Int {
-    try modelContext.fetchCount(
+    dispatchPrecondition(condition: .notOnQueue(.main))
+    return try modelContext.fetchCount(
       FetchDescriptor<Entry>(predicate: Self.unclassifiedPredicate(cutoffDate: cutoffDate))
     )
   }
@@ -481,6 +508,7 @@ actor DataWriter: ModelActor {
   /// first sync, `STACK.md § 4`). The `createdAt`-descending sort keeps the
   /// most recently ingested entries classified first.
   func fetchUnclassifiedInputs(cutoffDate: Date, limit: Int) throws -> [ClassificationInput] {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     var descriptor = FetchDescriptor<Entry>(
       predicate: Self.unclassifiedPredicate(cutoffDate: cutoffDate),
       sortBy: [SortDescriptor(\Entry.createdAt, order: .reverse)]
@@ -497,6 +525,7 @@ actor DataWriter: ModelActor {
   }
 
   func fetchCategoryDefinitions() throws -> [CategoryDefinition] {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     var descriptor = FetchDescriptor<Category>()
     descriptor.sortBy = [SortDescriptor(\Category.sortOrder)]
     return try modelContext.fetch(descriptor).map { cat in
@@ -510,6 +539,7 @@ actor DataWriter: ModelActor {
   }
 
   func applyClassification(entryID: Int, result: ClassificationResult) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { entry in entry.feedbinEntryID == entryID }
     )
@@ -526,6 +556,7 @@ actor DataWriter: ModelActor {
   }
 
   func resetClassification() throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>()
     let entries = try modelContext.fetch(descriptor)
     for entry in entries {
@@ -552,12 +583,14 @@ actor DataWriter: ModelActor {
   // MARK: - Folder management
 
   func addFolder(label: String, displayName: String, sortOrder: Int) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let folder = Folder(label: label, displayName: displayName, sortOrder: sortOrder)
     modelContext.insert(folder)
     try modelContext.save()
   }
 
   func deleteFolder(label: String) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let folderDescriptor = FetchDescriptor<Folder>(
       predicate: #Predicate<Folder> { $0.label == label }
     )
@@ -591,6 +624,7 @@ actor DataWriter: ModelActor {
   }
 
   func updateFolderFields(label: String, displayName: String) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Folder>(
       predicate: #Predicate<Folder> { $0.label == label }
     )
@@ -600,6 +634,7 @@ actor DataWriter: ModelActor {
   }
 
   func fetchFolderSortOrder(label: String) throws -> Int? {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Folder>(
       predicate: #Predicate<Folder> { $0.label == label }
     )
@@ -612,6 +647,7 @@ actor DataWriter: ModelActor {
   /// of a stale UI snapshot. `[String]` is `Sendable`; no `Folder` objects
   /// cross the actor boundary.
   func reorderFolders(orderedLabels: [String]) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     for (index, label) in orderedLabels.enumerated() {
       let descriptor = FetchDescriptor<Folder>(
         predicate: #Predicate<Folder> { $0.label == label }
@@ -625,6 +661,7 @@ actor DataWriter: ModelActor {
   // MARK: - Category management
 
   func addCategory(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String? = nil) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let category = Category(
       label: label,
       displayName: displayName,
@@ -637,6 +674,7 @@ actor DataWriter: ModelActor {
   }
 
   func deleteCategory(label: String) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
@@ -651,6 +689,7 @@ actor DataWriter: ModelActor {
   /// the count is zero, removal proceeds without prompting the user.
   /// Predicate runs at the SQLite level so we never materialise rows here.
   func countEntries(primaryCategoryLabel label: String) throws -> Int {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.primaryCategory == label }
     )
@@ -684,6 +723,7 @@ actor DataWriter: ModelActor {
   func removeCategoryAndReassignArticles(
     _ sourceLabel: String, to targetLabel: String
   ) throws -> RecategorizeOutcome {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard sourceLabel != targetLabel else {
       throw CategoryReassignError.sourceEqualsTarget
     }
@@ -730,6 +770,7 @@ actor DataWriter: ModelActor {
   }
 
   func fetchCategorySortOrder(label: String) throws -> Int? {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
@@ -737,6 +778,7 @@ actor DataWriter: ModelActor {
   }
 
   func moveCategoryToFolder(label: String, folderLabel: String?, sortOrder: Int) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
@@ -754,6 +796,7 @@ actor DataWriter: ModelActor {
   /// reordered into another slot. `[String]` is `Sendable`; no `Category`
   /// objects cross the actor boundary.
   func reorderCategories(inFolder folderLabel: String?, orderedLabels: [String]) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     for (index, label) in orderedLabels.enumerated() {
       let descriptor = FetchDescriptor<Category>(
         predicate: #Predicate<Category> { $0.label == label }
@@ -768,6 +811,7 @@ actor DataWriter: ModelActor {
   }
 
   func updateSystemFlag(label: String, isSystem: Bool) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
@@ -777,6 +821,7 @@ actor DataWriter: ModelActor {
   }
 
   func updateCategoryFields(label: String, displayName: String, description: String) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Category>(
       predicate: #Predicate<Category> { $0.label == label }
     )
@@ -789,6 +834,7 @@ actor DataWriter: ModelActor {
   func seedDefaultCategories(
     _ definitions: [(label: String, displayName: String, description: String, sortOrder: Int, folderLabel: String?)]
   ) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     for (label, displayName, description, sortOrder, folderLabel) in definitions {
       let category = Category(
         label: label,
@@ -823,6 +869,7 @@ actor DataWriter: ModelActor {
   /// so no `VersionedSchema` change is involved and no denormalised
   /// display fields need recomputing.
   func purgeEntriesOlderThan(_ days: Int) throws -> PurgeOutcome {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.publishedAt < cutoff }

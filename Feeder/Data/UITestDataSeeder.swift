@@ -10,6 +10,7 @@ extension DataWriter {
   /// and classified entries. Returns `true` if seeding ran, `false` if entries
   /// already existed.
   func seedUITestData() throws -> Bool {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     let existingCount = (try? modelContext.fetchCount(FetchDescriptor<Entry>())) ?? 0
     guard existingCount == 0 else { return false }
 
