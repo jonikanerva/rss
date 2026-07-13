@@ -124,6 +124,14 @@ struct EntryListView: View {
     let anchor: UnitPoint
   }
 
+  /// Debounce window for a structural (category / folder / filter) navigation
+  /// change (issue #146). Coalesces a rapid J/K burst into ONE reload: each
+  /// intermediate keypress cancels the prior `.task(id: structuralKey)` while it
+  /// is still in this cheap sleep, before it can blank the pane or queue a fetch
+  /// on the serial `DataReader` actor. Tunable — imperceptible for a single
+  /// deliberate nav, long enough to swallow a burst.
+  private static let navDebounce: Duration = .milliseconds(150)
+
   var body: some View {
     // `ScrollViewReader` is transparent — it adds no chrome — and lives
     // OUTSIDE the conditional `Group`, so the `.task` modifiers attach to the
@@ -228,6 +236,22 @@ struct EntryListView: View {
       // check keeps the restarted refresh a no-op while the structural task
       // owns the reload.
       .task(id: structuralKey) {
+        // Debounce a rapid J/K category-nav burst (issue #146). Placed at the
+        // VERY TOP — before the signpost begin, the `.pending` blank prefix, and
+        // the reader fetch — so an intermediate keypress (which `.task(id:)`
+        // cancels the instant `structuralKey` changes) exits HERE during the
+        // cheap sleep: no stacked `structural-reload` signpost, no blanked pane,
+        // and no fetch queued on the serial `DataReader` actor. Only the SETTLED
+        // selection survives → one blank + one fetch, so the sidebar highlight
+        // paints per keypress and the previous rows stay until the user settles.
+        // Cancellation-safe by construction: `.task(id:)`'s own structured
+        // cancellation, no manual Task / Timer (`STACK.md § 7 / § 9`). The
+        // `try?` swallows the sleep's `CancellationError`, so the explicit
+        // `Task.isCancelled` re-check is what turns a cancelled burst step into
+        // a no-op. The SEPARATE `.task(id: refreshTaskKey)` refresh path is
+        // deliberately NOT debounced.
+        try? await Task.sleep(for: Self.navDebounce)
+        guard !Task.isCancelled else { return }
         // C3 perception/occupancy (issue #138): bracket the panel-2 blank
         // window (structural key change → sections replaced). `defer` closes
         // it even if the task is cancelled mid-reload by a structural-key
