@@ -92,4 +92,36 @@ nonisolated enum PerformanceSignpostName {
   /// single page. Back-to-back `writePersistPage` intervals with no
   /// `netFetchPage` gap between them are the coordinator-saturation signature.
   static let writePersistPage: StaticString = "write-persist-page"
+
+  // MARK: - Structural-reload sub-cost split (issue #146, DIAGNOSTIC-ONLY)
+  //
+  // Finer intervals that split the NON-FETCH portion of `structuralReload` so a
+  // capture attributes the panel-2 reload tail across the individual MainActor
+  // operations instead of inferring it. Measurement showed the tail is the
+  // non-fetch main path, not `readFetchSections`; these pin which op owns it.
+  // All ride `perfSignposter`, are zero-cost when no profiler is attached, and
+  // change no behaviour. DIAGNOSTIC-ONLY: to be removed once the #146 fix is
+  // chosen from the data (unlike `structuralReload` / `readFetchSections`, which
+  // stay as durable regression guards).
+
+  /// `reload()` Equatable diff `result.sections != sections` — the O(N) row
+  /// structural-equality walk on MainActor (each `EntryRowDTO` compared field by
+  /// field, including its `title` / `excerpt` strings).
+  static let reloadDiff: StaticString = "reload-diff"
+  /// `reload()` `Set(result.allEntryIDs)` build on MainActor — the O(N) hash of
+  /// the full identifier set.
+  static let reloadSetBuild: StaticString = "reload-set-build"
+  /// `reload()` `sections` + `visibleEntries` @State assignment on MainActor.
+  /// Marks the view dirty; the ensuing List render + layout is the
+  /// `structuralReload` residual once these named sub-intervals are subtracted.
+  static let reloadStateAssign: StaticString = "reload-state-assign"
+  /// `VisibleEntriesKey` preference → `ContentView.body` re-evaluation: begins
+  /// on ContentView's `onPreferenceChange`, ends on the next ContentView render
+  /// pass (a version-token `.task(id:)`). Isolates the whole-split-view re-eval
+  /// a full-N preference payload triggers per reload.
+  static let contentViewReeval: StaticString = "contentview-reeval"
+  /// One `EntryRowView.body` evaluation (da's whole-list-re-render check).
+  /// Counting the events that fall inside a `structuralReload` window shows
+  /// whether the List rebuilds all rows or only the visible ones.
+  static let rowBodyBuild: StaticString = "row-body-build"
 }

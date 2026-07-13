@@ -233,7 +233,16 @@ struct EntryListView: View {
         // it even if the task is cancelled mid-reload by a structural-key
         // change.
         let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
-        defer { perfSignposter.endInterval(PerformanceSignpostName.structuralReload, signpost) }
+        // Tag the END with the resolved row count + category so a capture can
+        // plot reload time against N from any real store (issue #146 confound-
+        // killer) — read at `defer` time, after `reload` has assigned
+        // `visibleEntries`. Count + category label only; no PII (STACK.md §8).
+        defer {
+          perfSignposter.endInterval(
+            PerformanceSignpostName.structuralReload, signpost,
+            "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .private)"
+          )
+        }
         // Synchronous prefix: enter the pending phase and drop the previous
         // context's rows before the first await, so the pane never shows the
         // old category's rows while the new fetch runs.
@@ -309,7 +318,12 @@ struct EntryListView: View {
       return false
     }
     guard !Task.isCancelled else { return false }
-    guard result.sections != sections else { return true }
+    // Sub-cost split (issue #146, diagnostic): time the O(N) Equatable
+    // structural-equality walk of the full row set on MainActor.
+    let diffSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadDiff)
+    let sectionsUnchanged = result.sections == sections
+    perfSignposter.endInterval(PerformanceSignpostName.reloadDiff, diffSignpost)
+    guard !sectionsUnchanged else { return true }
     // Decide whether the upcoming in-place diff warrants a scroll-anchor
     // restore. Two reasons to pin: (1) the selected row still appears in the
     // new result — keep it centred so a row-height shift (read/unread
@@ -325,7 +339,10 @@ struct EntryListView: View {
     // `DataReader.fetchEntrySections` so the membership-check `Set` build is
     // the only per-reload allocation on MainActor — the flatMap walk that
     // used to live here moved to the reader.
+    // Sub-cost split (issue #146, diagnostic): time the O(N) Set build.
+    let setSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadSetBuild)
     let newIDs = Set(result.allEntryIDs)
+    perfSignposter.endInterval(PerformanceSignpostName.reloadSetBuild, setSignpost)
     let restore: AnchorRestore?
     if let selectedID = selectedEntryID, newIDs.contains(selectedID) {
       restore = AnchorRestore(id: selectedID, anchor: .center)
@@ -338,11 +355,16 @@ struct EntryListView: View {
       restore = nil
     }
     pendingAnchorRestore = restore
+    // Sub-cost split (issue #146, diagnostic): time the @State assignments that
+    // mark the view dirty (the ensuing List render + layout is the
+    // structural-reload residual once the named sub-intervals are subtracted).
+    let assignSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadStateAssign)
     sections = result.sections
     visibleEntries = VisibleEntriesPayload(
       ids: result.allEntryIDs,
       unreadFeedbinEntryIDs: result.renderedUnreadFeedbinEntryIDs
     )
+    perfSignposter.endInterval(PerformanceSignpostName.reloadStateAssign, assignSignpost)
     // Yield one tick so SwiftUI applies the diff before we ask the proxy
     // to scroll — without the yield `scrollTo` runs against the still-old
     // layout and the anchor row is not yet on screen to scroll to. Instant
