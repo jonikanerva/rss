@@ -2,47 +2,6 @@ import Foundation
 import SwiftData
 import os.signpost
 
-// MARK: - Reader model executor (off-main serial executor, STACK.md § 14)
-
-/// A custom `SerialModelExecutor` that runs `DataReader`'s actor jobs on a
-/// dedicated BACKGROUND serial `DispatchQueue` — the off-main guarantee that
-/// `DefaultSerialModelExecutor` does NOT provide. `ModelActor` /
-/// `DefaultSerialModelExecutor` guarantee only SERIALISED access to the context
-/// (thread-safety), not background execution: Instruments per-thread attribution
-/// showed `DataReader`'s fetches running on the MAIN thread (18.85 s main vs
-/// 0.99 s background — the felt-lag cause, issue #135). Binding the actor's
-/// executor to a background queue moves every `DataReader` method off main.
-///
-/// SE-0392 custom actor executor. `DispatchSerialQueue` vends no public
-/// `asUnownedSerialExecutor()` in the macOS 26 SDK, so this uses the canonical
-/// wrap-a-`DispatchQueue` form: `enqueue` hands the job to the queue and runs it
-/// via `UnownedJob.runSynchronously(on:)`, with `self` as the serial executor
-/// (`UnownedSerialExecutor(ordinary:)`). `nonisolated` is REQUIRED — under
-/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` a bare class would infer
-/// `@MainActor` and run the actor back on main. `@unchecked Sendable` mirrors
-/// `DefaultSerialModelExecutor`: the `ModelContext` is only ever touched on this
-/// one serial queue (the read-only, no-insert/save contract, § 5).
-nonisolated final class ReaderModelExecutor: SerialModelExecutor, @unchecked Sendable {
-  let modelContext: ModelContext
-  private let queue = DispatchQueue(label: "com.feeder.datareader", qos: .userInitiated)
-
-  init(modelContext: ModelContext) {
-    self.modelContext = modelContext
-  }
-
-  func enqueue(_ job: consuming ExecutorJob) {
-    let unownedJob = UnownedJob(job)
-    let executor = asUnownedSerialExecutor()
-    queue.async {
-      unownedJob.runSynchronously(on: executor)
-    }
-  }
-
-  func asUnownedSerialExecutor() -> UnownedSerialExecutor {
-    UnownedSerialExecutor(ordinary: self)
-  }
-}
-
 // MARK: - DataReader Actor
 
 /// Background actor that owns the read-only SwiftData queries driving the
@@ -117,9 +76,11 @@ actor DataReader: ModelActor {
     let context = ModelContext(modelContainer)
     context.autosaveEnabled = false
     // Off-main custom executor (issue #135, STACK.md § 14). `DefaultSerialModelExecutor`
-    // ran the reader on the MAIN thread; `ReaderModelExecutor` binds it to a
-    // background serial queue so reads never block the UI.
-    self.modelExecutor = ReaderModelExecutor(modelContext: context)
+    // ran the reader on the MAIN thread; `BackgroundSerialModelExecutor` binds it
+    // to a background serial queue so reads never block the UI. Own instance —
+    // sharing the writer's would re-serialise reads behind writes (PR #160).
+    self.modelExecutor = BackgroundSerialModelExecutor(
+      modelContext: context, queueLabel: "com.feeder.datareader")
   }
 
   /// Construct a `DataReader` on a detached background task — same idiom as
@@ -180,8 +141,9 @@ actor DataReader: ModelActor {
     // caller's task, so this observes the SwiftUI task's cancellation.
     // Checked BEFORE the signpost begin so aborted fetches do not skew
     // `read-fetch-sections` stats (issue #146).
-    // Off-main invariant (issue #135): `ReaderModelExecutor` must keep this read
-    // off the main thread. Fails loudly if a regression ever puts it back on main.
+    // Off-main invariant (issue #135): `BackgroundSerialModelExecutor` must keep
+    // this read off the main thread. Fails loudly if a regression ever puts it
+    // back on main.
     dispatchPrecondition(condition: .notOnQueue(.main))
     try Task.checkCancellation()
     // C3 attribution (issue #138): time the article-list read on the reader
@@ -289,6 +251,7 @@ actor DataReader: ModelActor {
   /// only feeds that HAVE data; a missing key is `FaviconStore`'s
   /// negative-cache signal (initials fallback, never refetched).
   func fetchFaviconData(feedbinFeedIDs: Set<Int>) throws -> [Int: Data] {
+    dispatchPrecondition(condition: .notOnQueue(.main))
     guard !feedbinFeedIDs.isEmpty else { return [:] }
     let ids = Array(feedbinFeedIDs)
     var descriptor = FetchDescriptor<Feed>(
@@ -327,7 +290,7 @@ actor DataReader: ModelActor {
   /// (`https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch`).
   func fetchUnreadCountsSnapshot(cutoffDate: Date) throws -> UnreadCountsSnapshot {
     // Off-main invariant (issue #135): this aggregation materialises the unread
-    // universe; `ReaderModelExecutor` must keep it off the main thread.
+    // universe; `BackgroundSerialModelExecutor` must keep it off the main thread.
     dispatchPrecondition(condition: .notOnQueue(.main))
     var descriptor = FetchDescriptor<Entry>(
       predicate: Self.unreadEligiblePredicate(cutoffDate: cutoffDate)
