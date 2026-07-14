@@ -303,6 +303,15 @@ actor DataWriter: ModelActor {
 
   // MARK: - Entry persistence
 
+  /// Insert newly synced entries; EXISTING rows are skipped, never re-written.
+  ///
+  /// IMMUTABILITY INVARIANT (issue #155 — keyset paging correctness): because
+  /// existing rows are skipped, a persisted row's `(publishedAt,
+  /// feedbinEntryID)` pair — the `EntryListCursor` sort key — never mutates.
+  /// Keyset pages tile exactly (no duplicate, no skip) only under this
+  /// invariant. If this method ever starts UPDATING existing rows, it must
+  /// not touch `publishedAt` or `feedbinEntryID`; `EntryListFetchResult
+  /// .appending`'s dedupe demotes a violation to a dropped row, not a fix.
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     guard !entries.isEmpty else { return 0 }
