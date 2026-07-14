@@ -75,3 +75,38 @@ nonisolated func entryListDisplayState(
   if isOffline { return .offline }
   return .noArticles
 }
+
+// MARK: - Window-refresh gate
+
+/// Pure scheduling gate for the whole-window refresh channel (issue #163).
+/// Placed here rather than in `EntryListPaging.swift` because it is
+/// fetch-LIFECYCLE logic (it reads `FetchPhase`), not paging math.
+///
+/// A refresh may run only when ALL of:
+/// 1. `resolvedKey == currentKey` — the loaded window belongs to the current
+///    structural context. While a structural fetch owns the window
+///    (`resolvedKey` is cleared in its synchronous prefix), refreshes stand
+///    down; the resolve-flip re-keys the refresh task so an owed bump is
+///    picked up the moment ownership returns — never dropped.
+/// 2. `phase != .pending` — same ownership rule, belt-and-braces for the
+///    window between the prefix and the key assignment.
+/// 3. `refreshVersion != consumedVersion` — the bump has not already been
+///    covered by a fetch. The structural task snapshots `refreshVersion`
+///    immediately BEFORE its first-page fetch and assigns it on
+///    resolve/failure, so a bump landing before the snapshot is (correctly)
+///    treated as included in the fetched data, and a bump landing after it
+///    stays owed.
+///
+/// `phase == .failed` deliberately passes (with matching key and an owed
+/// version): a later bump must be able to heal a failed pane — the healing
+/// contract the structural task documents.
+nonisolated func shouldRunWindowRefresh(
+  resolvedKey: String,
+  currentKey: String,
+  phase: FetchPhase,
+  refreshVersion: Int,
+  consumedVersion: Int
+) -> Bool {
+  guard resolvedKey == currentKey, phase != .pending else { return false }
+  return refreshVersion != consumedVersion
+}
