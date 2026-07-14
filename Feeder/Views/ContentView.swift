@@ -110,6 +110,22 @@ struct ContentView: View {
   /// All mutations bump via `bumpEntryList()` to keep a single point of accountability.
   @State
   private var entryRefreshVersion: Int = 0
+  /// Snapshot-only refresh channel (issue #163): bumped when a write changed
+  /// unread membership but the VISIBLE window provably cannot change (the
+  /// mark-read flush — its rows are already rendered read/dimmed). Feeds
+  /// `unreadSnapshotKey` only, so the sidebar snapshot refetches (releasing
+  /// `retainedPendingReadIDs` via the two-sided prune) without a no-op
+  /// whole-window `mode=above` refetch of the article list.
+  @State
+  private var snapshotRefreshVersion: Int = 0
+  /// One-bit resume bound for the scene-inactive flush suppression
+  /// (issue #163): suppression means "no one is looking", never "drop the
+  /// update". Set when the scene-inactive flush queues a write with its list
+  /// bump suppressed; consumed by exactly one `bumpEntryList()` on the next
+  /// `.active` transition, so the pane the user returns to reflects the
+  /// committed flush.
+  @State
+  private var owedListBumpOnResume = false
   /// Set true when classification finishes a batch and a refresh is owed; drained
   /// by the dwell task below once the user's selection has been stable. Keeps
   /// background refreshes from yanking the article list while the user clicks
@@ -287,10 +303,21 @@ struct ContentView: View {
       articleClickIntervalState = nil
     }
     .onChange(of: articleFilter) {
-      flushPendingReads()
+      // Filter flip is the ONE flush caller that keeps a post-commit list
+      // bump (issue #163): the flipped rows change membership in the NEW
+      // filter's window, and the structural refetch (filter is in
+      // `structuralKey`) can run before the flush commits — the bump
+      // guarantees the new window reflects it. Ordering pinned by
+      // `WindowRefreshGateTests` (O3): a bump landing before the structural
+      // pre-fetch snapshot is consumed; after it, owed — at worst one
+      // redundant `mode=above`, never a dropped update.
+      flushPendingReads(thenBumpListAfterCommit: true)
       selectedEntryID = nil
     }
     .onChange(of: selection) { _, newSelection in
+      // No list bump (issue #163): the sidebar move itself re-keys the
+      // structural task, whose first-page fetch covers the new axis; the
+      // flush's snapshot bump handles the sidebar counts + overlay release.
       flushPendingReads()
       selectedEntryID = nil
       // Sidebar-click signpost begin: measures SwiftUI commit cost from
@@ -316,8 +343,26 @@ struct ContentView: View {
       revalidateSelection()
     }
     .onChange(of: scenePhase) {
-      if scenePhase != .active {
-        flushPendingReads()
+      if scenePhase == .active {
+        // Consume the owed bump (issue #163): the inactive-phase flush
+        // suppressed its list refetch because no one was looking; one bump
+        // on resume shows the committed state. Runs before any new
+        // suppression can be owed, so the bit never double-fires.
+        if owedListBumpOnResume {
+          owedListBumpOnResume = false
+          bumpEntryList()
+        }
+      } else {
+        // No list bump while inactive (issue #163): background work pauses
+        // when the surface is not visible (`CLAUDE.md → Responsiveness`).
+        // Suppression is "no one is looking", never "drop the update" — the
+        // owed bit bounds it to the next `.active` transition. The bit is
+        // set at queue time, not post-commit: a resume racing the commit
+        // costs at most one early (possibly redundant) refresh, never a
+        // dropped update — the overlay keeps the rows dimmed meanwhile.
+        if flushPendingReads() {
+          owedListBumpOnResume = true
+        }
         Task { await syncEngine.pushPendingReads() }
       }
     }
@@ -572,8 +617,11 @@ struct ContentView: View {
 
   /// Re-key for the unread snapshot refresh task. Bumps on:
   /// - `entryRefreshVersion` — every mutation path that can change unread
-  ///   membership (sync edge, classification drain, mark-read flush,
-  ///   mark-all-read, category/folder reorganisation).
+  ///   membership AND the visible window (sync edge, classification drain,
+  ///   mark-all-read, category/folder reorganisation, filter-flip flush).
+  /// - `snapshotRefreshVersion` — the snapshot-only channel (issue #163): the
+  ///   mark-read flush changes unread membership but not the rendered rows,
+  ///   so it refetches the snapshot WITHOUT a no-op article-list refetch.
   /// - `folders.count`, `allCategories.count` — taxonomy edits that change
   ///   the dictionaries' keyspace without flipping any entry.
   /// - `syncEngine.queryCutoffDate` — Settings changes to `articleKeepDays`
@@ -583,11 +631,27 @@ struct ContentView: View {
   ///   the key only changes on a real cutoff move (e.g. when
   ///   `refreshArticleCutoff()` runs after a Settings change), not on every
   ///   `Date()` re-evaluation.
-  /// `entryRefreshVersion` uses `&+=` and wraps; string interpolation
-  /// compares for equality, which handles the wrap.
+  /// Versions use `&+=` and wrap; string interpolation compares for
+  /// equality, which handles the wrap. Composition pinned by
+  /// `WindowRefreshGateTests`.
   private var unreadSnapshotKey: String {
-    let cutoffSeconds = Int(syncEngine.queryCutoffDate.timeIntervalSinceReferenceDate)
-    return "\(entryRefreshVersion)|\(folders.count)|\(allCategories.count)|\(cutoffSeconds)"
+    Self.composeUnreadSnapshotKey(
+      entryRefreshVersion: entryRefreshVersion,
+      snapshotRefreshVersion: snapshotRefreshVersion,
+      folderCount: folders.count,
+      categoryCount: allCategories.count,
+      cutoffSeconds: Int(syncEngine.queryCutoffDate.timeIntervalSinceReferenceDate)
+    )
+  }
+
+  /// Pure key builder behind `unreadSnapshotKey`, extracted so tests can pin
+  /// that `snapshotRefreshVersion` is a component (the flush's snapshot-only
+  /// channel depends on it re-keying the snapshot task).
+  nonisolated static func composeUnreadSnapshotKey(
+    entryRefreshVersion: Int, snapshotRefreshVersion: Int,
+    folderCount: Int, categoryCount: Int, cutoffSeconds: Int
+  ) -> String {
+    "\(entryRefreshVersion)|\(snapshotRefreshVersion)|\(folderCount)|\(categoryCount)|\(cutoffSeconds)"
   }
 
   /// Re-key for the classification drain task. A change in either component
@@ -634,30 +698,64 @@ struct ContentView: View {
 
   /// Single point that invalidates the EntryListView's data refresh.
   /// Use whenever a mutation path can change what's shown in the timeline
-  /// — sync edge, classification drain, mark-read flush, mark-all-read,
-  /// category/folder reorganisation. Avoids drifting `&+=` bumps in five
-  /// places.
+  /// — sync edge, classification drain, mark-all-read, category/folder
+  /// reorganisation, the filter-flip flush. Avoids drifting `&+=` bumps in
+  /// five places.
+  ///
+  /// POST-COMMIT CONTRACT (issue #163, permanent): call only AFTER the
+  /// mutating write's `await` has returned. `EntryListView`'s
+  /// consumed-version bookkeeping treats any bump at or below the structural
+  /// task's pre-fetch snapshot as already fetched — a bump fired BEFORE its
+  /// write commits could be snapshotted by a structural fetch that did not
+  /// see the write, i.e. silently dropped. Every production call site is
+  /// post-commit today (sync edge, drain channels, `CategoryFolderChangeTrigger`
+  /// via `@Query` observation of the committed save, the flush, `markAllAsRead`,
+  /// `PerfScenarioRunner`'s write-pressure loop).
   private func bumpEntryList() {
     entryRefreshVersion &+= 1
   }
 
-  private func flushPendingReads() {
+  /// Snapshot-channel sibling of `bumpEntryList` (issue #163): refetches the
+  /// sidebar unread snapshot WITHOUT refetching the visible article-list
+  /// window. Use when a committed write changed unread membership but the
+  /// rendered rows provably cannot change (the mark-read flush — its rows
+  /// already render read/dimmed via the overlay). Same post-commit contract
+  /// as `bumpEntryList`.
+  private func bumpUnreadSnapshot() {
+    snapshotRefreshVersion &+= 1
+  }
+
+  /// Queue the optimistic-read overlay for a committed `markEntriesRead`
+  /// write. Returns `true` when a flush was actually queued (`pendingReadIDs`
+  /// non-empty) so the scene-inactive caller can record its owed resume bump.
+  ///
+  /// Per-caller list-bump rule (issue #163): the flush itself bumps ONLY the
+  /// unread-snapshot channel — the visible rows already render the flipped
+  /// state (dimmed via `pendingReadIDs`), so a whole-window refetch here was
+  /// the no-op `mode=above` source (25 of 54 refreshes returning 0 rows in
+  /// the owner's trace). The snapshot refetch is still mandatory: the
+  /// two-sided prune (`prunePendingReadIDs`) releases `retainedPendingReadIDs`
+  /// only once the refetched snapshot confirms the committed flips — without
+  /// it the overlay grows unbounded across a long session. Callers that DO
+  /// need the list refetched state it explicitly: the filter flip passes
+  /// `thenBumpListAfterCommit: true`; the scene-inactive flush records an
+  /// owed bump consumed on resume; the sidebar-selection flush needs neither
+  /// (the structural task refetches the new axis).
+  @discardableResult
+  private func flushPendingReads(thenBumpListAfterCommit: Bool = false) -> Bool {
     let ids = pendingReadIDs
-    guard !ids.isEmpty else { return }
+    guard !ids.isEmpty else { return false }
     syncEngine.queueReadIDs(ids)
     Task {
       guard let writer = syncEngine.writer else { return }
       try? await writer.markEntriesRead(feedbinEntryIDs: ids)
-      // Locally mutating isRead invalidates the article-list snapshot — refetch
-      // so unread filter shrinks. Without this, scrubbed-past entries linger
-      // (only dimmed via pendingReadIDs) until the next sync/classification.
-      // The matching pendingReadIDs are pruned by `prunePendingReadIDs()` once
-      // the MainActor `@Query` observes the background save — see the
-      // `PendingReadPruneTrigger` modifier on `body`. Draining eagerly here
-      // would race the auto-merge and could briefly bump the sidebar counts
-      // back up.
-      bumpEntryList()
+      // Post-commit (the write's await returned above — the bump contract).
+      bumpUnreadSnapshot()
+      if thenBumpListAfterCommit {
+        bumpEntryList()
+      }
     }
+    return true
   }
 
   /// Prune the optimistic-read overlay with the TWO-SIDED retention criterion
@@ -714,10 +812,12 @@ struct ContentView: View {
       let markedIDs = try? await writer.markAllAsRead(
         target: markTarget, cutoffDate: syncEngine.queryCutoffDate
       )
-      // Same rationale as flushPendingReads — refetch so the now-empty unread
-      // list (or remaining unread items) appears immediately. The matching
-      // pendingReadIDs are pruned by `prunePendingReadIDs()` once the
-      // MainActor `@Query` observes the background save.
+      // Post-commit list bump, deliberately KEPT under issue #163: unlike
+      // the flush (whose rows already render dimmed), mark-all-read changes
+      // the visible window itself — the unread list must empty (or show the
+      // remaining rows) immediately. The matching pendingReadIDs are pruned
+      // by `prunePendingReadIDs()` once the refetched snapshot observes the
+      // background save.
       bumpEntryList()
       guard let ids = markedIDs, !ids.isEmpty else { return }
       syncEngine.queueReadIDs(ids)

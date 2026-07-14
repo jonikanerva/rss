@@ -65,7 +65,11 @@ struct VisibleEntriesKey: PreferenceKey {
 /// handlers on `syncEngine.isSyncing` / `classificationEngine.isClassifying`
 /// false-transitions, the mid-flight deferred-bump drains (which also
 /// live-populate a viewed category while classification lands rows), plus an
-/// explicit bump after `flushPendingReads` and `markAllAsRead` writes.
+/// explicit bump after the `markAllAsRead` write and the filter-flip flush.
+/// Every bump obeys the post-commit contract on `ContentView.bumpEntryList`;
+/// the `shouldRunWindowRefresh` gate + `consumedRefreshVersion` bookkeeping
+/// (issue #163) skip refreshes whose data a fetch already covered, so
+/// redundant bumps no longer refetch an unchanged window.
 ///
 /// **Keyset window (issue #155).** The view holds a bounded window of the
 /// canonical order, defined by its bottom edge — the derived cursor of the
@@ -136,6 +140,23 @@ struct EntryListView: View {
   /// `allEntryIDs` (never derived in `body`). nil when nothing more to load.
   @State
   private var appendTriggerID: PersistentIdentifier?
+  /// Which structural context the loaded window belongs to (issue #163).
+  /// Cleared ("") in the structural task's synchronous prefix — the
+  /// structural fetch owns the window from that moment — and set to
+  /// `structuralKey` on resolve AND on failure. `refreshTaskKey` embeds this,
+  /// so the resolve-flip re-keys the refresh task: a bump that arrived while
+  /// the structural fetch was in flight re-fires exactly once instead of
+  /// being dropped (`shouldRunWindowRefresh` then decides whether it is owed).
+  @State
+  private var resolvedStructuralKey = ""
+  /// The `refreshVersion` already covered by a fetch (issue #163). The
+  /// structural task snapshots `refreshVersion` immediately BEFORE its
+  /// first-page fetch and assigns the snapshot on resolve/failure; a
+  /// successful refresh assigns the version it consumed. The gate skips a
+  /// refresh whose version is already consumed — the no-op `mode=above`
+  /// eliminator.
+  @State
+  private var consumedRefreshVersion = 0
   /// Carries the anchor row + alignment from `reload()`'s pre-diff inspection
   /// to the post-diff `proxy.scrollTo` call. The pin is conditional on what
   /// `reload()` sees in the new result and is set to `nil` when no restore is
@@ -322,7 +343,9 @@ struct EntryListView: View {
         // context's rows before the first await, so the pane never shows the
         // old category's rows while the new fetch runs. Paging state resets
         // with the window (issue #155): a new structural context starts from
-        // a fresh first page.
+        // a fresh first page. Clearing `resolvedStructuralKey` hands window
+        // ownership to this task (issue #163) — the refresh gate stands down
+        // until resolve/failure flips it back.
         fetchPhase = .pending
         sections = []
         visibleEntries = .empty
@@ -330,8 +353,17 @@ struct EntryListView: View {
         appendTriggerID = nil
         appendVersion = 0
         isAppending = false
+        resolvedStructuralKey = ""
+        // Snapshot BEFORE the fetch (issue #163): a bump landing before this
+        // line is included in the first-page fetch below (correct skip); a
+        // bump landing after it stays owed and re-fires via the resolve-flip.
+        // Conservative in the safe direction — a bump racing the fetch costs
+        // at most one redundant refresh, never a dropped update.
+        let preFetchRefreshVersion = refreshVersion
         if await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy) {
           fetchPhase = .resolved
+          consumedRefreshVersion = preFetchRefreshVersion
+          resolvedStructuralKey = structuralKey
           return
         }
         guard !Task.isCancelled else { return }
@@ -340,17 +372,30 @@ struct EntryListView: View {
         // is almost certainly persistent — a delayed retry would only
         // postpone showing the truth. Self-healing is free: any refresh bump
         // re-fetches (a success sets `.resolved`), and re-selecting the
-        // category restarts this task.
+        // category restarts this task. Ownership returns on failure too, so
+        // an owed bump can heal the failed pane (the gate deliberately lets
+        // `.failed` pass).
         fetchPhase = .failed
+        consumedRefreshVersion = preFetchRefreshVersion
+        resolvedStructuralKey = structuralKey
       }
       .task(id: refreshTaskKey) {
-        guard fetchPhase != .pending else { return }
-        // A successful refresh sets `.resolved`, so any later bump heals an
-        // earlier `.failed` pane. A failed or cancelled refresh keeps the
-        // previous phase: existing rows stay (resolved) or the error pane
-        // stays (failed) — never a false empty.
+        // Pure gate (issue #163, `shouldRunWindowRefresh` truth table): skip
+        // when the structural task owns the window, or when this version was
+        // already covered by a fetch — the no-op `mode=above` eliminator. A
+        // successful refresh records the version it consumed; a failed or
+        // cancelled refresh leaves it owed. `.resolved` on success keeps the
+        // healing contract: a later bump heals an earlier `.failed` pane.
+        guard
+          shouldRunWindowRefresh(
+            resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
+            phase: fetchPhase, refreshVersion: refreshVersion,
+            consumedVersion: consumedRefreshVersion)
+        else { return }
+        let version = refreshVersion
         if await refresh(proxy: proxy) {
           fetchPhase = .resolved
+          consumedRefreshVersion = version
         }
       }
       // Append channel (issue #155): its own task so an append neither
@@ -440,9 +485,22 @@ struct EntryListView: View {
   /// refresh re-fires against the current cursor.
   private func refresh(proxy: ScrollViewProxy) async -> Bool {
     while !Task.isCancelled {
+      // Re-gate on EVERY iteration (issue #163): the cursor-mismatch
+      // `continue` below can loop while a structural prefix has already
+      // cleared the window mid-flight — without this check the retry would
+      // race the structural task's own first-page fetch.
+      guard
+        shouldRunWindowRefresh(
+          resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
+          phase: fetchPhase, refreshVersion: refreshVersion,
+          consumedVersion: consumedRefreshVersion)
+      else { return false }
       guard let fetchStartCursor = entryListCursor(of: sections) else {
-        // Nothing loaded (e.g. the previous fetch failed) — a refresh from
-        // an empty window is just a first page.
+        // Nothing loaded (e.g. the previous fetch failed, or the visible
+        // category is empty and a sync/classification bump landed) — a
+        // refresh from an empty window is just a first page, so the
+        // category's FIRST row appears without user action (issue #163's
+        // trust condition).
         return await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy)
       }
       let window = EntryListWindow.atOrAbove(fetchStartCursor)
@@ -611,8 +669,25 @@ struct EntryListView: View {
   /// previous context. Without the structural suffix, a refresh captured
   /// against the old `self` could finish after the structural reload and
   /// overwrite `sections` with stale rows.
+  ///
+  /// `resolvedStructuralKey` is a component (issue #163): the structural
+  /// task's resolve/failure flips it "" → key, which re-fires the refresh
+  /// task — so a bump that arrived mid-structural-fetch is re-examined by
+  /// the gate instead of being dropped. Composition pinned by
+  /// `WindowRefreshGateTests`.
   private var refreshTaskKey: String {
-    "\(structuralKey)|\(refreshVersion)"
+    Self.composeRefreshTaskKey(
+      structuralKey: structuralKey, resolvedStructuralKey: resolvedStructuralKey,
+      refreshVersion: refreshVersion)
+  }
+
+  /// Pure key builder behind `refreshTaskKey`, extracted so tests can pin
+  /// the composition (the resolve-flip re-fire depends on
+  /// `resolvedStructuralKey` being a component).
+  nonisolated static func composeRefreshTaskKey(
+    structuralKey: String, resolvedStructuralKey: String, refreshVersion: Int
+  ) -> String {
+    "\(structuralKey)|\(resolvedStructuralKey)|\(refreshVersion)"
   }
 
   /// Composed key for the append task (issue #155) — same structural-suffix
