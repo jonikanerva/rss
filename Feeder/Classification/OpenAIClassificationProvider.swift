@@ -1,11 +1,14 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "OpenAI")
-
 /// Classifies articles using the OpenAI Chat Completions API with structured outputs.
 /// Uses URLSession directly — no third-party dependencies.
 nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
+  /// Inside the `nonisolated struct` (not file scope) so the nonisolated
+  /// `classify(...)` witness can log — a file-scope `let` is MainActor-
+  /// isolated under default isolation (`STACK.md § 8`, non-MainActor form).
+  private static let logger = Logger(subsystem: "com.feeder.app", category: "OpenAI")
+
   let name = "OpenAI"
 
   private let apiKey: String
@@ -71,7 +74,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
     guard httpResponse.statusCode == 200 else {
       let body = String(data: data, encoding: .utf8) ?? "no body"
-      logger.error("OpenAI API error \(httpResponse.statusCode): \(body, privacy: .private)")
+      Self.logger.error("OpenAI API error \(httpResponse.statusCode): \(body, privacy: .private)")
       throw OpenAIError.apiError(statusCode: httpResponse.statusCode, message: body)
     }
 
@@ -91,7 +94,12 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
 // MARK: - OpenAI API types (private)
 
-private enum OpenAIError: LocalizedError {
+// All `nonisolated`: consumed by the nonisolated `classify(...)` witness —
+// under default MainActor isolation these file-scope types (and their
+// synthesized Codable conformances and statics) would otherwise be
+// MainActor-isolated and unusable off the main actor.
+
+private nonisolated enum OpenAIError: LocalizedError {
   case invalidResponse
   case apiError(statusCode: Int, message: String)
   case emptyResponse
@@ -108,7 +116,7 @@ private enum OpenAIError: LocalizedError {
   }
 }
 
-private struct OpenAIRequest: Encodable {
+private nonisolated struct OpenAIRequest: Encodable {
   let model: String
   let messages: [Message]
   let temperature: Double
@@ -162,7 +170,7 @@ private struct OpenAIRequest: Encodable {
   }
 }
 
-private struct OpenAIResponse: Decodable {
+private nonisolated struct OpenAIResponse: Decodable {
   let choices: [Choice]
 
   struct Choice: Decodable {
@@ -174,7 +182,7 @@ private struct OpenAIResponse: Decodable {
   }
 }
 
-private struct OpenAIClassification: Decodable {
+private nonisolated struct OpenAIClassification: Decodable {
   let category: String
   let confidence: Double
 }
