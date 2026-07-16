@@ -1,6 +1,5 @@
 import Foundation
 import FoundationModels
-import OSLog
 
 // MARK: - Provider protocol
 
