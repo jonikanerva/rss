@@ -2,8 +2,6 @@ import Foundation
 import FoundationModels
 import OSLog
 
-private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
-
 // MARK: - Provider protocol
 
 /// A classification backend that takes article text and returns structured classification.
