@@ -1,14 +1,18 @@
 import Foundation
 import FoundationModels
-import OSLog
-
-private let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
 
 // MARK: - Provider protocol
 
 /// A classification backend that takes article text and returns structured classification.
 /// Implementations must be Sendable for use in detached Tasks.
-protocol ClassificationProvider: Sendable {
+///
+/// Explicitly `nonisolated`: under default MainActor isolation the protocol
+/// would otherwise be MainActor-isolated, and the Xcode 27 beta compiler
+/// (correctly) rejects an `actor` conforming to a global-actor-isolated
+/// protocol — which broke the test target's `FakeClassificationProvider`.
+/// Isolation-free is the documented intent above; every shipped conformer is
+/// already a `nonisolated struct`.
+nonisolated protocol ClassificationProvider: Sendable {
   nonisolated var name: String { get }
   var isAvailable: Bool { get async }
 

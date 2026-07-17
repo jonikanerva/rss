@@ -18,7 +18,7 @@ import Foundation
 /// least one `ClassificationEngineTests` case. Adding configuration knobs
 /// "for future tests" would be dead scaffolding; grow the surface only
 /// when a new test actually needs it.
-actor FakeClassificationProvider: ClassificationProvider {
+actor FakeClassificationProvider {
   // MARK: ClassificationProvider — synchronous metadata
 
   /// `nonisolated` to satisfy the protocol's synchronous requirement.
@@ -31,7 +31,13 @@ actor FakeClassificationProvider: ClassificationProvider {
   /// categories `ClassificationEngineTests` seeds, so it survives the
   /// `validLabels` filter inside `DataWriter.applyClassification` and the
   /// confidence gate inside `ClassificationRunner.runOneBatch`.
-  private static let defaultResponse = ProviderClassificationResult(
+  ///
+  /// `nonisolated`: statics on an actor are not instance-isolated, so under
+  /// default MainActor isolation this would be MainActor-isolated and
+  /// unreadable from the actor-isolated `classify(...)` (an error since the
+  /// Xcode 27 beta compiler). An immutable `Sendable` value needs no
+  /// isolation.
+  private nonisolated static let defaultResponse = ProviderClassificationResult(
     category: "tech",
     confidence: 1.0
   )
@@ -99,6 +105,13 @@ actor FakeClassificationProvider: ClassificationProvider {
     perCallDelay = value
   }
 }
+
+/// Conformance stated in an extension on purpose: on the primary declaration
+/// the protocol's `nonisolated` would be inferred onto the actor itself,
+/// which the compiler rejects ("'nonisolated' on an actor's synchronous
+/// initializer is invalid"). The actor-isolated members satisfy the
+/// protocol's async requirements as usual.
+extension FakeClassificationProvider: ClassificationProvider {}
 
 // MARK: - Snapshot recorder
 
