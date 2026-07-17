@@ -95,35 +95,6 @@ nonisolated let displayStateTruthTable: [DisplayStateRow] = [
     phase: .failed, hasSections: false, isAuthFailed: false, isOffline: false, expected: .error),
 ]
 
-// MARK: - Empty-overlay gate truth table (panel-2 remount fix)
-
-/// One row of the `showsEmptyOverlay` truth table.
-nonisolated struct OverlayGateRow: Sendable, CustomTestStringConvertible {
-  let state: EntryListDisplayState
-  let expected: Bool
-
-  var testDescription: String {
-    "\(state) → showsEmptyOverlay=\(expected)"
-  }
-}
-
-/// All 6 display states, expectations written by hand. Exactly the four
-/// empty-family states draw the `.overlay` above the always-mounted zero-row
-/// `List` AND disable / AX-hide it (the ⇧A gate: `markAllAsRead` targets the
-/// sidebar-selection predicate, so an enabled hidden list would let the
-/// chord mark a whole category read behind an error pane). `.blank` and
-/// `.list` keep the `List` interactive. A new `EntryListDisplayState` case
-/// must decide its overlay behavior in the exhaustive switch before it can
-/// compile — add its row here when it does.
-nonisolated let overlayGateTruthTable: [OverlayGateRow] = [
-  OverlayGateRow(state: .blank, expected: false),
-  OverlayGateRow(state: .list, expected: false),
-  OverlayGateRow(state: .noArticles, expected: true),
-  OverlayGateRow(state: .offline, expected: true),
-  OverlayGateRow(state: .authFailed, expected: true),
-  OverlayGateRow(state: .error, expected: true),
-]
-
 struct EntryListDisplayStateTests {
   @Test(arguments: displayStateTruthTable)
   func exhaustivePrecedenceTruthTable(row: DisplayStateRow) {
@@ -135,14 +106,6 @@ struct EntryListDisplayStateTests {
         isOffline: row.isOffline
       ) == row.expected
     )
-  }
-
-  /// The overlay gate for the always-mounted `List` (panel-2 remount fix):
-  /// exactly the empty family draws the `.overlay` and disables / AX-hides
-  /// the zero-row `List` beneath it.
-  @Test(arguments: overlayGateTruthTable)
-  func showsEmptyOverlayTruthTable(row: OverlayGateRow) {
-    #expect(row.state.showsEmptyOverlay == row.expected)
   }
 
   /// The #137 reversal pin, stated by itself: a RESOLVED empty fetch shows

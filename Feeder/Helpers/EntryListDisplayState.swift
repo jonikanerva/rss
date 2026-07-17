@@ -39,21 +39,6 @@ nonisolated enum EntryListDisplayState: Sendable, Equatable {
   case authFailed
   /// Empty and the fetch itself failed — store error, not sync state.
   case error
-
-  /// Whether the pane draws an empty-family pane in the `.overlay` above the
-  /// always-mounted zero-row `List` (`EntryListView` explains why the empty
-  /// family must never replace the `List` in a sibling branch). Doubles as
-  /// the `.disabled` / `.accessibilityHidden` gate on the covered `List`: a
-  /// disabled list leaves the Tab loop and its key handlers cannot fire — an
-  /// ungated ⇧A would mark the whole category read behind an error pane,
-  /// because `markAllAsRead` targets the sidebar-selection predicate, not
-  /// rendered rows.
-  var showsEmptyOverlay: Bool {
-    switch self {
-    case .noArticles, .offline, .authFailed, .error: true
-    case .blank, .list: false
-    }
-  }
 }
 
 /// Pure precedence rule for the article-list pane (issue #146).
