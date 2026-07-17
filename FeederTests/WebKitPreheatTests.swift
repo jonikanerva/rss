@@ -9,8 +9,8 @@ import WebKit
 //
 // The actual perf assertion (first-article render time after preheat)
 // requires the headed `make perf` trace and is intentionally out of scope
-// here — these tests cover the idempotency contract and the fall-through
-// behaviour the article-detail render path depends on.
+// here — these tests cover the idempotency contract the preheat's
+// best-effort promise depends on.
 
 @MainActor
 struct WebKitPreheatTests {
@@ -26,51 +26,49 @@ struct WebKitPreheatTests {
   func initialPhaseIsCold() {
     reset()
     #expect(WebKitPreheat.phase == .cold)
-    #expect(WebKitPreheat.warmedProcessPool == nil)
+    #expect(WebKitPreheat.primingWebView == nil)
   }
 
   @Test
-  func warmIfNeededTransitionsToWarmAndPopulatesPool() {
+  func warmIfNeededTransitionsToWarmAndRetainsPrimingWebView() {
     reset()
     WebKitPreheat.warmIfNeeded()
     #expect(WebKitPreheat.phase == .warm)
-    #expect(WebKitPreheat.warmedProcessPool != nil)
+    #expect(WebKitPreheat.primingWebView != nil)
   }
 
-  /// Second `warmIfNeeded()` must be a no-op — the same `WKProcessPool`
-  /// reference is returned and no new hidden `WKWebView` is allocated.
-  /// Identity comparison via `ObjectIdentifier` is the strongest form of
-  /// "did we duplicate the pool?" you can write without inspecting the
-  /// underlying Web Content Process.
+  /// Second `warmIfNeeded()` must be a no-op — the same hidden `WKWebView`
+  /// is retained and no new one is allocated. Identity comparison via
+  /// `ObjectIdentifier` is the strongest form of "did we warm twice?" you
+  /// can write without inspecting the underlying Web Content Process.
   @Test
   func warmIfNeededIsIdempotent() {
     reset()
     WebKitPreheat.warmIfNeeded()
-    guard let firstPool = WebKitPreheat.warmedProcessPool else {
-      Issue.record("Expected process pool to be populated after first warm")
+    guard let firstWebView = WebKitPreheat.primingWebView else {
+      Issue.record("Expected priming web view to be retained after first warm")
       return
     }
-    let firstIdentity = ObjectIdentifier(firstPool)
+    let firstIdentity = ObjectIdentifier(firstWebView)
 
     WebKitPreheat.warmIfNeeded()
-    guard let secondPool = WebKitPreheat.warmedProcessPool else {
-      Issue.record("Pool unexpectedly cleared between idempotent warms")
+    guard let secondWebView = WebKitPreheat.primingWebView else {
+      Issue.record("Priming web view unexpectedly cleared between idempotent warms")
       return
     }
-    let secondIdentity = ObjectIdentifier(secondPool)
+    let secondIdentity = ObjectIdentifier(secondWebView)
 
     #expect(firstIdentity == secondIdentity)
     #expect(WebKitPreheat.phase == .warm)
   }
 
-  /// The article-detail render path reads `warmedProcessPool` synchronously
-  /// on MainActor. Before preheat runs, the read returns nil and the caller
-  /// falls through to its existing inline-pool path — preheat must never be
-  /// a synchronisation point on the article-click hot path.
+  /// Before preheat runs, nothing is retained — the article-detail render
+  /// path has zero dependency on the preheat having completed; it must never
+  /// be a synchronisation point on the article-click hot path.
   @Test
-  func warmedProcessPoolIsNilBeforeWarm() {
+  func primingWebViewIsNilBeforeWarm() {
     reset()
-    #expect(WebKitPreheat.warmedProcessPool == nil)
+    #expect(WebKitPreheat.primingWebView == nil)
   }
 
   /// After `resetForTesting()` the singleton must be indistinguishable from
@@ -84,6 +82,6 @@ struct WebKitPreheatTests {
 
     WebKitPreheat.resetForTesting()
     #expect(WebKitPreheat.phase == .cold)
-    #expect(WebKitPreheat.warmedProcessPool == nil)
+    #expect(WebKitPreheat.primingWebView == nil)
   }
 }
