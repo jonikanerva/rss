@@ -84,7 +84,7 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     )
     let prompt = promptPrefix + truncatedBody
 
-    let options = GenerationOptions(sampling: .greedy)
+    let options = GenerationOptions(samplingMode: .greedy)
     let response = try await session.respond(
       to: prompt,
       generating: ArticleClassification.self,
