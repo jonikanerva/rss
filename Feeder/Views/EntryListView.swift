@@ -59,14 +59,6 @@ struct VisibleEntriesKey: PreferenceKey {
 /// blank pane — so a resolved fetch applies as an incremental diff.
 /// "No Articles" is asserted only by a RESOLVED empty fetch, never during
 /// `pending` (the relocated #137 protection) and never while rows exist.
-/// The empty family renders in `.overlay` above the same mounted `List`
-/// (zero rows in every overlay state), never as a sibling branch: the last
-/// remaining remount path — empty family → `.list`, e.g. an on-screen empty
-/// category receiving its first classified rows — recreated the `List` with
-/// rows already present, which macOS 27 beta mis-measures on first layout
-/// (rows clipped until a scroll). `showsEmptyOverlay` gates `.disabled` /
-/// `.accessibilityHidden` on the covered `List` so the overlay's controls
-/// are the pane's only interactive and AX content.
 ///
 /// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
 /// explicit refresh-version triggers driven from `ContentView` — `.onChange`
@@ -205,77 +197,24 @@ struct EntryListView: View {
   private static let appendTriggerMargin = 20
 
   var body: some View {
-    // `ScrollViewReader` is transparent — it adds no chrome — and wraps the
-    // `List` so `proxy.scrollTo(_:anchor:)` can resolve the row `.id(...)`
-    // tags. The `.task` modifiers attach to the List's modifier chain, which
-    // is mounted for the lifetime of the pane, so they run on first render
-    // and are never torn down by a display-state change.
+    // `ScrollViewReader` is transparent — it adds no chrome — and lives
+    // OUTSIDE the conditional `Group`, so the `.task` modifiers attach to the
+    // ScrollViewReader's body and stay mounted for the lifetime of the view,
+    // not for the lifetime of whichever branch is currently selected. (An
+    // earlier shape nested it inside one branch and the tasks never ran on
+    // first render.)
+    //
+    // `proxy.scrollTo(_:anchor:)` resolves `.id(...)` tags anywhere in the
+    // ScrollViewReader's subtree, so the List rows below stay reachable.
     ScrollViewReader { proxy in
-      // ONE `List`, mounted for the pane's entire lifetime. Issue #146
-      // removed the ProgressView ↔ List swap; this completes that doctrine
-      // by moving the empty family (.noArticles / .offline / .authFailed /
-      // .error) out of the sibling-branch switch and into `.overlay`, so an
-      // empty-family ↔ list transition no longer destroys and recreates the
-      // `List`. On macOS 27 beta a freshly created NSTableView-backed `List`
-      // mis-measures rows already present at first layout — rows render
-      // clipped until a scroll forces re-layout (the panel-2 first-display
-      // bug). Rows arriving as a diff into a mounted table lay out
-      // correctly, and that is now the only path. In every overlay state the
-      // `List` has zero rows, so the overlay covers a calm blank pane —
-      // nothing to scroll, no tint mismatch.
-      List(selection: $selectedEntryID) {
-        ForEach(sections) { section in
-          Section {
-            // Rows render straight from their DTO snapshots — zero store
-            // access on MainActor (issue #148). The favicon is a sync
-            // dictionary lookup; decode happened once in `FaviconStore`.
-            ForEach(section.rows) { row in
-              EntryRowView(
-                row: row,
-                faviconImage: faviconStore.image(for: row.feedFeedbinID)
-              )
-              .tag(row.persistentID)
-              .id(row.persistentID)
-              .listRowSeparator(.hidden)
-              // Keyboard-parity append trigger (issue #155): the trigger
-              // row's appearance fires for scroll AND for J/K row
-              // navigation — `List` materialises the row either way. A
-              // plain id comparison against the precomputed trigger id;
-              // no per-row math in `body` (`STACK.md § 0 / § 4`).
-              .onAppear {
-                if row.persistentID == appendTriggerID { requestAppend() }
-              }
-            }
-          } header: {
-            Text(section.label)
-              .font(fontSettings.sectionLabel)
-              .foregroundStyle(.tertiary)
-              .textCase(nil)
-          }
-        }
-      }
-      .listStyle(.inset(alternatesRowBackgrounds: false))
-      .modifier(BareKeyHandler())
-      .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-      // Gate order is load-bearing. `.disabled` sits AFTER the key handlers,
-      // wrapping them in the disabled subtree, so ⇧A cannot fire while an
-      // empty-family pane covers the list — `markAllAsRead` targets the
-      // sidebar-selection predicate, not rendered rows, so an ungated chord
-      // would mark the whole category read behind an error overlay. It sits
-      // BEFORE `.overlay`, so the overlay's "Sign In Again" button stays
-      // enabled and focusable. `.accessibilityHidden` likewise: in overlay
-      // states the `ContentUnavailableView` is the pane's only AX content.
-      // A disabled `List` also leaves the Tab loop and rejects scroll, so
-      // the covered zero-row pane is fully inert.
-      .disabled(displayState.showsEmptyOverlay)
-      .accessibilityHidden(displayState.showsEmptyOverlay)
-      .preference(key: VisibleEntriesKey.self, value: visibleEntries)
-      .accessibilityIdentifier("timeline.list")
-      .overlay {
-        // Empty family, drawn over the mounted zero-row `List` — a plain
-        // @ViewBuilder switch, no AnyView (`STACK.md § 7`). Precedence lives
-        // in `entryListDisplayState` (unit-tested truth table); the views
-        // moved verbatim from the old sibling-branch switch.
+      Group {
+        // Two-branch shape (issue #146): the empty family renders ONLY when
+        // a resolved/failed fetch left zero sections; every other state —
+        // rows present, or a pending fetch — renders the SAME mounted
+        // `List`. `.blank` deliberately shares the `List` branch (zero rows
+        // = a calm blank pane): a spinner branch or a separate blank branch
+        // would remount the `List` on every structural reload, which was the
+        // O(all-rows) rebuild this issue removes.
         switch displayState {
         case .authFailed:
           ContentUnavailableView {
@@ -313,7 +252,42 @@ struct EntryListView: View {
             )
           }
         case .blank, .list:
-          EmptyView()
+          List(selection: $selectedEntryID) {
+            ForEach(sections) { section in
+              Section {
+                // Rows render straight from their DTO snapshots — zero store
+                // access on MainActor (issue #148). The favicon is a sync
+                // dictionary lookup; decode happened once in `FaviconStore`.
+                ForEach(section.rows) { row in
+                  EntryRowView(
+                    row: row,
+                    faviconImage: faviconStore.image(for: row.feedFeedbinID)
+                  )
+                  .tag(row.persistentID)
+                  .id(row.persistentID)
+                  .listRowSeparator(.hidden)
+                  // Keyboard-parity append trigger (issue #155): the trigger
+                  // row's appearance fires for scroll AND for J/K row
+                  // navigation — `List` materialises the row either way. A
+                  // plain id comparison against the precomputed trigger id;
+                  // no per-row math in `body` (`STACK.md § 0 / § 4`).
+                  .onAppear {
+                    if row.persistentID == appendTriggerID { requestAppend() }
+                  }
+                }
+              } header: {
+                Text(section.label)
+                  .font(fontSettings.sectionLabel)
+                  .foregroundStyle(.tertiary)
+                  .textCase(nil)
+              }
+            }
+          }
+          .listStyle(.inset(alternatesRowBackgrounds: false))
+          .modifier(BareKeyHandler())
+          .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+          .preference(key: VisibleEntriesKey.self, value: visibleEntries)
+          .accessibilityIdentifier("timeline.list")
         }
       }
       // Two tasks so refresh-only ticks (classification / sync completion)
@@ -749,10 +723,6 @@ struct EntryListView: View {
   EntryListEmptyAtRestPreview()
 }
 
-#Preview("First Row Lands While Viewing") {
-  EntryListFirstRowLandsPreview()
-}
-
 /// Renders `EntryListView` in the offline-empty state: container is seeded
 /// but contains no entries, and `SyncEngine.lastError` is set to `.network`
 /// so the view picks the `ContentUnavailableView("Offline", …)` branch.
@@ -921,90 +891,6 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
     .modelContainer(container)
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
-  }
-}
-
-/// State-matrix coverage for the exact transition the panel-2 remount fix
-/// targets: the pane mounts on a seeded but EMPTY category (resolved-empty →
-/// "No Articles" overlay), then the first classified entry lands ~2 s later
-/// and the refresh version bumps — what a background classification batch
-/// does to an on-screen empty category. Expectation: the row renders
-/// complete on its first frame (two-line title, domain, excerpt, favicon)
-/// with no scroll nudge, because the overlay → `.list` transition re-enables
-/// the always-mounted `List` instead of creating one. NOTE: a canvas
-/// non-repro does not falsify the underlying macOS 27 beta row-measurement
-/// bug (canvas ≠ app window); the preview pins the transition itself.
-@MainActor
-private struct EntryListFirstRowLandsPreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntryID: PersistentIdentifier?
-  @State
-  private var refreshVersion = 0
-  private let container: ModelContainer = {
-    let container = PreviewSupport.makeContainer()
-    let context = container.mainContext
-    let feed = Feed(
-      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "Apple Feed",
-      feedURL: "https://apple.example.com/feed", siteURL: "https://apple.example.com",
-      createdAt: .now)
-    context.insert(feed)
-    try? context.save()
-    return container
-  }()
-  private let syncEngine = SyncEngine()
-
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: refreshVersion,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(AppFontSettings())
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-      try? await Task.sleep(for: .seconds(2))
-      let context = container.mainContext
-      let entry = Entry(
-        feedbinEntryID: 1,
-        title: "The First Classified Article Lands While the Pane Is On Screen",
-        author: "Preview Bot",
-        url: "https://apple.example.com/1",
-        content: "<p>First article of an empty category.</p>",
-        summary: "First article of an empty category.",
-        extractedContentURL: nil, publishedAt: .now, createdAt: .now)
-      if let feed = try? context.fetch(FetchDescriptor<Feed>()).first {
-        entry.feed = feed
-      }
-      entry.primaryCategory = "apple"
-      entry.primaryFolder = "news"
-      entry.isClassified = true
-      entry.plainText = "First article of an empty category."
-      entry.summaryPlainText =
-        "First article of an empty category — the row must render complete on its first frame, without a scroll nudge."
-      entry.displayDomain = "apple.example.com"
-      entry.formattedPublishedTime = "12:34"
-      context.insert(entry)
-      try? context.save()
-      refreshVersion += 1
     }
     .frame(width: 360, height: 480)
   }
