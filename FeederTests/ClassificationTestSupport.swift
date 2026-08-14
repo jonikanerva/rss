@@ -66,9 +66,12 @@ actor FakeClassificationProvider {
 
   // MARK: - ClassificationProvider conformance
 
-  /// Always available. No test exercises the unavailable branch — adding
-  /// a toggle would be dead scaffolding.
-  var isAvailable: Bool { true }
+  /// Availability the runner's `isAvailable` guard sees. Defaults to true;
+  /// `unavailableProviderEmitsProviderUnavailableOutcome` flips it to prove
+  /// the early return emits an owning `.providerUnavailable` outcome.
+  private var available = true
+
+  var isAvailable: Bool { available }
 
   /// Nil = "all languages". The runner's language-gate branch is exercised
   /// in pure-helper tests; integration tests don't need to flip it.
@@ -113,6 +116,11 @@ actor FakeClassificationProvider {
   func configureDelay(_ value: Duration) {
     perCallDelay = value
   }
+
+  /// Flip the availability the runner's `isAvailable` guard reads.
+  func configureAvailability(_ value: Bool) {
+    available = value
+  }
 }
 
 /// Conformance stated in an extension on purpose: on the primary declaration
@@ -146,10 +154,11 @@ actor SnapshotRecorder {
 struct FakeProviderError: Error {}
 
 /// Test error conforming to `ClassificationFailure` with a configurable
-/// disposition — drives both the abort branch and the per-entry-fallback
-/// branch of the runner's failure handling. `nonisolated` because the
-/// protocol's synchronous `abortsBatch` witness must be callable off the
-/// main actor (the runner catches it on a background task).
+/// disposition — drives both the abort branch (non-nil reason) and the
+/// per-entry-fallback branch (nil) of the runner's failure handling.
+/// `nonisolated` because the protocol's synchronous `batchAbort` witness
+/// must be callable off the main actor (the runner catches it on a
+/// background task).
 nonisolated struct FakeClassificationFailure: ClassificationFailure {
-  let abortsBatch: Bool
+  let batchAbort: ClassificationAbortReason?
 }

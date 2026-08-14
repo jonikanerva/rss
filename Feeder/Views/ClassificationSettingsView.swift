@@ -69,6 +69,15 @@ struct ClassificationSettingsView: View {
           }
 
           OpenAIModelPickerRow(selection: $modelSelection, state: modelListState)
+
+          // Outcome of the most recent classification batch attempt — the
+          // 2 s poll refreshes or clears it within seconds of a settings
+          // change, which IS the save-time verification (no eager clear).
+          if let abort = classificationEngine.lastAbort {
+            Label(abort.displayLabel, systemImage: abort.symbolName)
+              .font(fontSettings.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
@@ -337,6 +346,17 @@ private struct APIKeyEditSheet: View {
     .environment(AppFontSettings())
     .modelContainer(PreviewSupport.makeContainer())
     .frame(width: 480, height: 320)
+}
+
+#Preview("Classification Settings - Batch aborted") {
+  let engine = ClassificationEngine()
+  engine.applyPreviewState(lastAbort: .modelRejected)
+  return ClassificationSettingsView()
+    .environment(SyncEngine())
+    .environment(engine)
+    .environment(AppFontSettings())
+    .modelContainer(PreviewSupport.makeContainer())
+    .frame(width: 480, height: 360)
 }
 
 // Model-picker state matrix. Large N is deliberately above the ~7-option

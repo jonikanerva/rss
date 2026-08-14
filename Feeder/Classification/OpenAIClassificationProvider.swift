@@ -150,18 +150,32 @@ extension OpenAIError: ClassificationFailure {
   /// - API errors (4xx incl. 401/403/404/429, and 5xx) and network failures
   ///   are deterministic or transient *provider-level* failures — persisting
   ///   Uncategorized for them would permanently misclassify the whole drain,
-  ///   so they abort the batch and leave every entry retryable.
+  ///   so they abort the batch (with a user-facing cause) and leave every
+  ///   entry retryable. 401 → key; other 4xx → the request the model
+  ///   rejected; 429/5xx → the provider itself.
   /// - `emptyResponse` / `invalidResponse` are per-entry model-output
   ///   problems: the drain continues and the entry falls back to
   ///   Uncategorized, exactly as before.
-  var abortsBatch: Bool {
+  var batchAbort: ClassificationAbortReason? {
     switch self {
     case .apiError(let statusCode, _):
-      return statusCode >= 400
+      switch statusCode {
+      case 401:
+        return .keyRejected
+      case 429:
+        return .providerUnavailable
+      case 400...499:
+        return .modelRejected
+      case 500...:
+        return .providerUnavailable
+      default:
+        // Sub-400 non-200 oddities keep the per-entry fallback behavior.
+        return nil
+      }
     case .networkUnavailable:
-      return true
+      return .offline
     case .invalidResponse, .emptyResponse:
-      return false
+      return nil
     }
   }
 }

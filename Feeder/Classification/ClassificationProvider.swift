@@ -35,22 +35,54 @@ nonisolated struct ProviderClassificationResult: Sendable {
 
 // MARK: - Failure disposition
 
+/// The user-facing cause of a classification batch abort.
+///
+/// Payload-free by design: raw API/response text structurally cannot reach
+/// the UI through this type — the full failure detail stays in the runner's
+/// `.private` log line. The fixed display literals below are the whole
+/// user-visible surface.
+nonisolated enum ClassificationAbortReason: Equatable, Sendable {
+  case modelRejected
+  case keyRejected
+  case offline
+  case providerUnavailable
+
+  /// Fixed banner copy. Fragment convention (no trailing period) matches
+  /// the existing `SyncStatusView` labels ("Sync failed", "Sign in
+  /// expired"). Literals are copy-locked by test.
+  var displayLabel: String {
+    switch self {
+    case .modelRejected: "Model rejected the request"
+    case .keyRejected: "API key was rejected"
+    case .offline: "Categorizing paused — offline"
+    case .providerUnavailable: "OpenAI is unavailable"
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .offline: "wifi.slash"
+    case .modelRejected, .keyRejected, .providerUnavailable: "exclamationmark.triangle"
+    }
+  }
+}
+
 /// Contract for provider errors that carry a batch-level disposition.
 ///
-/// When a thrown provider error conforms and `abortsBatch == true`, the
+/// When a thrown provider error conforms and `batchAbort` is non-nil, the
 /// classification runner persists NOTHING for the failing entry, ends the
-/// drain, and reports the terminal progress snapshot — the failing entry and
-/// the remainder stay `isClassified == false` and are refetched by the next
-/// poll. This is the safety mechanism that makes a user-chosen model safe:
-/// a deterministic provider failure (bad model id, revoked key, quota) must
-/// never mass-persist the fallback category, and `reclassifyAll` (which
-/// resets categories first) must stay recoverable.
+/// drain, and reports a terminal snapshot that owns the abort outcome — the
+/// failing entry and the remainder stay `isClassified == false` and are
+/// refetched by the next poll. This is the safety mechanism that makes a
+/// user-chosen model safe: a deterministic provider failure (bad model id,
+/// revoked key, quota) must never mass-persist the fallback category, and
+/// `reclassifyAll` (which resets categories first) must stay recoverable.
 ///
-/// `abortsBatch == false` keeps the per-entry fallback behavior: the entry
-/// is persisted as Uncategorized and the drain continues. Errors that do not
+/// `batchAbort == nil` keeps the per-entry fallback behavior: the entry is
+/// persisted as Uncategorized and the drain continues. Errors that do not
 /// conform to this protocol also keep that per-entry behavior.
 nonisolated protocol ClassificationFailure: Error {
-  var abortsBatch: Bool { get }
+  var batchAbort: ClassificationAbortReason? { get }
 }
 
 // MARK: - Apple Foundation Models provider
