@@ -702,7 +702,9 @@ struct ClassificationAbortReasonCopyTests {
     #expect(ClassificationAbortReason.modelRejected.displayLabel == "Model rejected the request")
     #expect(ClassificationAbortReason.keyRejected.displayLabel == "API key was rejected")
     #expect(ClassificationAbortReason.offline.displayLabel == "Categorizing paused — offline")
-    #expect(ClassificationAbortReason.providerUnavailable.displayLabel == "OpenAI is unavailable")
+    #expect(
+      ClassificationAbortReason.providerUnavailable.displayLabel
+        == "Categorizing paused — provider unavailable")
   }
 
   @Test

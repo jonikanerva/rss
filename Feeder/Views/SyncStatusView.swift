@@ -241,18 +241,17 @@ private enum SyncStatusPreviewState {
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .modelRejected)
     case .abortedOffline:
-      // The LONGEST banner label ("Categorizing paused — offline") at the
-      // 220 pt sidebar width — must not truncate (STACK.md § 11, exercise
-      // at the threshold). Self-healing cause → no button.
+      // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .offline)
     case .abortedWhileSyncing:
-      // Both banners stacked at the 220 pt frame: sync error + the longest
-      // classification label together.
+      // Both banners stacked at the 220 pt frame: sync error + the LONGEST
+      // classification label ("Categorizing paused — provider unavailable")
+      // — must not truncate (STACK.md § 11, exercise at the threshold).
       sync.applyPreviewState(
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .network("The Internet connection appears to be offline."))
-      classification.applyPreviewState(lastAbort: .offline)
+      classification.applyPreviewState(lastAbort: .providerUnavailable)
     }
   }
 }

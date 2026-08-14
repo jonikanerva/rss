@@ -55,7 +55,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .modelRejected: "Model rejected the request"
     case .keyRejected: "API key was rejected"
     case .offline: "Categorizing paused — offline"
-    case .providerUnavailable: "OpenAI is unavailable"
+    case .providerUnavailable: "Categorizing paused — provider unavailable"
     }
   }
 
