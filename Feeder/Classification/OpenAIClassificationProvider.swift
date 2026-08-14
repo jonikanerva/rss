@@ -66,7 +66,13 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = try JSONEncoder().encode(requestBody)
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await URLSession.shared.data(for: request)
+    } catch {
+      throw OpenAIError.networkUnavailable(underlying: error)
+    }
 
     guard let httpResponse = response as? HTTPURLResponse else {
       throw OpenAIError.invalidResponse
@@ -92,17 +98,20 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   }
 }
 
-// MARK: - OpenAI API types (private)
+// MARK: - OpenAI API types
 
 // All `nonisolated`: consumed by the nonisolated `classify(...)` witness —
 // under default MainActor isolation these file-scope types (and their
 // synthesized Codable conformances and statics) would otherwise be
 // MainActor-isolated and unusable off the main actor.
 
-private nonisolated enum OpenAIError: LocalizedError {
+/// Internal (not private) so in-module tests can assert the
+/// `ClassificationFailure` disposition mapping case by case.
+nonisolated enum OpenAIError: LocalizedError {
   case invalidResponse
   case apiError(statusCode: Int, message: String)
   case emptyResponse
+  case networkUnavailable(underlying: Error)
 
   var errorDescription: String? {
     switch self {
@@ -112,6 +121,29 @@ private nonisolated enum OpenAIError: LocalizedError {
       return "OpenAI API error \(statusCode): \(message)"
     case .emptyResponse:
       return "OpenAI returned an empty response"
+    case .networkUnavailable(let underlying):
+      return "OpenAI request failed: \(String(describing: underlying))"
+    }
+  }
+}
+
+extension OpenAIError: ClassificationFailure {
+  /// Batch-level disposition (see `ClassificationFailure`):
+  /// - API errors (4xx incl. 401/403/404/429, and 5xx) and network failures
+  ///   are deterministic or transient *provider-level* failures — persisting
+  ///   Uncategorized for them would permanently misclassify the whole drain,
+  ///   so they abort the batch and leave every entry retryable.
+  /// - `emptyResponse` / `invalidResponse` are per-entry model-output
+  ///   problems: the drain continues and the entry falls back to
+  ///   Uncategorized, exactly as before.
+  var abortsBatch: Bool {
+    switch self {
+    case .apiError(let statusCode, _):
+      return statusCode >= 400
+    case .networkUnavailable:
+      return true
+    case .invalidResponse, .emptyResponse:
+      return false
     }
   }
 }

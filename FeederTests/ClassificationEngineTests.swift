@@ -381,4 +381,167 @@ struct ClassificationEngineTests {
     // The terminal snapshot closes the batch.
     #expect(snapshots.last?.isClassifying == false)
   }
+
+  // MARK: - 7. Abort path: deterministic provider failure persists nothing
+
+  /// A `ClassificationFailure` with `abortsBatch == true` thrown on the very
+  /// first entry must end the drain with ZERO persisted classifications —
+  /// every entry stays `isClassified == false` for the next poll to retry,
+  /// and the snapshot timeline still closes with the terminal snapshot.
+  /// Drives the runner directly (pattern of test 6) so the timeline is
+  /// observable.
+  @Test
+  func abortingFailureOnFirstEntryPersistsNothing() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container)
+    try await seedCategories(writer)
+    let entryIDs = try await seedEntries(writer, count: 4)
+
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(FakeClassificationFailure(abortsBatch: true), count: 1)
+
+    let recorder = SnapshotRecorder()
+    let runner = ClassificationRunner(
+      writer: writer,
+      providerFactory: { provider },
+      reportProgress: { await recorder.record($0) }
+    )
+    await runner.runOneBatch(cutoffDate: .distantPast)
+
+    // The batch stopped at the first provider call — no further entries
+    // were attempted, none were persisted.
+    #expect(await provider.callCount == 1)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == false, "Aborted batch must not persist entry \(id)")
+    }
+
+    // The abort path still closes the batch with the terminal snapshot so
+    // the progress UI never hangs on a stale "Categorizing…" row.
+    let snapshots = await recorder.snapshots
+    #expect(snapshots.last?.isClassifying == false)
+  }
+
+  /// An abort mid-drain keeps the successes persisted before the failure and
+  /// leaves the remainder untouched — partial progress survives, nothing is
+  /// misclassified.
+  @Test
+  func abortingFailureMidDrainKeepsPriorSuccesses() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 5)
+
+    // Succeed for the first two calls, abort on the third.
+    await provider.configureErrors(
+      FakeClassificationFailure(abortsBatch: true), count: 1, afterSuccesses: 2
+    )
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(await provider.callCount == 3, "Drain must stop at the aborting call")
+
+    var classifiedCount = 0
+    var unclassifiedCount = 0
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      if snapshot?.isClassified == true {
+        #expect(snapshot?.primaryCategory == "tech")
+        classifiedCount += 1
+      } else {
+        unclassifiedCount += 1
+      }
+    }
+    #expect(classifiedCount == 2)
+    #expect(unclassifiedCount == 3)
+    #expect(engine.isClassifying == false)
+  }
+
+  /// A `ClassificationFailure` with `abortsBatch == false` keeps today's
+  /// per-entry behavior: the failing entry persists as Uncategorized and the
+  /// drain continues to the end.
+  @Test
+  func nonAbortingFailurePersistsUncategorizedAndContinues() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 3)
+    await provider.configureErrors(FakeClassificationFailure(abortsBatch: false), count: 1)
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(await provider.callCount == entryIDs.count, "Non-aborting failure must not stop the drain")
+
+    var uncategorizedCount = 0
+    var techCount = 0
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == true)
+      switch snapshot?.primaryCategory {
+      case uncategorizedLabel: uncategorizedCount += 1
+      case "tech": techCount += 1
+      default:
+        Issue.record("Unexpected category \(snapshot?.primaryCategory ?? "<nil>") for entry \(id)")
+      }
+    }
+    #expect(uncategorizedCount == 1)
+    #expect(techCount == entryIDs.count - 1)
+  }
+
+  /// Recoverable-worst-case proof: `reclassifyAll` resets every category
+  /// first, so an always-aborting provider (e.g. a bad model pick) must
+  /// leave the corpus fully unclassified — never misclassified — and the
+  /// next poll can recover it once the configuration is fixed.
+  @Test
+  func reclassifyAllWithAlwaysAbortingProviderLeavesEverythingUnclassified() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 3)
+
+    // First classify successfully so every entry holds a real category.
+    await engine.classifyUnclassified(writer: writer)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == true)
+      #expect(snapshot?.primaryCategory == "tech")
+    }
+
+    // Now every call aborts — the worst case for a bad model selection.
+    await provider.configureErrors(FakeClassificationFailure(abortsBatch: true), count: Int.max)
+
+    await engine.reclassifyAll(writer: writer)
+
+    // Reset ran, the batch aborted on its first call (3 successes + 1 abort),
+    // and nothing was misclassified: every entry awaits the next poll.
+    #expect(await provider.callCount == entryIDs.count + 1)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == false)
+      #expect(snapshot?.primaryCategory != "tech", "Aborted reclassify must not persist a category")
+    }
+    #expect(engine.isClassifying == false)
+  }
+}
+
+// MARK: - OpenAIError → ClassificationFailure disposition mapping
+
+/// Pins the disposition table from the design of issue #175: provider-level
+/// failures (HTTP 4xx/5xx, network) abort the batch; per-entry model-output
+/// defects do not. A silent flip here would either reintroduce the
+/// mass-misclassification hazard (abort → fallback) or stall the drain on
+/// harmless per-entry defects (fallback → abort).
+@Suite("OpenAIError disposition")
+struct OpenAIErrorDispositionTests {
+  @Test(arguments: [400, 401, 403, 404, 429, 500, 503])
+  func apiErrorAbortsBatch(statusCode: Int) {
+    let error = OpenAIError.apiError(statusCode: statusCode, message: "test")
+    #expect(error.abortsBatch == true)
+  }
+
+  @Test
+  func networkUnavailableAbortsBatch() {
+    let error = OpenAIError.networkUnavailable(underlying: URLError(.notConnectedToInternet))
+    #expect(error.abortsBatch == true)
+  }
+
+  @Test
+  func perEntryOutputDefectsDoNotAbort() {
+    #expect(OpenAIError.emptyResponse.abortsBatch == false)
+    #expect(OpenAIError.invalidResponse.abortsBatch == false)
+  }
 }

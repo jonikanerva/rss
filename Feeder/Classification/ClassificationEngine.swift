@@ -445,6 +445,16 @@ nonisolated struct ClassificationRunner: Sendable {
                 categoryLabel: gatedLabel,
                 confidence: providerResult.confidence
               )
+            } catch let failure as any ClassificationFailure where failure.abortsBatch {
+              // Deterministic provider-level failure (bad model id, revoked
+              // key, quota, network): persist NOTHING for this entry or the
+              // remainder — they stay isClassified == false and the next
+              // poll retries. Mirrors the isAvailable early return above.
+              logger.error(
+                "Classification provider '\(providerName)' failed, aborting batch: \(String(describing: failure), privacy: .private)"
+              )
+              await reportProgress(.terminal)
+              return
             } catch {
               result = ClassificationResult(
                 entryID: input.entryID,

@@ -33,6 +33,26 @@ nonisolated struct ProviderClassificationResult: Sendable {
   let confidence: Double
 }
 
+// MARK: - Failure disposition
+
+/// Contract for provider errors that carry a batch-level disposition.
+///
+/// When a thrown provider error conforms and `abortsBatch == true`, the
+/// classification runner persists NOTHING for the failing entry, ends the
+/// drain, and reports the terminal progress snapshot — the failing entry and
+/// the remainder stay `isClassified == false` and are refetched by the next
+/// poll. This is the safety mechanism that makes a user-chosen model safe:
+/// a deterministic provider failure (bad model id, revoked key, quota) must
+/// never mass-persist the fallback category, and `reclassifyAll` (which
+/// resets categories first) must stay recoverable.
+///
+/// `abortsBatch == false` keeps the per-entry fallback behavior: the entry
+/// is persisted as Uncategorized and the drain continues. Errors that do not
+/// conform to this protocol also keep that per-entry behavior.
+nonisolated protocol ClassificationFailure: Error {
+  var abortsBatch: Bool { get }
+}
+
 // MARK: - Apple Foundation Models provider
 
 /// Classifies articles using the on-device Apple Foundation Model with constrained decoding.
