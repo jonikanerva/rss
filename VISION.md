@@ -97,7 +97,7 @@ The product succeeds when the user feels:
 ## Persistence and Privacy Posture *(REQUIRED)*
 
 - **Persisted on-device:** synced articles with full content and denormalized display fields; feeds and subscriptions; user-defined folders and categories (`displayName`, `categoryDescription`, `keywords`, `sortOrder`); classification results (`primaryCategory`, `primaryFolder`); read state; sync state (last sync date, pending read IDs). Feedbin credentials and the optional OpenAI API key live in the macOS Keychain, never in files.
-- **Transmitted off-device:** Feedbin API traffic (credentials, subscriptions, entries, read-state updates); article title and content sent to the OpenAI API for classification **only** when the user has selected OpenAI as the classification provider. Apple Foundation Models classification stays fully on-device. Nothing else leaves the machine.
+- **Transmitted off-device:** Feedbin API traffic (credentials, subscriptions, entries, read-state updates); article title and content sent to the OpenAI API for classification **only** when the user has selected OpenAI as the classification provider; an OpenAI model-list request (`GET /v1/models`, carrying only the API key, never article data) **only** while the user views classification settings with OpenAI selected and a key stored. Apple Foundation Models classification stays fully on-device. Nothing else leaves the machine.
 - **Never persisted:** telemetry or analytics data; reading-behavior profiles beyond read state; third-party tracking identifiers; secrets in the repo or in plain-text files.
 - **Telemetry / analytics:** none. No crash reporters, no third-party analytics.
 
