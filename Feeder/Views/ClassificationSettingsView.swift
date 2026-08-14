@@ -20,6 +20,12 @@ struct ClassificationSettingsView: View {
   private var showAPIKeyEditor = false
   @State
   private var hadKeyBeforeEdit = false
+  @State
+  private var modelSelection: String = OpenAIModelSetting.current()
+  @State
+  private var modelListState: ModelListState = .needsKey
+  @State
+  private var reclassifyTrigger: ReclassifyTrigger = .provider
 
   var body: some View {
     Form {
@@ -44,7 +50,7 @@ struct ClassificationSettingsView: View {
       }
 
       if selectedProvider == .openAI {
-        Section("OpenAI API Key") {
+        Section("OpenAI") {
           HStack {
             if hasStoredKey {
               Label("API key is saved", systemImage: "checkmark.circle.fill")
@@ -61,6 +67,8 @@ struct ClassificationSettingsView: View {
             }
             .controlSize(.small)
           }
+
+          OpenAIModelPickerRow(selection: $modelSelection, state: modelListState)
         }
       }
     }
@@ -68,11 +76,29 @@ struct ClassificationSettingsView: View {
     .sheet(isPresented: $showAPIKeyEditor) {
       APIKeyEditSheet(hasStoredKey: $hasStoredKey)
     }
+    .task(id: modelFetchKey) {
+      await refreshModelList()
+    }
     .onChange(of: selectedProvider) { _, newValue in
       // SwiftUI fires onChange only on Equatable change, so no manual diff guard needed.
       ClassificationProviderKind.persist(newValue)
       // Only prompt reclassify when switching to a provider that's ready to use
       if newValue == .appleFM || hasStoredKey {
+        reclassifyTrigger = .provider
+        showReclassifyAlert = true
+      }
+    }
+    .onChange(of: modelSelection) { _, newValue in
+      // The ONLY call site of OpenAIModelSetting.persist: the key is written
+      // exclusively on an explicit user pick, so unset users keep tracking
+      // future app-default bumps. Nothing writes modelSelection
+      // programmatically — that would fire this onChange and silently pin
+      // every user to the then-current value.
+      OpenAIModelSetting.persist(newValue)
+      // Same readiness gate as the provider switch: a keyless model change
+      // must not offer a reclassify that would silently run on Apple FM.
+      if hasStoredKey {
+        reclassifyTrigger = .model
         showReclassifyAlert = true
       }
     }
@@ -81,6 +107,7 @@ struct ClassificationSettingsView: View {
         hadKeyBeforeEdit = hasStoredKey
       } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == .openAI {
         // Prompt only when a key was added (not removed)
+        reclassifyTrigger = .provider
         showReclassifyAlert = true
       }
     }
@@ -94,8 +121,112 @@ struct ClassificationSettingsView: View {
       }
       Button("Later", role: .cancel) {}
     } message: {
-      Text("Would you like to reclassify all articles with the new provider?")
+      switch reclassifyTrigger {
+      case .provider:
+        Text("Would you like to reclassify all articles with the new provider?")
+      case .model:
+        Text("Would you like to reclassify all articles with the new model?")
+      }
     }
+  }
+
+  /// Drives the `.task(id:)` fetch: re-fires when the OpenAI section's
+  /// visibility (provider) or the stored-key state changes — never at launch
+  /// (this view only exists while Settings is open) and never from
+  /// background sync.
+  private var modelFetchKey: String {
+    "\(selectedProvider.rawValue)|\(hasStoredKey)"
+  }
+
+  private func refreshModelList() async {
+    guard selectedProvider == .openAI else { return }
+    guard hasStoredKey,
+      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey),
+      !apiKey.isEmpty
+    else {
+      modelListState = .needsKey
+      return
+    }
+
+    modelListState = .loading
+    let outcome: Result<[OpenAIModel], OpenAIModelsError>
+    do throws(OpenAIModelsError) {
+      outcome = .success(try await OpenAIModelsClient().fetchModels(apiKey: apiKey))
+    } catch {
+      outcome = .failure(error)
+    }
+    // .task owns cancellation: a cancelled fetch surfaces as .network — don't
+    // flash a failure state for a fetch the view itself abandoned.
+    guard !Task.isCancelled else { return }
+    modelListState = resolveModelListState(outcome: outcome)
+  }
+}
+
+/// Which settings change is offering the reclassify prompt — parameterizes
+/// the single alert's message copy (provider switch vs model pick).
+private enum ReclassifyTrigger {
+  case provider
+  case model
+}
+
+// MARK: - OpenAI model picker row
+
+/// The model picker plus its quiet status line. Extracted so the preview
+/// matrix can exercise every `ModelListState` directly. The picker is always
+/// enabled with at least the floor options (current selection + app default)
+/// so the surface never dead-ends; `.menu` style because the loaded list
+/// exceeds the ~7-option threshold (`STACK.md § 11`).
+private struct OpenAIModelPickerRow: View {
+  @Binding
+  var selection: String
+  let state: ModelListState
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Picker("Model", selection: $selection) {
+        ForEach(
+          pickerOptions(
+            for: state,
+            selection: selection,
+            defaultModel: OpenAIModelSetting.defaultModel
+          ),
+          id: \.self
+        ) { modelID in
+          Text(modelID).tag(modelID)
+        }
+      }
+      .pickerStyle(.menu)
+
+      statusLine
+    }
+  }
+
+  @ViewBuilder
+  private var statusLine: some View {
+    switch state {
+    case .needsKey:
+      captionText("Add an API key to load available models.")
+    case .loading:
+      HStack(spacing: 6) {
+        ProgressView()
+          .controlSize(.small)
+        Text("Loading available models…")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+    case .loaded:
+      EmptyView()
+    case .empty:
+      captionText("No compatible models found for this key.")
+    case .failed(let reason):
+      captionText(reason)
+    }
+  }
+
+  private func captionText(_ text: String) -> some View {
+    Text(text)
+      .font(.caption)
+      .foregroundStyle(.secondary)
   }
 }
 
@@ -206,4 +337,77 @@ private struct APIKeyEditSheet: View {
     .environment(AppFontSettings())
     .modelContainer(PreviewSupport.makeContainer())
     .frame(width: 480, height: 320)
+}
+
+// Model-picker state matrix. Large N is deliberately above the ~7-option
+// STACK.md § 11 threshold (reference shape: PR #118 "Large N" preview).
+
+#Preview("Model Picker - Loaded (Large N)") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(
+        selection: $selection,
+        state: .loaded(
+          ["gpt-5.6-luna", "gpt-5.4-nano"] + (1...23).map { "gpt-preview-model-\($0)" }
+        )
+      )
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Needs Key") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .needsKey)
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Loading") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .loading)
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Empty") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .empty)
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Failed") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .failed(reason: "API key was rejected."))
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
 }
