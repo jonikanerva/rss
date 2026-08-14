@@ -117,4 +117,36 @@ struct ClassificationProviderResolutionTests {
 
     #expect(provider.name == "OpenAI")
   }
+
+  // MARK: - OpenAI model resolution (issue #175)
+
+  /// An explicit model pick stored under `OpenAIModelSetting.userDefaultsKey`
+  /// must reach the provider verbatim — `buildProvider` is the single
+  /// resolution point, re-read per batch, so a Settings pick takes effect on
+  /// the next polling cycle without any restart.
+  @Test
+  func buildProviderPassesStoredModelToOpenAIProvider() {
+    ClassificationProviderKind.persist(.openAI, in: defaults)
+    OpenAIModelSetting.persist("gpt-example-custom", in: defaults)
+
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
+
+    let openAIProvider = provider as? OpenAIClassificationProvider
+    #expect(openAIProvider != nil)
+    #expect(openAIProvider?.model == "gpt-example-custom")
+  }
+
+  /// Stage-1 regression guard for issue #175: with no model key stored the
+  /// provider must resolve to the current app default, gpt-5.6-luna — unset
+  /// users track future default bumps automatically.
+  @Test
+  func buildProviderDefaultsToLunaWhenNoModelStored() {
+    ClassificationProviderKind.persist(.openAI, in: defaults)
+    #expect(defaults.string(forKey: OpenAIModelSetting.userDefaultsKey) == nil)
+
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
+
+    let openAIProvider = provider as? OpenAIClassificationProvider
+    #expect(openAIProvider?.model == "gpt-5.6-luna")
+  }
 }

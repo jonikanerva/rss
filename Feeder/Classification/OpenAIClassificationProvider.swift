@@ -12,7 +12,9 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   let name = "OpenAI"
 
   private let apiKey: String
-  private let model = "gpt-5.4-nano"
+  /// Internal (not private) so in-module tests can assert which model
+  /// `ClassificationEngine.buildProvider` resolved.
+  let model: String
   private static let endpoint: URL = {
     guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
       fatalError("Invalid OpenAI endpoint URL")
@@ -20,8 +22,9 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     return url
   }()
 
-  init(apiKey: String) {
+  init(apiKey: String, model: String) {
     self.apiKey = apiKey
+    self.model = model
   }
 
   var isAvailable: Bool {

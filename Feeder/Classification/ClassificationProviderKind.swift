@@ -37,7 +37,7 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   var displayName: String {
     switch self {
     case .appleFM: "Apple Foundation Models"
-    case .openAI: "OpenAI GPT-5.4-nano"
+    case .openAI: "OpenAI"
     }
   }
 

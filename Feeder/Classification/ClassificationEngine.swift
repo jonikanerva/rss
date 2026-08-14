@@ -290,7 +290,10 @@ final class ClassificationEngine {
       else {
         return AppleFMClassificationProvider()
       }
-      return OpenAIClassificationProvider(apiKey: apiKey)
+      return OpenAIClassificationProvider(
+        apiKey: apiKey,
+        model: OpenAIModelSetting.current(in: defaults)
+      )
     case .appleFM:
       return AppleFMClassificationProvider()
     }
