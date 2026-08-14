@@ -381,4 +381,338 @@ struct ClassificationEngineTests {
     // The terminal snapshot closes the batch.
     #expect(snapshots.last?.isClassifying == false)
   }
+
+  // MARK: - 7. Abort path: deterministic provider failure persists nothing
+
+  /// A `ClassificationFailure` with a non-nil `batchAbort` thrown on the
+  /// very first entry must end the drain with ZERO persisted classifications —
+  /// every entry stays `isClassified == false` for the next poll to retry,
+  /// and the snapshot timeline still closes with the terminal snapshot.
+  /// Drives the runner directly (pattern of test 6) so the timeline is
+  /// observable.
+  @Test
+  func abortingFailureOnFirstEntryPersistsNothing() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container)
+    try await seedCategories(writer)
+    let entryIDs = try await seedEntries(writer, count: 4)
+
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .modelRejected), count: 1)
+
+    let recorder = SnapshotRecorder()
+    let runner = ClassificationRunner(
+      writer: writer,
+      providerFactory: { provider },
+      reportProgress: { await recorder.record($0) }
+    )
+    await runner.runOneBatch(cutoffDate: .distantPast)
+
+    // The batch stopped at the first provider call — no further entries
+    // were attempted, none were persisted.
+    #expect(await provider.callCount == 1)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == false, "Aborted batch must not persist entry \(id)")
+    }
+
+    // The abort path closes the batch with an OWNING outcome snapshot so
+    // the progress UI never hangs on a stale "Categorizing…" row and the
+    // banner carries the mapped cause.
+    let last = await recorder.snapshots.last
+    #expect(last?.isClassifying == false)
+    #expect(last?.ownsAbort == true)
+    #expect(last?.abort == .modelRejected)
+  }
+
+  /// An abort mid-drain keeps the successes persisted before the failure and
+  /// leaves the remainder untouched — partial progress survives, nothing is
+  /// misclassified.
+  @Test
+  func abortingFailureMidDrainKeepsPriorSuccesses() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 5)
+
+    // Succeed for the first two calls, abort on the third.
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .providerUnavailable), count: 1, afterSuccesses: 2
+    )
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(await provider.callCount == 3, "Drain must stop at the aborting call")
+
+    var classifiedCount = 0
+    var unclassifiedCount = 0
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      if snapshot?.isClassified == true {
+        #expect(snapshot?.primaryCategory == "tech")
+        classifiedCount += 1
+      } else {
+        unclassifiedCount += 1
+      }
+    }
+    #expect(classifiedCount == 2)
+    #expect(unclassifiedCount == 3)
+    #expect(engine.isClassifying == false)
+  }
+
+  /// A `ClassificationFailure` with `batchAbort == nil` keeps today's
+  /// per-entry behavior: the failing entry persists as Uncategorized and the
+  /// drain continues to the end.
+  @Test
+  func nonAbortingFailurePersistsUncategorizedAndContinues() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 3)
+    await provider.configureErrors(FakeClassificationFailure(batchAbort: nil), count: 1)
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(await provider.callCount == entryIDs.count, "Non-aborting failure must not stop the drain")
+
+    var uncategorizedCount = 0
+    var techCount = 0
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == true)
+      switch snapshot?.primaryCategory {
+      case uncategorizedLabel: uncategorizedCount += 1
+      case "tech": techCount += 1
+      default:
+        Issue.record("Unexpected category \(snapshot?.primaryCategory ?? "<nil>") for entry \(id)")
+      }
+    }
+    #expect(uncategorizedCount == 1)
+    #expect(techCount == entryIDs.count - 1)
+  }
+
+  /// Recoverable-worst-case proof: `reclassifyAll` resets every category
+  /// first, so an always-aborting provider (e.g. a bad model pick) must
+  /// leave the corpus fully unclassified — never misclassified — and the
+  /// next poll can recover it once the configuration is fixed.
+  @Test
+  func reclassifyAllWithAlwaysAbortingProviderLeavesEverythingUnclassified() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let entryIDs = try await seedEntries(writer, count: 3)
+
+    // First classify successfully so every entry holds a real category.
+    await engine.classifyUnclassified(writer: writer)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == true)
+      #expect(snapshot?.primaryCategory == "tech")
+    }
+
+    // Now every call aborts — the worst case for a bad model selection.
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .modelRejected), count: Int.max)
+
+    await engine.reclassifyAll(writer: writer)
+
+    // Reset ran, the batch aborted on its first call (3 successes + 1 abort),
+    // and nothing was misclassified: every entry awaits the next poll.
+    #expect(await provider.callCount == entryIDs.count + 1)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == false)
+      #expect(snapshot?.primaryCategory != "tech", "Aborted reclassify must not persist a category")
+    }
+    #expect(engine.isClassifying == false)
+  }
+
+  // MARK: - 8. Abort visibility: lastAbort lifecycle
+
+  /// An aborted batch surfaces its mapped cause on `lastAbort`; the next
+  /// clean batch clears it. The fake's error window exhausts after the first
+  /// batch, modelling "config fixed" — the per-batch provider factory would
+  /// deliver a swapped provider through exactly the same path.
+  @Test
+  func abortedBatchSetsLastAbortAndCleanBatchClears() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 3)
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .keyRejected), count: 1)
+
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == .keyRejected)
+
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == nil, "A clean drain must clear the banner")
+  }
+
+  /// Mid-batch snapshots never touch `lastAbort` — only owning terminals do.
+  @Test
+  func midBatchSnapshotsDoNotTouchLastAbort() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 5)
+    engine.applyPreviewState(lastAbort: .keyRejected)
+    await provider.configureDelay(.milliseconds(80))
+
+    engine.startContinuousClassification(writer: writer)
+    // Two calls in: the opening snapshot and at least one throttled progress
+    // tick have flowed through apply(_:) while the batch is still running.
+    try await waitUntil("provider.callCount >= 2") { await provider.callCount >= 2 }
+    #expect(engine.lastAbort == .keyRejected, "Mid-batch snapshots must not touch lastAbort")
+
+    engine.stopContinuousClassification()
+  }
+
+  /// A zero-pending drain OWNS a nil outcome and clears a stale banner —
+  /// da amendment A3 semantics: `lastAbort` is "the outcome of the most
+  /// recent batch attempt", NOT "the configuration is broken". Pending
+  /// entries can age out overnight via the keep-days window even while the
+  /// config stays bad; the next arriving article re-trips the banner within
+  /// one poll.
+  @Test
+  func zeroPendingDrainClearsStaleAbort() async throws {
+    let (engine, writer, _) = try await makeEngineAndWriter()
+    // No entries seeded — the drain takes the zero-pending early return.
+    engine.applyPreviewState(lastAbort: .modelRejected)
+
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(engine.lastAbort == nil)
+  }
+
+  /// Cancellation PRESERVES the banner (da's flicker guard): both the
+  /// cancelled batch's exit and the continuous loop's exit emit plain
+  /// `.terminal`, which does not own the abort field — so Sync-Now /
+  /// Reclassify replacing the loop mid-batch cannot clear-then-retrip.
+  @Test
+  func cancellationPreservesLastAbort() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 10)
+    engine.applyPreviewState(lastAbort: .offline)
+    await provider.configureDelay(.milliseconds(100))
+
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
+    engine.stopContinuousClassification()
+    try await Task.sleep(for: .milliseconds(300))
+
+    #expect(engine.lastAbort == .offline, "Cancellation must not clear the banner")
+  }
+
+  /// A repeated identical outcome must not rewrite `lastAbort` — the
+  /// equality guard stops @Observable same-value churn on the 2 s poll
+  /// cadence (which would re-announce the banner to VoiceOver). Asserted
+  /// via the DEBUG-only write counter, following the engine's existing
+  /// test-introspection precedent.
+  @Test
+  func repeatedSameAbortDoesNotRewriteLastAbort() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 2)
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .providerUnavailable), count: Int.max)
+
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == .providerUnavailable)
+    #expect(engine.lastAbortWriteCount == 1)
+
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == .providerUnavailable)
+    #expect(engine.lastAbortWriteCount == 1, "Same-value outcome must not rewrite lastAbort")
+  }
+
+  /// The `isAvailable` early return emits an OWNING `.providerUnavailable`
+  /// outcome (da amendment A2) — this makes Apple FM unavailability visible
+  /// too, and prevents a plain terminal from wrongly leaving a stale banner
+  /// state unowned while the provider is unusable.
+  @Test
+  func unavailableProviderEmitsProviderUnavailableOutcome() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container)
+    try await seedCategories(writer)
+    try await seedEntries(writer, count: 2)
+
+    let provider = FakeClassificationProvider()
+    await provider.configureAvailability(false)
+
+    let recorder = SnapshotRecorder()
+    let runner = ClassificationRunner(
+      writer: writer,
+      providerFactory: { provider },
+      reportProgress: { await recorder.record($0) }
+    )
+    await runner.runOneBatch(cutoffDate: .distantPast)
+
+    #expect(await provider.callCount == 0)
+    let last = await recorder.snapshots.last
+    #expect(last?.isClassifying == false)
+    #expect(last?.ownsAbort == true)
+    #expect(last?.abort == .providerUnavailable)
+  }
+}
+
+// MARK: - OpenAIError → ClassificationAbortReason mapping
+
+/// Pins the batch-abort mapping from the round-2 design of issue #175:
+/// provider-level failures abort with a user-facing cause (401 → key,
+/// other 4xx → model, 429/5xx → provider, network → offline); per-entry
+/// model-output defects return nil and keep the Uncategorized fallback.
+/// A silent flip here would either reintroduce the mass-misclassification
+/// hazard (abort → fallback) or stall the drain on harmless per-entry
+/// defects (fallback → abort).
+@Suite("OpenAIError batch-abort mapping")
+struct OpenAIErrorBatchAbortMappingTests {
+  @Test
+  func unauthorizedMapsToKeyRejected() {
+    #expect(OpenAIError.apiError(statusCode: 401, message: "x").batchAbort == .keyRejected)
+  }
+
+  @Test(arguments: [400, 403, 404, 422])
+  func otherClientErrorsMapToModelRejected(statusCode: Int) {
+    #expect(
+      OpenAIError.apiError(statusCode: statusCode, message: "x").batchAbort == .modelRejected)
+  }
+
+  @Test(arguments: [429, 500, 503])
+  func rateLimitAndServerErrorsMapToProviderUnavailable(statusCode: Int) {
+    #expect(
+      OpenAIError.apiError(statusCode: statusCode, message: "x").batchAbort
+        == .providerUnavailable)
+  }
+
+  @Test
+  func networkUnavailableMapsToOffline() {
+    let error = OpenAIError.networkUnavailable(underlying: URLError(.notConnectedToInternet))
+    #expect(error.batchAbort == .offline)
+  }
+
+  @Test
+  func perEntryOutputDefectsDoNotAbort() {
+    #expect(OpenAIError.emptyResponse.batchAbort == nil)
+    #expect(OpenAIError.invalidResponse.batchAbort == nil)
+  }
+}
+
+// MARK: - Abort reason copy lock
+
+/// Locks the owner-approved banner literals and symbols: payload-free by
+/// design, so these fixed strings are the entire user-visible surface of a
+/// batch abort (raw API/response text structurally cannot reach the UI).
+/// Fragment convention — no trailing periods — matches the SyncStatusView
+/// labels.
+@Suite("ClassificationAbortReason copy")
+struct ClassificationAbortReasonCopyTests {
+  @Test
+  func displayLabelsMatchApprovedLiterals() {
+    #expect(ClassificationAbortReason.modelRejected.displayLabel == "Model rejected the request")
+    #expect(ClassificationAbortReason.keyRejected.displayLabel == "API key was rejected")
+    #expect(ClassificationAbortReason.offline.displayLabel == "Categorizing paused — offline")
+    #expect(
+      ClassificationAbortReason.providerUnavailable.displayLabel
+        == "Categorizing paused — provider unavailable")
+  }
+
+  @Test
+  func symbolNamesMatchApprovedMapping() {
+    #expect(ClassificationAbortReason.offline.symbolName == "wifi.slash")
+    #expect(ClassificationAbortReason.modelRejected.symbolName == "exclamationmark.triangle")
+    #expect(ClassificationAbortReason.keyRejected.symbolName == "exclamationmark.triangle")
+    #expect(
+      ClassificationAbortReason.providerUnavailable.symbolName == "exclamationmark.triangle")
+  }
 }

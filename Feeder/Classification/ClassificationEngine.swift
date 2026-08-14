@@ -21,10 +21,42 @@ nonisolated struct ProgressSnapshot: Sendable {
   let progress: String
   let classifiedCount: Int
   let totalToClassify: Int
+  /// The batch-outcome cause, meaningful only when `ownsAbort` is true.
+  let abort: ClassificationAbortReason?
+  /// True ONLY on batch-outcome terminals (zero-pending, provider
+  /// unavailable, abort, clean end-of-drain). Mid-batch snapshots and the
+  /// plain cancellation `.terminal` never own the field, so they can never
+  /// clear or overwrite a live banner.
+  let ownsAbort: Bool
+
+  init(
+    isClassifying: Bool,
+    progress: String,
+    classifiedCount: Int,
+    totalToClassify: Int,
+    abort: ClassificationAbortReason? = nil,
+    ownsAbort: Bool = false
+  ) {
+    self.isClassifying = isClassifying
+    self.progress = progress
+    self.classifiedCount = classifiedCount
+    self.totalToClassify = totalToClassify
+    self.abort = abort
+    self.ownsAbort = ownsAbort
+  }
 
   static let terminal = ProgressSnapshot(
     isClassifying: false, progress: "", classifiedCount: 0, totalToClassify: 0
   )
+
+  /// Terminal snapshot that OWNS the batch outcome: `nil` records a clean
+  /// attempt (clearing any stale banner), non-nil records the abort cause.
+  static func outcome(_ abort: ClassificationAbortReason?) -> ProgressSnapshot {
+    ProgressSnapshot(
+      isClassifying: false, progress: "", classifiedCount: 0, totalToClassify: 0,
+      abort: abort, ownsAbort: true
+    )
+  }
 }
 
 // MARK: - Classification Engine
@@ -45,6 +77,16 @@ final class ClassificationEngine {
   /// `isClassifying` so `ContentView` can skip article-list refreshes for
   /// polling ticks that had nothing to classify.
   private(set) var lastBatchClassifiedCount = 0
+
+  /// The outcome of the MOST RECENT classification batch attempt — nil when
+  /// that attempt ended cleanly. NOTE the exact semantics (da amendment A3):
+  /// this is "the outcome of the most recent batch attempt", NOT "the
+  /// configuration is broken". A zero-pending poll legitimately clears it
+  /// even if the config is still bad (pending entries can age out overnight
+  /// via the keep-days window); the next arriving article re-trips it within
+  /// one 2 s poll. Never persisted; never cleared eagerly by Settings — the
+  /// poll itself is the save-time verification.
+  private(set) var lastAbort: ClassificationAbortReason?
 
   /// Monotonic counter bumped on every **non-terminal** progress snapshot
   /// while a batch is in flight. Lets `ContentView` route a deferred middle-
@@ -191,6 +233,11 @@ final class ClassificationEngine {
   #if DEBUG
     var isContinuousLoopActive: Bool { isContinuousModeActive }
     var currentClassificationTaskID: UUID? { classificationTaskID }
+    /// Number of times `apply(_:)` actually WROTE `lastAbort`. Lets the
+    /// same-value no-rewrite guard (which stops @Observable churn every 2 s
+    /// and the resulting VoiceOver re-announcement) be asserted
+    /// deterministically without Observation plumbing.
+    private(set) var lastAbortWriteCount = 0
   #endif
 
   // MARK: - MainActor sink for progress snapshots
@@ -201,6 +248,16 @@ final class ClassificationEngine {
     // decide whether a classification tick actually changed anything.
     if isClassifying && !snapshot.isClassifying {
       lastBatchClassifiedCount = classifiedCount
+    }
+    // Only batch-outcome terminals own the abort field. The equality guard
+    // stops @Observable same-value churn on the 2 s poll cadence — a
+    // rewrite of an unchanged value would re-announce the banner to
+    // VoiceOver on every tick.
+    if !snapshot.isClassifying, snapshot.ownsAbort, lastAbort != snapshot.abort {
+      lastAbort = snapshot.abort
+      #if DEBUG
+        lastAbortWriteCount += 1
+      #endif
     }
     // Signal mid-batch progress to the middle pane. Only non-terminal
     // snapshots bump — the terminal false-edge is already covered by the
@@ -253,12 +310,14 @@ final class ClassificationEngine {
     isClassifying: Bool = false,
     progress: String = "",
     classifiedCount: Int = 0,
-    totalToClassify: Int = 0
+    totalToClassify: Int = 0,
+    lastAbort: ClassificationAbortReason? = nil
   ) {
     self.isClassifying = isClassifying
     self.progress = progress
     self.classifiedCount = classifiedCount
     self.totalToClassify = totalToClassify
+    self.lastAbort = lastAbort
   }
 
   // MARK: - Provider factory
@@ -290,7 +349,10 @@ final class ClassificationEngine {
       else {
         return AppleFMClassificationProvider()
       }
-      return OpenAIClassificationProvider(apiKey: apiKey)
+      return OpenAIClassificationProvider(
+        apiKey: apiKey,
+        model: OpenAIModelSetting.current(in: defaults)
+      )
     case .appleFM:
       return AppleFMClassificationProvider()
     }
@@ -344,15 +406,20 @@ nonisolated struct ClassificationRunner: Sendable {
         cutoffDate: cutoffDate, limit: chunkSize),
       !firstChunk.isEmpty
     else {
-      await reportProgress(.terminal)
+      // Zero-pending is a batch outcome: it OWNS the field and clears a
+      // stale abort banner (see `ClassificationEngine.lastAbort` semantics —
+      // "most recent batch attempt", not "config is broken").
+      await reportProgress(.outcome(nil))
       return
     }
 
     let provider = providerFactory()
     guard await provider.isAvailable else {
       logger.error("Classification provider '\(provider.name)' not available")
-      // Symmetry with the no-inputs early return: clear any leftover spinner state.
-      await reportProgress(.terminal)
+      // A batch outcome, not a plain terminal: makes provider unavailability
+      // (Apple FM included) visible and prevents wrongly clearing a live
+      // banner while the provider stays unusable.
+      await reportProgress(.outcome(.providerUnavailable))
       return
     }
 
@@ -446,6 +513,19 @@ nonisolated struct ClassificationRunner: Sendable {
                 confidence: providerResult.confidence
               )
             } catch {
+              if let reason = (error as? any ClassificationFailure)?.batchAbort {
+                // Deterministic provider-level failure (bad model id,
+                // revoked key, quota, network): persist NOTHING for this
+                // entry or the remainder — they stay isClassified == false
+                // and the next poll retries. Only the payload-free reason
+                // reaches the UI; the full detail stays in this .private
+                // log line.
+                logger.error(
+                  "Classification provider '\(providerName)' failed, aborting batch: \(String(describing: error), privacy: .private)"
+                )
+                await reportProgress(.outcome(reason))
+                return
+              }
               result = ClassificationResult(
                 entryID: input.entryID,
                 categoryLabel: uncategorizedLabel,
@@ -496,7 +576,14 @@ nonisolated struct ClassificationRunner: Sendable {
     }
 
     logger.info("Classification batch complete: \(processedCount) entries")
-    await reportProgress(.terminal)
+    if Task.isCancelled {
+      // A cancelled batch is NOT an outcome: the plain terminal preserves
+      // any live banner. Sync-Now / Reclassify replace the continuous loop
+      // mid-batch — an owning nil here would clear-then-retrip → flicker.
+      await reportProgress(.terminal)
+    } else {
+      await reportProgress(.outcome(nil))
+    }
   }
 }
 

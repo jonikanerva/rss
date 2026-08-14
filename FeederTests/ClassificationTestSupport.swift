@@ -49,6 +49,12 @@ actor FakeClassificationProvider {
   private var errorsRemaining = 0
   private var errorToThrow: Error?
 
+  /// Number of leading `classify(...)` calls that must succeed before the
+  /// configured error starts throwing. Lets the abort-path tests model
+  /// "succeed for N entries, then fail mid-drain" so prior persisted
+  /// successes can be asserted against the untouched remainder.
+  private var successesBeforeError = 0
+
   /// Delay inserted before each `classify(...)` returns. Used by tests
   /// that need to keep the runner suspended long enough for a
   /// `Task.cancel()` or a manual trigger to land between iterations.
@@ -60,9 +66,12 @@ actor FakeClassificationProvider {
 
   // MARK: - ClassificationProvider conformance
 
-  /// Always available. No test exercises the unavailable branch — adding
-  /// a toggle would be dead scaffolding.
-  var isAvailable: Bool { true }
+  /// Availability the runner's `isAvailable` guard sees. Defaults to true;
+  /// `unavailableProviderEmitsProviderUnavailableOutcome` flips it to prove
+  /// the early return emits an owning `.providerUnavailable` outcome.
+  private var available = true
+
+  var isAvailable: Bool { available }
 
   /// Nil = "all languages". The runner's language-gate branch is exercised
   /// in pure-helper tests; integration tests don't need to flip it.
@@ -80,7 +89,7 @@ actor FakeClassificationProvider {
       try? await Task.sleep(for: perCallDelay)
     }
 
-    if errorsRemaining > 0, let error = errorToThrow {
+    if errorsRemaining > 0, let error = errorToThrow, callCount > successesBeforeError {
       errorsRemaining -= 1
       throw error
     }
@@ -92,10 +101,13 @@ actor FakeClassificationProvider {
 
   /// Configure the fake to throw `error` on the next `count` calls before
   /// reverting to the default response. Used by
-  /// `errorRecoveryContinuesWithNextBatch`.
-  func configureErrors(_ error: Error, count: Int) {
+  /// `errorRecoveryContinuesWithNextBatch`. `afterSuccesses` shifts the
+  /// failure window past that many leading successful calls — used by the
+  /// mid-drain abort test.
+  func configureErrors(_ error: Error, count: Int, afterSuccesses: Int = 0) {
     errorToThrow = error
     errorsRemaining = count
+    successesBeforeError = afterSuccesses
   }
 
   /// Insert `value` before each `classify(...)` returns. Used by the
@@ -103,6 +115,11 @@ actor FakeClassificationProvider {
   /// loop suspended long enough for a control-plane event to land.
   func configureDelay(_ value: Duration) {
     perCallDelay = value
+  }
+
+  /// Flip the availability the runner's `isAvailable` guard reads.
+  func configureAvailability(_ value: Bool) {
+    available = value
   }
 }
 
@@ -135,3 +152,13 @@ actor SnapshotRecorder {
 /// otherwise exercising. Carries no payload — the runner's `catch` branch
 /// only cares that *some* error was thrown.
 struct FakeProviderError: Error {}
+
+/// Test error conforming to `ClassificationFailure` with a configurable
+/// disposition — drives both the abort branch (non-nil reason) and the
+/// per-entry-fallback branch (nil) of the runner's failure handling.
+/// `nonisolated` because the protocol's synchronous `batchAbort` witness
+/// must be callable off the main actor (the runner catches it on a
+/// background task).
+nonisolated struct FakeClassificationFailure: ClassificationFailure {
+  let batchAbort: ClassificationAbortReason?
+}

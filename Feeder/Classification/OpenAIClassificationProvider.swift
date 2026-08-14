@@ -12,7 +12,9 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   let name = "OpenAI"
 
   private let apiKey: String
-  private let model = "gpt-5.4-nano"
+  /// Internal (not private) so in-module tests can assert which model
+  /// `ClassificationEngine.buildProvider` resolved.
+  let model: String
   private static let endpoint: URL = {
     guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
       fatalError("Invalid OpenAI endpoint URL")
@@ -20,8 +22,9 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     return url
   }()
 
-  init(apiKey: String) {
+  init(apiKey: String, model: String) {
     self.apiKey = apiKey
+    self.model = model
   }
 
   var isAvailable: Bool {
@@ -43,30 +46,21 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     let truncatedBody = String(body.prefix(60_000))
     let userMessage = "title: \(title)\nurl: \(url)\ncontent: \(truncatedBody)"
 
-    let requestBody = OpenAIRequest(
-      model: model,
-      messages: [
-        .init(role: "system", content: instructions),
-        .init(role: "user", content: userMessage),
-      ],
-      temperature: 0,
-      responseFormat: .init(
-        type: "json_schema",
-        jsonSchema: .init(
-          name: "article_classification",
-          strict: true,
-          schema: .classificationSchema
-        )
-      )
-    )
-
     var request = URLRequest(url: Self.endpoint)
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(requestBody)
+    request.httpBody = try Self.encodeRequestBody(
+      model: model, instructions: instructions, userMessage: userMessage
+    )
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await URLSession.shared.data(for: request)
+    } catch {
+      throw OpenAIError.networkUnavailable(underlying: error)
+    }
 
     guard let httpResponse = response as? HTTPURLResponse else {
       throw OpenAIError.invalidResponse
@@ -90,19 +84,52 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
       confidence: classification.confidence
     )
   }
+
+  /// Pure request-body seam so tests can pin the encoded wire shape —
+  /// notably the ABSENCE of a "temperature" key. gpt-5.6-luna rejects any
+  /// non-default temperature with a deterministic 400 ("Only the default
+  /// (1) value is supported"), so the maximally compatible request across
+  /// the catalog sends no sampling parameters at all and lets each model's
+  /// default apply; the `json_schema` structured output still constrains
+  /// the response shape.
+  static func encodeRequestBody(
+    model: String,
+    instructions: String,
+    userMessage: String
+  ) throws -> Data {
+    let requestBody = OpenAIRequest(
+      model: model,
+      messages: [
+        .init(role: "system", content: instructions),
+        .init(role: "user", content: userMessage),
+      ],
+      responseFormat: .init(
+        type: "json_schema",
+        jsonSchema: .init(
+          name: "article_classification",
+          strict: true,
+          schema: .classificationSchema
+        )
+      )
+    )
+    return try JSONEncoder().encode(requestBody)
+  }
 }
 
-// MARK: - OpenAI API types (private)
+// MARK: - OpenAI API types
 
 // All `nonisolated`: consumed by the nonisolated `classify(...)` witness —
 // under default MainActor isolation these file-scope types (and their
 // synthesized Codable conformances and statics) would otherwise be
 // MainActor-isolated and unusable off the main actor.
 
-private nonisolated enum OpenAIError: LocalizedError {
+/// Internal (not private) so in-module tests can assert the
+/// `ClassificationFailure` disposition mapping case by case.
+nonisolated enum OpenAIError: LocalizedError {
   case invalidResponse
   case apiError(statusCode: Int, message: String)
   case emptyResponse
+  case networkUnavailable(underlying: Error)
 
   var errorDescription: String? {
     switch self {
@@ -112,6 +139,43 @@ private nonisolated enum OpenAIError: LocalizedError {
       return "OpenAI API error \(statusCode): \(message)"
     case .emptyResponse:
       return "OpenAI returned an empty response"
+    case .networkUnavailable(let underlying):
+      return "OpenAI request failed: \(String(describing: underlying))"
+    }
+  }
+}
+
+extension OpenAIError: ClassificationFailure {
+  /// Batch-level disposition (see `ClassificationFailure`):
+  /// - API errors (4xx incl. 401/403/404/429, and 5xx) and network failures
+  ///   are deterministic or transient *provider-level* failures — persisting
+  ///   Uncategorized for them would permanently misclassify the whole drain,
+  ///   so they abort the batch (with a user-facing cause) and leave every
+  ///   entry retryable. 401 → key; other 4xx → the request the model
+  ///   rejected; 429/5xx → the provider itself.
+  /// - `emptyResponse` / `invalidResponse` are per-entry model-output
+  ///   problems: the drain continues and the entry falls back to
+  ///   Uncategorized, exactly as before.
+  var batchAbort: ClassificationAbortReason? {
+    switch self {
+    case .apiError(let statusCode, _):
+      switch statusCode {
+      case 401:
+        return .keyRejected
+      case 429:
+        return .providerUnavailable
+      case 400...499:
+        return .modelRejected
+      case 500...:
+        return .providerUnavailable
+      default:
+        // Sub-400 non-200 oddities keep the per-entry fallback behavior.
+        return nil
+      }
+    case .networkUnavailable:
+      return .offline
+    case .invalidResponse, .emptyResponse:
+      return nil
     }
   }
 }
@@ -119,7 +183,6 @@ private nonisolated enum OpenAIError: LocalizedError {
 private nonisolated struct OpenAIRequest: Encodable {
   let model: String
   let messages: [Message]
-  let temperature: Double
   let responseFormat: ResponseFormat
 
   struct Message: Encodable {
@@ -165,7 +228,7 @@ private nonisolated struct OpenAIRequest: Encodable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case model, messages, temperature
+    case model, messages
     case responseFormat = "response_format"
   }
 }

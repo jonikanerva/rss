@@ -67,6 +67,9 @@ struct SyncStatusView: View {
       if let error = syncEngine.lastError {
         errorBanner(error: error)
       }
+      if let abort = classificationEngine.lastAbort {
+        classificationBanner(abort: abort)
+      }
     }
     .padding(.bottom, 4)
   }
@@ -130,6 +133,41 @@ struct SyncStatusView: View {
       openSettings()
     }
   }
+
+  // MARK: - Classification banner
+
+  /// Inline banner for the outcome of the most recent classification batch
+  /// attempt, mirroring `errorBanner`'s shape (icon + secondary text +
+  /// contextual `.link` button). "Open Settings" is offered only for causes
+  /// the user can fix there (key / model); offline and provider
+  /// unavailability self-heal via the 2 s poll, so no button. Meaning is
+  /// carried by the words, never by color alone. When `lastAbort` is nil
+  /// the line disappears entirely.
+  private func classificationBanner(abort: ClassificationAbortReason) -> some View {
+    HStack(spacing: 6) {
+      Image(systemName: abort.symbolName)
+        .foregroundStyle(Color.orange)
+      Text(abort.displayLabel)
+        .foregroundStyle(.secondary)
+      if abortOffersSettings(abort) {
+        Button("Open Settings") {
+          openSettings()
+        }
+        .buttonStyle(.link)
+        .accessibilityIdentifier("sidebar.classificationError.openSettings")
+      }
+    }
+    .font(fontSettings.status)
+    .textCase(nil)
+    .accessibilityIdentifier("sidebar.classificationError")
+  }
+
+  private func abortOffersSettings(_ abort: ClassificationAbortReason) -> Bool {
+    switch abort {
+    case .keyRejected, .modelRejected: true
+    case .offline, .providerUnavailable: false
+    }
+  }
 }
 
 // MARK: - Previews
@@ -154,6 +192,9 @@ private enum SyncStatusPreviewState {
   case midDrainGrownDenominator
   case largeNumbers
   case syncingNoTotal
+  case abortedModel
+  case abortedOffline
+  case abortedWhileSyncing
 
   func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
     switch self {
@@ -195,6 +236,22 @@ private enum SyncStatusPreviewState {
     case .syncingNoTotal:
       // totalToFetch == 0 → the fetch row falls back to "Syncing...".
       sync.applyPreviewState(isSyncing: true, fetchedCount: 0, totalToFetch: 0)
+    case .abortedModel:
+      // Classification banner with the "Open Settings" recovery button.
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .modelRejected)
+    case .abortedOffline:
+      // Self-healing cause → no button; exercises the wifi.slash symbol.
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .offline)
+    case .abortedWhileSyncing:
+      // Both banners stacked at the 220 pt frame: sync error + the LONGEST
+      // classification label ("Categorizing paused — provider unavailable")
+      // — must not truncate (STACK.md § 11, exercise at the threshold).
+      sync.applyPreviewState(
+        lastSyncDate: .now.addingTimeInterval(-3600),
+        lastError: .network("The Internet connection appears to be offline."))
+      classification.applyPreviewState(lastAbort: .providerUnavailable)
     }
   }
 }
@@ -241,6 +298,18 @@ private enum SyncStatusPreviewState {
 
 #Preview("Syncing - no total") {
   syncStatusPreview(state: .syncingNoTotal)
+}
+
+#Preview("Aborted - Model rejected") {
+  syncStatusPreview(state: .abortedModel)
+}
+
+#Preview("Aborted - Offline") {
+  syncStatusPreview(state: .abortedOffline)
+}
+
+#Preview("Aborted + Sync error") {
+  syncStatusPreview(state: .abortedWhileSyncing)
 }
 
 @MainActor
