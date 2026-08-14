@@ -46,28 +46,13 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     let truncatedBody = String(body.prefix(60_000))
     let userMessage = "title: \(title)\nurl: \(url)\ncontent: \(truncatedBody)"
 
-    let requestBody = OpenAIRequest(
-      model: model,
-      messages: [
-        .init(role: "system", content: instructions),
-        .init(role: "user", content: userMessage),
-      ],
-      temperature: 0,
-      responseFormat: .init(
-        type: "json_schema",
-        jsonSchema: .init(
-          name: "article_classification",
-          strict: true,
-          schema: .classificationSchema
-        )
-      )
-    )
-
     var request = URLRequest(url: Self.endpoint)
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(requestBody)
+    request.httpBody = try Self.encodeRequestBody(
+      model: model, instructions: instructions, userMessage: userMessage
+    )
 
     let data: Data
     let response: URLResponse
@@ -98,6 +83,36 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
       category: classification.category,
       confidence: classification.confidence
     )
+  }
+
+  /// Pure request-body seam so tests can pin the encoded wire shape —
+  /// notably the ABSENCE of a "temperature" key. gpt-5.6-luna rejects any
+  /// non-default temperature with a deterministic 400 ("Only the default
+  /// (1) value is supported"), so the maximally compatible request across
+  /// the catalog sends no sampling parameters at all and lets each model's
+  /// default apply; the `json_schema` structured output still constrains
+  /// the response shape.
+  static func encodeRequestBody(
+    model: String,
+    instructions: String,
+    userMessage: String
+  ) throws -> Data {
+    let requestBody = OpenAIRequest(
+      model: model,
+      messages: [
+        .init(role: "system", content: instructions),
+        .init(role: "user", content: userMessage),
+      ],
+      responseFormat: .init(
+        type: "json_schema",
+        jsonSchema: .init(
+          name: "article_classification",
+          strict: true,
+          schema: .classificationSchema
+        )
+      )
+    )
+    return try JSONEncoder().encode(requestBody)
   }
 }
 
@@ -154,7 +169,6 @@ extension OpenAIError: ClassificationFailure {
 private nonisolated struct OpenAIRequest: Encodable {
   let model: String
   let messages: [Message]
-  let temperature: Double
   let responseFormat: ResponseFormat
 
   struct Message: Encodable {
@@ -200,7 +214,7 @@ private nonisolated struct OpenAIRequest: Encodable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case model, messages, temperature
+    case model, messages
     case responseFormat = "response_format"
   }
 }
