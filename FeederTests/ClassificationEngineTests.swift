@@ -542,21 +542,81 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil, "A clean drain must clear the banner")
   }
 
-  /// Mid-batch snapshots never touch `lastAbort` — only owning terminals do.
+  /// Evidence of successful progress clears a stale banner MID-BATCH: after
+  /// an abort (e.g. `.offline` from sleep/wake), the resumed drain's first
+  /// counting snapshot (`classifiedCount > 0`) must clear `lastAbort`
+  /// immediately — not minutes later when the whole drain ends. Waiting on
+  /// `engine.classifiedCount > 0` observes the applied counting snapshot
+  /// itself (`apply(_:)` sets the count and clears the banner in the same
+  /// MainActor call), so the assertion is race-free.
   @Test
-  func midBatchSnapshotsDoNotTouchLastAbort() async throws {
+  func midBatchProgressClearsStaleAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
-    try await seedEntries(writer, count: 5)
-    engine.applyPreviewState(lastAbort: .keyRejected)
-    await provider.configureDelay(.milliseconds(80))
+    try await seedEntries(writer, count: 10)
+    engine.applyPreviewState(lastAbort: .offline)
+    await provider.configureDelay(.milliseconds(150))
 
     engine.startContinuousClassification(writer: writer)
-    // Two calls in: the opening snapshot and at least one throttled progress
-    // tick have flowed through apply(_:) while the batch is still running.
-    try await waitUntil("provider.callCount >= 2") { await provider.callCount >= 2 }
-    #expect(engine.lastAbort == .keyRejected, "Mid-batch snapshots must not touch lastAbort")
+    try await waitUntil("engine.classifiedCount > 0") {
+      await engine.classifiedCount > 0
+    }
+    #expect(engine.lastAbort == nil, "First counting snapshot must clear the stale banner")
 
     engine.stopContinuousClassification()
+  }
+
+  /// Full sleep/wake shape: a stale `.offline` banner, then a resumed
+  /// fully-successful drain. The FIRST counting snapshot clears the banner
+  /// (asserted mid-drain), and the drain end adds no second write — the AC1
+  /// final snapshot sees `lastAbort == nil` and skips, and the owning
+  /// `outcome(nil)` terminal is equality-suppressed. Exactly one write
+  /// overall: the evidence-of-progress clear.
+  @Test
+  func resumedDrainClearsStaleAbortOnceAtFirstProgress() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 8)
+    engine.applyPreviewState(lastAbort: .offline)
+    await provider.configureDelay(.milliseconds(100))
+
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("engine.classifiedCount > 0") {
+      await engine.classifiedCount > 0
+    }
+    #expect(engine.lastAbort == nil, "First counting snapshot must clear the stale banner")
+
+    // Let the drain complete: the engine returns to idle when the owning
+    // `outcome(nil)` terminal lands.
+    try await waitUntil("engine.isClassifying == false") {
+      await engine.isClassifying == false
+    }
+    #expect(engine.lastAbort == nil)
+    #expect(
+      engine.lastAbortWriteCount == 1,
+      "Exactly one write: the evidence-of-progress clear; drain end adds none")
+
+    engine.stopContinuousClassification()
+  }
+
+  /// A persistently failing retry loop never blinks the banner: every drain
+  /// aborts before any entry completes, so `classifiedCount` stays 0 and the
+  /// evidence-of-progress rule never fires. Zero writes overall — the
+  /// count-0 opening snapshots carry no evidence, and the repeated
+  /// same-value `outcome(.offline)` terminals are equality-suppressed.
+  /// Deterministic: no delays, both drains run to completion inline.
+  /// (The preview seed bypasses the write counter by design.)
+  @Test
+  func persistentlyFailingRetryPreservesLastAbort() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    try await seedEntries(writer, count: 3)
+    engine.applyPreviewState(lastAbort: .offline)
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .offline), count: Int.max)
+
+    await engine.classifyUnclassified(writer: writer)
+    await engine.classifyUnclassified(writer: writer)
+
+    #expect(engine.lastAbort == .offline, "Failing retries must keep the banner up without blinking")
+    #expect(engine.lastAbortWriteCount == 0, "No snapshot in a failing retry loop may write lastAbort")
   }
 
   /// A zero-pending drain OWNS a nil outcome and clears a stale banner —
@@ -576,23 +636,32 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil)
   }
 
-  /// Cancellation PRESERVES the banner (da's flicker guard): both the
-  /// cancelled batch's exit and the continuous loop's exit emit plain
-  /// `.terminal`, which does not own the abort field — so Sync-Now /
-  /// Reclassify replacing the loop mid-batch cannot clear-then-retrip.
+  /// Cancellation PRESERVES the banner (da's flicker guard): the cancelled
+  /// batch aborts with the SAME reason as the live banner (same-value
+  /// outcome — equality-suppressed), its count-0 snapshots carry no
+  /// evidence of progress, and the loop-exit plain `.terminal` does not own
+  /// the field. Zero writes proves all three paths left `lastAbort` alone.
+  /// An always-aborting provider is deliberate: a working provider under
+  /// the evidence-of-progress rule would race the throttled counting
+  /// snapshot against the stop call (flaky by design).
   @Test
   func cancellationPreservesLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     try await seedEntries(writer, count: 10)
     engine.applyPreviewState(lastAbort: .offline)
     await provider.configureDelay(.milliseconds(100))
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .offline), count: Int.max)
 
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
     engine.stopContinuousClassification()
+    // Post-stop settle: let the loop-exit `.terminal` flow through
+    // apply(_:) before asserting — the point is that it must not write.
     try await Task.sleep(for: .milliseconds(300))
 
     #expect(engine.lastAbort == .offline, "Cancellation must not clear the banner")
+    #expect(engine.lastAbortWriteCount == 0, "No snapshot on the cancel path may write lastAbort")
   }
 
   /// A repeated identical outcome must not rewrite `lastAbort` — the

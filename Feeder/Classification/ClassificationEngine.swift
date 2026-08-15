@@ -25,8 +25,10 @@ nonisolated struct ProgressSnapshot: Sendable {
   let abort: ClassificationAbortReason?
   /// True ONLY on batch-outcome terminals (zero-pending, provider
   /// unavailable, abort, clean end-of-drain). Mid-batch snapshots and the
-  /// plain cancellation `.terminal` never own the field, so they can never
-  /// clear or overwrite a live banner.
+  /// plain cancellation `.terminal` never own the field, so they never SET
+  /// or OVERWRITE a banner. A counting mid-batch snapshot
+  /// (`classifiedCount > 0`) CLEARS a stale one via the engine's
+  /// evidence-of-progress rule in `ClassificationEngine.apply(_:)`.
   let ownsAbort: Bool
 
   init(
@@ -86,6 +88,14 @@ final class ClassificationEngine {
   /// via the keep-days window); the next arriving article re-trips it within
   /// one 2 s poll. Never persisted; never cleared eagerly by Settings — the
   /// poll itself is the save-time verification.
+  ///
+  /// Also cleared mid-batch by the first snapshot carrying evidence of
+  /// successful progress (`isClassifying && classifiedCount > 0`): a resumed
+  /// drain must not keep a stale banner alive until drain end. Entries that
+  /// complete without a provider call (skip-gate, language-gate) also count,
+  /// so a run of them can clear the banner once before the next
+  /// provider-needing entry re-trips it — the same accepted imprecision
+  /// class as the zero-pending clear above.
   private(set) var lastAbort: ClassificationAbortReason?
 
   /// Monotonic counter bumped on every **non-terminal** progress snapshot
@@ -233,7 +243,8 @@ final class ClassificationEngine {
   #if DEBUG
     var isContinuousLoopActive: Bool { isContinuousModeActive }
     var currentClassificationTaskID: UUID? { classificationTaskID }
-    /// Number of times `apply(_:)` actually WROTE `lastAbort`. Lets the
+    /// Number of times `apply(_:)` actually WROTE `lastAbort` — both
+    /// owning-terminal writes and evidence-of-progress clears. Lets the
     /// same-value no-rewrite guard (which stops @Observable churn every 2 s
     /// and the resulting VoiceOver re-announcement) be asserted
     /// deterministically without Observation plumbing.
@@ -255,6 +266,19 @@ final class ClassificationEngine {
     // VoiceOver on every tick.
     if !snapshot.isClassifying, snapshot.ownsAbort, lastAbort != snapshot.abort {
       lastAbort = snapshot.abort
+      #if DEBUG
+        lastAbortWriteCount += 1
+      #endif
+    }
+    // Evidence of successful progress: at least one entry completed its
+    // classification attempt this drain WITHOUT a batch-abort — the abortable
+    // failure classes throw before any persist, so a non-zero count proves the
+    // banner's cause is not currently occurring. Clears a stale banner on
+    // resume instead of minutes later at drain end. `lastAbort != nil`
+    // preserves the no-write guarantee: in a persistently failing retry loop
+    // classifiedCount stays 0 and the banner never blinks.
+    if snapshot.isClassifying, snapshot.classifiedCount > 0, lastAbort != nil {
+      lastAbort = nil
       #if DEBUG
         lastAbortWriteCount += 1
       #endif
