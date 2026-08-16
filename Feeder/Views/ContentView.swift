@@ -458,8 +458,8 @@ struct ContentView: View {
       )
     )
     // Escape and Tab stay at NavigationSplitView level — not consumed by List type-to-select.
-    // Letter keys (J/K/R/B) have handlers on each panel's List via BareKeyHandler AND here
-    // as fallback for when no List has focus (e.g. after programmatic selection change).
+    // Letter keys (J/K/R/B) route three ways; see the comment above the root
+    // fallback handlers below.
     .onKeyPress(.escape) {
       selectedEntryID = nil
       panelFocus = .sidebar
@@ -474,12 +474,21 @@ struct ContentView: View {
       }
       return .handled
     }
-    // Why dual-route: the per-panel `BareKeyHandler` modifiers ensure J/K/R/B
-    // do NOT trigger while the user is typing in a text field (search,
-    // password editor, etc.) — only when a List has focus. This fallback
-    // covers the gap after programmatic selection changes when no List
-    // currently owns focus. Revisit only if SwiftUI focus APIs make a single
-    // `.focusState`-driven route viable.
+    // Why J/K/R/B route three ways:
+    // (1) the per-panel `BareKeyHandler` modifiers fire while a `List` has
+    //     focus, and keep bare keys away from text fields (Settings API-key
+    //     editor, onboarding, sheets) — typing there must type, not act;
+    // (2) `BareKeyForwardingWebView` (ArticleWebView.swift) forwards the
+    //     same actions from inside the article web view, where the AppKit
+    //     first responder swallows key events before SwiftUI sees them;
+    // (3) this root fallback covers the states where no focusable surface
+    //     holds focus and a `panelFocus` write is dropped: the first-launch
+    //     path while `entryListForSelection` still shows its ProgressView
+    //     branch (no List exists yet to take `.articleList` focus), focus
+    //     limbo right after a sheet dismisses (onboarding, category/folder
+    //     edit), plus residual unknown states — kept conservatively.
+    // Retiring (3) needs a dedicated audit (follow-up); revisit if SwiftUI
+    // focus APIs make a single `.focusState`-driven route viable.
     .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
@@ -579,6 +588,45 @@ struct ContentView: View {
     )
   }
 
+  // MARK: - Focus-following selection bindings
+
+  // FOCUS-FOLLOWS-CLICK invariant (same discipline as the SINGLE-WRITER
+  // comment on `selectedEntry` above): ONLY `List`'s user-interaction write —
+  // a click or an in-list arrow move — may route through these setters.
+  // Every programmatic write (`revalidateSelection`, `moveSidebarSelection`,
+  // `tabIntoArticleList`, the Escape / filter / sidebar clears,
+  // `markAllAsRead`, headless boot, UI-test seeding, `PerfScenarioRunner`)
+  // assigns the underlying `@State` directly and MUST keep doing so —
+  // routing them here would steal keyboard focus mid-read. That is exactly
+  // why an `.onChange(of: selection)` focus write was rejected: `.onChange`
+  // cannot distinguish the user's click from those programmatic writes.
+
+  /// Selection binding for the sidebar `List`: commits the selection, then
+  /// moves keyboard focus to the sidebar so arrow keys work immediately
+  /// after a click (no Tab required). `nil` writes (selection cleared)
+  /// never move focus.
+  private var sidebarSelectionBinding: Binding<SidebarSelection?> {
+    Binding(
+      get: { selection },
+      set: { newValue in
+        selection = newValue
+        if newValue != nil { panelFocus = .sidebar }
+      }
+    )
+  }
+
+  /// Selection binding for the article-list `List`: same shape as
+  /// `sidebarSelectionBinding`, targeting `.articleList`.
+  private var entrySelectionBinding: Binding<PersistentIdentifier?> {
+    Binding(
+      get: { selectedEntryID },
+      set: { newValue in
+        selectedEntryID = newValue
+        if newValue != nil { panelFocus = .articleList }
+      }
+    )
+  }
+
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     if let reader = syncEngine.reader {
@@ -592,7 +640,7 @@ struct ContentView: View {
         cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntryID: $selectedEntryID, onMarkAllRead: markAllAsRead
+        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead
       )
     } else {
       // SyncEngine.configure hasn't completed yet (first launch path).
@@ -908,7 +956,7 @@ struct ContentView: View {
         categoryUnreadCounts: categoryUnreadCounts,
         folderUnreadCounts: folderUnreadCounts,
         fontBody: fontSettings.body,
-        selection: $selection,
+        selection: sidebarSelectionBinding,
         collapsedFolders: $collapsedFolders
       )
     )

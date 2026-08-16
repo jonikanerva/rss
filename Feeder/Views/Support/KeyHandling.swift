@@ -57,8 +57,9 @@ extension EnvironmentValues {
 //
 // Per-panel bare-key dispatcher. Lives on each panel's List so J/K/R/B
 // only fire when that List has focus — see ContentView for the rationale
-// behind the dual-route design (avoids triggering shortcuts while typing
-// in text fields).
+// behind the three-route design (per-panel handlers here, the web-view
+// adapter in ArticleWebView.swift, and the root fallback), which keeps
+// shortcuts from triggering while typing in text fields.
 struct BareKeyHandler: ViewModifier {
   @Environment(\.bareKeyActions)
   private var actions
