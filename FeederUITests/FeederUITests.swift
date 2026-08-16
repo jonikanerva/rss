@@ -108,6 +108,105 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(anotherUnread.waitForExistence(timeout: 10))
   }
 
+  /// Click-focus fix, hardest starting state (Step-0 assumptions A + B):
+  /// with first responder INSIDE the article WKWebView, a click on a sidebar
+  /// row must both commit the selection (A: the List row click invokes the
+  /// selection-binding setter even when focus is elsewhere) and reclaim
+  /// keyboard focus from the AppKit view (B: the binding's `panelFocus`
+  /// write wins over the web view) — so arrow keys act on the sidebar
+  /// immediately, no Tab required.
+  @MainActor
+  func testClickReclaimsFocusFromWebViewForSidebarArrows() throws {
+    let app = makeApp()
+    app.launch()
+
+    // Open an article so the detail pane hosts the web view.
+    let technologyFolder = app.staticTexts["sidebar.folder.technology"]
+    XCTAssertTrue(technologyFolder.waitForExistence(timeout: 10))
+    technologyFolder.click()
+    let articleRow = app.descendants(matching: .any)["entry.row.1001"]
+    XCTAssertTrue(articleRow.waitForExistence(timeout: 10))
+    articleRow.click()
+
+    // Put first responder inside the web view. The demo article body has no
+    // links, so the click cannot navigate; the offset stays below the header.
+    let webView = app.webViews.firstMatch
+    XCTAssertTrue(webView.waitForExistence(timeout: 10))
+    webView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).click()
+
+    // Click a sidebar category, then press arrow-down without Tab.
+    let appleCategory = app.staticTexts["sidebar.category.apple"]
+    XCTAssertTrue(appleCategory.waitForExistence(timeout: 5))
+    appleCategory.click()
+    app.typeKey(.downArrow, modifierFlags: [])
+
+    // Arrow-down from "Apple" lands on the root category "World News", whose
+    // timeline contains only the seeded world entry. It appears ONLY when
+    // both hold: the click committed the selection to "apple" AND focus
+    // moved to the sidebar so the arrow key acted there.
+    let worldEntry = app.descendants(matching: .any)["entry.row.2001"]
+    XCTAssertTrue(worldEntry.waitForExistence(timeout: 10))
+  }
+
+  /// Click-focus fix, article list: clicking a row must move keyboard focus
+  /// to the list so arrow-down selects the next row immediately — proven by
+  /// the detail pane switching to the next article, no Tab pressed.
+  @MainActor
+  func testClickArticleRowThenArrowSelectsNextRow() throws {
+    let app = makeApp()
+    app.launch()
+
+    let technologyFolder = app.staticTexts["sidebar.folder.technology"]
+    XCTAssertTrue(technologyFolder.waitForExistence(timeout: 10))
+    technologyFolder.click()
+
+    let firstRow = app.descendants(matching: .any)["entry.row.1001"]
+    XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
+    firstRow.click()
+
+    let detail = app.descendants(matching: .any)["entry.detail"]
+    XCTAssertTrue(detail.waitForExistence(timeout: 5))
+
+    app.typeKey(.downArrow, modifierFlags: [])
+
+    // Row 1002 is the next unread row after 1001 (1003 is seeded read).
+    let secondArticleDetail = app.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier == 'entry.detail' AND label == 'Article: Sample Tech Story 2'")
+    ).firstMatch
+    XCTAssertTrue(secondArticleDetail.waitForExistence(timeout: 10))
+  }
+
+  /// Bare-key fix: with first responder inside the article web view, typing
+  /// "r" must toggle the view mode (web → reader) via
+  /// `BareKeyForwardingWebView` — proven by the detail toolbar button
+  /// flipping its label from "Reader Mode" to "Web Mode". No UI test for B
+  /// (it opens the system browser).
+  @MainActor
+  func testBareKeyRInsideWebViewTogglesViewMode() throws {
+    let app = makeApp()
+    app.launch()
+
+    let technologyFolder = app.staticTexts["sidebar.folder.technology"]
+    XCTAssertTrue(technologyFolder.waitForExistence(timeout: 10))
+    technologyFolder.click()
+    let articleRow = app.descendants(matching: .any)["entry.row.1001"]
+    XCTAssertTrue(articleRow.waitForExistence(timeout: 10))
+    articleRow.click()
+
+    // Web mode is the default — the toggle button offers "Reader Mode".
+    XCTAssertTrue(app.buttons["Reader Mode"].waitForExistence(timeout: 10))
+
+    // Click into the web content so the WKWebView is first responder (the
+    // demo article body has no links; the offset stays below the header).
+    let webView = app.webViews.firstMatch
+    XCTAssertTrue(webView.waitForExistence(timeout: 10))
+    webView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).click()
+
+    app.typeText("r")
+
+    XCTAssertTrue(app.buttons["Web Mode"].waitForExistence(timeout: 10))
+  }
+
   @MainActor
   private func makeApp(forceOnboarding: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()

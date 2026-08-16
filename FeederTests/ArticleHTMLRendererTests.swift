@@ -88,6 +88,88 @@ struct ArticleHTMLRendererTests {
     #expect(html.contains("<a href=\"#\">Link</a>"))
   }
 
+  // MARK: - In-page typing surfaces (bare-key typing-steal protection)
+
+  @Test
+  func inputElementIsStripped() {
+    let html = Self.render(body: "<p>Before</p><input type=\"text\" value=\"x\"><p>After</p>")
+    #expect(!html.contains("<input"))
+    #expect(html.contains("<p>Before</p>"))
+    #expect(html.contains("<p>After</p>"))
+  }
+
+  @Test
+  func selfClosingAndUppercaseInputsAreStripped() {
+    let html = Self.render(body: "<input type=\"search\" /><INPUT TYPE=\"TEXT\"><p>Body</p>")
+    #expect(!html.lowercased().contains("<input"))
+    #expect(html.contains("<p>Body</p>"))
+  }
+
+  @Test
+  func textareaElementIsStrippedWithContent() {
+    let html = Self.render(body: "<p>Ask</p><textarea rows=\"4\">Prefilled comment</textarea>")
+    #expect(!html.contains("<textarea"))
+    #expect(!html.contains("Prefilled comment"))
+    #expect(html.contains("<p>Ask</p>"))
+  }
+
+  @Test
+  func selectElementIsStrippedWithOptions() {
+    let html = Self.render(
+      body: "<select name=\"c\"><option>One</option><option>Two</option></select><p>Body</p>")
+    #expect(!html.contains("<select"))
+    #expect(!html.contains("<option"))
+    #expect(html.contains("<p>Body</p>"))
+  }
+
+  @Test
+  func buttonElementIsStrippedWithLabel() {
+    let html = Self.render(body: "<button type=\"submit\">Subscribe now</button><p>Body</p>")
+    #expect(!html.contains("<button"))
+    #expect(!html.contains("Subscribe now"))
+    #expect(html.contains("<p>Body</p>"))
+  }
+
+  @Test
+  func contenteditableDoubleQuotedAttributeIsStripped() {
+    let html = Self.render(body: "<div contenteditable=\"true\">Editable text</div>")
+    #expect(!html.contains("contenteditable"))
+    #expect(html.contains("<div>Editable text</div>"))
+  }
+
+  @Test
+  func contenteditableSingleQuotedAttributeIsStripped() {
+    let html = Self.render(body: "<div contenteditable='plaintext-only'>Text</div>")
+    #expect(!html.contains("contenteditable"))
+    #expect(html.contains("<div>Text</div>"))
+  }
+
+  @Test
+  func contenteditableUnquotedValueIsStripped() {
+    let html = Self.render(body: "<div contenteditable=true>Text</div>")
+    #expect(!html.contains("contenteditable"))
+    #expect(html.contains("<div>Text</div>"))
+  }
+
+  @Test
+  func contenteditableBareAttributeIsStripped() {
+    let html = Self.render(body: "<div class=\"note\" contenteditable>Text</div>")
+    #expect(!html.contains("contenteditable"))
+    #expect(html.contains("<div class=\"note\">Text</div>"))
+  }
+
+  @Test
+  func contenteditableWordInProseIsPreserved() {
+    let html = Self.render(body: "<p>The contenteditable attribute is a typing surface.</p>")
+    #expect(html.contains("<p>The contenteditable attribute is a typing surface.</p>"))
+  }
+
+  @Test
+  func contenteditablePrefixedAttributeNameIsPreserved() {
+    let html = Self.render(body: "<div contenteditable-hint=\"x\">Text</div>")
+    #expect(html.contains("contenteditable-hint=\"x\""))
+  }
+
   @Test
   func youTubeIframeIsReplacedWithThumbnail() {
     let html = Self.render(

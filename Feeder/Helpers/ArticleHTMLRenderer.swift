@@ -69,23 +69,51 @@ nonisolated private func renderFaviconHTML(
 
 // MARK: - Feed style stripping
 
-/// Patterns that strip feed CSS, scripts, and event handlers from feed HTML.
+/// Patterns that strip feed CSS, scripts, event handlers, and in-page typing
+/// surfaces from feed HTML.
 /// JS is fully disabled in the web view, so this stripping is the only defence.
-/// Each pattern is applied in order via `replacingOccurrences(options: .regularExpression)`,
+/// Each `(pattern, template)` pair is applied in order via
+/// `replacingOccurrences(options: [.regularExpression, .caseInsensitive])`,
 /// which uses `NSRegularExpression` under the hood — a value-type-safe API that
 /// does not require carrying a non-`Sendable` `Regex<>` across actor boundaries.
-nonisolated private let articleHTMLSanitizerPatterns: [String] = [
-  "<style[^>]*>[\\s\\S]*?</style>",
-  "<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>",
-  "<script[^>]*>[\\s\\S]*?</script>",
-  "\\s+on\\w+\\s*=\\s*\"[^\"]*\"",
-  "\\s+on\\w+\\s*=\\s*'[^']*'",
-  "\\s+style\\s*=\\s*\"[^\"]*\"",
-  "\\s+style\\s*=\\s*'[^']*'",
+/// Case-insensitive so uppercase markup (`<INPUT>`, `ONCLICK=`) cannot slip
+/// through; most templates are empty (delete the match), the `contenteditable`
+/// rule keeps its captured tag prefix.
+///
+/// Typing surfaces (`<input>`, `<textarea>`, `<select>`, `<button>`,
+/// `contenteditable`) are stripped because a plain HTML form control is
+/// focusable and editable even with JS off: a click into one would put the
+/// in-page caret behind the bare-key routing in `ArticleWebView`, so typing
+/// r/b there would act instead of type. Stripping makes "bare keys never
+/// fire while typing" true by construction — and forms are dead weight in a
+/// JS-off reading pane anyway (B opens the article in the browser).
+nonisolated private let articleHTMLSanitizerPatterns: [(pattern: String, template: String)] = [
+  ("<style[^>]*>[\\s\\S]*?</style>", ""),
+  ("<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>", ""),
+  ("<script[^>]*>[\\s\\S]*?</script>", ""),
+  ("<input[^>]*>", ""),
+  ("<textarea[^>]*>[\\s\\S]*?</textarea>", ""),
+  ("<select[^>]*>[\\s\\S]*?</select>", ""),
+  ("<button[^>]*>[\\s\\S]*?</button>", ""),
+  ("\\s+on\\w+\\s*=\\s*\"[^\"]*\"", ""),
+  ("\\s+on\\w+\\s*=\\s*'[^']*'", ""),
+  ("\\s+style\\s*=\\s*\"[^\"]*\"", ""),
+  ("\\s+style\\s*=\\s*'[^']*'", ""),
+  // `contenteditable` turns any element into a typing surface. The rule is
+  // anchored inside a tag via the captured prefix (`[^>]*?` cannot cross a
+  // `>`), so the word "contenteditable" in article prose is never touched;
+  // covers double-quoted, single-quoted, unquoted, and bare-attribute forms.
+  // The lookahead keeps `contenteditable`-prefixed attribute names intact.
+  (
+    "(<[a-zA-Z][^>]*?)\\s+contenteditable(?![\\w-])(\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+))?",
+    "$1"
+  ),
 ]
 
 nonisolated func stripFeedStyles(_ html: String) -> String {
-  articleHTMLSanitizerPatterns.reduce(html) { result, pattern in
-    result.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+  articleHTMLSanitizerPatterns.reduce(html) { result, rule in
+    result.replacingOccurrences(
+      of: rule.pattern, with: rule.template,
+      options: [.regularExpression, .caseInsensitive])
   }
 }
