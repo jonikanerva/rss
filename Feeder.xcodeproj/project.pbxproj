@@ -29,9 +29,22 @@
 		A1B2C3E82F5A0001000FEED1 /* FeederUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FeederUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1B2C3FA2F5A0001000FEED1 /* Exceptions for "Feeder" folder in "FeederUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Views/EntryRowMetrics.swift,
+			);
+			target = A1B2C3E72F5A0001000FEED1 /* FeederUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A1B2C3DA2F5A0001000FEED1 /* Feeder */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1B2C3FA2F5A0001000FEED1 /* Exceptions for "Feeder" folder in "FeederUITests" target */,
+			);
 			path = Feeder;
 			sourceTree = "<group>";
 		};
