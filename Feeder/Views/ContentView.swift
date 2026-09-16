@@ -43,6 +43,15 @@ struct ContentView: View {
   /// twelve categories to render a real three-pane reading state.
   private static let headlessSeedEntryCount = 120
 
+  /// Content-column (article list) width bound (issue #170). 320 keeps a
+  /// two-line title plus the time column readable at the default text size;
+  /// 400 is the width the owner drags the column to; 600 keeps the detail
+  /// pane above half the window at common window widths. HIG (macOS split
+  /// views): "Set reasonable defaults for minimum and maximum pane sizes."
+  private static let contentColumnMinWidth: CGFloat = 320
+  private static let contentColumnIdealWidth: CGFloat = 400
+  private static let contentColumnMaxWidth: CGFloat = 600
+
   @Environment(SyncEngine.self)
   private var syncEngine
   @Environment(ClassificationEngine.self)
@@ -169,41 +178,54 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      if let selection {
-        entryListForSelection(selection)
-          .focused($panelFocus, equals: .articleList)
-          .environment(\.pendingReadIDs, pendingReadIDs)
-          .navigationTitle(navigationTitle)
-          .toolbar {
-            ToolbarItem(placement: .automatic) {
-              Picker("Filter", selection: $articleFilter) {
-                ForEach(ArticleFilter.allCases, id: \.self) { filter in
-                  Text(filter.rawValue).tag(filter)
+      // One `Group` so BOTH branches carry the same column-width preference.
+      // The bound is a preference, not a memory: the docs promise no
+      // persistence of a dragged width, and on macOS 27 the content column
+      // was observed snapping back to about 200 pt at random (issue #170).
+      // `min` makes that state unreachable; `ideal` is the owner's dragged
+      // width, so an undocumented reset lands where the reader wants it;
+      // `max` keeps the detail pane above half the window at common widths.
+      // The values do NOT follow the text size (ux decision, issue #170).
+      Group {
+        if let selection {
+          entryListForSelection(selection)
+            .focused($panelFocus, equals: .articleList)
+            .environment(\.pendingReadIDs, pendingReadIDs)
+            .navigationTitle(navigationTitle)
+            .toolbar {
+              ToolbarItem(placement: .automatic) {
+                Picker("Filter", selection: $articleFilter) {
+                  ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                  }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityIdentifier("article.filter")
               }
-              .pickerStyle(.segmented)
-              .labelsHidden()
-              .accessibilityIdentifier("article.filter")
-            }
-            ToolbarItem(placement: .automatic) {
-              Button {
-                markAllAsRead()
-              } label: {
-                Image(systemName: "checkmark")
+              ToolbarItem(placement: .automatic) {
+                Button {
+                  markAllAsRead()
+                } label: {
+                  Image(systemName: "checkmark")
+                }
+                .disabled(articleFilter == .read)
+                .help("Mark all as read (⇧A)")
+                .accessibilityIdentifier("toolbar.markAllRead")
               }
-              .disabled(articleFilter == .read)
-              .help("Mark all as read (⇧A)")
-              .accessibilityIdentifier("toolbar.markAllRead")
             }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
+        } else {
+          ContentUnavailableView {
+            Label("No Category", systemImage: "newspaper")
+          } description: {
+            Text("Select a category from the sidebar.")
           }
-          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
-      } else {
-        ContentUnavailableView {
-          Label("No Category", systemImage: "newspaper")
-        } description: {
-          Text("Select a category from the sidebar.")
         }
       }
+      .navigationSplitViewColumnWidth(
+        min: Self.contentColumnMinWidth, ideal: Self.contentColumnIdealWidth,
+        max: Self.contentColumnMaxWidth)
     } detail: {
       detailView
     }
