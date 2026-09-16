@@ -10,6 +10,10 @@ import os.signpost
 /// row performs zero store access on MainActor. The optimistic
 /// `pendingReadIDs` overlay dims a just-opened row before the committed
 /// `isRead` lands in a refetched DTO.
+///
+/// Layout constants live in `EntryRowMetrics` (issue #170): every text slot
+/// reserves its full line count, so the row's natural height equals the
+/// list's row-height floor (`AppFontSettings.entryRowHeight`).
 struct EntryRowView: View {
   let row: EntryRowDTO
   let faviconImage: NSImage?
@@ -29,25 +33,23 @@ struct EntryRowView: View {
     return HStack(alignment: .top, spacing: 15) {
       // Favicon — own vertical column
       FaviconView(image: faviconImage, fallbackLetter: row.feedInitial)
-        .frame(width: 24, height: 24)
-        .padding(.top, 2)
+        .frame(width: EntryRowMetrics.faviconSize, height: EntryRowMetrics.faviconSize)
+        .padding(.top, EntryRowMetrics.faviconTopPadding)
 
-      // All text content aligned to the right of the icon
-      VStack(alignment: .leading, spacing: 3) {
-        // Feed name + time
+      // All text content aligned to the right of the icon. Every slot is
+      // always present and reserves its full line count (issue #170), so
+      // the row's natural height equals the list's row-height floor and a
+      // lost row re-measure in the AppKit bridge cannot clip anything.
+      VStack(alignment: .leading, spacing: EntryRowMetrics.textSpacing) {
+        // Title + time
         HStack(alignment: .top, spacing: 5) {
           Text(row.title ?? "Untitled")
             .font(fontSettings.rowTitle)
-            // The semibold/regular swap on `isRead` shifts row height by a
-            // sub-point on the same frame the read state flips. The shift
-            // is now hidden by `ContentView`'s yield-then-insert microtask
-            // on `pendingReadIDs` (one frame later, off the selection-commit
-            // critical path) and any residual reflow is recentred by
-            // `EntryListView`'s post-refresh `ScrollViewReader.scrollTo`.
-            // Don't drop the weight — it carries the unread/read visual
-            // hierarchy the rest of the row design depends on.
+            // The semibold/regular swap on `isRead` carries the unread/read
+            // visual hierarchy the rest of the row design depends on. Its
+            // sub-point height jitter is absorbed by the reserved slot.
             .fontWeight(isRead ? .regular : .semibold)
-            .lineLimit(2)
+            .lineLimit(EntryRowMetrics.titleLineLimit, reservesSpace: true)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
           Spacer()
@@ -57,23 +59,25 @@ struct EntryRowView: View {
             .foregroundStyle(.tertiary)
         }
 
-        if let domain = row.displayDomain, !domain.isEmpty {
-          Text(domain.lowercased())
-            .font(fontSettings.rowFeedName)
-            .foregroundStyle(FontTheme.domainPillColor)
-        }
+        // Domain line. An empty string still reserves the line; a long
+        // domain truncates in the middle instead of wrapping so the slot
+        // stays one line tall.
+        Text(row.displayDomain?.lowercased() ?? "")
+          .font(fontSettings.rowFeedName)
+          .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
+          .truncationMode(.middle)
+          .foregroundStyle(FontTheme.domainPillColor)
 
         // Summary excerpt (summary-preferred / plainText fallback, applied at
-        // projection time by `rowExcerpt`)
-        if !row.excerpt.isEmpty {
-          Text(row.excerpt)
-            .font(fontSettings.rowSummary)
-            .lineLimit(2)
-            .foregroundStyle(.tertiary)
-        }
+        // projection time by `rowExcerpt`). An empty excerpt still reserves
+        // its two lines.
+        Text(row.excerpt)
+          .font(fontSettings.rowSummary)
+          .lineLimit(EntryRowMetrics.excerptLineLimit, reservesSpace: true)
+          .foregroundStyle(.tertiary)
       }
     }
-    .padding(.vertical, 4)
+    .padding(.vertical, EntryRowMetrics.verticalPadding)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(isRead ? (row.title ?? "Untitled") : "Unread, \(row.title ?? "Untitled")")
     .accessibilityIdentifier("entry.row.\(row.feedbinEntryID)")

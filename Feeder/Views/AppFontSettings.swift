@@ -42,8 +42,18 @@ final class AppFontSettings {
     didSet {
       guard textSize != oldValue else { return }
       userDefaults.set(textSize.rawValue, forKey: appTextSizeUserDefaultsKey)
+      entryRowHeight = Self.computeEntryRowHeight(scale: textSize.scaleFactor)
     }
   }
+
+  /// Row-height floor for the article list (`defaultMinListRowHeight` on the
+  /// `EntryListView` list; issue #170). Equals the natural height of a full
+  /// `EntryRowView` — two title lines, one domain line, two excerpt lines,
+  /// spacing and padding — at the current text size, so every row is
+  /// exactly this tall. STORED, not computed: the font-metric reads happen
+  /// only when `textSize` changes (a Settings-frequency event), never in a
+  /// view `body` (`STACK.md § 0 / § 4`).
+  private(set) var entryRowHeight: CGFloat
 
   /// Backing store for `textSize` persistence. Defaults to
   /// `UserDefaults.standard` in shipped code; tests pass a per-suite store
@@ -73,6 +83,7 @@ final class AppFontSettings {
   init(textSize: AppTextSize, userDefaults: UserDefaults = .standard) {
     self.userDefaults = userDefaults
     self.textSize = textSize
+    self.entryRowHeight = Self.computeEntryRowHeight(scale: textSize.scaleFactor)
   }
 
   // MARK: - Scaling
@@ -80,6 +91,16 @@ final class AppFontSettings {
   private var scale: CGFloat { textSize.scaleFactor }
 
   private func scaled(_ baseSize: CGFloat) -> CGFloat { baseSize * scale }
+
+  // MARK: - Row metrics
+
+  /// Row-height floor for the current `textSize`, from the row fonts' line
+  /// heights and the `EntryRowMetrics` layout constants. Called from `init`
+  /// and the `textSize` setter only — three `NSFont` metric reads per
+  /// Settings-frequency event, never per row and never in a `body`.
+  private static func computeEntryRowHeight(scale: CGFloat) -> CGFloat {
+    EntryRowMetrics.rowHeightFloor(scale: scale)
+  }
 
   // MARK: - Article reading surfaces
 
@@ -119,18 +140,18 @@ final class AppFontSettings {
   /// unread, regular for read) — call sites use `.fontWeight(_:)` which
   /// overrides the weight set here.
   /// Mirrors `.headline` at 13pt base, semibold.
-  var rowTitle: Font { .system(size: scaled(13), weight: .semibold) }
+  var rowTitle: Font { .system(size: scaled(EntryRowMetrics.titleBaseSize), weight: .semibold) }
 
   /// Row summary excerpt below the title.
   /// Mirrors `.callout` at 12pt base.
-  var rowSummary: Font { .system(size: scaled(12)) }
+  var rowSummary: Font { .system(size: scaled(EntryRowMetrics.summaryBaseSize)) }
 
   /// Uppercase feed name / timestamp footer beneath a row.
   /// Mirrors `.caption` at 12pt base — bumped from 10pt so the Small text-size
   /// setting (× 0.85) lands at ~10.2pt, keeping uppercase utility text above
   /// the macOS HIG ~10pt legibility floor where uppercase + sub-9pt is the
   /// worst-readability combination.
-  var rowFeedName: Font { .system(size: scaled(12)) }
+  var rowFeedName: Font { .system(size: scaled(EntryRowMetrics.metaBaseSize)) }
 
   // MARK: - Sheets, settings, metadata
 

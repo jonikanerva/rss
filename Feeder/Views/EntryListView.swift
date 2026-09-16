@@ -266,6 +266,14 @@ struct EntryListView: View {
                   .tag(row.persistentID)
                   .id(row.persistentID)
                   .listRowSeparator(.hidden)
+                  // Zero vertical inset (issue #170): the row's own padding
+                  // carries the rhythm, so the table's row height equals the
+                  // row content height and the floor below matches it exactly.
+                  .listRowInsets(
+                    EdgeInsets(
+                      top: 0, leading: EntryRowMetrics.horizontalInset,
+                      bottom: 0, trailing: EntryRowMetrics.horizontalInset)
+                  )
                   // Keyboard-parity append trigger (issue #155): the trigger
                   // row's appearance fires for scroll AND for J/K row
                   // navigation — `List` materialises the row either way. A
@@ -284,6 +292,16 @@ struct EntryListView: View {
             }
           }
           .listStyle(.inset(alternatesRowBackgrounds: false))
+          // Row-height floor (issue #170). On macOS 27 the NSTableView-backed
+          // `List` sometimes keeps its fallback row height and never applies
+          // the measured height until a scroll re-tiles, so rows render at
+          // about 24 pt with the content clipped. The docs bound row height
+          // below by `defaultMinListRowHeight`; with the floor equal to the
+          // row's natural height (every `EntryRowView` slot reserves its
+          // lines), a lost re-measure has nothing left to change. A floor,
+          // never a cap: rows are never given a fixed `.frame(height:)`.
+          // Scoped to this `List` only; the sidebar keeps the system value.
+          .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
           .preference(key: VisibleEntriesKey.self, value: visibleEntries)
@@ -721,6 +739,124 @@ struct EntryListView: View {
 
 #Preview("Empty - No Articles (at rest)") {
   EntryListEmptyAtRestPreview()
+}
+
+// Row matrix (issue #170): the row-height floor at every text size, in the
+// narrowest content column (320 pt). Each list holds the six row shapes the
+// floor must equalise: 2-line title, 1-line title, no domain, empty excerpt,
+// a long domain (middle truncation), and a read row (dimmed via the
+// `pendingReadIDs` overlay). Every row must be exactly `entryRowHeight` tall.
+
+#Preview("Row Matrix - Small") {
+  EntryListRowMatrixPreview(textSize: .small)
+}
+
+#Preview("Row Matrix - Medium") {
+  EntryListRowMatrixPreview(textSize: .medium)
+}
+
+#Preview("Row Matrix - Large") {
+  EntryListRowMatrixPreview(textSize: .large)
+}
+
+#Preview("Row Matrix - Extra Large") {
+  EntryListRowMatrixPreview(textSize: .xLarge)
+}
+
+#Preview("Row Matrix - Huge") {
+  EntryListRowMatrixPreview(textSize: .xxLarge)
+}
+
+#Preview("Row Matrix - Medium, Dark") {
+  EntryListRowMatrixPreview(textSize: .medium)
+    .preferredColorScheme(.dark)
+}
+
+/// Seeds six `apple` rows covering the row shapes above and renders
+/// `EntryListView` at the 320-pt minimum column width with the given text
+/// size. Row 1005 is unread in the store but sits in `pendingReadIDs`, so
+/// it renders as read inside the unread filter.
+@MainActor
+private struct EntryListRowMatrixPreview: View {
+  let textSize: AppTextSize
+  @State
+  private var reader: DataReader?
+  @State
+  private var selectedEntryID: PersistentIdentifier?
+  private let container: ModelContainer = {
+    let container = PreviewSupport.makeContainer()
+    let context = container.mainContext
+    let feed = Feed(
+      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "Matrix Feed",
+      feedURL: "https://matrix.example.com/feed", siteURL: "https://matrix.example.com",
+      createdAt: .now)
+    context.insert(feed)
+    let shapes: [(id: Int, title: String, domain: String?, excerpt: String)] = [
+      (
+        1001, "A title long enough to wrap onto a second line in a narrow column",
+        "matrix.example.com", "Two lines of excerpt text so the summary slot is full at this width."
+      ),
+      (1002, "Short title", "matrix.example.com", "One short excerpt."),
+      (1003, "No domain on this row", nil, "The domain slot stays reserved and empty."),
+      (1004, "Empty excerpt on this row", "matrix.example.com", ""),
+      (
+        1005, "Read row, dimmed by the overlay", "matrix.example.com",
+        "Weight swap to regular must not change the row height."
+      ),
+      (
+        1006, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
+        "The domain slot stays one line tall."
+      ),
+    ]
+    for (offset, shape) in shapes.enumerated() {
+      let published = Date.now.addingTimeInterval(-Double(offset + 1) * 600)
+      let entry = Entry(
+        feedbinEntryID: shape.id, title: shape.title, author: "Bot",
+        url: "https://matrix.example.com/\(shape.id)", content: "<p>\(shape.excerpt)</p>",
+        summary: shape.excerpt, extractedContentURL: nil, publishedAt: published, createdAt: published)
+      entry.feed = feed
+      entry.primaryCategory = "apple"
+      entry.primaryFolder = "technology"
+      entry.isClassified = true
+      entry.formattedDate = formatEntryDate(published)
+      entry.formattedPublishedTime = formatEntryTime(published)
+      entry.displayDomain = shape.domain
+      entry.plainText = shape.excerpt
+      entry.summaryPlainText = shape.excerpt
+      context.insert(entry)
+    }
+    try? context.save()
+    return container
+  }()
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntryID: $selectedEntryID,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(\.pendingReadIDs, [1005])
+    .environment(SyncEngine())
+    .environment(AppFontSettings(textSize: textSize))
+    .environment(FaviconStore())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: 320, height: 720)
+  }
 }
 
 /// Renders `EntryListView` in the offline-empty state: container is seeded
