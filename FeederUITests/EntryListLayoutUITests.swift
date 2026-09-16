@@ -3,15 +3,17 @@ import XCTest
 /// Deterministic layout invariants for the article list (issue #170), one
 /// trial each. The N=30 measurement that sized these lives on the issue.
 ///
-/// - The content column never renders narrower than its minimum width, after
-///   a sidebar toggle and after a divider drag toward the sidebar.
+/// - The content column stays inside its width bound (320...600) after a
+///   sidebar toggle, after a window resize, and after a divider drag toward
+///   the sidebar.
 /// - After the empty-category -> populated-category swap (the transition
 ///   that reproduced clipped rows in 26 of 30 trials before the fix), the row
 ///   pitch equals the row-height floor: the floor is the row height, so a
 ///   lost row re-measure in the `List` bridge has nothing left to clip.
 final class EntryListLayoutUITests: XCTestCase {
-  /// `ContentView.contentColumnMinWidth`.
+  /// `ContentView.contentColumnMinWidth` / `contentColumnMaxWidth`.
   private static let contentColumnMinWidth: CGFloat = 320
+  private static let contentColumnMaxWidth: CGFloat = 600
   /// Tolerance for point values read through the accessibility frames.
   private static let tolerance: CGFloat = 0.5
 
@@ -20,22 +22,29 @@ final class EntryListLayoutUITests: XCTestCase {
   }
 
   @MainActor
-  func testContentColumnKeepsMinimumWidthAfterSidebarToggleAndDividerDrag() throws {
+  func testContentColumnStaysInsideWidthBoundAfterToggleResizeAndDrag() throws {
     let app = launchDemo()
     selectCategory(app, "apple", waitForRow: "1001")
     let list = app.descendants(matching: .any)["timeline.list"]
     XCTAssertTrue(list.waitForExistence(timeout: 5))
-    XCTAssertGreaterThanOrEqual(list.frame.width, Self.contentColumnMinWidth - Self.tolerance, "initial width")
+    assertColumnWidthInsideBound(list, "initial")
 
     toggleSidebar(app)
     toggleSidebar(app)
     XCTAssertTrue(app.staticTexts["sidebar.category.apple"].waitForExistence(timeout: 5))
     XCTAssertTrue(list.waitForExistence(timeout: 5))
-    XCTAssertGreaterThanOrEqual(list.frame.width, Self.contentColumnMinWidth - Self.tolerance, "after sidebar toggle x2")
+    assertColumnWidthInsideBound(list, "after sidebar toggle x2")
+
+    resizeWindow(app, by: -150)
+    XCTAssertTrue(list.waitForExistence(timeout: 5))
+    assertColumnWidthInsideBound(list, "after window shrink")
+    resizeWindow(app, by: 150)
+    XCTAssertTrue(list.waitForExistence(timeout: 5))
+    assertColumnWidthInsideBound(list, "after window restore")
 
     dragContentDivider(app, list: list, by: -200)
     XCTAssertTrue(list.waitForExistence(timeout: 5))
-    XCTAssertGreaterThanOrEqual(list.frame.width, Self.contentColumnMinWidth - Self.tolerance, "after divider drag toward the sidebar")
+    assertColumnWidthInsideBound(list, "after divider drag toward the sidebar")
   }
 
   @MainActor
@@ -57,6 +66,25 @@ final class EntryListLayoutUITests: XCTestCase {
   }
 
   // MARK: - Helpers
+
+  @MainActor
+  private func assertColumnWidthInsideBound(_ list: XCUIElement, _ step: String) {
+    let width = list.frame.width
+    XCTAssertGreaterThanOrEqual(width, Self.contentColumnMinWidth - Self.tolerance, step)
+    XCTAssertLessThanOrEqual(width, Self.contentColumnMaxWidth + Self.tolerance, step)
+  }
+
+  /// Drag the window's trailing edge by `delta` points (negative = narrower).
+  @MainActor
+  private func resizeWindow(_ app: XCUIApplication, by delta: CGFloat) {
+    let window = app.windows.firstMatch
+    let frame = window.frame
+    let start = window.coordinate(withNormalizedOffset: .zero)
+      .withOffset(CGVector(dx: frame.width - 1, dy: frame.height / 2))
+    let end = start.withOffset(CGVector(dx: delta, dy: 0))
+    start.press(forDuration: 0.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+    Thread.sleep(forTimeInterval: 0.5)
+  }
 
   @MainActor
   private func launchDemo() -> XCUIApplication {
