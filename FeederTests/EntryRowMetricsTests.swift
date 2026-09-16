@@ -68,7 +68,7 @@ struct EntryRowMetricsTests {
   @MainActor
   func entryRowHeightMediumShape() {
     let settings = makeSettings(.medium)
-    // 13 pt and 12 pt system fonts have 16 pt and 15 pt default line heights.
+    // 13 pt and 12 pt system fonts: ascender - descender + leading rounds up to 16 pt and 15 pt.
     let expected = EntryRowMetrics.rowHeight(titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 15)
     #expect(settings.entryRowHeight == expected)
   }

@@ -42,14 +42,13 @@ nonisolated enum EntryRowMetrics {
   static let horizontalInset: CGFloat = 17
   static let faviconSize: CGFloat = 24
   static let faviconTopPadding: CGFloat = 2
-  /// Head-room above the summed `NSLayoutManager` line heights. SwiftUI lays
-  /// the reserved text slots out up to 5 pt taller than that sum (measured
-  /// headlessly by `EntryRowGeometryTests` on macOS 27: +5 at `.small` in a
-  /// 320-pt column, +3 at `.xLarge`, +2 at `.large` and `.xxLarge`, 0 at
-  /// `.medium`). 6 keeps the floor at or above the rendered height at every
-  /// text size, so the floor wins for every row; the same test pins the
-  /// slack to at most 6 pt so the floor cannot drift high either.
-  static let rowHeightMargin: CGFloat = 6
+  /// Head-room above the summed line heights. SwiftUI lays a reserved text
+  /// slot out at most a whole point taller than the rounded-up font line
+  /// height; the margin keeps the floor at or above the rendered height so
+  /// the floor wins for every row. `EntryRowGeometryTests` measures the
+  /// fullest row headlessly at every text size and pins the slack to
+  /// 0...6 pt, so the margin can neither fall short nor drift high.
+  static let rowHeightMargin: CGFloat = 2
 
   // MARK: - Derivation
 
@@ -71,15 +70,15 @@ nonisolated enum EntryRowMetrics {
   }
 
   /// Row-height floor at a text-size `scale` (`AppTextSize.scaleFactor`).
-  /// `NSLayoutManager.defaultLineHeight(for:)` is the AppKit source for a
-  /// font's line height; SwiftUI `Font.system(size:weight:)` resolves to the
-  /// same `NSFont.systemFont` on macOS. Each line height is rounded UP to a
-  /// whole point so the floor is never below the rendered text.
+  /// Each line height is the font's own metrics, `ascender - descender +
+  /// leading`, rounded UP to a whole point — the line height SwiftUI's text
+  /// layout uses on macOS (`NSLayoutManager.defaultLineHeight(for:)` was
+  /// rejected: its docs say the value varies with typesetter behaviour).
+  /// `Font.system(size:weight:)` resolves to the same `NSFont.systemFont`.
   static func rowHeightFloor(scale: CGFloat) -> CGFloat {
-    let layoutManager = NSLayoutManager()
     func lineHeight(_ baseSize: CGFloat, weight: NSFont.Weight) -> CGFloat {
       let font = NSFont.systemFont(ofSize: baseSize * scale, weight: weight)
-      return ceil(layoutManager.defaultLineHeight(for: font))
+      return ceil(font.ascender - font.descender + font.leading)
     }
     return rowHeight(
       titleLineHeight: lineHeight(titleBaseSize, weight: .semibold),
