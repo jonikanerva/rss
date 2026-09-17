@@ -11,9 +11,13 @@ import os.signpost
 /// `pendingReadIDs` overlay dims a just-opened row before the committed
 /// `isRead` lands in a refetched DTO.
 ///
-/// Layout constants live in `EntryRowMetrics` (issue #170): every text slot
-/// reserves its full line count, so the row's natural height equals the
-/// list's row-height floor (`AppFontSettings.entryRowHeight`).
+/// Layout constants live in `EntryRowMetrics` (issue #170). The text column
+/// has a FIXED height (`AppFontSettings.entryRowTextColumnHeight`), so the
+/// row's natural height equals the list's row-height floor minus the margin
+/// for every content shape. Inside the column the title takes one or two
+/// lines, the domain keeps its reserved line, and the summary fills the rest:
+/// three lines under a one-line title, two under a two-line title. Only the
+/// summary yields, by ellipsis truncation at a line end; nothing is clipped.
 struct EntryRowView: View {
   let row: EntryRowDTO
   let faviconImage: NSImage?
@@ -30,26 +34,33 @@ struct EntryRowView: View {
     // the List rebuilds every row or only the visible ones. Mirrors the SwiftUI
     // `Self._printChanges()` body-diagnostic idiom; zero-cost with no profiler.
     let _ = perfSignposter.emitEvent(PerformanceSignpostName.rowBodyBuild)
-    return HStack(alignment: .top, spacing: 15) {
+    return HStack(alignment: .top, spacing: EntryRowMetrics.faviconSpacing) {
       // Favicon — own vertical column
       FaviconView(image: faviconImage, fallbackLetter: row.feedInitial)
         .frame(width: EntryRowMetrics.faviconSize, height: EntryRowMetrics.faviconSize)
         .padding(.top, EntryRowMetrics.faviconTopPadding)
 
-      // All text content aligned to the right of the icon. Every slot is
-      // always present and reserves its full line count (issue #170), so
-      // the row's natural height equals the list's row-height floor and a
-      // lost row re-measure in the AppKit bridge cannot clip anything.
+      // All text content aligned to the right of the icon. The column has a
+      // FIXED height (issue #170), so the row's natural height is the same
+      // for every content shape and a lost row re-measure in the AppKit
+      // bridge cannot clip anything. Layout priorities settle the split:
+      // the title row (2) is offered the column minus the other slots'
+      // minimum heights and takes one or two lines; the domain (1) takes
+      // its reserved line; the summary (0) receives the exact remainder and
+      // truncates with an ellipsis at a line end. With equal priorities
+      // SwiftUI would split the free space evenly between the title and
+      // the summary, and a two-line title would collapse to one line at
+      // every text size.
       VStack(alignment: .leading, spacing: EntryRowMetrics.textSpacing) {
         // Title + time
-        HStack(alignment: .top, spacing: 5) {
+        HStack(alignment: .top, spacing: EntryRowMetrics.titleTimeSpacing) {
           Text(row.title ?? "Untitled")
             .font(fontSettings.rowTitle)
             // The semibold/regular swap on `isRead` carries the unread/read
-            // visual hierarchy the rest of the row design depends on. Its
-            // sub-point height jitter is absorbed by the reserved slot.
+            // visual hierarchy the rest of the row design depends on. It has
+            // no height effect: both weights report the same line metrics.
             .fontWeight(isRead ? .regular : .semibold)
-            .lineLimit(EntryRowMetrics.titleLineLimit, reservesSpace: true)
+            .lineLimit(EntryRowMetrics.titleLineLimit)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
 
           Spacer()
@@ -58,24 +69,31 @@ struct EntryRowView: View {
             .font(fontSettings.rowFeedName)
             .foregroundStyle(.tertiary)
         }
+        .layoutPriority(2)
 
-        // Domain line. An empty string still reserves the line; a long
-        // domain truncates in the middle instead of wrapping so the slot
-        // stays one line tall.
-        Text(row.displayDomain?.lowercased() ?? "")
+        // Domain line. A row without a domain renders the placeholder space,
+        // which reserves the font's own line height (an empty string would
+        // reserve 14 pt at every size), so the space left for the summary is
+        // the same with and without a domain; a long domain truncates in the
+        // middle instead of wrapping so the slot stays one line tall.
+        Text(row.displayDomain?.lowercased() ?? EntryRowMetrics.reservedDomainPlaceholder)
           .font(fontSettings.rowFeedName)
           .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
           .truncationMode(.middle)
           .foregroundStyle(FontTheme.domainPillColor)
+          .layoutPriority(1)
 
         // Summary excerpt (summary-preferred / plainText fallback, applied at
-        // projection time by `rowExcerpt`). An empty excerpt still reserves
-        // its two lines.
+        // projection time by `rowExcerpt`). Fills the rest of the column:
+        // three lines under a one-line title, two under a two-line title
+        // (`excerptLineLimit`). An empty excerpt leaves its blank space at
+        // the bottom of the column, never between the title and the domain.
         Text(row.excerpt)
           .font(fontSettings.rowSummary)
-          .lineLimit(EntryRowMetrics.excerptLineLimit, reservesSpace: true)
+          .lineLimit(EntryRowMetrics.excerptLineLimit)
           .foregroundStyle(.tertiary)
       }
+      .frame(height: fontSettings.entryRowTextColumnHeight, alignment: .top)
     }
     .padding(.vertical, EntryRowMetrics.verticalPadding)
     .accessibilityElement(children: .combine)
@@ -148,6 +166,23 @@ struct FaviconView: View {
   entryRowPreview(row: unreadPreviewRow(), fontSettings: AppFontSettings())
 }
 
+#Preview("Short Title — Three Excerpt Lines") {
+  // A one-line title leaves one title line free; the summary takes it and
+  // shows three lines, the third with an ellipsis. No blank line between
+  // the title and the domain; the row is as tall as the two-line case.
+  entryRowPreview(
+    row: shortTitlePreviewRow(), fontSettings: AppFontSettings(), faviconImage: previewFaviconImage())
+}
+
+#Preview("Short Title — Three Excerpt Lines, Huge Text") {
+  // Same shape at the largest text size: the third summary line still fits
+  // (the title line height is at least the summary line height at every
+  // size, `EntryRowMetricsTests`).
+  entryRowPreview(
+    row: shortTitlePreviewRow(), fontSettings: AppFontSettings(textSize: .xxLarge),
+    faviconImage: previewFaviconImage())
+}
+
 /// A programmatically drawn stand-in favicon so the base previews cover the
 /// favicon-image SUCCESS state — `FaviconStore`'s primary render state — while
 /// the Initials Fallback preview keeps the distinct nil-image case.
@@ -177,6 +212,25 @@ private func unreadPreviewRow() -> EntryRowDTO {
     excerpt: "Coffee Stain is closing its mobile development arm in Malmö, Sweden.",
     isRead: false,
     publishedAt: .now.addingTimeInterval(-3600),
+    feedFeedbinID: 1,
+    feedInitial: "M"
+  )
+}
+
+@MainActor
+private func shortTitlePreviewRow() -> EntryRowDTO {
+  EntryRowDTO(
+    persistentID: PreviewSupport.mintEntryIdentifiers(count: 1)[0],
+    feedbinEntryID: 3,
+    title: "Coffee Stain closes studio",
+    formattedPublishedTime: "10.15",
+    displayDomain: "mobilegamer.biz",
+    excerpt:
+      "Coffee Stain is closing its mobile development arm in Malmö, Sweden, after a review of its "
+      + "publishing plans. The studio's current projects move to the parent company, and the team of "
+      + "about thirty people is offered roles elsewhere in the group.",
+    isRead: false,
+    publishedAt: .now.addingTimeInterval(-1800),
     feedFeedbinID: 1,
     feedInitial: "M"
   )

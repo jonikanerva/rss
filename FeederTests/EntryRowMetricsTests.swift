@@ -3,13 +3,21 @@ import Testing
 
 @testable import Feeder
 
-/// Pins the article-row height floor (issue #170): the pure arithmetic in
-/// `EntryRowMetrics.rowHeight`, the floor derivation `rowHeightFloor(scale:)`,
-/// the stored `AppFontSettings.entryRowHeight` at every text size, and the
-/// recompute on a text-size change.
+/// Pins the article-row geometry (issue #170): the pure arithmetic in
+/// `EntryRowMetrics.textColumnHeight` and `rowHeight`, the line-height
+/// derivation and its precondition for the title / summary split, the stored
+/// `AppFontSettings.entryRowHeight` and `entryRowTextColumnHeight` at every
+/// text size, and the recompute on a text-size change.
 @Suite("Entry row metrics")
 struct EntryRowMetricsTests {
   private static let suiteName = "EntryRowMetricsTests"
+
+  /// Fixed text-column height per text size: 2 title lines + 3 + 1 domain
+  /// line + 3 + 2 summary lines, from the `NSFont` line heights
+  /// (14/13/13, 16/15/15, 18/17/17, 20/19/19, 23/22/22).
+  private static let textColumnHeights: [AppTextSize: CGFloat] = [
+    .small: 73, .medium: 83, .large: 93, .xLarge: 103, .xxLarge: 118,
+  ]
 
   @MainActor
   private func makeSettings(_ size: AppTextSize) -> AppFontSettings {
@@ -18,16 +26,23 @@ struct EntryRowMetricsTests {
     return AppFontSettings(textSize: size, userDefaults: defaults)
   }
 
-  // MARK: - rowHeight arithmetic
+  // MARK: - Arithmetic
 
-  @Test("rowHeight sums two title lines, one meta line, two summary lines, gaps, padding and margin")
+  @Test("textColumnHeight sums two title lines, one meta line, two summary lines and the gaps")
+  func textColumnHeightArithmetic() {
+    let height = EntryRowMetrics.textColumnHeight(
+      titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 15)
+    let expected: CGFloat = 2 * 16 + EntryRowMetrics.textSpacing + 15 + EntryRowMetrics.textSpacing + 2 * 15
+    #expect(height == expected)
+  }
+
+  @Test("rowHeight is the text column plus padding and margin")
   func rowHeightArithmetic() {
     let height = EntryRowMetrics.rowHeight(
       titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 15)
-    let expected: CGFloat =
-      2 * 16 + EntryRowMetrics.textSpacing + 15 + EntryRowMetrics.textSpacing + 2 * 15
-      + 2 * EntryRowMetrics.verticalPadding + EntryRowMetrics.rowHeightMargin
-    #expect(height == expected)
+    let textColumn = EntryRowMetrics.textColumnHeight(
+      titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 15)
+    #expect(height == textColumn + 2 * EntryRowMetrics.verticalPadding + EntryRowMetrics.rowHeightMargin)
   }
 
   @Test("rowHeight never drops below the favicon column")
@@ -45,7 +60,48 @@ struct EntryRowMetricsTests {
     #expect(EntryRowMetrics.rowHeight(titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 16) > base)
   }
 
-  // MARK: - entryRowHeight per text size
+  // MARK: - Line budget
+
+  @Test("the summary render limit is the column budget plus the free title line")
+  func excerptLineLimit() {
+    #expect(EntryRowMetrics.excerptColumnLines == 2)
+    #expect(EntryRowMetrics.titleLineLimit == 2)
+    #expect(EntryRowMetrics.excerptLineLimit == 3)
+    #expect(
+      EntryRowMetrics.excerptLineLimit
+        == EntryRowMetrics.excerptColumnLines + EntryRowMetrics.titleLineLimit - 1)
+  }
+
+  @Test(
+    "the title line height is at least the summary line height, so a free title line holds a summary line",
+    arguments: AppTextSize.allCases)
+  @MainActor
+  func titleLineHoldsSummaryLine(size: AppTextSize) {
+    let heights = EntryRowMetrics.lineHeights(scale: size.scaleFactor)
+    #expect(heights.title >= heights.summary, "\(size): \(heights)")
+    #expect(heights.title == heights.title.rounded(), "whole points only")
+    #expect(heights.meta == heights.meta.rounded(), "whole points only")
+    #expect(heights.summary == heights.summary.rounded(), "whole points only")
+  }
+
+  @Test("textColumnHeight per text size", arguments: AppTextSize.allCases)
+  @MainActor
+  func textColumnHeightPerSize(size: AppTextSize) throws {
+    let expected = try #require(Self.textColumnHeights[size])
+    #expect(EntryRowMetrics.textColumnHeight(scale: size.scaleFactor) == expected)
+  }
+
+  @Test("the floor is the text column plus padding and margin at every text size", arguments: AppTextSize.allCases)
+  @MainActor
+  func floorFromTextColumn(size: AppTextSize) {
+    let scale = size.scaleFactor
+    #expect(
+      EntryRowMetrics.rowHeightFloor(scale: scale)
+        == EntryRowMetrics.textColumnHeight(scale: scale) + 2 * EntryRowMetrics.verticalPadding
+        + EntryRowMetrics.rowHeightMargin)
+  }
+
+  // MARK: - Stored heights per text size
 
   @Test("entryRowHeight is above the 34-point content minimum at every text size", arguments: AppTextSize.allCases)
   @MainActor
@@ -79,20 +135,33 @@ struct EntryRowMetricsTests {
     #expect(makeSettings(size).entryRowHeight == EntryRowMetrics.rowHeightFloor(scale: size.scaleFactor))
   }
 
+  @Test("entryRowTextColumnHeight equals the pinned column height for the same scale", arguments: AppTextSize.allCases)
+  @MainActor
+  func entryRowTextColumnHeightPerSize(size: AppTextSize) throws {
+    let settings = makeSettings(size)
+    #expect(settings.entryRowTextColumnHeight == EntryRowMetrics.textColumnHeight(scale: size.scaleFactor))
+    #expect(settings.entryRowTextColumnHeight == (try #require(Self.textColumnHeights[size])))
+    #expect(
+      settings.entryRowHeight
+        == settings.entryRowTextColumnHeight + 2 * EntryRowMetrics.verticalPadding + EntryRowMetrics.rowHeightMargin)
+  }
+
   // MARK: - Recompute on change
 
-  @Test("entryRowHeight recomputes when textSize changes and stays put otherwise")
+  @Test("both stored heights recompute when textSize changes and stay put otherwise")
   @MainActor
-  func entryRowHeightRecomputes() {
+  func storedHeightsRecompute() {
     let settings = makeSettings(.medium)
-    let medium = settings.entryRowHeight
+    let medium = (settings.entryRowHeight, settings.entryRowTextColumnHeight)
     settings.textSize = .xxLarge
-    let huge = settings.entryRowHeight
-    #expect(huge > medium)
-    #expect(huge == makeSettings(.xxLarge).entryRowHeight)
+    let huge = (settings.entryRowHeight, settings.entryRowTextColumnHeight)
+    #expect(huge.0 > medium.0)
+    #expect(huge.1 > medium.1)
+    let fresh = makeSettings(.xxLarge)
+    #expect(huge == (fresh.entryRowHeight, fresh.entryRowTextColumnHeight))
     settings.textSize = .xxLarge
-    #expect(settings.entryRowHeight == huge)
+    #expect((settings.entryRowHeight, settings.entryRowTextColumnHeight) == huge)
     settings.textSize = .medium
-    #expect(settings.entryRowHeight == medium)
+    #expect((settings.entryRowHeight, settings.entryRowTextColumnHeight) == medium)
   }
 }

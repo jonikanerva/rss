@@ -297,9 +297,13 @@ struct EntryListView: View {
           // the measured height until a scroll re-tiles, so rows render at
           // about 24 pt with the content clipped. The docs bound row height
           // below by `defaultMinListRowHeight`; with the floor equal to the
-          // row's natural height (every `EntryRowView` slot reserves its
-          // lines), a lost re-measure has nothing left to change. A floor,
-          // never a cap: rows are never given a fixed `.frame(height:)`.
+          // row's natural height, a lost re-measure has nothing left to
+          // change. The natural height is the same for every row because
+          // the row's TEXT COLUMN has a fixed height (`EntryRowView`,
+          // `entryRowTextColumnHeight` = floor minus padding and margin) and
+          // only the summary yields inside it, by ellipsis truncation. The
+          // ROW itself has no `.frame(height:)`, so this stays a floor and
+          // never becomes a cap.
           // Scoped to this `List` only; the sidebar keeps the system value.
           .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
@@ -741,11 +745,28 @@ struct EntryListView: View {
   EntryListEmptyAtRestPreview()
 }
 
-// Row matrix (issue #170): the row-height floor at every text size, in the
-// narrowest content column (320 pt). Each list holds the six row shapes the
-// floor must equalise: 2-line title, 1-line title, no domain, empty excerpt,
-// a long domain (middle truncation), and a read row (dimmed via the
-// `pendingReadIDs` overlay). Every row must be exactly `entryRowHeight` tall.
+// Row matrix (issue #170): the row-height floor and the title / summary
+// split at every text size, in the narrowest content column (320 pt) and
+// once at the widest (600 pt). Every row must be exactly `entryRowHeight`
+// tall. The twelve row shapes, in list order:
+//   1001  one-line title, long excerpt: three summary lines, ellipsis on the
+//         third, no blank line under the title
+//   1002  two-line title, long excerpt: title keeps two lines, two summary
+//         lines with an ellipsis
+//   1003  title longer than two lines: two lines with an ellipsis, the time
+//         stays top-right
+//   1004  one-line title, NO domain, long excerpt: the domain line stays
+//         reserved and empty, three summary lines
+//   1005  one-line title, EMPTY excerpt: blank only at the row bottom
+//   1006  two-line title, EMPTY excerpt: blank only at the row bottom
+//   1007  threshold: an excerpt that fills exactly three lines with no
+//         ellipsis at medium / 320 pt
+//   1008  the same excerpt plus one word: three lines and an ellipsis
+//   1009  unread row, and 1010 its read twin (dimmed via the
+//         `pendingReadIDs` overlay): same height, same split
+//   1011  emoji in the title: the line height does not grow, the summary
+//         keeps its lines
+//   1012  long domain: middle truncation, the slot stays one line tall
 
 #Preview("Row Matrix - Small") {
   EntryListRowMatrixPreview(textSize: .small)
@@ -772,13 +793,18 @@ struct EntryListView: View {
     .preferredColorScheme(.dark)
 }
 
-/// Seeds six `apple` rows covering the row shapes above and renders
-/// `EntryListView` at the 320-pt minimum column width with the given text
-/// size. Row 1005 is unread in the store but sits in `pendingReadIDs`, so
-/// it renders as read inside the unread filter.
+#Preview("Row Matrix - Medium, 600 pt") {
+  EntryListRowMatrixPreview(textSize: .medium, width: 600)
+}
+
+/// Seeds twelve `apple` rows covering the row shapes above and renders
+/// `EntryListView` at the given content-column width (default: the 320-pt
+/// minimum) with the given text size. Row 1010 is unread in the store but
+/// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
 @MainActor
 private struct EntryListRowMatrixPreview: View {
   let textSize: AppTextSize
+  var width: CGFloat = 320
   @State
   private var reader: DataReader?
   @State
@@ -791,21 +817,37 @@ private struct EntryListRowMatrixPreview: View {
       feedURL: "https://matrix.example.com/feed", siteURL: "https://matrix.example.com",
       createdAt: .now)
     context.insert(feed)
+    let longExcerpt =
+      "A long excerpt that runs past the summary budget at every text size and every column width, "
+      + "so the last summary line ends with an ellipsis and the split between the title and the "
+      + "summary is visible: three lines under a one-line title, two lines under a two-line title, "
+      + "and the row height does not change."
+    // Exactly three lines at medium / 320 pt (measured headlessly); the next
+    // word pushes the excerpt onto a fourth line, so 1008 shows an ellipsis.
+    let threeLineExcerpt =
+      "The excerpt fills the third line to its last word so the row shows three full lines and no "
+      + "ellipsis at the medium text size in a"
+    let twinTitle = "Twin rows, unread above and read below"
+    let twinExcerpt = "The weight swap to regular changes neither the row height nor the split."
     let shapes: [(id: Int, title: String, domain: String?, excerpt: String)] = [
+      (1001, "One-line title", "matrix.example.com", longExcerpt),
+      (1002, "A title long enough to wrap onto a second line in a narrow column", "matrix.example.com", longExcerpt),
       (
-        1001, "A title long enough to wrap onto a second line in a narrow column",
-        "matrix.example.com", "Two lines of excerpt text so the summary slot is full at this width."
+        1003,
+        "A title so long that it runs past the second line and has to end with an ellipsis while the time stays top-right",
+        "matrix.example.com", longExcerpt
       ),
-      (1002, "Short title", "matrix.example.com", "One short excerpt."),
-      (1003, "No domain on this row", nil, "The domain slot stays reserved and empty."),
-      (1004, "Empty excerpt on this row", "matrix.example.com", ""),
+      (1004, "No domain on this row", nil, longExcerpt),
+      (1005, "Empty excerpt, one-line title", "matrix.example.com", ""),
+      (1006, "Empty excerpt under a title that wraps onto a second line", "matrix.example.com", ""),
+      (1007, "Threshold: three full lines", "matrix.example.com", threeLineExcerpt),
+      (1008, "Threshold plus one word", "matrix.example.com", threeLineExcerpt + " column"),
+      (1009, twinTitle, "matrix.example.com", twinExcerpt),
+      (1010, twinTitle, "matrix.example.com", twinExcerpt),
+      (1011, "Emoji in the title 🚀 keeps the line height", "matrix.example.com", longExcerpt),
       (
-        1005, "Read row, dimmed by the overlay", "matrix.example.com",
-        "Weight swap to regular must not change the row height."
-      ),
-      (
-        1006, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
-        "The domain slot stays one line tall."
+        1012, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
+        longExcerpt
       ),
     ]
     for (offset, shape) in shapes.enumerated() {
@@ -847,7 +889,7 @@ private struct EntryListRowMatrixPreview: View {
         ProgressView()
       }
     }
-    .environment(\.pendingReadIDs, [1005])
+    .environment(\.pendingReadIDs, [1010])
     .environment(SyncEngine())
     .environment(AppFontSettings(textSize: textSize))
     .environment(FaviconStore())
@@ -855,7 +897,7 @@ private struct EntryListRowMatrixPreview: View {
     .task {
       reader = await DataReader.makeDetached(modelContainer: container)
     }
-    .frame(width: 320, height: 720)
+    .frame(width: width, height: 1400)
   }
 }
 

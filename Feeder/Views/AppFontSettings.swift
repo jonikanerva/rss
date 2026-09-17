@@ -43,17 +43,26 @@ final class AppFontSettings {
       guard textSize != oldValue else { return }
       userDefaults.set(textSize.rawValue, forKey: appTextSizeUserDefaultsKey)
       entryRowHeight = Self.computeEntryRowHeight(scale: textSize.scaleFactor)
+      entryRowTextColumnHeight = Self.computeEntryRowTextColumnHeight(scale: textSize.scaleFactor)
     }
   }
 
   /// Row-height floor for the article list (`defaultMinListRowHeight` on the
-  /// `EntryListView` list; issue #170). Equals the natural height of a full
-  /// `EntryRowView` — two title lines, one domain line, two excerpt lines,
-  /// spacing and padding — at the current text size, so every row is
-  /// exactly this tall. STORED, not computed: the font-metric reads happen
-  /// only when `textSize` changes (a Settings-frequency event), never in a
-  /// view `body` (`STACK.md § 0 / § 4`).
+  /// `EntryListView` list; issue #170). Equals the natural height of an
+  /// `EntryRowView` — the fixed text column plus the vertical padding — at
+  /// the current text size, plus the `EntryRowMetrics.rowHeightMargin`, so
+  /// every row is exactly this tall. STORED, not computed: the font-metric
+  /// reads happen only when `textSize` changes (a Settings-frequency event),
+  /// never in a view `body` (`STACK.md § 0 / § 4`).
   private(set) var entryRowHeight: CGFloat
+
+  /// Fixed height of the row's text column (`.frame(height:)` on the text
+  /// `VStack` in `EntryRowView`): two title lines, the domain line, two
+  /// summary lines and the gaps between them at the current text size.
+  /// Inside the column the title takes one or two lines and the summary
+  /// fills the rest. STORED next to `entryRowHeight` for the same reason;
+  /// both recompute together in the `textSize` setter.
+  private(set) var entryRowTextColumnHeight: CGFloat
 
   /// Backing store for `textSize` persistence. Defaults to
   /// `UserDefaults.standard` in shipped code; tests pass a per-suite store
@@ -84,6 +93,7 @@ final class AppFontSettings {
     self.userDefaults = userDefaults
     self.textSize = textSize
     self.entryRowHeight = Self.computeEntryRowHeight(scale: textSize.scaleFactor)
+    self.entryRowTextColumnHeight = Self.computeEntryRowTextColumnHeight(scale: textSize.scaleFactor)
   }
 
   // MARK: - Scaling
@@ -100,6 +110,12 @@ final class AppFontSettings {
   /// Settings-frequency event, never per row and never in a `body`.
   private static func computeEntryRowHeight(scale: CGFloat) -> CGFloat {
     EntryRowMetrics.rowHeightFloor(scale: scale)
+  }
+
+  /// Fixed text-column height for the current `textSize`; same call sites
+  /// and the same frequency as `computeEntryRowHeight`.
+  private static func computeEntryRowTextColumnHeight(scale: CGFloat) -> CGFloat {
+    EntryRowMetrics.textColumnHeight(scale: scale)
   }
 
   // MARK: - Article reading surfaces
