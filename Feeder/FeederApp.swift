@@ -39,14 +39,6 @@ struct FeederApp: App {
   private var perfActivationDelegate
 
   init() {
-    // Issue #170: remove AppKit's autosaved split-view frames BEFORE any
-    // window or split view exists. On macOS 27 the bridge restores the
-    // content column as `width − sidebar x`; Feeder owns both leading column
-    // widths itself (`ColumnWidthSetting`), so the stale frames must not be
-    // there when the split view is created. `STACK.md § 14` records the
-    // reliance on the undocumented key name.
-    SplitViewAutosaveReset.removeStaleFrames()
-
     let processEnvironment = ProcessInfo.processInfo.environment
     // Headless launches (any `FEEDER_HEADLESS=1` run — `make test` sets it on the
     // XCTest host) boot with an EMPTY in-memory store so they never load the real

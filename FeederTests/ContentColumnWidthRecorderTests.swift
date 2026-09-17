@@ -4,26 +4,26 @@ import Testing
 
 @testable import Feeder
 
-/// Headless check of `ColumnWidthRecorder` for both columns (issue #170): the
-/// geometry observer, the launch-layout skip, the settle debounce and the
-/// write reach an injected `UserDefaults` suite without a split view. Hosts a
-/// view that fills an offscreen `NSHostingView`, resizes the host, and reads
-/// the suite. `.serialized`: shares the offscreen-window hosting pattern with
+/// Headless check of `ContentColumnWidthRecorder` in the shipped shape,
+/// `persistedColumnWidth(ideal:)` (issue #170): the geometry observer, the
+/// launch-layout skip, the settle debounce and the write reach an injected
+/// `UserDefaults` suite without a split view. Hosts a view that fills an
+/// offscreen `NSHostingView`, resizes the host, and reads the suite.
+/// `.serialized`: shares the offscreen-window hosting pattern with
 /// `EntryRowGeometryTests`.
-@Suite("Column width recorder", .serialized)
-struct ColumnWidthRecorderTests {
-  @Test(
-    "the first settled width is the launch layout and is not stored; the next settled width is; the sanity floor holds",
-    arguments: ColumnWidthSetting.Column.allCases)
-  @MainActor
-  func launchLayoutSkippedThenSettledWidthStored(column: ColumnWidthSetting.Column) async throws {
-    let suiteName = "ColumnWidthRecorderTests.\(column.rawValue)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defaults.removePersistentDomain(forName: suiteName)
-    let key = column.userDefaultsKey
+@Suite("Content column width recorder", .serialized)
+struct ContentColumnWidthRecorderTests {
+  private static let suiteName = "ContentColumnWidthRecorderTests"
 
-    let hosting = NSHostingView(
-      rootView: Color.clear.modifier(ColumnWidthRecorder(column: column, defaults: defaults)))
+  @Test("the first settled width is the launch layout and is not stored; the next settled width is; the sanity floor holds")
+  @MainActor
+  func launchLayoutSkippedThenSettledWidthStored() async throws {
+    let defaults = try #require(UserDefaults(suiteName: Self.suiteName))
+    defaults.removePersistentDomain(forName: Self.suiteName)
+    let key = ContentColumnWidthSetting.userDefaultsKey
+
+    // The shipped shape: recorder inside, width preference outermost.
+    let hosting = NSHostingView(rootView: Color.clear.persistedColumnWidth(ideal: 400, defaults: defaults))
     hosting.frame = NSRect(x: -6000, y: -6000, width: 450, height: 100)
     let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
     window.contentView = hosting
@@ -31,14 +31,16 @@ struct ColumnWidthRecorderTests {
     defer { window.orderOut(nil) }
     hosting.layoutSubtreeIfNeeded()
 
-    // First settled value = launch layout: nothing is written, even though
-    // 450 differs from the column default.
+    // First settled value = launch layout. 450 differs from the restored 400,
+    // so the only outcome that leaves the key absent is `skippedLaunchLayout`
+    // (equal would also leave it absent, but 450 != 400; store would write).
     try await Task.sleep(for: .milliseconds(700))
     #expect(defaults.object(forKey: key) == nil, "launch layout must not be stored")
 
     // The launch flag flipped on that first settle: the next settled width
-    // lands. (If this fails while the first check passed, `onGeometryChange`
-    // did not report the initial layout and the flag never flipped.)
+    // lands, so a real first drag is never silently dropped. (If this fails
+    // while the first check passed, `onGeometryChange` did not report the
+    // initial layout and the flag never flipped.)
     Self.resize(window, hosting, to: 520)
     #expect(try await Self.storedValue(in: defaults, key: key, becomes: 520))
 
