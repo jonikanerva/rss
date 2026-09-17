@@ -70,19 +70,27 @@ struct ContentView: View {
   @State
   private var unreadSnapshot: UnreadCountsSnapshot = .empty
   /// Launch `ideal` of the content column (issue #170): the width the user
-  /// last settled on, read ONCE from `ContentColumnWidthSetting` when this
-  /// view's identity is created, and never written. The initial-value
-  /// expression runs on every `ContentView` construction (one cached
-  /// `UserDefaults` read; `bootstrapGate` constructs the view once per launch
-  /// in practice), but `@State` pins the value SwiftUI uses to the first one,
-  /// so a re-construction after a persisted drag cannot hand the split view
-  /// a new `ideal` mid-session (`let` could). It must NOT become an
-  /// environment object or a live binding: a live `ideal` hands the split
-  /// view a new preferred width in the middle of a drag, and the divider
-  /// fights the drag. `ideal` only: no `min`, no `max` (owner decision,
-  /// issue #170 — the app must not limit how people lay out their screen).
+  /// last settled on, read ONCE from `ColumnWidthSetting` when this view's
+  /// identity is created, and never written. The initial-value expression
+  /// runs on every `ContentView` construction (one cached `UserDefaults`
+  /// read; `bootstrapGate` constructs the view once per launch in practice),
+  /// but `@State` pins the value SwiftUI uses to the first one, so a
+  /// re-construction after a persisted drag cannot hand the split view a new
+  /// `ideal` mid-session (`let` could). It must NOT become an environment
+  /// object or a live binding: a live `ideal` hands the split view a new
+  /// preferred width in the middle of a drag, and the divider fights the
+  /// drag — and the bridge ignores a late `ideal` anyway (headless spike).
+  /// `ideal` only: no `min`, no `max` (owner decision, issue #170 — the app
+  /// must not limit how people lay out their screen).
   @State
-  private var contentColumnIdealWidth: CGFloat = ContentColumnWidthSetting.restoredIdealWidth()
+  private var contentColumnIdealWidth: CGFloat = ColumnWidthSetting.restoredIdealWidth(for: .content)
+  /// Launch `ideal` of the sidebar, same rules as `contentColumnIdealWidth`.
+  /// Feeder owns this width too since the autosaved split-view frames are
+  /// removed at launch (`SplitViewAutosaveReset`); the default equals the
+  /// sidebar width measured on the owner's build, so a user who never drags
+  /// sees no change.
+  @State
+  private var sidebarIdealWidth: CGFloat = ColumnWidthSetting.restoredIdealWidth(for: .sidebar)
   @AppStorage("sidebar.collapsedFolders")
   private var collapsedFolders: SidebarCollapsedFolders = .init()
   /// Source of truth for the article-list selection (issue #148): the row
@@ -182,6 +190,13 @@ struct ContentView: View {
     NavigationSplitView {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
+        // Sidebar width, Feeder-owned like the content column (issue #170):
+        // the autosaved frames are gone at launch, so this `ideal` is the
+        // only launch width. `sidebarView` has one stable identity (no
+        // branch swap), so the recorder sits on it directly, no `ZStack`. A
+        // hidden sidebar measures 0 and is skipped by the sanity floor.
+        .navigationSplitViewColumnWidth(ideal: sidebarIdealWidth)
+        .modifier(ColumnWidthRecorder(column: .sidebar))
     } content: {
       // One `ZStack` around the two column branches, ONE visible child at a
       // time (no always-mounted `List`). The width preference and the width
@@ -194,11 +209,14 @@ struct ContentView: View {
       // measured width is the column's, not the window's.
       //
       // `ideal` only, no bounds (owner decision, issue #170): the docs promise
-      // no persistence of a dragged width, and on macOS 27 the column came
-      // back at `ideal` or at the ~200-pt platform default at launch, so the
-      // recorder stores the settled width and the next launch reads it back
-      // as `ideal` (`ContentColumnWidthSetting`). The platform divider and
-      // the column content's own minimum size are the only limits.
+      // no persistence of a dragged width, and on macOS 27 the bridge's own
+      // autosave restored the content column as `width − sidebar x`, half a
+      // second after creation, over the launch `ideal`. `SplitViewAutosaveReset`
+      // removes those frames in `FeederApp.init`, so the stored width is the
+      // only launch width: the recorder stores the settled width and the next
+      // launch reads it back as `ideal` (`ColumnWidthSetting`). The platform
+      // divider and the column content's own minimum size are the only
+      // limits.
       ZStack {
         if let selection {
           entryListForSelection(selection)
@@ -237,7 +255,7 @@ struct ContentView: View {
         }
       }
       .navigationSplitViewColumnWidth(ideal: contentColumnIdealWidth)
-      .modifier(ContentColumnWidthRecorder())
+      .modifier(ColumnWidthRecorder(column: .content))
     } detail: {
       detailView
     }
@@ -266,11 +284,10 @@ struct ContentView: View {
       contentReevalIntervalState = nil
     }
     .onAppear {
-      // D1: the launch `ideal` and the raw stored value, once per launch
-      // (the root view appears once per launch). D2 is temporary.
-      ContentColumnWidthDiagnostics.logRestoredIdeal(contentColumnIdealWidth)
-      // Diagnostic for issue #170 — remove before merge.
-      ContentColumnWidthDiagnostics.logSplitViewAutosaveFrames()
+      // D1: the launch `ideal` of each column and the raw stored value, once
+      // per launch (the root view appears once per launch).
+      ColumnWidthDiagnostics.logRestoredIdeal(sidebarIdealWidth, for: .sidebar)
+      ColumnWidthDiagnostics.logRestoredIdeal(contentColumnIdealWidth, for: .content)
       checkCredentials()
       revalidateSelection()
       panelFocus = .sidebar
