@@ -4,12 +4,15 @@ import Testing
 @testable import Feeder
 
 /// Pins the content-column width setting (issue #170): the launch `ideal`
-/// read from `UserDefaults`, its fallback and clamping, and the write rules
-/// of `persist` (whole points, out-of-range skipped, equal value skipped).
-/// Every test uses its own `UserDefaults` suite, so nothing leaks into the
-/// developer's app preferences or between tests.
+/// read from `UserDefaults` with its fallback and NO clamp, and the decision
+/// table of `persist` (launch layout skipped, sanity floor, equal skipped,
+/// whole points rounded down, no upper bound). Every test uses its own
+/// `UserDefaults` suite, so nothing leaks into the developer's app
+/// preferences or between tests.
 @Suite("Content column width setting")
 struct ContentColumnWidthSettingTests {
+  private typealias Setting = ContentColumnWidthSetting
+
   private static func makeSuite(_ name: String) throws -> UserDefaults {
     let suiteName = "ContentColumnWidthSettingTests.\(name)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -18,17 +21,16 @@ struct ContentColumnWidthSettingTests {
   }
 
   private static func stored(_ defaults: UserDefaults) -> Double? {
-    defaults.object(forKey: ContentColumnWidthSetting.userDefaultsKey) as? Double
+    defaults.object(forKey: Setting.userDefaultsKey) as? Double
   }
 
-  // MARK: - Bounds
+  // MARK: - Constants
 
-  @Test("the bounds match the split-view contract: 320 minimum, 400 default, 600 maximum")
-  func bounds() {
-    #expect(ContentColumnWidthSetting.minimumWidth == 320)
-    #expect(ContentColumnWidthSetting.defaultIdealWidth == 400)
-    #expect(ContentColumnWidthSetting.maximumWidth == 600)
-    #expect(ContentColumnWidthSetting.userDefaultsKey == "content_column_width")
+  @Test("400 default, 100 sanity floor, no bounds")
+  func constants() {
+    #expect(Setting.defaultIdealWidth == 400)
+    #expect(Setting.sanityFloor == 100)
+    #expect(Setting.userDefaultsKey == "content_column_width")
   }
 
   // MARK: - restoredIdealWidth
@@ -36,106 +38,131 @@ struct ContentColumnWidthSettingTests {
   @Test("an absent key restores the default")
   func absentKeyRestoresDefault() throws {
     let defaults = try Self.makeSuite("absent")
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: defaults) == 400)
+    #expect(Setting.restoredIdealWidth(in: defaults) == 400)
   }
 
-  @Test("a stored width below the minimum restores the minimum")
-  func clampsLow() throws {
-    let defaults = try Self.makeSuite("clampLow")
-    defaults.set(100.0, forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: defaults) == 320)
+  @Test("a stored width is restored without a clamp: 900 stays 900, 150 stays 150")
+  func noClamp() throws {
+    let wide = try Self.makeSuite("wide")
+    wide.set(900.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: wide) == 900)
+
+    let narrow = try Self.makeSuite("narrow")
+    narrow.set(150.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: narrow) == 150)
   }
 
-  @Test("a stored width above the maximum restores the maximum")
-  func clampsHigh() throws {
-    let defaults = try Self.makeSuite("clampHigh")
-    defaults.set(900.0, forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: defaults) == 600)
+  @Test("a stored width below the sanity floor restores the default")
+  func belowSanityFloorRestoresDefault() throws {
+    let defaults = try Self.makeSuite("belowFloor")
+    defaults.set(50.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: defaults) == 400)
+    defaults.set(99.9, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: defaults) == 400)
+    defaults.set(100.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: defaults) == 100)
   }
 
   @Test("zero, a negative value, NaN and a wrong type restore the default")
   func unusableValuesRestoreDefault() throws {
     let zero = try Self.makeSuite("zero")
-    zero.set(0.0, forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: zero) == 400)
+    zero.set(0.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: zero) == 400)
 
     let negative = try Self.makeSuite("negative")
-    negative.set(-450.0, forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: negative) == 400)
+    negative.set(-450.0, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: negative) == 400)
 
     // A NaN may be rejected by the store or read back as NaN; both paths
     // must end at the default.
     let nan = try Self.makeSuite("nan")
-    nan.set(Double.nan, forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: nan) == 400)
+    nan.set(Double.nan, forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: nan) == 400)
 
     let text = try Self.makeSuite("text")
-    text.set("wide", forKey: ContentColumnWidthSetting.userDefaultsKey)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: text) == 400)
+    text.set("wide", forKey: Setting.userDefaultsKey)
+    #expect(Setting.restoredIdealWidth(in: text) == 400)
   }
 
-  // MARK: - persist
+  // MARK: - persist outcomes
 
-  @Test("an in-range width round-trips")
-  func roundTrip() throws {
-    let defaults = try Self.makeSuite("roundTrip")
-    ContentColumnWidthSetting.persist(450, in: defaults)
-    #expect(Self.stored(defaults) == 450)
-    #expect(ContentColumnWidthSetting.restoredIdealWidth(in: defaults) == 450)
-  }
-
-  @Test("widths are stored in whole points")
-  func roundsToWholePoints() throws {
-    let defaults = try Self.makeSuite("rounding")
-    ContentColumnWidthSetting.persist(449.6, in: defaults)
-    #expect(Self.stored(defaults) == 450)
-    ContentColumnWidthSetting.persist(350.4, in: defaults)
-    #expect(Self.stored(defaults) == 350)
-  }
-
-  @Test("an out-of-range width never overwrites the stored value")
-  func outOfRangeIsSkipped() throws {
-    let defaults = try Self.makeSuite("outOfRange")
-    ContentColumnWidthSetting.persist(450, in: defaults)
-    ContentColumnWidthSetting.persist(250, in: defaults)
-    #expect(Self.stored(defaults) == 450)
-    ContentColumnWidthSetting.persist(700, in: defaults)
-    #expect(Self.stored(defaults) == 450)
-    ContentColumnWidthSetting.persist(.nan, in: defaults)
-    #expect(Self.stored(defaults) == 450)
-    ContentColumnWidthSetting.persist(.infinity, in: defaults)
+  @Test("the launch layout is never stored, whatever its value")
+  func launchLayoutIsSkipped() throws {
+    let defaults = try Self.makeSuite("launch")
+    #expect(Setting.persist(450, isLaunchLayout: true, in: defaults) == .skippedLaunchLayout)
+    #expect(Setting.persist(200, isLaunchLayout: true, in: defaults) == .skippedLaunchLayout)
+    #expect(Setting.persist(50, isLaunchLayout: true, in: defaults) == .skippedLaunchLayout)
+    #expect(Self.stored(defaults) == nil)
+    // The launch skip also holds when a value is already stored.
+    Setting.persist(450, isLaunchLayout: false, in: defaults)
+    #expect(Setting.persist(520, isLaunchLayout: true, in: defaults) == .skippedLaunchLayout)
     #expect(Self.stored(defaults) == 450)
   }
 
-  @Test("the bounds themselves are stored; one point outside is not")
-  func boundsAreInclusive() throws {
-    let defaults = try Self.makeSuite("inclusive")
-    ContentColumnWidthSetting.persist(320, in: defaults)
-    #expect(Self.stored(defaults) == 320)
-    ContentColumnWidthSetting.persist(600, in: defaults)
-    #expect(Self.stored(defaults) == 600)
-    ContentColumnWidthSetting.persist(601, in: defaults)
-    #expect(Self.stored(defaults) == 600)
-    ContentColumnWidthSetting.persist(319, in: defaults)
-    #expect(Self.stored(defaults) == 600)
+  @Test("a width below the sanity floor, NaN or infinity is skipped")
+  func belowSanityFloorIsSkipped() throws {
+    let defaults = try Self.makeSuite("floor")
+    Setting.persist(450, isLaunchLayout: false, in: defaults)
+    #expect(Setting.persist(80, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Setting.persist(99.9, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Setting.persist(0, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Setting.persist(.nan, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Setting.persist(.infinity, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Self.stored(defaults) == 450)
   }
 
-  @Test("a width equal to the restored value writes nothing")
+  @Test("a width equal to the restored value is skipped")
   func equalValueIsSkipped() throws {
     // Fresh install at the default width: the key stays absent.
     let fresh = try Self.makeSuite("equalDefault")
-    ContentColumnWidthSetting.persist(400, in: fresh)
-    #expect(Self.stored(fresh) == nil)
-    ContentColumnWidthSetting.persist(400.3, in: fresh)
+    #expect(Setting.persist(400, isLaunchLayout: false, in: fresh) == .skippedEqualToStored)
+    #expect(Setting.persist(400.7, isLaunchLayout: false, in: fresh) == .skippedEqualToStored)
     #expect(Self.stored(fresh) == nil)
 
-    // A stored value re-reported after launch stays as stored.
+    // A stored value re-reported later stays as stored.
     let stored = try Self.makeSuite("equalStored")
-    ContentColumnWidthSetting.persist(450, in: stored)
-    ContentColumnWidthSetting.persist(450, in: stored)
+    #expect(Setting.persist(450, isLaunchLayout: false, in: stored) == .stored(450))
+    #expect(Setting.persist(450, isLaunchLayout: false, in: stored) == .skippedEqualToStored)
+    #expect(Setting.persist(450.5, isLaunchLayout: false, in: stored) == .skippedEqualToStored)
     #expect(Self.stored(stored) == 450)
-    // A different in-range value still lands.
-    ContentColumnWidthSetting.persist(350, in: stored)
-    #expect(Self.stored(stored) == 350)
+  }
+
+  @Test("an in-range width is stored and round-trips")
+  func storedRoundTrips() throws {
+    let defaults = try Self.makeSuite("roundTrip")
+    #expect(Setting.persist(450, isLaunchLayout: false, in: defaults) == .stored(450))
+    #expect(Self.stored(defaults) == 450)
+    #expect(Setting.restoredIdealWidth(in: defaults) == 450)
+    #expect(Setting.persist(350, isLaunchLayout: false, in: defaults) == .stored(350))
+    #expect(Setting.restoredIdealWidth(in: defaults) == 350)
+  }
+
+  @Test("there is no upper bound: 900 and 1200 are stored")
+  func noUpperBound() throws {
+    let defaults = try Self.makeSuite("noUpperBound")
+    #expect(Setting.persist(900, isLaunchLayout: false, in: defaults) == .stored(900))
+    #expect(Self.stored(defaults) == 900)
+    #expect(Setting.persist(1200, isLaunchLayout: false, in: defaults) == .stored(1200))
+    #expect(Setting.restoredIdealWidth(in: defaults) == 1200)
+  }
+
+  @Test("widths are stored in whole points, rounded down: 450.5 → 450, 600.5 → 600")
+  func roundsDown() throws {
+    let defaults = try Self.makeSuite("roundDown")
+    #expect(Setting.persist(450.5, isLaunchLayout: false, in: defaults) == .stored(450))
+    #expect(Self.stored(defaults) == 450)
+    #expect(Setting.persist(600.5, isLaunchLayout: false, in: defaults) == .stored(600))
+    #expect(Self.stored(defaults) == 600)
+    #expect(Setting.persist(519.9, isLaunchLayout: false, in: defaults) == .stored(519))
+    #expect(Self.stored(defaults) == 519)
+  }
+
+  @Test("the sanity floor is inclusive: 100 is stored, 99.9 is not")
+  func sanityFloorIsInclusive() throws {
+    let defaults = try Self.makeSuite("floorInclusive")
+    #expect(Setting.persist(100, isLaunchLayout: false, in: defaults) == .stored(100))
+    #expect(Self.stored(defaults) == 100)
+    #expect(Setting.persist(99.9, isLaunchLayout: false, in: defaults) == .skippedBelowSanityFloor)
+    #expect(Self.stored(defaults) == 100)
   }
 }

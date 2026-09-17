@@ -746,9 +746,12 @@ struct EntryListView: View {
 }
 
 // Row matrix (issue #170): the row-height floor and the title / summary
-// split at every text size, in the narrowest content column (320 pt) and
-// once at the widest (600 pt). Every row must be exactly `entryRowHeight`
-// tall. The thirteen row shapes, in list order:
+// split at every text size in a 320-pt content column, once at 600 pt, and
+// once at 200 pt — the platform's default column width, a shipped state
+// since the width bounds were removed (PR #186 commit K); the fixed text
+// column keeps the row height, and the title + time row is what to look at.
+// Every row must be exactly `entryRowHeight` tall. The thirteen row shapes,
+// in list order:
 //   1001  one-line title, long excerpt: three summary lines, ellipsis on the
 //         third, no blank line under the title
 //   1002  two-line title, long excerpt: title keeps two lines, two summary
@@ -800,9 +803,13 @@ struct EntryListView: View {
   EntryListRowMatrixPreview(textSize: .medium, width: 600)
 }
 
+#Preview("Row Matrix - Medium, 200 pt") {
+  EntryListRowMatrixPreview(textSize: .medium, width: 200)
+}
+
 /// Seeds thirteen `apple` rows covering the row shapes above and renders
-/// `EntryListView` at the given content-column width (default: the 320-pt
-/// minimum) with the given text size. Row 1010 is unread in the store but
+/// `EntryListView` at the given content-column width (default 320 pt) with
+/// the given text size. Row 1010 is unread in the store but
 /// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
 @MainActor
 private struct EntryListRowMatrixPreview: View {

@@ -28,12 +28,14 @@ import Testing
 ///    two-line title two; the bands are equally tall; the bottom padding has
 ///    no ink (the `.frame` does not clip, so overflow would land there).
 ///
-/// Runs at every `AppTextSize` and at the narrowest (320 pt) and a wide
-/// (600 pt) content column. No screen: the window is ordered offscreen and
-/// the bitmap render needs no window.
+/// Runs at every `AppTextSize` and at three content-column widths: 200 pt
+/// (the platform's default column width; the column has no width bound since
+/// PR #186 commit K, so 200 is a shipped state), 320 pt and 600 pt. No
+/// screen: the window is ordered offscreen and the bitmap render needs no
+/// window.
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
-  private static let widths: [CGFloat] = [320, 600]
+  private static let widths: [CGFloat] = [200, 320, 600]
 
   // MARK: - Floor
 
@@ -242,11 +244,13 @@ struct EntryRowGeometryTests {
     var isRead = false
   }
 
-  private static let oneLineTitle = "xxxx xxxx"
+  /// Short enough to stay on one line next to the time label at 200 pt and
+  /// the huge text size.
+  private static let oneLineTitle = "xxxx"
   /// Wraps past two lines at every width and size; descender-free glyphs so
   /// each rendered line is one ink band.
   private static let longTitle = Array(repeating: "xxxx", count: 120).joined(separator: " ")
-  private static let emojiOneLineTitle = "xxxx 🚀 xxxx"
+  private static let emojiOneLineTitle = "🚀 xx"
   private static let emojiLongTitle = "🚀 " + longTitle
   private static let domain = "xxxx.xxx"
   private static let longDomain = "a-very-long-subdomain.of-an-even-longer-domain.example.com"

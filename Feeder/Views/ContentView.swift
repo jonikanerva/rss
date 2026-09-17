@@ -79,7 +79,8 @@ struct ContentView: View {
   /// a new `ideal` mid-session (`let` could). It must NOT become an
   /// environment object or a live binding: a live `ideal` hands the split
   /// view a new preferred width in the middle of a drag, and the divider
-  /// fights the drag. The bounds live in `ContentColumnWidthSetting`.
+  /// fights the drag. `ideal` only: no `min`, no `max` (owner decision,
+  /// issue #170 — the app must not limit how people lay out their screen).
   @State
   private var contentColumnIdealWidth: CGFloat = ContentColumnWidthSetting.restoredIdealWidth()
   @AppStorage("sidebar.collapsedFolders")
@@ -182,19 +183,23 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      // One `Group` so BOTH branches carry the same column-width preference
-      // and the same width recorder. The bounds are a preference the split
-      // view enforces; the `ideal` is Feeder's own memory of the width. The
-      // docs promise no persistence of a dragged width, and on macOS 27 the
-      // column returned to `ideal` at every launch (issue #170), so the
+      // One `ZStack` around the two column branches, ONE visible child at a
+      // time (no always-mounted `List`). The width preference and the width
+      // recorder sit on the ZStack, not on a `Group`: `Group` applies its
+      // modifiers to EACH member, so the launch branch swap (empty state →
+      // list, `revalidateSelection`) would create a new recorder identity
+      // with fresh state, and "the first settled value is the launch layout"
+      // would restart at the swap. The ZStack keeps one identity for the
+      // whole `ContentView` lifetime, and both branches fill it, so the
+      // measured width is the column's, not the window's.
+      //
+      // `ideal` only, no bounds (owner decision, issue #170): the docs promise
+      // no persistence of a dragged width, and on macOS 27 the column came
+      // back at `ideal` or at the ~200-pt platform default at launch, so the
       // recorder stores the settled width and the next launch reads it back
-      // as `ideal` (`ContentColumnWidthSetting`). `min` makes the observed
-      // ~200-pt collapse unreachable; `max` keeps the detail pane above half
-      // the window at common widths. The bounds do NOT follow the text size
-      // (ux decision, issue #170). The recorder sits on this `Group`, never
-      // per row: both branches fill the column, so the measured width is the
-      // column's, not the window's.
-      Group {
+      // as `ideal` (`ContentColumnWidthSetting`). The platform divider and
+      // the column content's own minimum size are the only limits.
+      ZStack {
         if let selection {
           entryListForSelection(selection)
             .focused($panelFocus, equals: .articleList)
@@ -231,10 +236,7 @@ struct ContentView: View {
           }
         }
       }
-      .navigationSplitViewColumnWidth(
-        min: ContentColumnWidthSetting.minimumWidth, ideal: contentColumnIdealWidth,
-        max: ContentColumnWidthSetting.maximumWidth
-      )
+      .navigationSplitViewColumnWidth(ideal: contentColumnIdealWidth)
       .modifier(ContentColumnWidthRecorder())
     } detail: {
       detailView
@@ -264,6 +266,11 @@ struct ContentView: View {
       contentReevalIntervalState = nil
     }
     .onAppear {
+      // D1: the launch `ideal` and the raw stored value, once per launch
+      // (the root view appears once per launch). D2 is temporary.
+      ContentColumnWidthDiagnostics.logRestoredIdeal(contentColumnIdealWidth)
+      // Diagnostic for issue #170 — remove before merge.
+      ContentColumnWidthDiagnostics.logSplitViewAutosaveFrames()
       checkCredentials()
       revalidateSelection()
       panelFocus = .sidebar
