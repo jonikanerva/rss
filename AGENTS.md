@@ -51,8 +51,11 @@ commits, branches, PRs, issues, and docs. Only Codex's chat replies to the user
 are Finnish.
 
 Use Simplified Technical English (STE) for English text that users read in the
-repository or on GitHub. This includes documentation, commit messages, issues,
-PR descriptions, and review comments. Write short sentences. Use active voice
+repository or on GitHub. This includes documentation, code comments, commit
+messages, issues, PR descriptions, and review comments. Keep identifiers,
+framework names, and API terms unchanged. STE controls the prose around these
+names, not the names. Write short sentences.
+Use active voice
 and plain, consistent terms. This rule does not apply to Finnish chat. Do not
 rewrite compact operating contracts only to apply STE.
 
@@ -179,9 +182,56 @@ Prefer value types and immutable bindings. Use mutation or reference identity
 only when required. Prefer composition, small purpose-driven types, and files
 named for their primary type. No unsafe unwraps or coercions outside tests, no
 broad type erasure without measured benefit, and no global mutable state or
-singletons unless an API requires one. Delete dead code. Comments explain why.
-Exported symbols receive doc comments. Use the logger in `STACK.md`; leave no
+singletons unless an API requires one. Delete dead code. Write comments as the
+`Comments` section below requires. Use the logger in `STACK.md`; leave no
 debug output in shipped code. Run `$FORMAT_CMD` before committing.
+
+### Comments
+
+A comment must state a constraint that a reader can otherwise break. Examples
+are units, ownership, failure behaviour, an actor or thread requirement, and
+what a caller must not do. A comment must not describe the code. Write no
+comment by default. Code that needs an explanation has a bad name or a bad
+structure. Fix the code first. Write a doc comment for an exported symbol only
+when the name and the signature leave a contract unstated.
+
+The list below is the rule. The line budget is only a signal that points to the
+rule. A comment has a maximum of 5 lines. More lines usually mean rationale and
+not a constraint. Move that text to the issue, the PR, or `STACK.md`. Leave a
+pointer. A comment with two different constraints becomes two comments. Do not
+shorten a comment to reach the budget. A comment with more than 5 lines stays
+when every line states a constraint. The reviewer then records this. Never
+delete a contract to reach a number.
+
+Never write these comments:
+
+- History. Do not write what the code was before. Do not write what a fix
+  changed, what a design replaced, or what a measurement was. The commit, the
+  PR, and the issue keep that record. A comment describes the present only.
+- Rationale and rejected alternatives. Do not write why an option lost, notes
+  from a design session, or measured numbers. Put that text in the issue, the
+  PR, or `STACK.md → Intentional Divergences`.
+- A reference that does not resolve inside the repository. Delete each issue
+  number, PR number, and commit reference from the comment. The comment must
+  still read correctly. A bare `#170` is not a reference. A named `STACK.md`
+  section is a reference.
+- The same explanation two times. Do not repeat a type doc at the call site. Do
+  not repeat a `STACK.md` section in the source. Name the section instead.
+- An answer to the current task or to the person who set it. Tell the user
+  instead.
+- A line number, a file offset, or a count of items in another file. A later
+  edit makes this text wrong, and no tool reports it.
+
+Write for a reader who has this file only. This reader has no issue, no chat,
+and no external schema. Read each comment again as a single sentence. An
+unclear reference is a defect, also when the content is correct. Do this while
+you write. A later pruning pass finds repetition but not unclear text. Put a
+note about an implementation choice at the line that makes the choice. Do not
+put it in the doc comment.
+
+Keep an existing comment unless your change makes the comment wrong. A comment
+that breaks this policy is already wrong. Delete that comment when you change
+the code around it.
 
 ## Dependencies
 
@@ -199,7 +249,9 @@ or compute internal time locally; hide failure behind infinite spinners; model
 phases with parallel booleans; suppress warnings with escape hatches; start
 unowned fire-and-forget work; add a dependency for a platform capability;
 lower the minimum version; introduce debug output, stubs, commented-out code,
-or PII logging; add unapproved singletons or DI containers; or violate any
+or PII logging; put history, rationale, or an unresolvable issue or PR
+reference in a comment instead of the issue or the PR; add unapproved
+singletons or DI containers; or violate any
 `STACK.md → Stack-specific reject-list additions` rule.
 
 ## Definition of done

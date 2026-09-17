@@ -154,6 +154,12 @@ Hard rules for this stack; `/codereview` enforces every entry on every PR.
 - Force-unwraps (`!`) and `try!` outside tests and `#Preview`.
 - `var` where `let` suffices.
 - `TODO`, `FIXME`, `HACK`, or commented-out code in a shipped diff.
+- A comment that narrates history — "previously", "used to", "the old …", "before the fix", "replaces", "retired", "now supports" — or that describes a design the diff removes (`CLAUDE.md → Code conventions → Comments`).
+- A comment whose meaning depends on an issue number, a PR number, or a commit reference. Delete the reference: the comment must still read correctly. A named `STACK.md` section is a valid reference; a bare `#170` is not.
+- A comment citing a line number, a file offset, or a count of things elsewhere in the tree — a later edit invalidates it silently.
+- A comment over 5 lines. This one is a smell, not an automatic FAIL: the reviewer clears it by naming the constraint each line carries. A block that cannot be defended line by line is rationale and moves to the issue, the PR, or §14. Never cut a contract to reach the number.
+
+  These four entries govern comments in **source files**. §14, the issue, and the PR are where the banned content belongs — measured numbers, rejected alternatives, and the history of a rule are the *purpose* of §14, never a violation in it.
 - Persisting or computing with local-time / calendar-component values instead of a `Date` instant; manual UTC-offset arithmetic; a `DateFormatter` / `Calendar` without an explicit `timeZone` in logic (§10; the pre-computed display-string fields are a documented divergence, §14).
 - Custom controls where a standard macOS component exists; private API calls; third-party UI frameworks (§11).
 - New SwiftPM packages without a §6 entry approved in advance.
@@ -253,6 +259,8 @@ Universal conventions (value types, immutability, composition, comments, dead co
 ### Formatting
 
 Mechanical formatting is enforced by `swift-format` (§2). Beyond it: blank line between methods and between MARK sections; no blank lines between grouped property declarations.
+
+Comment rules live in `CLAUDE.md → Code conventions → Comments`. Swift specifics on top: doc comments use `///` (`swift-format` `UseTripleSlashForDocumentationComments`); `// MARK:` lines are navigation, not prose, and sit outside the 5-line comment budget. Keep `.swift-format` `AllPublicDeclarationsHaveDocumentation` **off** — it mandates a doc comment on every public declaration, which is the mandate the comment policy removed.
 
 ### Access control
 
