@@ -11,7 +11,11 @@ import XCTest
 ///   pitch equals the row-height floor: the floor is the row height, so a
 ///   lost row re-measure in the `List` bridge has nothing left to clip.
 final class EntryListLayoutUITests: XCTestCase {
-  /// `ContentView.contentColumnMinWidth` / `contentColumnMaxWidth`.
+  /// Copies of `ContentColumnWidthSetting.minimumWidth` / `.maximumWidth`.
+  /// Copied on purpose: the UI-test target does not link the app module, and
+  /// the `EntryRowMetrics` build-file exception is not wanted for two
+  /// constants. If the bounds change in `ContentColumnWidthSetting`, change
+  /// them here too; the width test then pins the new bound.
   private static let contentColumnMinWidth: CGFloat = 320
   private static let contentColumnMaxWidth: CGFloat = 600
   /// Tolerance for point values read through the accessibility frames.
