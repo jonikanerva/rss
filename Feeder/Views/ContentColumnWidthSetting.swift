@@ -18,7 +18,9 @@ nonisolated enum ContentColumnWidthSetting {
   /// column readable at the default text size; 600 keeps the detail pane
   /// above half the window at common window widths. HIG (macOS split views):
   /// "Set reasonable defaults for minimum and maximum pane sizes." Single
-  /// source for `ContentView` and the tests.
+  /// source for `ContentView` and the unit tests; `EntryListLayoutUITests`
+  /// copies the two bounds on purpose because the UI-test target does not
+  /// import the app module.
   static let minimumWidth: CGFloat = 320
   /// Launch width when nothing usable is stored: fresh install, reset, or a
   /// corrupt value. Equals the owner's dragged width, so a reset is
