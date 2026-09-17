@@ -195,15 +195,18 @@ struct ContentView: View {
         // only launch width. `sidebarView` has one stable identity (no
         // branch swap), so the recorder sits on it directly, no `ZStack`. A
         // hidden sidebar measures 0 and is skipped by the sanity floor.
-        .navigationSplitViewColumnWidth(ideal: sidebarIdealWidth)
-        .modifier(ColumnWidthRecorder(column: .sidebar))
+        // `persistedColumnWidth` keeps the preference OUTERMOST: a recorder
+        // outside it hides the width from the split view (measured).
+        .persistedColumnWidth(column: .sidebar, ideal: sidebarIdealWidth)
     } content: {
       // One `ZStack` around the two column branches, ONE visible child at a
-      // time (no always-mounted `List`). The width preference and the width
-      // recorder sit on the ZStack, not on a `Group`: `Group` applies its
-      // modifiers to EACH member, so the launch branch swap (empty state →
-      // list, `revalidateSelection`) would create a new recorder identity
-      // with fresh state, and "the first settled value is the launch layout"
+      // time (no always-mounted `List`). The width recorder and the width
+      // preference (`persistedColumnWidth`, preference OUTERMOST — a
+      // recorder outside it hides the width from the split view, measured)
+      // sit on the ZStack, not on a `Group`: `Group` applies its modifiers
+      // to EACH member, so the launch branch swap (empty state → list,
+      // `revalidateSelection`) would create a new recorder identity with
+      // fresh state, and "the first settled value is the launch layout"
       // would restart at the swap. The ZStack keeps one identity for the
       // whole `ContentView` lifetime, and both branches fill it, so the
       // measured width is the column's, not the window's.
@@ -254,8 +257,7 @@ struct ContentView: View {
           }
         }
       }
-      .navigationSplitViewColumnWidth(ideal: contentColumnIdealWidth)
-      .modifier(ColumnWidthRecorder(column: .content))
+      .persistedColumnWidth(column: .content, ideal: contentColumnIdealWidth)
     } detail: {
       detailView
     }

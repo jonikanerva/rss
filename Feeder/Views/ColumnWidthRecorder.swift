@@ -88,3 +88,26 @@ struct ColumnWidthRecorder: ViewModifier {
     Int((ContinuousClock.now - createdAt) / .milliseconds(1))
   }
 }
+
+extension View {
+  /// Persist and restore a `NavigationSplitView` column's width (issue #170):
+  /// the `ColumnWidthRecorder` for `column` INSIDE, the width preference
+  /// `navigationSplitViewColumnWidth(ideal:)` OUTERMOST. Apply this to the
+  /// content of a column as its last modifier; the order is load-bearing.
+  ///
+  /// MEASURED constraint, UNDOCUMENTED by Apple (headless spike, 2026-09-17):
+  /// an `onGeometryChange` placed outside `navigationSplitViewColumnWidth`
+  /// hides the width preference from the split view, and the column lays out
+  /// at the platform default (recorder outside → 200 pt; recorder inside →
+  /// the 500-pt `ideal`). No Apple document describes how the preference
+  /// reaches the split view; the closest anchor is the modifier's own
+  /// guidance, "Apply this modifier to the content of a column".
+  /// `PersistedColumnWidthTests` pins the order with a positive and a
+  /// negative case, and `STACK.md § 7` bans the loose pair of modifiers.
+  func persistedColumnWidth(
+    column: ColumnWidthSetting.Column, ideal: CGFloat, defaults: UserDefaults = .standard
+  ) -> some View {
+    modifier(ColumnWidthRecorder(column: column, defaults: defaults))
+      .navigationSplitViewColumnWidth(ideal: ideal)
+  }
+}

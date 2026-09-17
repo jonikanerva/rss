@@ -157,6 +157,7 @@ Hard rules for this stack; `/codereview` enforces every entry on every PR.
 - Persisting or computing with local-time / calendar-component values instead of a `Date` instant; manual UTC-offset arithmetic; a `DateFormatter` / `Calendar` without an explicit `timeZone` in logic (§10; the pre-computed display-string fields are a documented divergence, §14).
 - Custom controls where a standard macOS component exists; private API calls; third-party UI frameworks (§11).
 - New SwiftPM packages without a §6 entry approved in advance.
+- A modifier placed outside `navigationSplitViewColumnWidth` on a column's content (measured 2026-09-17: an outer `onGeometryChange` hides the width preference from the split view, and the column lays out at the platform default); use `persistedColumnWidth(column:ideal:)`, whose regression test (`PersistedColumnWidthTests`) pins the order.
 
 ---
 
