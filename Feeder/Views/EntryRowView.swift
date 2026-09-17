@@ -28,6 +28,17 @@ struct EntryRowView: View {
 
   private var isRead: Bool { row.isRead || pendingReadIDs.contains(row.feedbinEntryID) }
 
+  /// Domain line text. `DataReader` maps a stored empty domain to `nil`;
+  /// the view guards the empty string too, because previews and tests build
+  /// DTOs directly. One `isEmpty` check per row on top of the `lowercased()`
+  /// the row already paid for.
+  private var domainText: String {
+    guard let domain = row.displayDomain, !domain.isEmpty else {
+      return EntryRowMetrics.reservedDomainPlaceholder
+    }
+    return domain.lowercased()
+  }
+
   var body: some View {
     // Whole-list-re-render check (issue #146, DIAGNOSTIC-ONLY): one event per
     // body evaluation. Events inside a `structuralReload` window reveal whether
@@ -76,7 +87,7 @@ struct EntryRowView: View {
         // reserve 14 pt at every size), so the space left for the summary is
         // the same with and without a domain; a long domain truncates in the
         // middle instead of wrapping so the slot stays one line tall.
-        Text(row.displayDomain?.lowercased() ?? EntryRowMetrics.reservedDomainPlaceholder)
+        Text(domainText)
           .font(fontSettings.rowFeedName)
           .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
           .truncationMode(.middle)

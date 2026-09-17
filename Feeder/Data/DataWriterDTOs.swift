@@ -60,6 +60,9 @@ nonisolated struct EntryRowDTO: Sendable, Equatable, Hashable, Identifiable {
   let feedbinEntryID: Int
   let title: String?
   let formattedPublishedTime: String
+  /// Display domain of the entry's feed, or `nil` when the entry has no
+  /// domain. The projection maps the stored empty string (`extractDomain` of
+  /// a URL without a host) to `nil`, so `nil` means "no domain" everywhere.
   let displayDomain: String?
   let excerpt: String
   let isRead: Bool

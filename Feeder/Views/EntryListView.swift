@@ -748,7 +748,7 @@ struct EntryListView: View {
 // Row matrix (issue #170): the row-height floor and the title / summary
 // split at every text size, in the narrowest content column (320 pt) and
 // once at the widest (600 pt). Every row must be exactly `entryRowHeight`
-// tall. The twelve row shapes, in list order:
+// tall. The thirteen row shapes, in list order:
 //   1001  one-line title, long excerpt: three summary lines, ellipsis on the
 //         third, no blank line under the title
 //   1002  two-line title, long excerpt: title keeps two lines, two summary
@@ -767,6 +767,9 @@ struct EntryListView: View {
 //   1011  emoji in the title: the line height does not grow, the summary
 //         keeps its lines
 //   1012  long domain: middle truncation, the slot stays one line tall
+//   1013  two-line title, EMPTY-STRING domain (what `extractDomain` stores
+//         for a URL without a host): the reader maps it to nil, the domain
+//         line stays reserved, two summary lines
 
 #Preview("Row Matrix - Small") {
   EntryListRowMatrixPreview(textSize: .small)
@@ -797,7 +800,7 @@ struct EntryListView: View {
   EntryListRowMatrixPreview(textSize: .medium, width: 600)
 }
 
-/// Seeds twelve `apple` rows covering the row shapes above and renders
+/// Seeds thirteen `apple` rows covering the row shapes above and renders
 /// `EntryListView` at the given content-column width (default: the 320-pt
 /// minimum) with the given text size. Row 1010 is unread in the store but
 /// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
@@ -849,6 +852,7 @@ private struct EntryListRowMatrixPreview: View {
         1012, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
         longExcerpt
       ),
+      (1013, "Empty-string domain in the store under a title that wraps onto a second line", "", longExcerpt),
     ]
     for (offset, shape) in shapes.enumerated() {
       let published = Date.now.addingTimeInterval(-Double(offset + 1) * 600)

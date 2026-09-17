@@ -105,6 +105,7 @@ struct EntryRowGeometryTests {
       let domain = Self.domainHeight(Self.domain, settings: settings, width: columnWidth)
       let placeholderDomain = Self.domainHeight(
         EntryRowMetrics.reservedDomainPlaceholder, settings: settings, width: columnWidth)
+      let emptyStringDomain = Self.domainHeight("", settings: settings, width: columnWidth)
       let oneSummaryLine = Self.summaryHeight("xxxx", limit: EntryRowMetrics.excerptLineLimit, settings: settings, width: columnWidth)
       let twoSummaryLines = Self.summaryHeight(Self.longExcerpt, limit: 2, settings: settings, width: columnWidth)
       let threeSummaryLines = Self.summaryHeight(Self.longExcerpt, limit: 3, settings: settings, width: columnWidth)
@@ -130,6 +131,9 @@ struct EntryRowGeometryTests {
       // The reserved domain line and the weight swap have no height effect.
       #expect(placeholderDomain == domain, context)
       #expect(oneLineRead == oneLine, context)
+      // An EMPTY `Text` with reserved space is 14 pt at every size, not the
+      // font's line height: the reason the row never renders "" directly.
+      #expect(emptyStringDomain == 14, context)
       // The arithmetic the floor is built from stays at or above the layout.
       #expect(summaryLine >= oneSummaryLine - 1, context)
     }
@@ -160,6 +164,12 @@ struct EntryRowGeometryTests {
     RenderCase(
       name: "two-line title, no domain, long excerpt",
       shape: RowShape(title: longTitle, domain: nil, excerpt: longExcerpt), titleLines: 2, summaryLines: 2...2),
+    RenderCase(
+      name: "one-line title, empty-string domain, long excerpt",
+      shape: RowShape(title: oneLineTitle, domain: "", excerpt: longExcerpt), titleLines: 1, summaryLines: 3...3),
+    RenderCase(
+      name: "two-line title, empty-string domain, long excerpt",
+      shape: RowShape(title: longTitle, domain: "", excerpt: longExcerpt), titleLines: 2, summaryLines: 2...2),
     RenderCase(
       name: "one-line title, empty excerpt",
       shape: RowShape(title: oneLineTitle, domain: domain, excerpt: ""), titleLines: 1, summaryLines: 0...0),
@@ -204,7 +214,8 @@ struct EntryRowGeometryTests {
         #expect(titleBands.count == renderCase.titleLines, "\(context): title bands \(titleBands)")
         // The domain line is present when set and empty when nil.
         let domainBands = scan.bands(in: domainTop..<(domainTop + Int(heights.meta)))
-        #expect(domainBands.count == (renderCase.shape.domain == nil ? 0 : 1), "\(context): domain bands \(domainBands)")
+        let hasDomain = renderCase.shape.domain.map { !$0.isEmpty } ?? false
+        #expect(domainBands.count == (hasDomain ? 1 : 0), "\(context): domain bands \(domainBands)")
         // The summary shows the expected whole lines under the title.
         let summaryBands = scan.bands(in: summaryTop..<columnBottom)
         #expect(renderCase.summaryLines.contains(summaryBands.count), "\(context): summary bands \(summaryBands)")
@@ -222,8 +233,8 @@ struct EntryRowGeometryTests {
 
   // MARK: - Sample rows
 
-  /// One row's content. `domain == nil` renders the reserved empty domain
-  /// line; `isRead` swaps the title weight to regular.
+  /// One row's content. `domain == nil` and `domain == ""` both render the
+  /// reserved empty domain line; `isRead` swaps the title weight to regular.
   nonisolated private struct RowShape: Sendable {
     let title: String
     let domain: String?
@@ -247,6 +258,7 @@ struct EntryRowGeometryTests {
     RowShape(title: oneLineTitle, domain: domain, excerpt: longExcerpt),
     RowShape(title: oneLineTitle, domain: nil, excerpt: ""),
     RowShape(title: longTitle, domain: nil, excerpt: longExcerpt),
+    RowShape(title: longTitle, domain: "", excerpt: longExcerpt),
     RowShape(title: longTitle, domain: domain, excerpt: ""),
     RowShape(title: oneLineTitle, domain: longDomain, excerpt: "One line.", isRead: true),
     RowShape(title: emojiOneLineTitle, domain: domain, excerpt: longExcerpt),

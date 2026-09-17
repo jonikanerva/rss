@@ -22,8 +22,11 @@ nonisolated enum EntryRowMetrics {
   static let summaryBaseSize: CGFloat = 12
 
   /// Whole-point line heights of the three row fonts at one text-size
-  /// scale: `ceil(ascender - descender + leading)` each, the line height
-  /// SwiftUI's text layout uses on macOS.
+  /// scale: `ceil(ascender - descender + leading)` each. This is the
+  /// arithmetic the column and the floor are built from, not a promise
+  /// about layout: SwiftUI's laid-out line pitch differs from these values
+  /// by up to 1 pt per slot in either direction (measured on macOS 27).
+  /// `EntryRowGeometryTests` (T1) pins the measured sum against the column.
   nonisolated struct LineHeights: Equatable, Sendable {
     let title: CGFloat
     let meta: CGFloat
@@ -42,12 +45,13 @@ nonisolated enum EntryRowMetrics {
   static let titleLineLimit = 2
   static let domainLineLimit = 1
   static let excerptColumnLines = 2
-  /// Text of the domain line when the row has no domain. A single space,
-  /// not an empty string: SwiftUI lays an EMPTY `Text` with reserved space
-  /// out 14 pt tall at every font size (measured), while a space takes the
-  /// font's own line height, so the space left for the summary is the same
-  /// with and without a domain. Invisible; the row sets its own
-  /// accessibility label, so VoiceOver never reads it.
+  /// Text of the domain line when the row has no domain (`nil` or an empty
+  /// string). A single space, not an empty string: SwiftUI lays an EMPTY
+  /// `Text` with reserved space out 14 pt tall at every font size
+  /// (measured), while a space takes the font's own line height, so the
+  /// space left for the summary is the same with and without a domain.
+  /// Invisible; the row sets its own accessibility label, so VoiceOver
+  /// never reads it.
   static let reservedDomainPlaceholder = " "
   /// Render-time line limit of the summary: the column budget plus every
   /// title line a short title leaves free. Precondition for the extra line

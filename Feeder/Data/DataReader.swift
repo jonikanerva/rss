@@ -419,12 +419,16 @@ actor DataReader: ModelActor {
   private func projectEntryRow(_ entry: Entry) -> EntryRowDTO {
     let summary = entry.summaryPlainText
     let feed = entry.feed
+    // `extractDomain` stores "" when the URL has no host, so a row with no
+    // domain reaches the DTO as `nil` in every case (issue #170: the row
+    // reserves the domain line with a placeholder only for `nil`).
+    let displayDomain = entry.displayDomain.flatMap { $0.isEmpty ? nil : $0 }
     return EntryRowDTO(
       persistentID: entry.persistentModelID,
       feedbinEntryID: entry.feedbinEntryID,
       title: entry.title,
       formattedPublishedTime: entry.formattedPublishedTime,
-      displayDomain: entry.displayDomain,
+      displayDomain: displayDomain,
       excerpt: rowExcerpt(
         summaryPlainText: summary,
         plainText: summary.isEmpty ? entry.plainText : ""

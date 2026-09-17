@@ -66,8 +66,9 @@ nonisolated func extractDomain(from urlString: String) -> String {
 
 /// Hard cap for `rowExcerpt` — bounds the DTO's memory when a summary-less
 /// article falls back to the full `plainText` body (issue #148). This is a
-/// data-size bound, not visual truncation; the row renders two lines
-/// regardless.
+/// data-size bound, not visual truncation; the row renders up to three
+/// excerpt lines under a one-line title and two under a two-line title
+/// (`EntryRowMetrics.excerptLineLimit`) regardless.
 private nonisolated let rowExcerptMaxLength = 500
 
 /// Row excerpt for the article list: the write-time `summaryPlainText` when
