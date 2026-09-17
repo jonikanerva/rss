@@ -767,8 +767,10 @@ struct EntryListView: View {
 //   1008  the same excerpt plus one word: three lines and an ellipsis
 //   1009  unread row, and 1010 its read twin (dimmed via the
 //         `pendingReadIDs` overlay): same height, same split
-//   1011  emoji in the title: the line height does not grow, the summary
-//         keeps its lines
+//   1011  emoji in the title: one or two summary lines under a two-line
+//         emoji title (the T2 range in `EntryRowGeometryTests` pins 1...2;
+//         2...3 under a one-line emoji title) — the line height did not grow
+//         on macOS 27, so the summary kept its lines in the measurement
 //   1012  long domain: middle truncation, the slot stays one line tall
 //   1013  two-line title, EMPTY-STRING domain (what `extractDomain` stores
 //         for a URL without a host): the reader maps it to nil, the domain
@@ -854,7 +856,7 @@ private struct EntryListRowMatrixPreview: View {
       (1008, "Threshold plus one word", "matrix.example.com", threeLineExcerpt + " column"),
       (1009, twinTitle, "matrix.example.com", twinExcerpt),
       (1010, twinTitle, "matrix.example.com", twinExcerpt),
-      (1011, "Emoji in the title 🚀 keeps the line height", "matrix.example.com", longExcerpt),
+      (1011, "Emoji in the title 🚀 may cost a summary line", "matrix.example.com", longExcerpt),
       (
         1012, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
         longExcerpt

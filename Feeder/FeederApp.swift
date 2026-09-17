@@ -39,6 +39,14 @@ struct FeederApp: App {
   private var perfActivationDelegate
 
   init() {
+    // Issue #170: remove AppKit's autosaved split-view frames BEFORE any
+    // window or split view exists. On macOS 27 the bridge restores the
+    // content column as `width − sidebar x`; Feeder owns both leading column
+    // widths itself (`ColumnWidthSetting`), so the stale frames must not be
+    // there when the split view is created. `STACK.md § 14` records the
+    // reliance on the undocumented key name.
+    SplitViewAutosaveReset.removeStaleFrames()
+
     let processEnvironment = ProcessInfo.processInfo.environment
     // Headless launches (any `FEEDER_HEADLESS=1` run — `make test` sets it on the
     // XCTest host) boot with an EMPTY in-memory store so they never load the real
@@ -224,8 +232,10 @@ struct FeederApp: App {
 
 // MARK: - Perf activation delegate
 
-/// `FEEDER_PERF_MODE`-gated `NSApplicationDelegate` that foregrounds the app
-/// for the headless perf run and INERT otherwise.
+/// The app's single `NSApplicationDelegate`. Two duties: the
+/// `FEEDER_PERF_MODE`-gated launch hooks that foreground the app for the
+/// headless perf run (inert otherwise), and the ungated termination flush of
+/// the pending column widths (`applicationWillTerminate`, issue #170).
 ///
 /// Why it exists: `make perf` launches the app through `xctrace record
 /// --launch`, which starts the process WITHOUT activating it. A non-activated
@@ -287,5 +297,15 @@ final class PerfActivationAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
       }
     }
+  }
+
+  /// NOT perf-gated: runs at every quit. Persists the last measured column
+  /// widths so a divider drag inside the recorder's 300 ms settle window is
+  /// not lost when the user quits (issue #170). `applicationWillTerminate` is
+  /// the documented hook for "any final cleanup before the app terminates"
+  /// and the only one that runs BEFORE the process exits; see
+  /// `PendingColumnWidths` for why the structured async form cannot do this.
+  func applicationWillTerminate(_ notification: Notification) {
+    PendingColumnWidths.flush()
   }
 }
