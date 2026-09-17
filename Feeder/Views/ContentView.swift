@@ -43,15 +43,6 @@ struct ContentView: View {
   /// twelve categories to render a real three-pane reading state.
   private static let headlessSeedEntryCount = 120
 
-  /// Content-column (article list) width bound (issue #170). 320 keeps a
-  /// two-line title plus the time column readable at the default text size;
-  /// 400 is the width the owner drags the column to; 600 keeps the detail
-  /// pane above half the window at common window widths. HIG (macOS split
-  /// views): "Set reasonable defaults for minimum and maximum pane sizes."
-  private static let contentColumnMinWidth: CGFloat = 320
-  private static let contentColumnIdealWidth: CGFloat = 400
-  private static let contentColumnMaxWidth: CGFloat = 600
-
   @Environment(SyncEngine.self)
   private var syncEngine
   @Environment(ClassificationEngine.self)
@@ -78,6 +69,19 @@ struct ContentView: View {
   /// 2026-05 Time Profiler trace).
   @State
   private var unreadSnapshot: UnreadCountsSnapshot = .empty
+  /// Launch `ideal` of the content column (issue #170): the width the user
+  /// last settled on, read ONCE from `ContentColumnWidthSetting` when this
+  /// view's identity is created, and never written. The initial-value
+  /// expression runs on every `ContentView` construction (one cached
+  /// `UserDefaults` read; `bootstrapGate` constructs the view once per launch
+  /// in practice), but `@State` pins the value SwiftUI uses to the first one,
+  /// so a re-construction after a persisted drag cannot hand the split view
+  /// a new `ideal` mid-session (`let` could). It must NOT become an
+  /// environment object or a live binding: a live `ideal` hands the split
+  /// view a new preferred width in the middle of a drag, and the divider
+  /// fights the drag. The bounds live in `ContentColumnWidthSetting`.
+  @State
+  private var contentColumnIdealWidth: CGFloat = ContentColumnWidthSetting.restoredIdealWidth()
   @AppStorage("sidebar.collapsedFolders")
   private var collapsedFolders: SidebarCollapsedFolders = .init()
   /// Source of truth for the article-list selection (issue #148): the row
@@ -178,14 +182,18 @@ struct ContentView: View {
       sidebarView
         .focused($panelFocus, equals: .sidebar)
     } content: {
-      // One `Group` so BOTH branches carry the same column-width preference.
-      // The bound is a preference, not a memory: the docs promise no
-      // persistence of a dragged width, and on macOS 27 the content column
-      // was observed snapping back to about 200 pt at random (issue #170).
-      // `min` makes that state unreachable; `ideal` is the owner's dragged
-      // width, so an undocumented reset lands where the reader wants it;
-      // `max` keeps the detail pane above half the window at common widths.
-      // The values do NOT follow the text size (ux decision, issue #170).
+      // One `Group` so BOTH branches carry the same column-width preference
+      // and the same width recorder. The bounds are a preference the split
+      // view enforces; the `ideal` is Feeder's own memory of the width. The
+      // docs promise no persistence of a dragged width, and on macOS 27 the
+      // column returned to `ideal` at every launch (issue #170), so the
+      // recorder stores the settled width and the next launch reads it back
+      // as `ideal` (`ContentColumnWidthSetting`). `min` makes the observed
+      // ~200-pt collapse unreachable; `max` keeps the detail pane above half
+      // the window at common widths. The bounds do NOT follow the text size
+      // (ux decision, issue #170). The recorder sits on this `Group`, never
+      // per row: both branches fill the column, so the measured width is the
+      // column's, not the window's.
       Group {
         if let selection {
           entryListForSelection(selection)
@@ -224,8 +232,10 @@ struct ContentView: View {
         }
       }
       .navigationSplitViewColumnWidth(
-        min: Self.contentColumnMinWidth, ideal: Self.contentColumnIdealWidth,
-        max: Self.contentColumnMaxWidth)
+        min: ContentColumnWidthSetting.minimumWidth, ideal: contentColumnIdealWidth,
+        max: ContentColumnWidthSetting.maximumWidth
+      )
+      .modifier(ContentColumnWidthRecorder())
     } detail: {
       detailView
     }
