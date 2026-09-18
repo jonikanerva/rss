@@ -25,7 +25,7 @@ Deferred work must not die in a PR comment or a conversation note: when planning
 
 Everything in the repo or on GitHub is in English (code, comments, commits, branches, PRs, issues, docs). Only Claude's chat replies to the user are in Finnish.
 
-Use Simplified Technical English (STE) for English text that users read in the repository or on GitHub. This includes documentation, commit messages, issues, PR descriptions, and review comments. Write short sentences. Use active voice and plain, consistent terms. This rule does not apply to Finnish chat. Do not rewrite compact operating contracts only to apply STE.
+Use Simplified Technical English (STE) for English text that users read in the repository or on GitHub. This includes documentation, code comments, commit messages, issues, PR descriptions, and review comments. Identifiers, framework names, and API terms stay verbatim — STE governs the prose around them, never the names themselves. Write short sentences. Use active voice and plain, consistent terms. This rule does not apply to Finnish chat. Do not rewrite compact operating contracts only to apply STE.
 
 ## Git workflow
 
@@ -100,7 +100,26 @@ Use the framework in `STACK.md`; tests run clean in the strictest mode. Test pur
 
 ## Code conventions
 
-Value types and immutable bindings by default; reference types/mutation only when identity or shared mutation is needed. Composition over inheritance; small purpose-driven types; files named for their primary type. No unsafe unwraps/coercions outside tests; no broad type erasure without a measured benefit; no global mutable state or singletons unless an API requires one. Delete dead code; comments explain why, not the obvious; exported symbols get a doc comment. No debug output in shipped code — use the logger in `STACK.md`, which names the banned calls. Run `$FORMAT_CMD` before committing.
+Value types and immutable bindings by default; reference types/mutation only when identity or shared mutation is needed. Composition over inheritance; small purpose-driven types; files named for their primary type. No unsafe unwraps/coercions outside tests; no broad type erasure without a measured benefit; no global mutable state or singletons unless an API requires one. Delete dead code; comment per **Comments** below. No debug output in shipped code — use the logger in `STACK.md`, which names the banned calls. Run `$FORMAT_CMD` before committing.
+
+### Comments
+
+A comment earns its place by stating a **constraint a reader would otherwise break** — units, ownership, failure behaviour, an actor or thread requirement, what a caller must not do. It does not describe the code. Default to none: code that needs explaining is a naming or structure defect, so fix the code first. Doc-comment an exported symbol only when the name and the signature leave a contract unstated.
+
+The list below is the rule. The budget is a smell that points at it: a comment runs to at most 5 lines. Past that the content is usually rationale, not a constraint — move it to the issue, the PR, or `STACK.md`, and leave a pointer. A comment carrying two distinct constraints splits into two comments; it is not cut to fit. A comment over 5 lines that holds only constraints stays, and the reviewer says so. Never cut a contract to reach a number.
+
+Never write:
+
+- **History.** What the code used to be, what a fix changed, what a design replaced, what a measurement was. The commit, the PR, and the issue hold that record. A comment describes the present only.
+- **Rationale and rejected alternatives.** Why an option lost, notes from a design session, measured numbers. These go to the issue, the PR, or `STACK.md → Intentional Divergences`.
+- **A reference that does not resolve inside the repository.** Delete every issue number, PR number, and commit reference from the comment: it must still read correctly. A bare `#170` or "the previous shape" is not a reference; a named `STACK.md` section is.
+- **The same explanation twice** — in a type doc and again at the call site, or in the source and again in a `STACK.md` section. Name the section instead of restating it.
+- **Anything answering the current task or its author.** Tell the user instead.
+- **A line number, a file offset, or a count of things elsewhere** — a later edit invalidates it silently.
+
+Write for a reader who has this file and nothing else: no issue, no chat, no external schema. Read each comment back cold, as a standalone sentence — an unclear referent is a defect even when the content is right. Do this while writing: a later pruning pass tests redundancy, not clarity. A note about an implementation choice sits at the line that makes it, not in the doc comment.
+
+Keep an existing comment unless the change makes it wrong. A comment that breaks this policy is already wrong: prune it when you touch that code.
 
 ## Dependencies
 
@@ -108,7 +127,7 @@ Default to no — especially for what the platform already solves. A genuinely n
 
 ## Reject changes that…
 
-violate a decision-filter question or add a `VISION.md → Non-Goals` feature; add a competing framework or boilerplate where a smaller owner suffices; put heavy work on the critical path or in per-event code; couple the interface layer to network/storage/sensor internals; store or compute in local time (or hand-roll timezone-offset math) instead of UTC-internally with conversion only at the boundary; hide failure behind infinite spinners or use parallel booleans for a state machine; suppress warnings with escape hatches; spawn fire-and-forget async with no ownership or cancellation; add a dependency for what the platform solves or lower the minimum version in `STACK.md`; introduce debug output, stubs, or commented-out code, or log PII; add singletons/DI containers without `STACK.md` approval; or break any `STACK.md → Stack-specific reject-list additions` rule.
+violate a decision-filter question or add a `VISION.md → Non-Goals` feature; add a competing framework or boilerplate where a smaller owner suffices; put heavy work on the critical path or in per-event code; couple the interface layer to network/storage/sensor internals; store or compute in local time (or hand-roll timezone-offset math) instead of UTC-internally with conversion only at the boundary; hide failure behind infinite spinners or use parallel booleans for a state machine; suppress warnings with escape hatches; spawn fire-and-forget async with no ownership or cancellation; add a dependency for what the platform solves or lower the minimum version in `STACK.md`; introduce debug output, stubs, or commented-out code, or log PII; narrate history, rationale, or an unresolvable issue/PR reference in a comment instead of the issue or the PR (`Code conventions → Comments`); add singletons/DI containers without `STACK.md` approval; or break any `STACK.md → Stack-specific reject-list additions` rule.
 
 ## Definition of done
 
