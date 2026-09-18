@@ -5,18 +5,11 @@ import SwiftData
 
 // MARK: - Fake Feedbin client
 
-/// In-memory `FeedbinClientProtocol` implementation for `SyncEngine` tests.
-///
-/// Only the surface `SyncEngineTests` actually exercises is modeled here.
-/// Methods the engine calls but the tests don't assert on (icons,
-/// extracted content, credentials) return safe defaults — they still need
-/// to behave like the real client so `sync()` can run end-to-end.
-///
-/// All methods record their invocations in their own `*CallLog`, mirroring
-/// the same pattern, so any test (current or future) can introspect the
-/// orchestration without reaching into private state.
-///
-/// Lives in the test target only; production code never sees this type.
+/// In-memory `FeedbinClientProtocol` for the sync tests. It models only the
+/// surface those tests exercise; a method the engine calls but no test asserts
+/// on returns a safe default and still behaves like the real client, so a sync
+/// runs end to end. Every method records its invocations, so a test introspects
+/// the orchestration without reaching into private state.
 actor FakeFeedbinClient: FeedbinClientProtocol {
   // MARK: Configurable responses
 
@@ -31,19 +24,14 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   // MARK: Timing knobs
 
-  /// Sleep inserted **before** entry-page yielding begins. Lets race-guard
-  /// tests keep the primary sync in-flight while a second operation tries
-  /// to start. The delay sits between the `bumpEntryPagesCallCount` and
-  /// the first page yield, so tests can gate on `fetchEntryPagesCallCount`
-  /// to know the stream has been entered.
+  /// Sleep inserted before the page yielding begins, so a race-guard test keeps
+  /// the primary sync in flight while a second operation tries to start. It
+  /// sits after the call-count bump, so that counter signals the stream started.
   var entryPagesInitialDelay: Duration = .zero
 
-  /// Sleep inserted **between** page yields (before every page after the
-  /// first). Keeps the entry-page stream open after page 1 has been consumed,
-  /// so a test can observe `SyncEngine`'s live `totalToFetch` (set un-throttled
-  /// from each page's total the moment a page lands, SyncEngine.swift) while
-  /// `isSyncing` is still true — the regression pin for issue #124's "B is
-  /// already live" claim.
+  /// Sleep inserted between page yields, which keeps the stream open after the
+  /// first page is consumed. A test then observes the engine's live fetch total
+  /// while the sync is still running.
   var entryPagesInterPageDelay: Duration = .zero
 
   // MARK: Call logs
@@ -52,8 +40,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var deleteUnreadEntriesCallLog: [[Int]] = []
   /// Recorded URLs `fetchExtractedContent(from:)` was called with.
   var extractedContentCallLog: [String] = []
-  /// Number of times `fetchAllEntryPages` was invoked. Bumped synchronously
-  /// at the start of the stream's body so race-guard tests can gate on it.
+  /// How many times the page stream was entered. Bumped synchronously at the
+  /// start of the stream's body, so a race-guard test gates on it.
   var fetchEntryPagesCallCount: Int = 0
 
   // MARK: - FeedbinClientProtocol
@@ -64,8 +52,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   func fetchIcons() async throws -> [FeedbinIcon] {
-    // Icons aren't asserted by any current test — return an empty list so
-    // `SyncEngine.sync()` can complete its icon pass.
+    // No test asserts on icons, so return an empty list and let the sync finish
+    // its icon pass.
     []
   }
 
@@ -78,8 +66,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   func verifyCredentials() async throws -> Bool {
-    // Not exercised by any current test. Return `true` so the production
-    // contract ("valid creds → true") is mirrored.
+    // No test exercises this. Return `true`, mirroring the production contract.
     true
   }
 
@@ -90,11 +77,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   nonisolated func fetchAllEntryPages(since: Date?) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
-    // Snapshot of the actor's response/delay configuration captured in one
-    // hop. Doing it once up-front means the stream's task does not need to
-    // hold the actor across each page yield — and crucially the stream
-    // task does **not** capture `self`, sidestepping the `[weak self]`
-    // prohibition in `STACK.md § 7`.
+    // One snapshot of the configuration, taken in a single hop, so the stream's
+    // task holds no actor across a page yield and never captures `self`
+    // (`STACK.md § 7`).
     let snapshotTask = Task { await self.snapshotEntryPagesState() }
     return AsyncThrowingStream { continuation in
       let task = Task {
@@ -126,10 +111,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   // MARK: - Internal
 
-  /// Read the page-stream snapshot **and** bump the call counter in one
-  /// actor hop. Done together so race-guard tests can use the counter as a
-  /// reliable "the stream's body has started" signal without depending on
-  /// `SyncEngine`'s `isSyncing` flag, which flips before any client call.
+  /// Read the snapshot and bump the call counter in one actor hop, so the
+  /// counter is a reliable "the stream body has started" signal. The engine's
+  /// own flag is not: it flips before any client call.
   private func snapshotEntryPagesState() -> (
     pages: [FeedbinEntriesPage], delay: Duration, interPageDelay: Duration
   ) {
@@ -141,9 +125,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 // MARK: - Test-only DataWriter introspection
 
 extension DataWriter {
-  /// Count `Entry` rows in the in-memory store. Test-only convenience so
-  /// `SyncEngineTests` can assert the engine actually persisted entries
-  /// without crossing actor boundaries by hand.
+  /// Count the entry rows in the in-memory store, so a test asserts the engine
+  /// persisted entries without crossing actor boundaries by hand.
   func entryCount() throws -> Int {
     try modelContext.fetchCount(FetchDescriptor<Entry>())
   }

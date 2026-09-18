@@ -5,12 +5,9 @@ import WebKit
 
 // MARK: - WebKitPreheat Tests
 //
-// Covers `WebKitPreheat.warmIfNeeded()` for issue #106.
-//
-// The actual perf assertion (first-article render time after preheat)
-// requires the headed `make perf` trace and is intentionally out of scope
-// here — these tests cover the idempotency contract the preheat's
-// best-effort promise depends on.
+// These tests cover the idempotency contract the preheat's best-effort promise
+// depends on. The perf assertion itself needs a headed trace and is out of
+// scope here.
 
 @MainActor
 struct WebKitPreheatTests {

@@ -117,14 +117,10 @@ struct FeederMigrationPlanTests {
 
   // MARK: - On-disk round-trip (V1 → V2)
 
-  /// Critical end-to-end migration safety test (#98): write a populated
-  /// V1 store to disk, close the container, open a fresh one with the
-  /// migration plan + V2 schema against the same URL, and verify every
-  /// row survives. This is the regression guard for the issue that
-  /// motivated the migration framework — the pre-PR-#97 reset path would
-  /// have wiped the store; the migration plan must not. Acceptance
-  /// criterion for issue #87 (user-customised categories survive) and
-  /// the lightweight-removal demonstration for #90.
+  /// End-to-end migration safety: write a populated V1 store to disk, close the
+  /// container, open a fresh one with the migration plan and the V2 schema
+  /// against the same URL, and verify every row survives. A user-customised
+  /// category must come through unchanged.
   @Test
   @MainActor
   func migratingV1StoreToV2PreservesUserData() throws {
@@ -154,7 +150,7 @@ struct FeederMigrationPlanTests {
     let feeds = try context.fetch(FetchDescriptor<Feed>())
     let entries = try context.fetch(FetchDescriptor<Entry>())
 
-    // Issue #87 acceptance: user-customised category state survives.
+    // The user-customised category state survives the migration.
     #expect(folders.count == 1)
     #expect(folders.first?.displayName == "Persisted Folder")
     #expect(folders.first?.sortOrder == 0)

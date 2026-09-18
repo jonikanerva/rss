@@ -40,7 +40,7 @@ struct TraceWindowingTests {
     #expect(window == nil)
   }
 
-  // MARK: - Real xctrace export format (id/ref interning, issue #132)
+  // MARK: - Real xctrace export format (id and ref interning)
 
   @Test("Resolves perf-nav-window from the real signpost format with id/ref interning")
   func resolvesRealSignpostFormat() throws {
@@ -76,7 +76,7 @@ struct TraceWindowingTests {
     #expect(shares.unreadPct == 0)
   }
 
-  // MARK: - Render-path non-degeneracy floor (issue #132)
+  // MARK: - Render-path non-degeneracy floor
 
   @Test("Floor witness (sidebar-click) resolves inside the window")
   func floorWitnessPresentInWindow() {
@@ -352,9 +352,8 @@ struct TraceWindowingTests {
     </table>
     """
 
-  /// Mirror of the `level4_trace` block after the nav-stutter harness landed:
-  /// body/unread ceilings ACTIVE; every hang count + the sidebar-nav share
-  /// report-only (null max) per Guard #1.
+  /// Mirror of the trace block: the body and unread ceilings are active, and
+  /// every hang count and the sidebar-nav share are report-only.
   static let navHarnessBaselineJSON = """
     {
       "captured_host_cpu" : "Apple M3",

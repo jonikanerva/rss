@@ -16,23 +16,19 @@ nonisolated func loadStaticResource(_ name: String, ext: String) -> String {
 
 // MARK: - Bare-key routing
 
-/// Where a bare keypress inside the article web view should route.
-/// `nonisolated` so the synthesized `Equatable` conformance is usable from
-/// nonisolated contexts (the classifier below and its unit tests).
+/// Where a bare keypress inside the article web view routes. `nonisolated`, so
+/// the classifier below and its tests can use the `Equatable` conformance.
 nonisolated enum BareKeyRoute: Equatable, Sendable {
   case j, k, r, b
 }
 
-/// Pure classifier behind `BareKeyForwardingWebView.keyDown(with:)`: decides
-/// whether a key event is one of the app's bare-key shortcuts (j/k/r/b —
-/// shift allowed, so the uppercase forms route too) or belongs to the web
-/// view (scrolling, selection, copy). Anything with command/option/control,
-/// any non-matching character, and Tab/Escape/⇧A all return `nil` so the
-/// event falls through to `super.keyDown(with:)`.
+/// Decides whether a key event is one of the app's bare-key shortcuts, with
+/// shift allowed, or belongs to the web view. Any other modifier, any
+/// non-matching character, and Tab, Escape and the mark-all-read chord all
+/// return `nil`, so the event falls through to the superclass.
 ///
-/// Lives in the interface layer (not `Helpers/`) because it speaks
-/// `NSEvent.ModifierFlags`; `nonisolated` so the truth table is unit-testable
-/// without AppKit event plumbing.
+/// It lives in the interface layer because it speaks `NSEvent.ModifierFlags`,
+/// and is `nonisolated` so the truth table is testable without AppKit plumbing.
 nonisolated func bareKeyRoute(
   characters: String?,
   modifiers: NSEvent.ModifierFlags
@@ -51,19 +47,15 @@ nonisolated func bareKeyRoute(
 
 // MARK: - Bare-key forwarding web view
 
-/// `WKWebView` subclass that routes the app's bare-key shortcuts (J/K/R/B)
-/// to the same `BareKeyActions` the SwiftUI `onKeyPress` handlers use.
+/// `WKWebView` subclass that routes the app's bare-key shortcuts to the same
+/// actions the SwiftUI handlers use.
 ///
-/// Why AppKit: once the user clicks into the article, the web view is first
-/// responder and key events travel the AppKit responder chain — they never
-/// reach SwiftUI's `onKeyPress` handlers, and SwiftUI has no API to
-/// intercept keys held by an NSView first responder. The interception
-/// therefore lives in this already-existing NSViewRepresentable adapter
-/// (STACK.md §2: AppKit only as a wrapped adapter). A `.handled` action
-/// consumes the event; `.ignored` or no match falls through to
-/// `super.keyDown(with:)` so space/arrow/Page scrolling, text selection,
-/// and ⌘C stay untouched. Tab, Escape, and ⇧A are deliberately not
-/// forwarded.
+/// Once the user clicks into the article the web view is first responder, so
+/// key events travel the AppKit responder chain and never reach SwiftUI. The
+/// interception therefore lives in this wrapped adapter (`STACK.md § 2`). A
+/// handled action consumes the event; anything else falls through, so
+/// scrolling, selection and copy stay untouched. Tab, Escape and the
+/// mark-all-read chord are not forwarded.
 private final class BareKeyForwardingWebView: WKWebView {
   var bareKeyActions = BareKeyActions()
 
@@ -92,13 +84,12 @@ private final class BareKeyForwardingWebView: WKWebView {
 
 struct ArticleWebView: NSViewRepresentable {
   let entry: Entry
-  /// Pre-rendered article HTML. The host view computes this on a background
-  /// task via `renderArticleHTML(...)` and passes the result in. This keeps
-  /// regex sanitization and template injection off the MainActor.
+  /// Pre-rendered article HTML. The host computes it on a background task, so
+  /// the sanitisation and template injection stay off MainActor.
   let renderedHTML: String
-  /// Same actions the SwiftUI `BareKeyHandler` modifiers dispatch — injected
-  /// at the split-view root, forwarded into the AppKit subclass above so
-  /// R/B (and J/K) keep working while the web view is first responder.
+  /// The same actions the SwiftUI handlers dispatch, forwarded into the AppKit
+  /// subclass above so the shortcuts keep working while the web view is first
+  /// responder.
   @Environment(\.bareKeyActions)
   private var bareKeyActions
 
@@ -108,7 +99,7 @@ struct ArticleWebView: NSViewRepresentable {
 
   func makeNSView(context: Context) -> WKWebView {
     let config = WKWebViewConfiguration()
-    // JS fully disabled — all stripping done in Swift before injection
+    // JavaScript stays disabled: the Swift-side stripping is the only defence.
     config.defaultWebpagePreferences.allowsContentJavaScript = false
 
     let webView = BareKeyForwardingWebView(frame: .zero, configuration: config)
@@ -119,14 +110,13 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   func updateNSView(_ webView: WKWebView, context: Context) {
-    // Refresh the forwarded actions on every update, BEFORE the reload
-    // guard below — the environment's closures are rebuilt by ContentView
-    // re-evaluations even when the entry and HTML are unchanged.
+    // Refresh the forwarded actions before the reload guard below: the
+    // environment rebuilds its closures even when the entry and HTML are
+    // unchanged.
     (webView as? BareKeyForwardingWebView)?.bareKeyActions = bareKeyActions
-    // Re-load when either the entry changes (selection) or the rendered HTML
-    // changes (text-size picker — same entry, new `--app-scale`). Hashing the
-    // HTML keeps the guard cheap and avoids the `String` heap allocation a
-    // direct `currentHTML != renderedHTML` would incur on every diff.
+    // Re-load when the entry changes or the rendered HTML changes. Hashing the
+    // HTML keeps the guard cheap: comparing the strings would allocate on every
+    // diff.
     let entryID = entry.feedbinEntryID
     let htmlHash = renderedHTML.hashValue
     guard
@@ -151,12 +141,12 @@ struct ArticleWebView: NSViewRepresentable {
       _ webView: WKWebView,
       decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-      // Allow initial HTML load and fragment navigations
+      // Allow the initial HTML load and in-page fragment navigation.
       if navigationAction.navigationType == .other {
         return .allow
       }
 
-      // Open all link clicks in the system browser
+      // Every link click opens in the system browser.
       if let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
         NSWorkspace.shared.open(url)
         return .cancel

@@ -4,16 +4,14 @@ import Testing
 
 @testable import Feeder
 
-/// Regression detector for the off-main executor binding (issues #135 / #159).
+/// Regression detector for the off-main executor binding.
 ///
-/// `DefaultSerialModelExecutor` runs an actor method's body on the AWAITING
-/// caller's thread — main, for every MainActor call site — so a reverted
-/// executor binding is a silent perf regression that no functional assertion
-/// catches. This suite is explicitly `@MainActor` to reproduce the production
-/// call shape: every guarded `DataWriter` method opens with
-/// `dispatchPrecondition(condition: .notOnQueue(.main))`, so if the
-/// `BackgroundSerialModelExecutor` binding ever reverts, the write runs on
-/// main and the precondition traps — a loud crash instead of a quiet hang.
+/// `DefaultSerialModelExecutor` runs an actor method's body on the awaiting
+/// caller's thread, which is main for every MainActor call site, so a reverted
+/// binding is a silent performance regression no functional assertion catches.
+/// This suite is `@MainActor` to reproduce that call shape: every guarded
+/// method opens with a not-on-main precondition, so a reverted binding traps
+/// loudly instead of hanging quietly.
 @MainActor
 @Suite("DataWriter off-main executor")
 struct DataWriterOffMainExecutorTests {

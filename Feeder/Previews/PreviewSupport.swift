@@ -24,13 +24,11 @@ enum PreviewSupport {
     }
   }
 
-  /// Mint valid `PersistentIdentifier`s for DTO-based previews (issue #148).
-  /// `PersistentIdentifier` has no public initializer and its `Codable`
-  /// payload is undocumented, so the only supported way to obtain instances
-  /// is from inserted rows — this throwaway in-memory context is that mint.
-  /// The DTO previews need only the id VALUES (tags / ForEach identity);
-  /// every rendered field comes from the DTO itself, so the view under
-  /// preview still performs zero store access.
+  /// Mint valid `PersistentIdentifier`s for the DTO-based previews.
+  /// `PersistentIdentifier` has no public initializer, so an inserted row is
+  /// the only supported source and this throwaway in-memory context is that
+  /// source. The previews need the id values alone; every rendered field comes
+  /// from the DTO, so the view still performs no store access.
   static func mintEntryIdentifiers(count: Int) -> [PersistentIdentifier] {
     let context = ModelContext(makeContainer())
     return (0..<count).map { offset in

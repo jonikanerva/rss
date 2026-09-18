@@ -1,12 +1,12 @@
 import Foundation
 import OSLog
 
-/// Classifies articles using the OpenAI Chat Completions API with structured outputs.
-/// Uses URLSession directly — no third-party dependencies.
+/// Classifies articles through the OpenAI Chat Completions API with structured
+/// outputs, over `URLSession` and no third-party dependency.
 nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
-  /// Inside the `nonisolated struct` (not file scope) so the nonisolated
-  /// `classify(...)` witness can log — a file-scope `let` is MainActor-
-  /// isolated under default isolation (`STACK.md § 8`, non-MainActor form).
+  /// Declared inside the `nonisolated struct`, so the `classify(...)` witness
+  /// can log: a file-scope `let` would be MainActor-isolated under default
+  /// isolation (`STACK.md § 8`).
   private static let logger = Logger(subsystem: "com.feeder.app", category: "OpenAI")
 
   let name = "OpenAI"
@@ -85,13 +85,11 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     )
   }
 
-  /// Pure request-body seam so tests can pin the encoded wire shape —
-  /// notably the ABSENCE of a "temperature" key. gpt-5.6-luna rejects any
-  /// non-default temperature with a deterministic 400 ("Only the default
-  /// (1) value is supported"), so the maximally compatible request across
-  /// the catalog sends no sampling parameters at all and lets each model's
-  /// default apply; the `json_schema` structured output still constrains
-  /// the response shape.
+  /// Pure request-body seam, so a test can pin the encoded wire shape, and in
+  /// particular the absence of a temperature key. Some models reject any
+  /// non-default temperature with a deterministic 400, so the request sends no
+  /// sampling parameter at all and lets each model's own default apply. The
+  /// structured-output schema still constrains the response shape.
   static func encodeRequestBody(
     model: String,
     instructions: String,
@@ -118,10 +116,9 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
 // MARK: - OpenAI API types
 
-// All `nonisolated`: consumed by the nonisolated `classify(...)` witness —
-// under default MainActor isolation these file-scope types (and their
-// synthesized Codable conformances and statics) would otherwise be
-// MainActor-isolated and unusable off the main actor.
+// All `nonisolated`: the `classify(...)` witness consumes them, and under
+// default MainActor isolation these file-scope types and their synthesized
+// conformances would be unusable off the main actor.
 
 /// Internal (not private) so in-module tests can assert the
 /// `ClassificationFailure` disposition mapping case by case.
@@ -146,16 +143,12 @@ nonisolated enum OpenAIError: LocalizedError {
 }
 
 extension OpenAIError: ClassificationFailure {
-  /// Batch-level disposition (see `ClassificationFailure`):
-  /// - API errors (4xx incl. 401/403/404/429, and 5xx) and network failures
-  ///   are deterministic or transient *provider-level* failures — persisting
-  ///   Uncategorized for them would permanently misclassify the whole drain,
-  ///   so they abort the batch (with a user-facing cause) and leave every
-  ///   entry retryable. 401 → key; other 4xx → the request the model
-  ///   rejected; 429/5xx → the provider itself.
-  /// - `emptyResponse` / `invalidResponse` are per-entry model-output
-  ///   problems: the drain continues and the entry falls back to
-  ///   Uncategorized, exactly as before.
+  /// Batch-level disposition, per `ClassificationFailure`. An API error or a
+  /// network failure is a provider-level failure: persisting the fallback for
+  /// it would misclassify the whole drain, so it aborts the batch with a
+  /// user-facing cause and leaves every entry retryable. An empty or invalid
+  /// response is a per-entry model-output problem, so the drain continues and
+  /// that entry takes the fallback.
   var batchAbort: ClassificationAbortReason? {
     switch self {
     case .apiError(let statusCode, _):
@@ -169,7 +162,7 @@ extension OpenAIError: ClassificationFailure {
       case 500...:
         return .providerUnavailable
       default:
-        // Sub-400 non-200 oddities keep the per-entry fallback behavior.
+        // A non-200 status below 400 keeps the per-entry fallback.
         return nil
       }
     case .networkUnavailable:

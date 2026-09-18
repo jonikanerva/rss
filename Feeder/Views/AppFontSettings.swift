@@ -4,40 +4,25 @@ import SwiftUI
 // MARK: - App-wide Font Settings
 
 /// Owner of the user-selectable app-wide text size and the source of every
-/// SwiftUI font alias the app renders. Replaces the previous
-/// `@MainActor static var FontTheme.current` global plus the
-/// `.id(appTextSize)`-driven scene tear-down that caused state resets
-/// (sidebar selection, article selection, scroll position) every time the
-/// user changed the picker.
+/// SwiftUI font alias the app renders.
 ///
-/// **Why `@Observable` instead of `@AppStorage` + a static:**
-/// - SwiftUI sees property reads through `@Environment(AppFontSettings.self)`
-///   and invalidates only the views that actually read a font alias, leaving
-///   `ContentView`'s `@State` (selection, focus, scroll anchor) untouched.
-///   `.id(appTextSize)` is no longer needed.
-/// - Persistence stays — the `didSet` mirror keeps the same `UserDefaults`
-///   key (`appTextSizeUserDefaultsKey`) so a re-launch restores the user's
-///   choice.
+/// `@Observable`, so a size change invalidates only the views that read a font
+/// alias and leaves `ContentView`'s selection, focus, and scroll anchor
+/// untouched. The `didSet` mirror persists the choice.
 ///
-/// **Why each font alias is a computed property:**
-/// On macOS the only mechanism that produces visible text-size change is
-/// constructing fonts with `Font.system(size:)` and multiplying the base
-/// size by `AppTextSize.scaleFactor`. `.dynamicTypeSize(_:)` and
-/// `@ScaledMetric` propagate the environment value but do not re-resolve
-/// `Font.body` (verified previously by visual measurement on macOS 26).
+/// Every alias is built with `Font.system(size:)` times
+/// `AppTextSize.scaleFactor`, because that is the only mechanism that changes
+/// rendered text size on macOS: `.dynamicTypeSize(_:)` and `@ScaledMetric`
+/// propagate the environment value without re-resolving `Font.body`.
 @MainActor
 @Observable
 final class AppFontSettings {
-  /// The active app-wide text size. Writing here notifies every
-  /// `@Environment(AppFontSettings.self)` consumer and persists the new
-  /// value so the choice survives relaunch. Reads go through the computed
-  /// font aliases below; nothing outside this class reads `scaleFactor`
-  /// directly.
+  /// The active app-wide text size. A write notifies every consumer and
+  /// persists the value. Nothing outside this class reads `scaleFactor`
+  /// directly; the font aliases below are the interface.
   ///
-  /// `didSet` does not fire during init (Swift property observer
-  /// semantics), so the dependency-injected `init(textSize:userDefaults:)`
-  /// below can seed a value for previews / tests without writing back to
-  /// `UserDefaults`.
+  /// `didSet` does not fire during init, so `init(textSize:userDefaults:)` can
+  /// seed a value without writing back to `UserDefaults`.
   var textSize: AppTextSize {
     didSet {
       guard textSize != oldValue else { return }
@@ -47,48 +32,36 @@ final class AppFontSettings {
     }
   }
 
-  /// Row-height floor for the article list (`defaultMinListRowHeight` on the
-  /// `EntryListView` list). Equals the natural height of an `EntryRowView` —
-  /// the fixed text column plus the vertical padding — at
-  /// the current text size, plus the `EntryRowMetrics.rowHeightMargin`, so
-  /// every row is exactly this tall. STORED, not computed: the font-metric
-  /// reads happen only when `textSize` changes (a Settings-frequency event),
-  /// never in a view `body` (`STACK.md § 0 / § 4`).
+  /// Row-height floor for the article list: the natural height of an
+  /// `EntryRowView` at the current text size, so every row is exactly this
+  /// tall. Stored, not computed — the font-metric reads must happen only when
+  /// `textSize` changes, never in a view `body` (`STACK.md § 0 / § 4`).
   private(set) var entryRowHeight: CGFloat
 
-  /// Fixed height of the row's text column (`.frame(height:)` on the text
-  /// `VStack` in `EntryRowView`): two title lines, the domain line, two
-  /// summary lines and the gaps between them at the current text size.
-  /// Inside the column the title takes one or two lines and the summary
-  /// fills the rest. STORED next to `entryRowHeight` for the same reason;
-  /// both recompute together in the `textSize` setter.
+  /// Fixed height of the row's text column at the current text size: two title
+  /// lines, the domain line, two summary lines, and the gaps between them. The
+  /// title takes one or two lines inside it and the summary fills the rest.
+  /// Stored for the same reason as `entryRowHeight`, and recomputed with it.
   private(set) var entryRowTextColumnHeight: CGFloat
 
-  /// Backing store for `textSize` persistence. Defaults to
-  /// `UserDefaults.standard` in shipped code; tests pass a per-suite store
-  /// so they cannot leak into the developer's app preferences.
+  /// Backing store for `textSize` persistence. A test passes a per-suite store,
+  /// so it cannot leak into the developer's app preferences.
   @ObservationIgnored
   private let userDefaults: UserDefaults
 
-  /// Shipping init — reads the persisted value from `UserDefaults.standard`
-  /// so the first frame uses the user's previous choice.
-  /// `UserDefaults.integer(forKey:)` returns `0` for a missing key, and
-  /// `AppTextSize(rawValue: 0) == nil` by construction (the enum starts at
-  /// `1`), so the `?? .medium` fallback below resolves missing / invalid
-  /// stored values to medium on a fresh install / cleared preferences —
-  /// preserving the same default the picker uses.
+  /// Shipping init: reads the persisted value so the first frame uses the
+  /// user's previous choice. A missing key reads back as `0`, which is not a
+  /// valid `AppTextSize`, so the fallback below resolves a missing or invalid
+  /// value to medium.
   convenience init() {
     let stored = UserDefaults.standard.integer(forKey: appTextSizeUserDefaultsKey)
     let resolved = AppTextSize(rawValue: stored) ?? .medium
     self.init(textSize: resolved, userDefaults: .standard)
   }
 
-  /// Dependency-injected init for previews (pin a specific size so
-  /// reviewers see the layout at that scale instead of whatever the
-  /// developer's persisted choice happens to be) and tests (pin a
-  /// per-suite `UserDefaults` so the test cannot leak into shipped
-  /// preferences). The initial assignment is direct, so `didSet` does
-  /// not fire — no write-back side effect happens during construction.
+  /// Injected init for previews and tests, so each one pins its own size and
+  /// its own `UserDefaults`. The assignment is direct, so `didSet` does not
+  /// fire and construction has no write-back side effect.
   init(textSize: AppTextSize, userDefaults: UserDefaults = .standard) {
     self.userDefaults = userDefaults
     self.textSize = textSize
@@ -104,106 +77,81 @@ final class AppFontSettings {
 
   // MARK: - Row metrics
 
-  /// Row-height floor for the current `textSize`, from the row fonts' line
-  /// heights and the `EntryRowMetrics` layout constants. Called from `init`
-  /// and the `textSize` setter only — three `NSFont` metric reads per
-  /// Settings-frequency event, never per row and never in a `body`.
+  /// Row-height floor for the current `textSize`. Call it from `init` and the
+  /// `textSize` setter only: the `NSFont` metric reads must never run per row
+  /// or inside a `body`.
   private static func computeEntryRowHeight(scale: CGFloat) -> CGFloat {
     EntryRowMetrics.rowHeightFloor(scale: scale)
   }
 
-  /// Fixed text-column height for the current `textSize`; same call sites
-  /// and the same frequency as `computeEntryRowHeight`.
+  /// Fixed text-column height for the current `textSize`. Same call sites and
+  /// frequency as `computeEntryRowHeight`.
   private static func computeEntryRowTextColumnHeight(scale: CGFloat) -> CGFloat {
     EntryRowMetrics.textColumnHeight(scale: scale)
   }
 
   // MARK: - Article reading surfaces
 
-  /// Hero title in the article detail view and `<h1>` rendering.
-  /// Mirrors `.largeTitle.bold` at 26pt base.
+  /// Hero title in the article detail view, and `<h1>` rendering.
   var articleTitle: Font { .system(size: scaled(26), weight: .bold) }
 
   /// `<h2>` rendering and sidebar section headers.
-  /// Mirrors `.title.bold` at 22pt base.
   var sectionHeader: Font { .system(size: scaled(22), weight: .bold) }
 
   /// `<h3>` rendering inside structured article blocks.
-  /// Mirrors `.title2.bold` at 17pt base.
   var subsectionHeader: Font { .system(size: scaled(17), weight: .bold) }
 
   /// `<h4>` rendering inside structured article blocks.
-  /// Mirrors `.title3.bold` at 15pt base.
   var minorHeader: Font { .system(size: scaled(15), weight: .bold) }
 
-  /// Reader pane h5/h6 inline heading fallback. Distinct from `headline`
-  /// (sheet titles) so a future reader redesign can retune one without
-  /// affecting the other.
-  /// Mirrors `.headline` at 13pt base, semibold.
+  /// Reader-pane fallback for `<h5>` and `<h6>`. Kept distinct from `headline`
+  /// so either can be retuned alone.
   var minorInlineHeading: Font { .system(size: scaled(13), weight: .semibold) }
 
   /// Reader prose: paragraphs, list items, blockquotes.
-  /// Mirrors `.body` at 13pt base.
   var body: Font { .system(size: scaled(13)) }
 
   /// Monospaced reader prose for `<pre><code>` blocks.
-  /// Mirrors `.body.monospaced()` at 13pt base.
   var codeBlock: Font { .system(size: scaled(13), design: .monospaced) }
 
   // MARK: - Row and list surfaces
 
-  /// Article list row title. Weight is decided at the call site (semibold for
-  /// unread, regular for read) — call sites use `.fontWeight(_:)` which
-  /// overrides the weight set here.
-  /// Mirrors `.headline` at 13pt base, semibold.
+  /// Article-list row title. The call site decides the weight with
+  /// `.fontWeight(_:)`, which overrides the weight set here.
   var rowTitle: Font { .system(size: scaled(EntryRowMetrics.titleBaseSize), weight: .semibold) }
 
   /// Row summary excerpt below the title.
-  /// Mirrors `.callout` at 12pt base.
   var rowSummary: Font { .system(size: scaled(EntryRowMetrics.summaryBaseSize)) }
 
-  /// Uppercase feed name / timestamp footer beneath a row.
-  /// Mirrors `.caption` at 12pt base — bumped from 10pt so the Small text-size
-  /// setting (× 0.85) lands at ~10.2pt, keeping uppercase utility text above
-  /// the macOS HIG ~10pt legibility floor where uppercase + sub-9pt is the
-  /// worst-readability combination.
+  /// Uppercase feed name and timestamp beneath a row. The base size keeps the
+  /// smallest text-size setting above the macOS HIG legibility floor, which
+  /// uppercase text reaches first.
   var rowFeedName: Font { .system(size: scaled(EntryRowMetrics.metaBaseSize)) }
 
   // MARK: - Sheets, settings, metadata
 
-  /// Sheet titles ("New Category", "OpenAI API Key", …).
-  /// Mirrors `.headline` at 13pt base, semibold.
+  /// Sheet titles.
   var headline: Font { .system(size: scaled(13), weight: .semibold) }
 
   /// Form field labels and inline secondary text.
-  /// Mirrors `.subheadline` at 11pt base.
   var caption: Font { .system(size: scaled(11)) }
 
-  /// Compact rows in management views (category list, folder list).
-  /// Mirrors `.body.weight(.medium)` at 13pt base.
+  /// Compact rows in the management views.
   var bodyMedium: Font { .system(size: scaled(13), weight: .medium) }
 
-  /// Article header metadata (date, author, domain).
-  /// Mirrors `.subheadline.weight(.medium)` at 11pt base.
+  /// Article header metadata: date, author, domain.
   var metadata: Font { .system(size: scaled(11), weight: .medium) }
 
-  /// Sync / classification status strings under the sidebar header.
-  /// Mirrors `.caption` at 12pt base — bumped from 10pt so the Small text-size
-  /// setting (× 0.85) lands at ~10.2pt, keeping the status text above the
-  /// macOS HIG ~10pt legibility floor.
+  /// Sync and classification status under the sidebar header. The base size
+  /// keeps the smallest text-size setting above the macOS HIG legibility floor.
   var status: Font { .system(size: scaled(12)) }
 
-  /// Section labels in the entry list (e.g. "Today", "Yesterday").
-  /// Mirrors `.subheadline.weight(.medium)` at 11pt base.
+  /// Day-section labels in the entry list.
   var sectionLabel: Font { .system(size: scaled(11), weight: .medium) }
 
-  /// Sidebar unread-count digits. Smaller than `body` (a count is metadata,
-  /// not primary text) but still scaled by `AppTextSize` so users who pick
-  /// a larger overall size can still read the number. Distinct from
-  /// `caption` so the badge can retune independently of form labels.
-  /// Mirrors `.caption2.weight(.regular)` at 12pt base — visually quieter
-  /// than `.metadata` and `.caption` (both medium weight). Bumped from 11pt
-  /// so the Small text-size setting (× 0.85) lands at ~10.2pt, keeping the
-  /// badge above the macOS HIG ~10pt legibility floor.
+  /// Sidebar unread-count digits: quieter than `metadata` and `caption`, and
+  /// kept distinct from `caption` so the badge retunes on its own. The base
+  /// size keeps the smallest text-size setting above the macOS HIG legibility
+  /// floor.
   var sidebarBadge: Font { .system(size: scaled(12), weight: .regular) }
 }

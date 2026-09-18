@@ -75,9 +75,8 @@ struct Level4Trace: Codable {
   var contentviewUnreadEntriesGetterPct: ThresholdMetric
   var microhangsGe250MsCount: ThresholdMetric
   var fullHangsGe500MsCount: ThresholdMetric
-  /// Metrics added by the nav-stutter measurement harness. Optional so a
-  /// baseline written before this shape (or one that omits them) still
-  /// decodes — a missing metric reads as "report-only, no gate".
+  /// Metrics from the nav-stutter measurement harness. Optional, so a baseline
+  /// that omits them still decodes and a missing metric reads as report-only.
   var sidebarNavGetterPct: ThresholdMetric?
   var microhangsInNavWindow: ThresholdMetric?
   var fullHangsInNavWindow: ThresholdMetric?
@@ -93,9 +92,9 @@ struct Level4Trace: Codable {
   }
 }
 
-/// A metric's ceiling + captured value. `max` is nullable: a null ceiling
-/// means the metric is report-only (the comparator SKIPs it) — used while a
-/// symptom is being measured but not yet blessed into a gate (Guard #1).
+/// A metric's ceiling and captured value. A null maximum means the metric is
+/// report-only and the comparator skips it, which is how a symptom is measured
+/// before it becomes a gate.
 struct ThresholdMetric: Codable {
   var max: Double?
   var captured: Double?
@@ -197,10 +196,9 @@ enum Baseline {
       .contentviewUnreadEntriesGetterPct
     doc.level4Trace.microhangsGe250MsCount.captured = Double(metrics.microhangsGe250MsCount)
     doc.level4Trace.fullHangsGe500MsCount.captured = Double(metrics.fullHangsGe500MsCount)
-    // New nav-stutter metrics: record captured values while keeping any
-    // existing `max` (null = report-only) untouched. Preserve the metric slot
-    // if the baseline already declared one; otherwise create a report-only
-    // slot (null max) so a first write does not accidentally bless a ceiling.
+    // Record the captured values while leaving any existing maximum untouched,
+    // and create a report-only slot when the baseline declared none, so a first
+    // write never blesses a ceiling by accident.
     setCaptured(
       &doc.level4Trace.sidebarNavGetterPct, to: metrics.sidebarNavGetterPct)
     // Windowed counts may be nil (no signpost table); only record a captured

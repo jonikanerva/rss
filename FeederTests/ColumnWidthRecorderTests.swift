@@ -61,9 +61,8 @@ struct ColumnWidthRecorderTests {
     try await Task.sleep(for: .milliseconds(700))
     #expect(defaults.object(forKey: key) == nil, "launch layout must not be stored")
 
-    // Hardening A: the leading edge moves by 100 pt, the width stays 450.
-    // The debounce must not re-arm, so the still-launch-shaped 450 is NOT
-    // stored.
+    // The leading edge moves while the width stays put. The debounce must not
+    // re-arm, so the still-launch-shaped width is not stored.
     box.leading = 100
     hosting.layoutSubtreeIfNeeded()
     try await Task.sleep(for: .milliseconds(700))

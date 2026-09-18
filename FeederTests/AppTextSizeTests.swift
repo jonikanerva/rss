@@ -3,20 +3,15 @@ import Testing
 
 @testable import Feeder
 
-// Silent-regression guard for the user-facing AppTextSize enum and the
-// AppFontSettings observable that owns it: locks the rawValue → scaleFactor
-// mapping, the `1`-based numbering that exists specifically to keep the
-// `UserDefaults` zero-fallback from clobbering the `.medium` default, and
-// verifies that `AppFontSettings` actually produces a different font at
-// different sizes — the property that `.dynamicTypeSize(_:)` failed to
-// provide on macOS and that motivated the explicit scale factor.
+// Silent-regression guard for the text-size enum and the settings object that
+// owns it. It locks the raw-value to scale-factor mapping, the 1-based
+// numbering that keeps a missing `UserDefaults` integer from clobbering the
+// default, and the fact that the settings object really produces a different
+// font per size.
 //
-// Persistence isolation: every test that mutates `AppFontSettings.textSize`
-// injects a per-suite `UserDefaults` so the `didSet` write-back lands in a
-// throwaway store. Without this, running the suite locally would silently
-// overwrite the developer's chosen text size in the shipped app's
-// preferences. `makeIsolatedSettings(textSize:)` is the only constructor
-// these tests use.
+// Every test that mutates the size injects a per-suite `UserDefaults`, so the
+// write-back lands in a throwaway store instead of the developer's own
+// preferences.
 
 /// Per-suite `UserDefaults` store, cleared after every use so tests cannot
 /// leak state into each other or into shipped preferences.
@@ -142,22 +137,10 @@ struct AppTextSizeTests {
 
   // MARK: - Utility-text legibility floor
 
-  /// Pins each sidebar-utility alias to its currently-shipping base point
-  /// size at `Small` (× 0.85). Two guarantees fall out of this:
-  ///
-  /// 1. **HIG floor:** the resolved point size at `Small` must be ≥ 10pt.
-  ///    macOS HIG calls 10pt the legibility floor for utility text, and
-  ///    uppercase footer text (`rowFeedName`) is the worst-case combo —
-  ///    uppercase + sub-9pt drops below readable. A regression that drops
-  ///    any base back below 12pt would fail the equality check here and
-  ///    the next test's floor assertion.
-  /// 2. **Pinned base size:** locks the base size as a contract. A future
-  ///    redesign that drops `sidebarBadge` from 12pt to 11pt is allowed,
-  ///    but only via this test updating in the same change — the
-  ///    accompanying floor assertion guards against a base below 12pt.
-  ///
-  /// `Font.system(size:weight:)` is `Equatable`; matching the expected
-  /// construction is the cheapest robust signal.
+  /// Pins each sidebar-utility alias to its shipping base point size at the
+  /// smallest setting, which locks the base size as a contract: a redesign may
+  /// change it, but only by updating this test in the same change. The
+  /// companion test then holds the resolved size above the legibility floor.
   @Test
   func utilityAliasesAtSmallMatchExpectedBaseSizes() {
     let settings = makeIsolatedSettings(textSize: .small)
@@ -168,14 +151,9 @@ struct AppTextSizeTests {
     #expect(settings.status == .system(size: 12 * smallScale))
   }
 
-  /// Locks the resolved point size at the user's `Small` text-size setting
-  /// to the macOS HIG ~10pt legibility floor for the three sidebar utility
-  /// aliases. A future change that drops any of these base sizes below 12pt
-  /// would cross the floor at × 0.85 and fail this assertion — exactly the
-  /// regression these tests are meant to catch.
-  ///
-  /// 12pt × 0.85 = 10.2pt for the current shipping configuration; the floor
-  /// is strict `≥ 10pt`.
+  /// Holds the resolved point size of the three sidebar utility aliases at the
+  /// smallest setting above the macOS HIG legibility floor. A base size dropped
+  /// far enough crosses that floor once scaled and fails here.
   @Test
   func utilityAliasBaseSizesStayAboveLegibilityFloorAtSmall() {
     let smallScale = AppTextSize.small.scaleFactor

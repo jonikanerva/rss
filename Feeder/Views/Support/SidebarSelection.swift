@@ -11,13 +11,9 @@ nonisolated enum SidebarSelection: Hashable, Sendable {
   }
 }
 
-/// Flatten `(folder, [categoryLabel])` groups plus root-level category labels
-/// into the visual top-to-bottom navigation order, honouring which folders are
-/// collapsed.
-///
-/// Pure helper extracted from `ContentView.sidebarItems` so the behaviour is
-/// unit-testable without spinning up a SwiftUI host: the rule that J/K
-/// navigation must skip the children of a collapsed folder is enforced here.
+/// Flatten the folder groups and root categories into visual top-to-bottom
+/// navigation order. This is where the rule lives that J/K navigation skips the
+/// children of a collapsed folder.
 nonisolated func sidebarNavigationItems(
   folderGroups: [(folderLabel: String, categoryLabels: [String])],
   rootCategoryLabels: [String],
@@ -37,9 +33,9 @@ nonisolated func sidebarNavigationItems(
   return items
 }
 
-/// Fires `onChange` when any category's `folderLabel` changes. Extracted into
-/// a modifier so the category-folder-move refetch trigger doesn't push
-/// ContentView.body past the type-checker's reasonable-time limit.
+/// Fires `onChange` when any category's `folderLabel` changes. A modifier, so
+/// the trigger stays out of `ContentView.body` and that body keeps
+/// type-checking inside SwiftUI's limit.
 struct CategoryFolderChangeTrigger: ViewModifier {
   let categoryFolderLabels: [String?]
   let onChange: () -> Void
@@ -51,27 +47,15 @@ struct CategoryFolderChangeTrigger: ViewModifier {
   }
 }
 
-/// Mid-flight refresh router. Watches the monotonic bump counters published
-/// by `SyncEngine` (per persisted page) and `ClassificationEngine` (per
-/// throttled progress snapshot), and sets the matching pending-bump flags
-/// so the deferred drain modifiers can coalesce them into
-/// `entryRefreshVersion` ticks.
+/// Watches the mid-flight bump counters the engines publish and sets the
+/// matching pending-bump flags, so the deferred drain modifiers coalesce them
+/// into `entryRefreshVersion` ticks.
 ///
-/// Lives as a leaf `View` (rendered as a zero-size `Color.clear`) instead
-/// of a `ViewModifier` — `ContentView.body` would otherwise read
-/// `syncEngine.lastPersistedPageVersion` and
-/// `classificationEngine.batchProgressVersion` to pass them in, which made
-/// every body re-eval depend on both `@Observable` counters. Sync ticks
-/// these per persisted page (~once a second during sync) and classification
-/// ticks them per throttled progress snapshot (~every 200 ms during a batch),
-/// so the outer body was being invalidated continuously and re-fetching the
-/// (now-cached) unread snapshot on every tick. By reading the counters
-/// inside this leaf's own body, only this zero-size view re-evaluates —
-/// `ContentView.body` stays out of the dependency graph entirely.
-///
-/// Hosted by `ContentView` via `.background(MidFlightBumpRouter(...))` so
-/// the leaf participates in the view hierarchy and observes the
-/// `@Environment` engines, but contributes no visible chrome.
+/// It must stay a leaf `View`, not a `ViewModifier`: reading those counters in
+/// `ContentView.body` would put both `@Observable` counters in that body's
+/// dependency graph, and each sync page and classification tick would
+/// invalidate the whole split view. Reading them here re-evaluates only this
+/// zero-size view.
 struct MidFlightBumpRouter: View {
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -95,11 +79,9 @@ struct MidFlightBumpRouter: View {
   }
 }
 
-/// Mounts `MidFlightBumpRouter` as an invisible `.background` sibling of the
-/// host view. Kept as a `ViewModifier` so `ContentView.body`'s modifier
-/// chain stays inside SwiftUI's type-checker reasonable-time limit — the
-/// leaf-view hoisting only matters for which view re-evaluates on engine
-/// counter bumps; the call-site shape stays a single `.modifier(...)` line.
+/// Mounts `MidFlightBumpRouter` as an invisible background sibling. A
+/// `ViewModifier`, so the call site stays one line and `ContentView.body` keeps
+/// type-checking inside SwiftUI's limit.
 struct MidFlightBumpRouterModifier: ViewModifier {
   @Binding
   var pendingSyncBump: Bool
@@ -116,23 +98,15 @@ struct MidFlightBumpRouterModifier: ViewModifier {
   }
 }
 
-/// Drains a pending background refresh bump once the user is idle.
-/// Owns the `Task.sleep` so the bump fires when a list rebuild will not
-/// disrupt the user — re-keyed by selection identity and the pending flag so
-/// each selection change or new background tick resets the window. With a
-/// selection the full `dwell` applies; with no selection a shorter
-/// `idleThrottle` applies instead of the previous immediate drain, so a
-/// viewed not-yet-populated category live-populates on a calm, coalesced
-/// cadence while classification lands rows (issue #146) rather than
-/// re-fetching on every progress tick.
-/// Extracted into a modifier so the task closure stays out of
-/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
-/// reasonable-time limit.
+/// Drains a pending background refresh bump once the user is idle. It owns the
+/// sleep and is re-keyed by selection identity and the pending flag, so each
+/// selection change or new tick resets the window. With a selection the full
+/// `dwell` applies; without one the shorter `idleThrottle` does, so an empty
+/// category populates on a calm, coalesced cadence.
 ///
-/// Reused by both the classification-batch drain (long dwell — finished
-/// batches reshuffle category membership and may move the selected row out
-/// of view) and the sync-page drain (shorter dwell — newly-inserted entries
-/// land at the top via stable-ID diffing and do not move the selected row).
+/// Shared by the classification drain, whose long dwell protects a selected row
+/// from a membership reshuffle, and the sync-page drain, whose shorter dwell is
+/// safe because new rows land at the top.
 struct DeferredBumpDrainTrigger: ViewModifier {
   let key: String
   let dwell: Duration
@@ -153,14 +127,10 @@ struct DeferredBumpDrainTrigger: ViewModifier {
   }
 }
 
-/// Fires `onUnreadCountChange` whenever the cached unread snapshot's
-/// `totalUnread` changes — typically right after a `DataWriter` save
-/// (mark-read / mark-all-read / sync) propagates via the snapshot refresh
-/// task. The owner uses this hook to prune its optimistic `pendingReadIDs`
-/// overlay back down to the IDs still present in the live unread set.
-/// Extracted into a modifier so the prune `.onChange` stays out of
-/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
-/// reasonable-time limit.
+/// Fires `onUnreadCountChange` whenever the cached snapshot's `totalUnread`
+/// changes, which is how the owner learns to prune its optimistic
+/// `pendingReadIDs` overlay. A modifier, so the `.onChange` stays out of
+/// `ContentView.body`.
 struct PendingReadPruneTrigger: ViewModifier {
   let unreadCount: Int
   let onUnreadCountChange: () -> Void
@@ -172,16 +142,11 @@ struct PendingReadPruneTrigger: ViewModifier {
   }
 }
 
-/// Refreshes the cached `UnreadCountsSnapshot` whenever `key` changes.
-/// Re-keyed on `entryRefreshVersion` plus folder/category counts and the
-/// active `cutoffDate` so taxonomy edits or a Settings change to
-/// `articleKeepDays` also trigger a refresh. The fetch runs on the
-/// `DataWriter` actor — MainActor only receives the resulting Sendable DTO.
-/// `cutoffDate` is forwarded to `fetchUnreadCountsSnapshot` so the sidebar
-/// snapshot and `fetchEntrySections` apply the same eligibility predicate.
-/// Extracted into a modifier so the `.task(id:)` stays out of
-/// `ContentView.body` and the body keeps type-checking inside SwiftUI's
-/// reasonable-time limit.
+/// Refreshes the cached `UnreadCountsSnapshot` whenever `key` changes. The
+/// fetch runs on the reader actor and MainActor receives only the resulting
+/// `Sendable` value. `cutoffDate` is forwarded, so the sidebar snapshot and the
+/// article-list fetch apply the same eligibility predicate. A modifier, so the
+/// `.task(id:)` stays out of `ContentView.body`.
 struct UnreadSnapshotRefreshTask: ViewModifier {
   let key: String
   let reader: DataReader?

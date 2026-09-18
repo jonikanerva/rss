@@ -4,15 +4,13 @@ import Testing
 
 @testable import Feeder
 
-/// Keyset paging integration pins (issue #155): pages tile exactly through an
-/// equal-timestamp run, inserts above the cursor never shift a page seam, the
-/// cursor row leaving the filter never skips rows, `hasMore` is exact at the
+/// Keyset paging integration pins: pages tile exactly through an
+/// equal-timestamp run, an insert above the cursor never shifts a page seam,
+/// the cursor row leaving the filter never skips rows, `hasMore` is exact at a
 /// page boundary, and pin coverage grows the first page to the pinned row's
-/// sort position. Runs against the production writer + reader pair on one
-/// shared in-memory container; concurrent-coordinator pressure is capped by
-/// the serial unit-target run (`make test` passes
-/// `-parallel-testing-enabled NO`, STACK.md §14) — `.serialized` here only
-/// orders tests within the suite.
+/// position. It runs the production writer and reader on one shared in-memory
+/// container; the serial unit-target run caps coordinator pressure
+/// (`STACK.md § 14`), because `.serialized` orders tests within the suite only.
 @Suite("DataReader keyset paging", .serialized)
 struct DataReaderPagingTests {
   /// Base instant for generated `published` timestamps — matches the
@@ -112,7 +110,7 @@ struct DataReaderPagingTests {
 
   /// A sync page landing NEWER rows must not shift an existing page seam:
   /// `after(C)` still returns exactly the rows below C, and the whole-window
-  /// `atOrAbove(C)` refresh returns inserts + the old window with no
+  /// An `atOrAbove` refresh returns the inserts and the loaded window with no
   /// duplicate and no skip.
   @Test
   func insertAboveDoesNotShiftPages() async throws {

@@ -4,12 +4,12 @@ import Synchronization
 
 @testable import Feeder
 
-// MARK: - C3 read-starvation measurement support (issue #138)
+// MARK: - Read-starvation measurement support
 //
-// Pre-registered measurement per arch's locked design. This file holds the
-// falsifiable machinery: fixture, arms, interval/overlap math, percentile /
-// dispersion stats, and the verdict rule. Nothing here shrinks a threshold to
-// pass — the gates are pre-committed.
+// The falsifiable machinery behind the pre-registered measurement: fixture,
+// arms, interval and overlap math, percentile and dispersion statistics, and
+// the verdict rule. Nothing here may shrink a threshold to pass; the gates are
+// pre-committed.
 
 // MARK: - Configuration
 
@@ -95,9 +95,9 @@ func c3Seconds(_ d: Duration) -> Double {
   return Double(c.seconds) + Double(c.attoseconds) * 1e-18
 }
 
-/// True when `interval` overlaps any of `others` — the LOCK-4 in-burst gate
-/// (a structural-reload overlapping an active write-persist), used ONLY to
-/// select which reloads feed the STALL p95/median. Occupancy does NOT use this.
+/// True when `interval` overlaps any of `others`: the in-burst gate, where a
+/// blank window overlaps an active persist. It selects which reloads feed the
+/// stall percentiles alone; occupancy must not use it.
 func c3Overlaps(_ interval: C3Interval, _ others: [C3Interval]) -> Bool {
   for o in others where min(interval.end, o.end) > max(interval.start, o.start) { return true }
   return false
@@ -147,23 +147,16 @@ struct C3RepResult: Sendable {
     let src = writes.isEmpty ? reads : inBurstReads
     return c3Median(src.map { $0.duration * 1000 })
   }
-  /// Occupancy (arch's confirmed locked formula, issue #138):
+  /// Occupancy: the sum of each blank-window interval clipped to the burst
+  /// window, divided by that window's wall-clock duration, which runs from the
+  /// first persist start to the last persist end. It answers how much of the
+  /// sync the user spends watching an unresolved article pane: a fast read
+  /// occupies a tiny slice of a long sync, a starved read occupies most of it.
+  /// It is 0 without a burst window.
   ///
-  ///   Occ = Σ(structural-reload interval ∩ burst-window) / (burst-window duration)
-  ///
-  /// Numerator: each structural-reload (blank-window: structural key change →
-  /// sections replaced) interval CLIPPED to the burst window. Denominator: the
-  /// burst window's wall-clock — first write-persist start → last
-  /// write-persist end. This is "how much of the sync is the user watching an
-  /// unresolved panel-2": fast reads occupy a tiny slice of the long sync
-  /// window (low), starved reads occupy most of it (high). 0 for CONTROL (no
-  /// burst window).
-  ///
-  /// Kept DISTINCT from the LOCK-4 in-burst gate (`inBurstReads`): occupancy is
-  /// total loading time over the WINDOW and is NEVER per-reload write-gated.
-  /// (The earlier bug imported the LOCK-4 overlap notion into occupancy's
-  /// numerator, making it trivially ~100% under a continuous burst — arch
-  /// confirmed this window-clipped form restores the intended metric.)
+  /// Keep it distinct from the in-burst read gate. Occupancy is total loading
+  /// time over the window and must never be gated per reload on an overlapping
+  /// write, which would make it trivially complete under a continuous burst.
   var occupancy: Double {
     guard let lo = writes.map(\.start).min(), let hi = writes.map(\.end).max(), hi > lo else {
       return 0

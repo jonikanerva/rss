@@ -4,12 +4,9 @@ import os.signpost
 
 // MARK: - Shared Detail Date Formatting
 
-/// Shared date formatting for article detail views (both SwiftUI and WebView).
-///
-/// Marked `nonisolated` so the article HTML renderer can invoke it from a
-/// background task. Composed from value-type `Date.FormatStyle` pieces instead
-/// of a shared `DateFormatter` so there is no mutable state to make
-/// `Sendable`-safe, matching `formatEntryDate` in `EntryFormatting.swift`.
+/// Shared date formatting for the article detail surfaces. `nonisolated`, so
+/// the HTML renderer can call it from a background task, and built from
+/// value-type format styles so there is no mutable state to make `Sendable`.
 enum DetailDateFormatting {
   nonisolated static func formatDate(_ date: Date) -> String {
     let posix = Locale(identifier: "en_US_POSIX")
@@ -37,11 +34,10 @@ struct EntryDetailView: View {
   @Environment(FaviconStore.self)
   private var faviconStore
 
-  /// View-level cache of decoded reader blocks. Lives here (not on `@Model Entry`) so
-  /// persistence and rendering stay in separate layers. Re-decodes when the persisted
-  /// JSON changes — either because the user navigated to a different entry or because
-  /// `DataWriter` updated `articleBlocksData` in place (e.g. after Mercury Parser
-  /// extraction). A single `.task(id:)` trigger covers both paths.
+  /// View-level cache of the decoded reader blocks, kept out of the model so
+  /// persistence and rendering stay in separate layers. One `.task(id:)`
+  /// re-decodes whenever the persisted JSON changes, whether the user navigated
+  /// or the writer updated the blocks in place.
   @State
   private var blocks: [ArticleBlock] = []
 
@@ -54,9 +50,8 @@ struct EntryDetailView: View {
         readerView
       }
     }
-    // No .id(entry.feedbinEntryID) — let SwiftUI diff bindings instead of tearing
-    // down the WKWebView. ArticleWebView.updateNSView already guards against
-    // duplicate loads via the coordinator's currentEntryID.
+    // No `.id(...)` here: SwiftUI must diff the bindings rather than tear the
+    // web view down. `ArticleWebView` already guards against a duplicate load.
     .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: viewMode)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Article: \(entry.title ?? "Untitled")")
@@ -81,9 +76,8 @@ struct EntryDetailView: View {
       .frame(maxWidth: .infinity, alignment: .center)
     }
     .task(id: entry.articleBlocksData) {
-      // JSON decode for 30–100 KB blobs runs in <1 ms, so doing it synchronously in
-      // the task body is preferable to dispatching to a background priority — async
-      // here would introduce a visible empty-state flash on every entry switch.
+      // The decode is fast enough to run synchronously here. Dispatching it to a
+      // background priority would flash the empty state on every entry switch.
       blocks = decodeBlocks(
         data: entry.articleBlocksData,
         fallbackPlainText: entry.plainText,
@@ -104,11 +98,9 @@ struct EntryDetailView: View {
         .font(fontSettings.articleTitle)
         .fixedSize(horizontal: false, vertical: true)
 
-      // Favicon + author/domain. The detail pane holds the ONE live Entry,
-      // so reading `entry.feed` here is the sanctioned one-shot boundary
-      // resolve (issue #148); the image itself comes from the shared
-      // `FaviconStore` (decoded once by the list warm — a rare cache miss
-      // renders the initials fallback).
+      // The detail pane holds the one live `Entry`, so reading `entry.feed`
+      // here is the sanctioned one-shot boundary resolve. The image comes from
+      // the shared store, and a cache miss renders the initials fallback.
       HStack(alignment: .center, spacing: 8) {
         FaviconView(
           image: faviconStore.image(for: entry.feed?.feedbinFeedID),
@@ -142,15 +134,11 @@ enum ArticleViewMode {
 
 // MARK: - Article Web Container
 
-/// Hosts `ArticleWebView` and renders the article HTML off the MainActor.
-///
-/// The regex sanitization and template-injection passes used to run inside
-/// `ArticleWebView.updateNSView`, on MainActor. Moving them here behind a
-/// `Task.detached` keeps the MainActor free for view diffing while the
-/// article switches. A `ProgressView` is shown only on the very first
-/// render (when `renderedHTML` is still `nil`); subsequent article switches
-/// keep the previous article visible until the new HTML lands (~5ms),
-/// avoiding spinner flashes during fast arrow-key navigation.
+/// Hosts `ArticleWebView` and renders the article HTML off MainActor, so the
+/// regex sanitisation and template injection never block view diffing during an
+/// article switch. The spinner appears only on the first render; a later switch
+/// keeps the previous article visible until the new HTML lands, so fast
+/// keyboard navigation never flashes.
 private struct ArticleWebContainer: View {
   let entry: Entry
 
@@ -159,8 +147,8 @@ private struct ArticleWebContainer: View {
   @State
   private var renderedHTML: String?
 
-  /// Bundle resources are immutable — load once on first access, reuse forever.
-  /// Static so the cost is paid only at first article view, never per render.
+  /// Bundle resources are immutable, so this loads once on first access. Static,
+  /// so the cost is never paid per render.
   nonisolated static let articleTemplate: String = loadStaticResource(
     "article-template", ext: "html"
   )
@@ -177,26 +165,19 @@ private struct ArticleWebContainer: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    // Re-key on `(entry, textSize)` so changing the picker re-renders the
-    // article HTML with the new `--app-scale` value — without changing the
-    // selected entry, the user's scroll position is preserved by WKWebView
-    // as long as the document stays the same shape (same DOM, larger text).
+    // Re-keying on the text size re-renders the HTML with a new scale. The
+    // selected entry does not change, so the web view keeps the scroll position
+    // while the document keeps its shape.
     .task(id: renderKey) {
-      // Detail-render signpost: measures the off-MainActor HTML render itself
-      // (regex sanitisation + template injection on a detached task), not the
-      // click → task latency. Paired with the sidebar/article-click intervals
-      // in ContentView so Instruments shows commit + render as separate lanes.
+      // Measures the off-MainActor render alone, not the click-to-task latency,
+      // so commit and render stay separate lanes in a trace.
       let renderState = perfSignposter.beginInterval(
         PerformanceSignpostName.detailRender
       )
-      // Keep the previous article's HTML visible while the new one renders
-      // (~5ms). This avoids a spinner flash on every arrow-key navigation —
-      // HIG advises against loading indicators for <100ms operations.
-      // Stale-HTML protection still holds:
-      //   • ArticleWebView's currentEntryID guard blocks loading the wrong
-      //     entry into WKWebView.
-      //   • The Task.isCancelled check below blocks a late render from
-      //     overwriting @State after the user has moved on.
+      // Keep the previous article visible while the new one renders: the HIG
+      // advises against a loading indicator for an operation this short. Stale
+      // HTML is still blocked, by the web view's entry guard and by the
+      // cancellation check below.
       let html = await renderHTML(for: entry, scaleFactor: fontSettings.textSize.scaleFactor)
       guard !Task.isCancelled else {
         perfSignposter.endInterval(PerformanceSignpostName.detailRender, renderState)
@@ -207,9 +188,8 @@ private struct ArticleWebContainer: View {
     }
   }
 
-  /// Composite re-render key: a new entry obviously triggers a fresh render,
-  /// and a new text size triggers a re-render with an updated `--app-scale`.
-  /// Encoding both in one key keeps `.task(id:)` semantics simple.
+  /// Composite re-render key: a new entry renders fresh HTML, and a new text
+  /// size renders it at an updated scale.
   private var renderKey: String {
     "\(entry.feedbinEntryID)|\(fontSettings.textSize.rawValue)"
   }
@@ -251,11 +231,8 @@ private struct ArticleWebContainer: View {
 }
 
 #Preview("Article Detail — Huge Text") {
-  // `.dynamicTypeSize(_:)` propagates the environment value but does not
-  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
-  // here would render identically to `.medium`. Inject the largest
-  // `AppFontSettings` instead — that is the mechanism shipped code uses,
-  // so the preview reflects what a user picking *Huge* actually sees.
+  // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
+  // the preview injects the font settings the shipped code uses.
   articleDetailPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
 }
 

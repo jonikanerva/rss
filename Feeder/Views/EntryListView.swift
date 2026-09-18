@@ -10,12 +10,10 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "EntryListVie
 
 // MARK: - Visible Entries Preference Key
 
-/// Payload for `VisibleEntriesKey`: the currently rendered entry ids (Tab
-/// selects the first as the new `selectedEntryID`) plus the rendered-unread
-/// feedbin ids — the rendered side of the two-sided `pendingReadIDs`
-/// retention prune (`retainedPendingReadIDs`, issue #148). Both aggregates
-/// are computed off-main by `DataReader.fetchEntrySections`; the view just
-/// bubbles them.
+/// Payload for `VisibleEntriesKey`: the rendered entry ids plus the
+/// rendered-unread feedbin ids, which form the rendered side of the two-sided
+/// `pendingReadIDs` retention prune. Both aggregates are computed off-main by
+/// `DataReader.fetchEntrySections`; the view only bubbles them.
 nonisolated struct VisibleEntriesPayload: Sendable, Equatable {
   let ids: [PersistentIdentifier]
   let unreadFeedbinEntryIDs: Set<Int>
@@ -31,55 +29,29 @@ struct VisibleEntriesKey: PreferenceKey {
   }
 }
 
-// MARK: - Entry List View (background-fetched section snapshots, no MainActor @Query)
+// MARK: - Entry List View
 
 /// Renders the article list for a given sidebar selection.
 ///
-/// **Why not `@Query`**: SwiftData's `@Query` runs synchronously on MainActor
-/// during view init/body. For large categories (e.g. "uncategorized" with
-/// thousands of entries), the SQLite fetch + Entry materialization + day-grouping
-/// blocks the main thread for seconds.
+/// The fetch, projection, and grouping run on `DataReader`, never as a
+/// MainActor `@Query`: a large category blocks the main thread for seconds.
+/// Rows are complete `EntryRowDTO` snapshots, so no row touches the store on
+/// MainActor. Selection carries the row's `PersistentIdentifier`, and
+/// `ContentView` resolves the one full `Entry` at the detail boundary.
 ///
-/// Instead, the heavy fetch + projection + grouping runs on `DataReader` (a
-/// `@ModelActor`, so on a background thread). The view holds
-/// `[EntryListSection]` state whose rows are complete `EntryRowDTO` value
-/// snapshots (issue #148) — each row renders from its DTO plus the
-/// `FaviconStore` image; there is NO per-row `modelContext.model(for:)` and
-/// NO `entry.feed` relationship fault on MainActor. Selection carries the
-/// row's `PersistentIdentifier`; `ContentView` resolves the ONE full `Entry`
-/// per selection at the detail boundary.
+/// The `List` stays mounted across reloads: every state except the empty
+/// family renders it, and a pending window renders it with zero rows. A
+/// spinner branch or a separate blank branch would remount the `List` and
+/// rebuild every row. "No Articles" is asserted only by a resolved empty
+/// fetch, never while a fetch is pending and never while rows exist.
 ///
-/// **The `List` stays mounted across reloads (issue #146).** The old shape
-/// swapped `ProgressView` ↔ `List` on a `hasLoaded` boolean, so every
-/// structural reload destroyed and rebuilt the entire row tree — an
-/// O(all-rows) view-list construction + layout that was the measured
-/// `structural-reload` tail (p90 915 ms, max 1.9 s). Now `fetchPhase`
-/// (`FetchPhase`, pure domain) feeds `entryListDisplayState(...)`, and the
-/// pending window renders the SAME mounted `List` with zero rows — a calm
-/// blank pane — so a resolved fetch applies as an incremental diff.
-/// "No Articles" is asserted only by a RESOLVED empty fetch, never during
-/// `pending` (the relocated #137 protection) and never while rows exist.
+/// Refreshes arrive only as explicit version bumps from `ContentView`, each
+/// under the post-commit contract on `bumpEntryList`.
 ///
-/// **Live updates**: lost compared to `@Query` auto-refresh. Replaced by
-/// explicit refresh-version triggers driven from `ContentView` — `.onChange`
-/// handlers on `syncEngine.isSyncing` / `classificationEngine.isClassifying`
-/// false-transitions, the mid-flight deferred-bump drains (which also
-/// live-populate a viewed category while classification lands rows), plus an
-/// explicit bump after the `markAllAsRead` write and the filter-flip flush.
-/// Every bump obeys the post-commit contract on `ContentView.bumpEntryList`;
-/// the `shouldRunWindowRefresh` gate + `consumedRefreshVersion` bookkeeping
-/// (issue #163) skip refreshes whose data a fetch already covered, so
-/// redundant bumps no longer refetch an unchanged window.
-///
-/// **Keyset window (issue #155).** The view holds a bounded window of the
-/// canonical order, defined by its bottom edge — the derived cursor of the
-/// last loaded row. Three channels, three windows: structural →
-/// `firstPage(pageSize)`; refresh → `atOrAbove(cursor)` (whole-window
-/// replace in one snapshot, with a first-page fallback when it resolves
-/// empty); append → `after(cursor, pageSize)` on its own task. Appends are
-/// invisible chrome-wise: no "Load more" control, no spinner, no animation —
-/// rows simply exist when the user gets there. Chronology is untouched —
-/// paging tiles the SAME sorted result; nothing is reordered or hidden
+/// The view holds a bounded window of the canonical order, defined by the
+/// cursor of its last loaded row: structural fetches take `firstPage`,
+/// refreshes `atOrAbove`, appends `after`. Paging tiles the same sorted
+/// result, so nothing is reordered or hidden
 /// (`VISION.md → Core Principles`).
 struct EntryListView: View {
   let category: String?
@@ -88,11 +60,10 @@ struct EntryListView: View {
   let cutoffDate: Date
   let reader: DataReader
   let refreshVersion: Int
-  /// When non-nil, the row with this Feedbin entry ID is retained in the fetch
-  /// result regardless of `isRead == showRead` — keeps a selected article
-  /// visible after a cross-device sync flips its read state. The pin rides
-  /// along with the next refresh trigger; selection changes alone do not
-  /// re-fetch (avoids per-click background work).
+  /// When non-nil, the row with this Feedbin entry ID stays in the fetch
+  /// result regardless of the filter, so a selected article stays visible
+  /// after a cross-device read-state flip. The pin rides along with the next
+  /// refresh trigger; a selection change alone does not re-fetch.
   let pinnedFeedbinEntryID: Int?
   @Binding
   var selectedEntryID: PersistentIdentifier?
@@ -109,112 +80,87 @@ struct EntryListView: View {
   @State
   private var sections: [EntryListSection] = []
   /// Rendered-entries payload cached for the `VisibleEntriesKey` preference.
-  /// Computed once per fetch (off-main, by the reader) instead of walking
-  /// `sections` on every body re-eval — meaningful for large categories
-  /// ("uncategorized" with thousands of rows).
+  /// Computed once per fetch by the reader; never walk `sections` in `body`.
   @State
   private var visibleEntries: VisibleEntriesPayload = .empty
-  /// Fetch lifecycle for the current structural context — the tagged union
-  /// that replaced the `hasLoaded` boolean (issue #146). Drives
+  /// Fetch lifecycle for the current structural context. Drives
   /// `entryListDisplayState(...)` together with `sections`.
   @State
   private var fetchPhase: FetchPhase = .pending
-  /// Whether the store holds eligible rows below the loaded window
-  /// (issue #155). Exact — see `EntryListFetchResult.hasMore`. Gates the
-  /// append triggers; reset by the structural prefix.
+  /// Whether the store holds eligible rows below the loaded window. Exact —
+  /// see `EntryListFetchResult.hasMore`. Gates the append triggers, and the
+  /// structural prefix resets it.
   @State
   private var hasMore = false
-  /// Append channel version — bumping it re-keys the append `.task`, which
-  /// fetches ONE `after(cursor, limit:)` page. The id also embeds
-  /// `structuralKey`, so a category switch auto-cancels an in-flight append
-  /// (`STACK.md § 7` — structured cancellation only).
+  /// Append channel version: bumping it re-keys the append `.task`, which
+  /// fetches one `after(cursor, limit:)` page. The task id also embeds
+  /// `structuralKey`, so a category switch cancels an in-flight append.
   @State
   private var appendVersion = 0
-  /// One append in flight at a time: the trigger paths (row appearance /
-  /// selection reaching the last row) may fire repeatedly while the page
-  /// fetch runs; this keeps them from stacking version bumps.
+  /// One append in flight at a time: the trigger paths may fire repeatedly
+  /// while a page fetch runs, and must not stack version bumps.
   @State
   private var isAppending = false
-  /// The row whose appearance requests the next append — `appendTriggerMargin`
-  /// rows before the window end, precomputed once per apply from
-  /// `allEntryIDs` (never derived in `body`). nil when nothing more to load.
+  /// The row whose appearance requests the next append, `appendTriggerMargin`
+  /// rows before the window end. Precomputed once per apply; never derive it
+  /// in `body`. `nil` when there is nothing more to load.
   @State
   private var appendTriggerID: PersistentIdentifier?
-  /// Which structural context the loaded window belongs to (issue #163).
-  /// Cleared ("") in the structural task's synchronous prefix — the
-  /// structural fetch owns the window from that moment — and set to
-  /// `structuralKey` on resolve AND on failure. `refreshTaskKey` embeds this,
-  /// so the resolve-flip re-keys the refresh task: a bump that arrived while
-  /// the structural fetch was in flight re-fires exactly once instead of
-  /// being dropped (`shouldRunWindowRefresh` then decides whether it is owed).
+  /// Which structural context the loaded window belongs to. The structural
+  /// task's synchronous prefix clears it and takes ownership of the window;
+  /// resolve and failure both set it back. `refreshTaskKey` embeds it, so that
+  /// flip re-fires the refresh task once and a bump that arrived mid-fetch
+  /// reaches the gate instead of being dropped.
   @State
   private var resolvedStructuralKey = ""
-  /// The `refreshVersion` already covered by a fetch (issue #163). The
-  /// structural task snapshots `refreshVersion` immediately BEFORE its
-  /// first-page fetch and assigns the snapshot on resolve/failure; a
-  /// successful refresh assigns the version it consumed. The gate skips a
-  /// refresh whose version is already consumed — the no-op `mode=above`
-  /// eliminator.
+  /// The `refreshVersion` already covered by a fetch. The structural task
+  /// snapshots it immediately before its first-page fetch; a successful
+  /// refresh records the version it consumed. The gate skips a refresh whose
+  /// version is already consumed.
   @State
   private var consumedRefreshVersion = 0
-  /// Carries the anchor row + alignment from `reload()`'s pre-diff inspection
-  /// to the post-diff `proxy.scrollTo` call. The pin is conditional on what
-  /// `reload()` sees in the new result and is set to `nil` when no restore is
-  /// warranted (selection cleared with no fallback, structural reload, or
-  /// empty case). Kept as state because the producer and consumer sit in the
-  /// same async function but bracket the `sections = result` assignment.
+  /// Carries the anchor row and alignment from the pre-diff inspection to the
+  /// post-diff `proxy.scrollTo` call. State, because producer and consumer sit
+  /// in one async function but bracket the `sections` assignment.
   @State
   private var pendingAnchorRestore: AnchorRestore?
 
-  /// Anchor + alignment pair for `ScrollViewReader.scrollTo`. `.center` keeps
-  /// a still-selected row visible after a Read/Unread filter flip or a
-  /// classification batch reshuffle; `.top` keeps the previously-first row
-  /// pinned at the top when a sync page lands new entries above it (so the
-  /// viewport stays visually stable rather than scrolling along with the
-  /// insert).
+  /// Anchor and alignment pair for `ScrollViewReader.scrollTo`. `.center`
+  /// keeps a still-selected row visible after a filter flip or a reshuffle;
+  /// `.top` keeps the first row pinned when a sync page lands rows above it.
   private struct AnchorRestore: Equatable {
     let id: PersistentIdentifier
     let anchor: UnitPoint
   }
 
-  /// Debounce window for a structural (category / folder / filter) navigation
-  /// change (issue #146). Coalesces a rapid J/K burst into ONE reload: each
-  /// intermediate keypress cancels the prior `.task(id: structuralKey)` while it
-  /// is still in this cheap sleep, before it can blank the pane or queue a fetch
-  /// on the serial `DataReader` actor. Tunable — imperceptible for a single
-  /// deliberate nav, long enough to swallow a burst.
+  /// Debounce window for a structural navigation change. Coalesces a rapid
+  /// J/K burst into one reload: an intermediate keypress cancels the prior
+  /// `.task(id: structuralKey)` during this sleep, before it can blank the
+  /// pane or queue a fetch on the serial `DataReader` actor.
   private static let navDebounce: Duration = .milliseconds(150)
 
-  /// Keyset page size (issue #155): the first page and every appended page
-  /// load this many rows. Internal constant, deliberately NOT a preference —
-  /// one opinionated way (`VISION.md → Non-Goals`).
+  /// Keyset page size: the first page and every appended page load this many
+  /// rows. Deliberately not a preference — one opinionated way
+  /// (`VISION.md → Non-Goals`).
   private static let pageSize = 100
 
   /// How many rows before the window end the append-trigger row sits, so the
-  /// next page usually lands before the user reaches the bottom — by scroll
-  /// OR by J/K (the trigger row's `onAppear` fires for both). Internal
-  /// constant, never a preference.
+  /// next page usually lands before the user reaches the bottom by scroll or
+  /// by J/K. Never a preference.
   private static let appendTriggerMargin = 20
 
   var body: some View {
-    // `ScrollViewReader` is transparent — it adds no chrome — and lives
-    // OUTSIDE the conditional `Group`, so the `.task` modifiers attach to the
-    // ScrollViewReader's body and stay mounted for the lifetime of the view,
-    // not for the lifetime of whichever branch is currently selected. (An
-    // earlier shape nested it inside one branch and the tasks never ran on
-    // first render.)
-    //
-    // `proxy.scrollTo(_:anchor:)` resolves `.id(...)` tags anywhere in the
-    // ScrollViewReader's subtree, so the List rows below stay reachable.
+    // `ScrollViewReader` lives OUTSIDE the conditional `Group`, so the `.task`
+    // modifiers attach to its body and stay mounted for the view's lifetime,
+    // not for whichever branch is selected. `proxy.scrollTo(_:anchor:)`
+    // resolves `.id(...)` tags anywhere in its subtree, so the rows below
+    // stay reachable.
     ScrollViewReader { proxy in
       Group {
-        // Two-branch shape (issue #146): the empty family renders ONLY when
-        // a resolved/failed fetch left zero sections; every other state —
-        // rows present, or a pending fetch — renders the SAME mounted
-        // `List`. `.blank` deliberately shares the `List` branch (zero rows
-        // = a calm blank pane): a spinner branch or a separate blank branch
-        // would remount the `List` on every structural reload, which was the
-        // O(all-rows) rebuild this issue removes.
+        // The empty family renders only when a resolved or failed fetch left
+        // zero sections; every other state renders the same mounted `List`.
+        // `.blank` shares the `List` branch on purpose — a separate branch
+        // would remount the `List` on every structural reload.
         switch displayState {
         case .authFailed:
           ContentUnavailableView {
@@ -255,9 +201,9 @@ struct EntryListView: View {
           List(selection: $selectedEntryID) {
             ForEach(sections) { section in
               Section {
-                // Rows render straight from their DTO snapshots — zero store
-                // access on MainActor (issue #148). The favicon is a sync
-                // dictionary lookup; decode happened once in `FaviconStore`.
+                // Rows render straight from their DTO snapshots: zero store
+                // access on MainActor. The favicon is a dictionary lookup;
+                // the decode happened once in `FaviconStore`.
                 ForEach(section.rows) { row in
                   EntryRowView(
                     row: row,
@@ -274,10 +220,8 @@ struct EntryListView: View {
                       top: 0, leading: EntryRowMetrics.horizontalInset,
                       bottom: 0, trailing: EntryRowMetrics.horizontalInset)
                   )
-                  // Keyboard-parity append trigger (issue #155): the trigger
-                  // row's appearance fires for scroll AND for J/K row
-                  // navigation — `List` materialises the row either way. A
-                  // plain id comparison against the precomputed trigger id;
+                  // The trigger row's appearance fires for scroll and for
+                  // J/K navigation alike. Keep this a plain id comparison —
                   // no per-row math in `body` (`STACK.md § 0 / § 4`).
                   .onAppear {
                     if row.persistentID == appendTriggerID { requestAppend() }
@@ -293,15 +237,11 @@ struct EntryListView: View {
           }
           .listStyle(.inset(alternatesRowBackgrounds: false))
           // Row-height floor: `List` bounds row height below by
-          // `defaultMinListRowHeight`. Set equal to the row's natural
-          // height, so a re-measure that falls back to the platform default
-          // has nothing left to clip. The natural height is the same for
-          // every row because the row's TEXT COLUMN has a fixed height
-          // (`EntryRowView.entryRowTextColumnHeight`) and only the summary
-          // yields inside it, by ellipsis truncation. The ROW itself has no
-          // `.frame(height:)`, so this stays a floor and never becomes a
-          // cap. Scoped to this `List` only; the sidebar keeps the system
-          // value.
+          // `defaultMinListRowHeight`. Set it to the row's natural height, so
+          // a re-measure that falls back to the platform default has nothing
+          // left to clip. The row itself carries no `.frame(height:)`, so this
+          // stays a floor and never becomes a cap. Scoped to this `List`; the
+          // sidebar keeps the system value.
           .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
@@ -309,49 +249,25 @@ struct EntryListView: View {
           .accessibilityIdentifier("timeline.list")
         }
       }
-      // Two tasks so refresh-only ticks (classification / sync completion)
-      // do not re-run the structural path and drop the rows to the blank
-      // pane. `structuralKey` captures inputs whose change means "user is
-      // looking at a different list" (category / folder / filter / cutoff);
-      // only those clear the previous rows. `refreshVersion` fires in place
-      // and `reload()` skips the assign when sections are equal, so
-      // SwiftUI's diff keeps the scroll stable.
-      //
-      // The refresh task's id intentionally includes `structuralKey`:
-      // a bare `refreshVersion` id would not be cancelled when the user
-      // switches category mid-refresh, and the in-flight fetch — which
-      // captured `self` with the old category — could race the
-      // structural task and overwrite `sections` with stale rows from
-      // the previous list. Including `structuralKey` cancels the stale
-      // refresh when context changes, and the `guard fetchPhase != .pending`
-      // check keeps the restarted refresh a no-op while the structural task
-      // owns the reload.
+      // Two tasks, so a refresh-only tick does not re-run the structural path
+      // and drop the rows to a blank pane. `structuralKey` captures the
+      // inputs whose change means the user is looking at a different list;
+      // only those clear the previous rows.
       .task(id: structuralKey) {
-        // Debounce a rapid J/K category-nav burst (issue #146). Placed at the
-        // VERY TOP — before the signpost begin, the `.pending` blank prefix, and
-        // the reader fetch — so an intermediate keypress (which `.task(id:)`
-        // cancels the instant `structuralKey` changes) exits HERE during the
-        // cheap sleep: no stacked `structural-reload` signpost, no blanked pane,
-        // and no fetch queued on the serial `DataReader` actor. Only the SETTLED
-        // selection survives → one blank + one fetch, so the sidebar highlight
-        // paints per keypress and the previous rows stay until the user settles.
-        // Cancellation-safe by construction: `.task(id:)`'s own structured
-        // cancellation, no manual Task / Timer (`STACK.md § 7 / § 9`). The
-        // `try?` swallows the sleep's `CancellationError`, so the explicit
-        // `Task.isCancelled` re-check is what turns a cancelled burst step into
-        // a no-op. The SEPARATE `.task(id: refreshTaskKey)` refresh path is
-        // deliberately NOT debounced.
+        // Keep the debounce at the very top — before the signpost, the
+        // `.pending` prefix, and the fetch — so an intermediate keypress
+        // exits here during the cheap sleep: no blanked pane and no fetch
+        // queued on the serial `DataReader` actor. `try?` swallows the
+        // sleep's `CancellationError`, so the explicit `Task.isCancelled`
+        // re-check is what makes a cancelled burst step a no-op.
         try? await Task.sleep(for: Self.navDebounce)
         guard !Task.isCancelled else { return }
-        // C3 perception/occupancy (issue #138): bracket the panel-2 blank
-        // window (structural key change → sections replaced). `defer` closes
-        // it even if the task is cancelled mid-reload by a structural-key
-        // change.
+        // Bracket the blank window, from the structural key change to the
+        // replaced sections. `defer` closes the interval even when a
+        // structural-key change cancels the task mid-reload.
         let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
-        // Tag the END with the resolved row count + category so a capture can
-        // plot reload time against N from any real store (issue #146 confound-
-        // killer) — read at `defer` time, after `reload` has assigned
-        // `visibleEntries`. Count + category label only; no PII (STACK.md §8).
+        // Read at `defer` time, after `reload` has assigned `visibleEntries`.
+        // Row count and category label only; no PII (`STACK.md § 8`).
         defer {
           perfSignposter.endInterval(
             PerformanceSignpostName.structuralReload, signpost,
@@ -360,11 +276,9 @@ struct EntryListView: View {
         }
         // Synchronous prefix: enter the pending phase and drop the previous
         // context's rows before the first await, so the pane never shows the
-        // old category's rows while the new fetch runs. Paging state resets
-        // with the window (issue #155): a new structural context starts from
-        // a fresh first page. Clearing `resolvedStructuralKey` hands window
-        // ownership to this task (issue #163) — the refresh gate stands down
-        // until resolve/failure flips it back.
+        // old category's rows while the new fetch runs. Clearing
+        // `resolvedStructuralKey` hands window ownership to this task, and the
+        // refresh gate stands down until resolve or failure flips it back.
         fetchPhase = .pending
         sections = []
         visibleEntries = .empty
@@ -373,11 +287,10 @@ struct EntryListView: View {
         appendVersion = 0
         isAppending = false
         resolvedStructuralKey = ""
-        // Snapshot BEFORE the fetch (issue #163): a bump landing before this
-        // line is included in the first-page fetch below (correct skip); a
-        // bump landing after it stays owed and re-fires via the resolve-flip.
-        // Conservative in the safe direction — a bump racing the fetch costs
-        // at most one redundant refresh, never a dropped update.
+        // Snapshot before the fetch: a bump landing above this line is
+        // covered by the first-page fetch below, and a bump landing after it
+        // stays owed and re-fires on the resolve flip. A bump racing the
+        // fetch costs one redundant refresh, never a dropped update.
         let preFetchRefreshVersion = refreshVersion
         if await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy) {
           fetchPhase = .resolved
@@ -386,25 +299,18 @@ struct EntryListView: View {
           return
         }
         guard !Task.isCancelled else { return }
-        // No retry: the shared coordinator BLOCKS rather than throws under
-        // contention (`STACK.md § 14`, `DataReader` header), so a fetch throw
-        // is almost certainly persistent — a delayed retry would only
-        // postpone showing the truth. Self-healing is free: any refresh bump
-        // re-fetches (a success sets `.resolved`), and re-selecting the
-        // category restarts this task. Ownership returns on failure too, so
-        // an owed bump can heal the failed pane (the gate deliberately lets
-        // `.failed` pass).
+        // No retry: the shared coordinator blocks rather than throws under
+        // contention (`STACK.md § 14`), so a fetch throw is almost certainly
+        // persistent. Healing is free — any refresh bump re-fetches, and the
+        // gate deliberately lets `.failed` pass.
         fetchPhase = .failed
         consumedRefreshVersion = preFetchRefreshVersion
         resolvedStructuralKey = structuralKey
       }
       .task(id: refreshTaskKey) {
-        // Pure gate (issue #163, `shouldRunWindowRefresh` truth table): skip
-        // when the structural task owns the window, or when this version was
-        // already covered by a fetch — the no-op `mode=above` eliminator. A
-        // successful refresh records the version it consumed; a failed or
-        // cancelled refresh leaves it owed. `.resolved` on success keeps the
-        // healing contract: a later bump heals an earlier `.failed` pane.
+        // Skip when the structural task owns the window, or when a fetch
+        // already covered this version. A successful refresh records the
+        // version it consumed; a failed or cancelled refresh leaves it owed.
         guard
           shouldRunWindowRefresh(
             resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
@@ -417,20 +323,17 @@ struct EntryListView: View {
           consumedRefreshVersion = version
         }
       }
-      // Append channel (issue #155): its own task so an append neither
-      // debounces like the structural path nor replaces the window like the
-      // refresh path. The id embeds `structuralKey` — a category switch
-      // cancels an in-flight append together with everything else.
+      // Its own task, so an append neither debounces like the structural path
+      // nor replaces the window like the refresh path. The id embeds
+      // `structuralKey`, so a category switch cancels an in-flight append.
       .task(id: appendTaskKey) {
         guard isAppending else { return }
         await appendNextPage()
         isAppending = false
       }
-      // Keyboard-parity trigger (issue #155, ux condition A): End / Page-Down
-      // can land selection on the LAST loaded row without the trigger row's
-      // `onAppear` ever firing (SwiftUI may skip materialising the rows in
-      // between). Selection reaching the window's bottom edge requests the
-      // next page directly.
+      // End and Page-Down can land the selection on the last loaded row
+      // without the trigger row's `onAppear` ever firing, because `List` may
+      // skip materialising the rows in between.
       .onChange(of: selectedEntryID) { _, newValue in
         if let newValue, newValue == visibleEntries.ids.last {
           requestAppend()
@@ -440,7 +343,7 @@ struct EntryListView: View {
   }
 
   /// Single derivation point for what the pane shows — the pure precedence
-  /// rule in `Helpers/EntryListDisplayState.swift` (unit-tested truth table).
+  /// rule in `Helpers/EntryListDisplayState.swift`.
   private var displayState: EntryListDisplayState {
     entryListDisplayState(
       phase: fetchPhase,
@@ -466,14 +369,12 @@ struct EntryListView: View {
         window: window
       )
     } catch is CancellationError {
-      // Silent exit — neither success nor failure. The reader's
-      // `Task.checkCancellation` guard surfaces here when a structural-key
-      // change cancels a queued stale fetch.
+      // Neither success nor failure: the reader's `Task.checkCancellation`
+      // guard surfaces here when a structural-key change cancels a queued
+      // stale fetch.
       return nil
     } catch {
-      // Store error — logged once per failure, here so all callers share
-      // it. The structural task shows the error pane; a failed refresh keeps
-      // the previous phase (existing rows or the error pane).
+      // Logged once per failure, here, so every caller shares the line.
       logger.error(
         "Article-list fetch failed for \(category ?? folder ?? "none", privacy: .private)"
       )
@@ -490,24 +391,20 @@ struct EntryListView: View {
     return await apply(result, proxy: proxy)
   }
 
-  /// Whole-window refresh (issue #155): refetch everything at or above the
-  /// loaded window's bottom edge in ONE snapshot — new rows land above,
-  /// read-state flips land in place, and the appended tail is preserved.
-  /// (Prefix-refetch and reset-to-first-page were rejected: both let the
-  /// loaded window slip out from under the reader mid-session.)
+  /// Whole-window refresh: refetch everything at or above the loaded window's
+  /// bottom edge in one snapshot, so new rows land above, read-state flips
+  /// land in place, and the appended tail survives.
   ///
-  /// Symmetric in-flight guard (issue #155): the snapshot applies only if the
-  /// window's bottom edge still equals the cursor the fetch started from — an
-  /// append landing mid-refresh would otherwise be wiped by the stale (older,
-  /// shorter) whole-window snapshot while the user is looking at the
-  /// appended tail. On mismatch the stale result is discarded and the
-  /// refresh re-fires against the current cursor.
+  /// The snapshot applies only if the window's bottom edge still equals the
+  /// cursor the fetch started from; otherwise an append landing mid-refresh
+  /// would be wiped by the older snapshot. On mismatch the result is discarded
+  /// and the refresh re-fires against the current cursor.
   private func refresh(proxy: ScrollViewProxy) async -> Bool {
     while !Task.isCancelled {
-      // Re-gate on EVERY iteration (issue #163): the cursor-mismatch
-      // `continue` below can loop while a structural prefix has already
-      // cleared the window mid-flight — without this check the retry would
-      // race the structural task's own first-page fetch.
+      // Re-gate on every iteration: the cursor-mismatch `continue` below can
+      // loop while a structural prefix has already cleared the window, and
+      // without this check the retry races the structural task's own
+      // first-page fetch.
       guard
         shouldRunWindowRefresh(
           resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
@@ -515,20 +412,16 @@ struct EntryListView: View {
           consumedVersion: consumedRefreshVersion)
       else { return false }
       guard let fetchStartCursor = entryListCursor(of: sections) else {
-        // Nothing loaded (e.g. the previous fetch failed, or the visible
-        // category is empty and a sync/classification bump landed) — a
-        // refresh from an empty window is just a first page, so the
-        // category's FIRST row appears without user action (issue #163's
-        // trust condition).
+        // Nothing loaded: a refresh from an empty window is just a first
+        // page, so the category's first row appears without user action.
         return await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy)
       }
       let window = EntryListWindow.atOrAbove(fetchStartCursor)
       guard let result = await fetchResult(window: window) else { return false }
       guard !Task.isCancelled else { return false }
       guard entryListCursor(of: sections) == fetchStartCursor else { continue }
-      // Refresh-empty fallback (issue #155): every loaded row left the
-      // filter (e.g. mark-all-read landed) — run ONE first-page fetch so
-      // rows below the old window surface instead of a false "No Articles".
+      // Every loaded row left the filter, so run one first-page fetch and
+      // surface the rows below the window instead of a false "No Articles".
       if refreshRequiresFirstPageFallback(window: window, result: result) {
         return await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy)
       }
@@ -537,19 +430,17 @@ struct EntryListView: View {
     return false
   }
 
-  /// Apply a fetched first-page / refresh snapshot: diff-skip, anchor
-  /// restore, state assignment, favicon warm, paging-state update. Appends
-  /// go through `appendNextPage` instead — they extend the tail and never
-  /// run anchor-restore.
+  /// Apply a fetched first-page or refresh snapshot: diff-skip, anchor
+  /// restore, state assignment, favicon warm, paging-state update. Appends go
+  /// through `appendNextPage`, which extends the tail and never restores an
+  /// anchor.
   private func apply(_ result: EntryListFetchResult, proxy: ScrollViewProxy) async -> Bool {
-    // Sub-cost split (issue #146, diagnostic): time the O(N) Equatable
-    // structural-equality walk of the full row set on MainActor.
     let diffSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadDiff)
     let sectionsUnchanged = result.sections == sections
     perfSignposter.endInterval(PerformanceSignpostName.reloadDiff, diffSignpost)
     guard !sectionsUnchanged else {
-      // Rows identical, but the universe BELOW the window may have changed
-      // (issue #155) — keep the append gate exact. Guarded assignment so an
+      // The rows are identical, but the universe below the window may have
+      // changed — keep the append gate exact. Guarded assignment, so an
       // unchanged refresh does not dirty the view.
       if hasMore != result.hasMore {
         hasMore = result.hasMore
@@ -557,22 +448,11 @@ struct EntryListView: View {
       }
       return true
     }
-    // Decide whether the upcoming in-place diff warrants a scroll-anchor
-    // restore. Two reasons to pin: (1) the selected row still appears in the
-    // new result — keep it centred so a row-height shift (read/unread
-    // weight flip) doesn't push it off-screen; (2) selection cleared and
-    // the previously-first row still appears — keep the top stable when a
-    // sync page lands new entries above it (option (a) per the design's
-    // sync-arriving-entries autonomy decision). Structural reloads
-    // (`fetchPhase == .pending` going into `reload`; the structural prefix
-    // also cleared `visibleEntries`) skip the fallback so we do not pin
-    // an anchor from the previous list's contents.
-    //
-    // `result.allEntryIDs` is precomputed off-MainActor by
-    // `DataReader.fetchEntrySections` so the membership-check `Set` build is
-    // the only per-reload allocation on MainActor — the flatMap walk that
-    // used to live here moved to the reader.
-    // Sub-cost split (issue #146, diagnostic): time the O(N) Set build.
+    // Pin an anchor only where a restore is warranted: the selected row still
+    // appears, so keep it centred through a row-height shift; or the
+    // selection is clear and the previously-first row still appears, so keep
+    // the top stable when a sync page lands rows above it. A structural
+    // reload pins nothing, so no anchor comes from the previous list.
     let setSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadSetBuild)
     let newIDs = Set(result.allEntryIDs)
     perfSignposter.endInterval(PerformanceSignpostName.reloadSetBuild, setSignpost)
@@ -588,9 +468,6 @@ struct EntryListView: View {
       restore = nil
     }
     pendingAnchorRestore = restore
-    // Sub-cost split (issue #146, diagnostic): time the @State assignments that
-    // mark the view dirty (the ensuing List render + layout is the
-    // structural-reload residual once the named sub-intervals are subtracted).
     let assignSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadStateAssign)
     sections = result.sections
     visibleEntries = VisibleEntriesPayload(
@@ -600,51 +477,45 @@ struct EntryListView: View {
     hasMore = result.hasMore
     updateAppendTrigger(allIDs: result.allEntryIDs, hasMore: result.hasMore)
     perfSignposter.endInterval(PerformanceSignpostName.reloadStateAssign, assignSignpost)
-    // Yield one tick so SwiftUI applies the diff before we ask the proxy
-    // to scroll — without the yield `scrollTo` runs against the still-old
-    // layout and the anchor row is not yet on screen to scroll to. Instant
-    // scroll (no `withAnimation`) so the restore respects Reduce Motion.
+    // Yield one tick so SwiftUI applies the diff before the proxy scrolls:
+    // without it `scrollTo` runs against the old layout. Instant scroll, no
+    // `withAnimation`, so the restore respects Reduce Motion.
     if let restore = pendingAnchorRestore {
       pendingAnchorRestore = nil
       await Task.yield()
       proxy.scrollTo(restore.id, anchor: restore.anchor)
     }
-    // Warm the favicon cache AFTER the rows are applied, in the same SwiftUI
-    // task — a structural-key change cancels the warm together with the
-    // reload, and a cancelled warm just leaves the initials fallback until
-    // the next reload. Best-effort: a warm failure never fails the reload.
+    // Warm the favicon cache after the rows are applied and in the same
+    // SwiftUI task, so a structural-key change cancels the warm with the
+    // reload. Best-effort: a warm failure never fails the reload.
     await faviconStore.ensureLoaded(feedIDs: result.distinctFeedIDs) { ids in
       try await reader.fetchFaviconData(feedbinFeedIDs: ids)
     }
     return true
   }
 
-  /// Request the next append page (issue #155). Gated on `hasMore` (exact,
-  /// reader-computed) and on one-append-at-a-time; the bump re-keys the
-  /// append `.task`, which owns the fetch.
+  /// Request the next append page. Gated on `hasMore` and on one append at a
+  /// time; the bump re-keys the append `.task`, which owns the fetch.
   private func requestAppend() {
     guard hasMore, !isAppending else { return }
     isAppending = true
     appendVersion &+= 1
   }
 
-  /// Fetch ONE `after(cursor, limit:)` page below the window's bottom edge
-  /// and extend the window with it. Pure tail insertion: row identity is
-  /// untouched and the same-day section extends under its existing id
-  /// (`EntryListFetchResult.appending`), so the `List` diff never moves a
-  /// rendered row — no anchor restore, no scroll, no animation (appended
-  /// rows appear without motion; Reduced Motion needs no special-casing).
+  /// Fetch one `after(cursor, limit:)` page below the window's bottom edge and
+  /// extend the window with it. Pure tail insertion: row identity is untouched
+  /// and a same-day section extends under its existing id, so the `List` diff
+  /// never moves a rendered row and the append needs no anchor restore, scroll,
+  /// or animation.
   private func appendNextPage() async {
     guard let fetchStartCursor = entryListCursor(of: sections) else { return }
     guard let page = await fetchResult(window: .after(fetchStartCursor, limit: Self.pageSize))
     else { return }
     guard !Task.isCancelled else { return }
-    // Symmetric in-flight guard (issue #155): apply only if the window's
-    // bottom edge is still the cursor this page was fetched from — a
-    // whole-window refresh or structural reload landing mid-append would
-    // otherwise get a stale tail glued onto its fresh snapshot. Discarding
-    // is safe: the trigger row is still near the bottom, so the next
-    // appearance re-requests against the new cursor.
+    // Apply only if the window's bottom edge is still the cursor this page was
+    // fetched from: a refresh or structural reload landing mid-append would
+    // otherwise glue a stale tail onto a fresh snapshot. Discarding is safe —
+    // the trigger row is still near the bottom and re-requests.
     guard entryListCursor(of: sections) == fetchStartCursor else { return }
     let current = EntryListFetchResult(
       sections: sections,
@@ -661,17 +532,15 @@ struct EntryListView: View {
     )
     hasMore = merged.hasMore
     updateAppendTrigger(allIDs: merged.allEntryIDs, hasMore: merged.hasMore)
-    // Warm favicons for the appended page's feeds — deep pages would
-    // otherwise render permanent initials fallbacks (the reload path warms
-    // only the pages it fetched itself).
+    // Deep pages would otherwise render permanent initials fallbacks: the
+    // reload path warms only the pages it fetched itself.
     await faviconStore.ensureLoaded(feedIDs: page.distinctFeedIDs) { ids in
       try await reader.fetchFaviconData(feedbinFeedIDs: ids)
     }
   }
 
-  /// Precompute the append-trigger row id once per apply — `margin` rows
-  /// before the window end (`appendTriggerIndex`, pure) — so the per-row
-  /// `onAppear` check in `body` is a plain id comparison.
+  /// Precompute the append-trigger row id once per apply, so the per-row
+  /// `onAppear` check in `body` stays a plain id comparison.
   private func updateAppendTrigger(allIDs: [PersistentIdentifier], hasMore: Bool) {
     guard hasMore,
       let index = appendTriggerIndex(
@@ -683,16 +552,12 @@ struct EntryListView: View {
     appendTriggerID = allIDs[index]
   }
 
-  /// Composed key for the refresh task so a structural change (category /
-  /// folder / filter / cutoff) cancels any in-flight refresh bound to the
-  /// previous context. Without the structural suffix, a refresh captured
-  /// against the old `self` could finish after the structural reload and
-  /// overwrite `sections` with stale rows.
-  ///
-  /// `resolvedStructuralKey` is a component (issue #163): the structural
-  /// task's resolve/failure flips it "" → key, which re-fires the refresh
-  /// task — so a bump that arrived mid-structural-fetch is re-examined by
-  /// the gate instead of being dropped. Composition pinned by
+  /// Composed key for the refresh task, so a structural change cancels an
+  /// in-flight refresh bound to the previous context: without the structural
+  /// suffix a refresh could finish after the structural reload and overwrite
+  /// `sections` with stale rows. `resolvedStructuralKey` is a component, so
+  /// the structural task's resolve flip re-fires the refresh task and a bump
+  /// that arrived mid-fetch reaches the gate. Composition is pinned by
   /// `WindowRefreshGateTests`.
   private var refreshTaskKey: String {
     Self.composeRefreshTaskKey(
@@ -700,25 +565,23 @@ struct EntryListView: View {
       refreshVersion: refreshVersion)
   }
 
-  /// Pure key builder behind `refreshTaskKey`, extracted so tests can pin
-  /// the composition (the resolve-flip re-fire depends on
-  /// `resolvedStructuralKey` being a component).
+  /// Pure key builder behind `refreshTaskKey`, extracted so tests can pin its
+  /// composition.
   nonisolated static func composeRefreshTaskKey(
     structuralKey: String, resolvedStructuralKey: String, refreshVersion: Int
   ) -> String {
     "\(structuralKey)|\(resolvedStructuralKey)|\(refreshVersion)"
   }
 
-  /// Composed key for the append task (issue #155) — same structural-suffix
-  /// rationale as `refreshTaskKey`: a category switch cancels an in-flight
-  /// append page fetch bound to the previous context.
+  /// Composed key for the append task, with the same structural suffix as
+  /// `refreshTaskKey`: a category switch cancels an in-flight append.
   private var appendTaskKey: String {
     "\(structuralKey)|append|\(appendVersion)"
   }
 
-  /// Key for "this is a different article list" — user-visible context change.
-  /// Excludes `refreshVersion`, which rides on a separate task so in-place
-  /// refreshes do not tear down the `List` and drop the scroll position.
+  /// Key for "this is a different article list". Excludes `refreshVersion`,
+  /// which rides on a separate task so an in-place refresh does not tear down
+  /// the `List` and drop the scroll position.
   private var structuralKey: String {
     "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
   }
@@ -743,34 +606,11 @@ struct EntryListView: View {
 }
 
 // Row matrix: the row-height floor and the title / summary split at every
-// text size in a 320-pt content column, once at 600 pt, and once at 200 pt
-// — the platform's default column width, a shipped state now that the
-// column has no width bounds; the fixed text column keeps the row height,
-// and the title + time row is what to look at. Every row must be exactly
-// `entryRowHeight` tall. The thirteen row shapes, in list order:
-//   1001  one-line title, long excerpt: three summary lines, ellipsis on the
-//         third, no blank line under the title
-//   1002  two-line title, long excerpt: title keeps two lines, two summary
-//         lines with an ellipsis
-//   1003  title longer than two lines: two lines with an ellipsis, the time
-//         stays top-right
-//   1004  one-line title, NO domain, long excerpt: the domain line stays
-//         reserved and empty, three summary lines
-//   1005  one-line title, EMPTY excerpt: blank only at the row bottom
-//   1006  two-line title, EMPTY excerpt: blank only at the row bottom
-//   1007  threshold: an excerpt that fills exactly three lines with no
-//         ellipsis at medium / 320 pt
-//   1008  the same excerpt plus one word: three lines and an ellipsis
-//   1009  unread row, and 1010 its read twin (dimmed via the
-//         `pendingReadIDs` overlay): same height, same split
-//   1011  emoji in the title: one or two summary lines under a two-line
-//         emoji title (T2 in `EntryRowGeometryTests` pins the range 1...2;
-//         2...3 under a one-line emoji title) — the emoji does not enlarge
-//         the line height, so the summary keeps its lines
-//   1012  long domain: middle truncation, the slot stays one line tall
-//   1013  two-line title, EMPTY-STRING domain (what `extractDomain` stores
-//         for a URL without a host): the reader maps it to nil, the domain
-//         line stays reserved, two summary lines
+// text size, in a 320-pt content column and at the 200-pt and 600-pt
+// extremes. Every row must be exactly `entryRowHeight` tall. The seeded
+// shapes cover a wrapped title, a missing domain, an empty-string domain, an
+// empty excerpt, the three-line threshold and one word past it, a read and
+// unread twin, an emoji title, and a long domain.
 
 #Preview("Row Matrix - Small") {
   EntryListRowMatrixPreview(textSize: .small)
@@ -805,9 +645,8 @@ struct EntryListView: View {
   EntryListRowMatrixPreview(textSize: .medium, width: 200)
 }
 
-/// Seeds thirteen `apple` rows covering the row shapes above and renders
-/// `EntryListView` at the given content-column width (default 320 pt) with
-/// the given text size. Row 1010 is unread in the store but
+/// Seeds the row shapes above and renders `EntryListView` at the given
+/// content-column width and text size. Row 1010 is unread in the store but
 /// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
 @MainActor
 private struct EntryListRowMatrixPreview: View {
@@ -830,8 +669,8 @@ private struct EntryListRowMatrixPreview: View {
       + "so the last summary line ends with an ellipsis and the split between the title and the "
       + "summary is visible: three lines under a one-line title, two lines under a two-line title, "
       + "and the row height does not change."
-    // This exact text fills exactly three lines at medium / 320 pt; the next
-    // word pushes it onto a fourth line, so 1008 shows an ellipsis.
+    // This exact text fills three lines at medium / 320 pt; one more word
+    // pushes it onto a fourth, so 1008 shows an ellipsis.
     let threeLineExcerpt =
       "The excerpt fills the third line to its last word so the row shows three full lines and no "
       + "ellipsis at the medium text size in a"
@@ -1003,17 +842,11 @@ private struct EntryListAuthFailedPreview: View {
 }
 
 /// Renders `EntryListView` with classification mid-batch, a classified row in
-/// ANOTHER category ("world"), and the queried category ("apple") resolving
-/// empty. EXPECTATION REVERSED by issue #146 (reverses #137): the pane shows
-/// "No Articles" — the calm-loading "Sorting your articles" state is gone. A
-/// resolved-empty fetch now asserts emptiness regardless of engine activity,
-/// because the deferred-bump drain channel re-fetches as classification lands
-/// rows: the moment the first article exists in this category, the list
-/// populates live. The false-empty flash #137 guarded against is prevented by
-/// mechanism instead — `pending ≠ resolved` in `entryListDisplayState` (the
-/// unit truth table pins it). The mid-batch `ClassificationEngine` is still
-/// injected on purpose: it documents that engine activity no longer changes
-/// this outcome (the view no longer reads it).
+/// another category, and the queried category resolving empty. The pane shows
+/// "No Articles": a resolved-empty fetch asserts emptiness regardless of
+/// engine activity, and the drain channel re-fetches as classification lands
+/// rows. The mid-batch engine is injected on purpose, to show that engine
+/// activity does not change this outcome.
 @MainActor
 private struct EntryListEmptyWhileClassifyingPreview: View {
   @State

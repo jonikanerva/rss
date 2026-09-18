@@ -2,7 +2,7 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - EntryListDisplayState truth table (issue #146)
+// MARK: - EntryListDisplayState truth table
 
 /// One row of the exhaustive truth table for
 /// `entryListDisplayState(phase:hasSections:isAuthFailed:isOffline:)`.
@@ -18,22 +18,19 @@ nonisolated struct DisplayStateRow: Sendable, CustomTestStringConvertible {
   }
 }
 
-/// All 24 combinations (3 phases × 2³ flags), expectations written by hand so
-/// any precedence change must consciously edit a row here. Load-bearing rows:
-/// - `hasSections` → `.list` under EVERY phase and flag combination
-///   (continuity: fetched rows always render — a populated category never
-///   shows an empty-family pane).
-/// - `pending` + empty → `.blank` under every flag combination: an unresolved
-///   fetch asserts nothing, so a false "No Articles" flash on a populated
-///   category is structurally unreachable (the relocated #137 protection —
-///   issue #146 reverses #137's copy, not its guarantee).
-/// - `resolved` + empty + no sync error → `.noArticles` — engine activity is
-///   deliberately absent from the signature, so "classification is running"
-///   cannot suppress a true empty (the #137 reversal pin).
-/// - `failed` + empty → `.error` BEFORE the sync-error family: a store read
-///   failure must not masquerade as "offline" or "signed out".
-/// - `resolved` + empty + authFailed + offline → `.authFailed` (auth outranks
-///   offline).
+/// Every combination of phase and flags, with the expectations written by hand,
+/// so a precedence change must consciously edit a row here. The load-bearing
+/// rows:
+/// - Sections present render as a list under every phase and flag, so a
+///   populated category never shows an empty-family pane.
+/// - A pending empty fetch is blank under every flag, so a false "No Articles"
+///   on a populated category is structurally unreachable.
+/// - A resolved empty fetch with no sync error is "No Articles": engine
+///   activity is absent from the signature, so a running classification cannot
+///   suppress a true empty.
+/// - A failed empty fetch is an error, ahead of the sync-error family, so a
+///   store read failure never masquerades as offline or signed out.
+/// - Auth failure outranks offline.
 nonisolated let displayStateTruthTable: [DisplayStateRow] = [
   // pending, populated → list
   DisplayStateRow(
@@ -108,11 +105,9 @@ struct EntryListDisplayStateTests {
     )
   }
 
-  /// The #137 reversal pin, stated by itself: a RESOLVED empty fetch shows
-  /// "No Articles" — there is no engine-activity input that could widen it
-  /// back into a loading state — while a PENDING fetch never does. Together
-  /// these relocate #137's false-empty protection from the deleted "Sorting
-  /// your articles" copy into the phase distinction.
+  /// A resolved empty fetch shows "No Articles", with no engine-activity input
+  /// that could widen it back into a loading state, and a pending fetch never
+  /// does. The phase distinction alone carries the false-empty protection.
   @Test
   func resolvedEmptyAssertsNoArticlesAndPendingNeverDoes() {
     #expect(

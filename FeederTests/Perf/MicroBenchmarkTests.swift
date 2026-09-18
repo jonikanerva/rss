@@ -6,30 +6,17 @@ import XCTest
 
 // MARK: - MicroBenchmarkTests
 
-/// Level 1 of the perf suite: function-level micro-benchmarks for the hot-path
-/// operations identified during PR 4 planning. Each test wraps a focused call
-/// in XCTest's `measure { }` so the test framework captures per-iteration
-/// duration and tracks drift over time.
+/// Function-level micro-benchmarks for the hot-path operations. Each test wraps
+/// one focused call in a `measure { }` block, so the framework captures a
+/// per-iteration duration and tracks drift.
 ///
-/// Per `VISION.md → Core Principles` (evidence over opinion) and the
-/// boss's explicit PR-4 decision: performance is app-rule #1, so the perf
-/// gate is foundational, not deferred. These benchmarks complement the Level
-/// 2 signposts (`PerfSignpostTests`) and Level 4 traces (`make perf-trace`)
-/// by isolating individual hot functions:
+/// They isolate individual hot functions and complement the signpost suite and
+/// the recorded traces. They are not part of the everyday gate: the perf target
+/// selects them, and their baselines live beside the other perf baselines.
 ///
-/// - `DataReader.fetchUnreadCountsSnapshot(cutoffDate:)`
-/// - `DataReader.fetchEntrySections(category:folder:showRead:cutoffDate:pinnedFeedbinEntryID:window:)`
-/// - `parseHTMLToBlocks(_:)`
-/// - `groupRowsByDay(_:)`
-///
-/// Not part of `make test-all`. Invoked by `make perf` via
-/// `-only-testing:FeederTests/MicroBenchmarkTests` so they ride the same
-/// perf-only gate the signpost suite uses. Baselines live in
-/// `Tests/PerfBaselines/baseline-current.json` under `level1_microbench`.
-///
-/// Iteration count is intentionally low (5) so the suite still finishes
-/// well inside the perf-trace iteration budget. The signal we want is "did
-/// this function regress meaningfully" — not statistical certainty.
+/// The iteration count is deliberately low, so the suite finishes inside the
+/// perf iteration budget. The signal is "did this function regress
+/// meaningfully", not statistical certainty.
 final class MicroBenchmarkTests: XCTestCase {
   private var container: ModelContainer!
   private var writer: DataWriter!
@@ -141,12 +128,8 @@ final class MicroBenchmarkTests: XCTestCase {
   /// function is called inside `fetchEntrySections` on every reload, so
   /// any regression compounds with the sidebar-click signpost cost.
   ///
-  /// `groupRowsByDay` is pure over `EntryRowDTO` values (issue #148 — its
-  /// `@Model`-input predecessor `groupEntriesByDay` needed an actor hop plus
-  /// a GCD bridge to measure), so the benchmark builds the row fixtures once
-  /// in setup and measures the grouping call directly. Supersedes the
-  /// baseline entry `groupEntriesByDay_micro`; the first
-  /// `make perf-record-baseline` after this lands captures the new name.
+  /// `groupRowsByDay` is pure over DTO values, so the benchmark builds its row
+  /// fixtures once in setup and measures the grouping call directly.
   func test_groupRowsByDay_micro() throws {
     // ~72 rows per day across ~14 days, descending publishedAt — the same
     // shape `fetchEntrySections` hands the grouping in production. Only the

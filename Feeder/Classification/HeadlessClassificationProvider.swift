@@ -2,16 +2,14 @@ import Foundation
 
 // MARK: - Headless classification provider (seam 2)
 
-/// No-op `ClassificationProvider` used only in headless mode (#141). It never
-/// touches the network or the Keychain: it assigns every article the explicit
-/// `uncategorizedLabel` fallback, so the `VISION.md` "every article gets exactly
-/// one main category" invariant still holds without a real backend.
+/// No-op `ClassificationProvider` for headless mode. It touches neither the
+/// network nor the Keychain, and assigns every article the explicit fallback
+/// label, so the "exactly one main category" invariant
+/// (`VISION.md → Core Principles`) holds without a backend.
 ///
-/// Wired at `ClassificationEngine` construction via `providerFactoryOverride`
-/// (see `FeederApp`), so the production `buildProvider()` — and therefore the
-/// OpenAI-key Keychain read it performs when `.openAI` is selected — is never
-/// reached on an automated launch, even if a classification batch were to fire
-/// on the seeded data. This closes the OpenAI credential seam at construction.
+/// It is wired at `ClassificationEngine` construction, so an automated launch
+/// never reaches `buildProvider()` or the Keychain read it performs, even if a
+/// batch fires on the seeded data.
 nonisolated struct HeadlessClassificationProvider: ClassificationProvider {
   let name = "Headless (no-op)"
 

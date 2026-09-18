@@ -208,10 +208,10 @@ struct DataWriterEntryTests {
 
   // MARK: - countUnclassifiedEntries / fetchUnclassifiedInputs(limit:)
 
-  /// The live "Categorizing Y/X" denominator (issue #124) is driven by
-  /// `countUnclassifiedEntries`; it must count exactly the rows the runner
-  /// would drain — unclassified AND inside the retention window — so the
-  /// count and the bounded fetch can never disagree.
+  /// The live classification denominator comes from `countUnclassifiedEntries`,
+  /// so it must count exactly the rows the runner would drain: unclassified and
+  /// inside the retention window. The count and the bounded fetch can never
+  /// disagree.
   @Test
   func countUnclassifiedRespectsCutoffAndClassifiedFlag() async throws {
     let writer = try await makeWriter()
@@ -238,7 +238,7 @@ struct DataWriterEntryTests {
       result: ClassificationResult(entryID: 1002, categoryLabel: "tech", confidence: 0.9))
     #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 1)
 
-    // A distant-past cutoff pulls the old entry back into scope → 2 pending.
+    // A distant-past cutoff pulls the older entry back into scope.
     #expect(try await writer.countUnclassifiedEntries(cutoffDate: .distantPast) == 2)
   }
 
@@ -437,11 +437,10 @@ struct DataWriterEntryTests {
     #expect(ids.count == 1)
   }
 
-  /// Regression pin for the PR #107 hot-path offload: the reader must return
-  /// the same flat ID sequence the MainActor used to compute via
-  /// `result.flatMap(...)`. Order matters — `EntryListView` keys its
-  /// `VisibleEntriesKey` preference and Tab-into-list selection off the
-  /// first ID, so a reorder would land selection on the wrong row.
+  /// The reader must return the flat ID sequence in section order. Order
+  /// matters: the view keys its rendered-entries preference and its
+  /// Tab-into-list selection off the first ID, so a reorder lands the selection
+  /// on the wrong row.
   @Test
   func fetchEntrySectionsAllEntryIDsMatchSectionsFlatMap() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)

@@ -30,8 +30,8 @@ nonisolated func ordinalSuffix(forDay day: Int) -> String {
   }
 }
 
-/// Format the time-of-day portion of an entry for the article-list row as "HH.mm".
-/// Uses value-type components + `String(format:)` so no shared mutable formatter exists.
+/// Format the time of day for an article-list row. Built from value-type
+/// components, so no shared mutable formatter exists.
 nonisolated func formatEntryTime(_ date: Date) -> String {
   let components = Calendar.current.dateComponents([.hour, .minute], from: date)
   let hour = components.hour ?? 0
@@ -64,35 +64,29 @@ nonisolated func extractDomain(from urlString: String) -> String {
   return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
 }
 
-/// Hard cap for `rowExcerpt` — bounds the DTO's memory when a summary-less
-/// article falls back to the full `plainText` body (issue #148). This is a
-/// data-size bound, not visual truncation; the row renders up to three
-/// excerpt lines under a one-line title and two under a two-line title
-/// (`EntryRowMetrics.excerptLineLimit`) regardless.
+/// Hard cap for `rowExcerpt`, bounding the DTO's memory when a summary-less
+/// article falls back to the full body. A data-size bound, not visual
+/// truncation: the row's line limit governs what the user sees.
 private nonisolated let rowExcerptMaxLength = 500
 
-/// Row excerpt for the article list: the write-time `summaryPlainText` when
-/// present, otherwise the `plainText` fallback — whitespace-trimmed and capped
-/// at `rowExcerptMaxLength` characters. Callers that want to avoid faulting
-/// `plainText` pass "" for it when the summary is non-empty
-/// (`DataReader.projectEntryRow`).
+/// Row excerpt for the article list: the write-time `summaryPlainText`, or the
+/// `plainText` fallback, trimmed and capped at `rowExcerptMaxLength`. A caller
+/// that must not fault `plainText` passes "" for it when the summary is
+/// non-empty.
 nonisolated func rowExcerpt(summaryPlainText: String, plainText: String) -> String {
   let source = summaryPlainText.isEmpty ? plainText : summaryPlainText
   let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
   return String(trimmed.prefix(rowExcerptMaxLength))
 }
 
-/// Fallback initial for a feed's favicon slot: first letter of the feed title,
-/// uppercased; "?" when the feed (or its title) is absent. Mirrors the letter
-/// `FaviconView` rendered before issue #148 moved the computation off-main
-/// into `DataReader.projectEntryRow`.
+/// Fallback initial for a feed's favicon slot: the feed title's first letter,
+/// uppercased, or "?" when the feed or its title is absent.
 nonisolated func feedInitial(from feedTitle: String?) -> String {
   guard let feedTitle, let first = feedTitle.first else { return "?" }
   return String(first).uppercased()
 }
 
-/// Format a section header label for a given start-of-day date.
-/// Used by the article list to show "Today", "Yesterday", or a full weekday/date.
+/// Format the article list's day-section label for a start-of-day date.
 nonisolated func entryListSectionLabel(for date: Date) -> String {
   let calendar = Calendar.current
   if calendar.isDateInToday(date) {

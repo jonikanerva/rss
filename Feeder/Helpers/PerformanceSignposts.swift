@@ -4,27 +4,21 @@ import os.signpost
 // MARK: - Shared OSSignposter
 
 /// Shared `OSSignposter` for click → render intervals at hot UI boundaries.
+/// The category is `.pointsOfInterest`, so Instruments surfaces the intervals
+/// with no extra configuration, and the subsystem matches the rest of the app
+/// (`STACK.md § 8`).
 ///
-/// The subsystem matches the rest of the app per `STACK.md § 8 Logging & privacy`,
-/// and the category is the system-recognised `.pointsOfInterest` so
-/// Instruments surfaces these intervals under the default "Points of
-/// Interest" lane (Logging template) without any extra configuration.
-///
-/// `OSSignposter` produces zero work when no profiler is attached, so the
-/// begin/end calls ride for free in shipping builds — no `#if DEBUG` gating.
-/// `nonisolated` so it is callable from any actor context (the detail-pane
-/// render path crosses MainActor and a detached task).
+/// `OSSignposter` does no work when no profiler is attached, so the calls need
+/// no `#if DEBUG` gating. `nonisolated`, because the render path crosses
+/// MainActor and a detached task.
 nonisolated let perfSignposter = OSSignposter(
   subsystem: "com.feeder.app",
   category: .pointsOfInterest
 )
 
-/// Sibling logger used only to flag mis-paired signpost intervals — a begin
-/// taken while a previous begin was still un-ended. The misuse is recorded as
-/// a debug-level entry so it surfaces under `os_log` filtering without
-/// polluting production logs. Subsystem matches `perfSignposter` per
-/// `STACK.md § 8 Logging & privacy`; category is human-readable so the warnings are
-/// easy to grep for in `log stream`.
+/// Flags a mis-paired signpost interval: a begin taken while an earlier begin
+/// is still un-ended. Debug level, so the misuse surfaces under `os_log`
+/// filtering without reaching production logs.
 nonisolated let perfSignpostLogger = Logger(
   subsystem: "com.feeder.app",
   category: "PerformanceSignposts"
@@ -32,96 +26,67 @@ nonisolated let perfSignpostLogger = Logger(
 
 // MARK: - Interval names
 
-/// Named entry points for the three click → render intervals we instrument.
-///
-/// Static strings live in a single namespace so Instruments shows stable,
-/// legible labels in the Points of Interest lane and renames stay in one
-/// place if the surfaces are reshuffled. See `ContentView` for sidebar
-/// and article intervals; `EntryDetailView` for the detail render interval.
-///
-/// `nonisolated` because the statics are immutable `StaticString` constants —
-/// callers cross MainActor (`ContentView` signpost handlers) and nonisolated
-/// actor contexts (`PerfSignpostTests` measure-blocks, off-MainActor render
-/// tasks) interchangeably, and there is no isolation invariant to enforce.
+/// Named entry points for every instrumented interval. One namespace keeps the
+/// Instruments labels stable and a rename in one place. `nonisolated`, because
+/// callers cross MainActor and nonisolated actor contexts interchangeably.
 nonisolated enum PerformanceSignpostName {
-  /// Sidebar selection commit → article-list `.task(id: selection)` fires.
-  /// Measures the SwiftUI commit cost between writing `selection` and the
-  /// content column re-rendering.
+  /// Sidebar selection commit → the article list's task fires. Measures the
+  /// SwiftUI commit cost of a sidebar move.
   static let sidebarClick: StaticString = "sidebar-click"
-  /// Article-row selection commit → detail-pane `.task` fires. Measures the
-  /// SwiftUI commit cost between writing `selectedEntry` and the detail
-  /// column re-rendering.
+  /// Article-row selection commit → the detail pane's task fires. Measures the
+  /// SwiftUI commit cost of a row selection.
   static let articleClick: StaticString = "article-click"
-  /// `ArticleWebContainer.task(id: renderKey)` start → `renderedHTML` write
-  /// (just before the WKWebView receives `loadHTMLString`). Measures the
-  /// off-MainActor render itself, separate from the click → task latency.
+  /// Render task start → the `renderedHTML` write, just before the web view
+  /// loads it. Measures the off-MainActor render alone, without the
+  /// click-to-task latency.
   static let detailRender: StaticString = "detail-render"
-  /// Perf-scenario nav window: brackets the interleaved keyboard/mouse
-  /// navigation pass that `PerfScenarioRunner` drives WHILE a fixed-count
-  /// write-pressure task hammers the store. Seeding and cold start happen
-  /// BEFORE `beginInterval`, so they are excluded from the interval. The
-  /// perf parser reads this interval's `[start, end]` from the trace and
-  /// windows the hang counts to it, so the raw under-load stutter count is
-  /// readable instead of buried in the once-per-launch cold-start hang.
-  /// Only emitted under `FEEDER_PERF_MODE`; a no-op in shipping launches.
+  /// Brackets the interleaved navigation pass `PerfScenarioRunner` drives while
+  /// a write-pressure task hammers the store. Seeding and cold start must stay
+  /// outside it, because the parser windows its hang counts to this interval.
+  /// Emitted only under the perf-mode flag.
   static let perfNavWindow: StaticString = "perf-nav-window"
 
-  // MARK: - C3 read-starvation instrumentation (issue #138)
+  // MARK: - Read-starvation instrumentation
   //
-  // Four intervals that attribute the cold-start / large-sync read-starvation
-  // question: does a dense sync-page write burst saturate the shared SwiftData
-  // coordinator and starve the article-list read? All ride `perfSignposter`,
-  // are zero-cost when no profiler is attached (`OSSignposter`), and are pure
-  // measurement — production behaviour is unchanged.
+  // Four intervals that attribute one question: does a dense sync-page write
+  // burst saturate the shared SwiftData coordinator and starve the article-list
+  // read? Pure measurement — production behaviour is unchanged.
 
-  /// `DataReader.fetchEntrySections` start → return. The ATTRIBUTION signal:
-  /// how long the article-list read itself takes, measured on the reader
-  /// actor. Windowing this against `writePersistPage` (below) isolates the
-  /// under-burst read cost from the at-rest baseline.
+  /// How long the article-list read takes on the reader actor. Windowed
+  /// against `writePersistPage`, it separates the under-burst read cost from
+  /// the at-rest baseline.
   static let readFetchSections: StaticString = "read-fetch-sections"
-  /// `EntryListView` structural reload: structural key change → sections
-  /// replaced (a user-visible "different list" load). The PERCEPTION +
-  /// OCCUPANCY signal — how long panel-2 shows its blank window, and how
-  /// much of that time overlaps an active write-persist.
+  /// Structural key change → sections replaced: how long the article pane
+  /// shows its blank window, and how much of that overlaps an active persist.
   static let structuralReload: StaticString = "structural-reload"
-  /// One sync-page network GET (`Tnet`): `FeedbinClient.fetchEntries` for a
-  /// single page. The gap this interval represents is what an unbounded
-  /// prefetch stream buffers away, collapsing the persist cadence.
+  /// One sync-page network GET. The gap it represents is what an unbounded
+  /// prefetch stream buffers away, which collapses the persist cadence.
   static let netFetchPage: StaticString = "net-fetch-page"
-  /// One sync-page persist (`Tpersist`): `DataWriter.persistEntries` for a
-  /// single page. Back-to-back `writePersistPage` intervals with no
-  /// `netFetchPage` gap between them are the coordinator-saturation signature.
+  /// One sync-page persist. Back-to-back intervals with no `netFetchPage` gap
+  /// between them are the coordinator-saturation signature.
   static let writePersistPage: StaticString = "write-persist-page"
 
-  // MARK: - Structural-reload sub-cost split (issue #146, DIAGNOSTIC-ONLY)
+  // MARK: - Structural-reload sub-cost split
   //
-  // Finer intervals that split the NON-FETCH portion of `structuralReload` so a
-  // capture attributes the panel-2 reload tail across the individual MainActor
-  // operations instead of inferring it. Measurement showed the tail is the
-  // non-fetch main path, not `readFetchSections`; these pin which op owns it.
-  // All ride `perfSignposter`, are zero-cost when no profiler is attached, and
-  // change no behaviour. DIAGNOSTIC-ONLY: to be removed once the #146 fix is
-  // chosen from the data (unlike `structuralReload` / `readFetchSections`, which
-  // stay as durable regression guards).
+  // Finer intervals that split the non-fetch portion of `structuralReload`
+  // across the individual MainActor operations. Diagnostic only, unlike
+  // `structuralReload` and `readFetchSections`, which are durable regression
+  // guards.
 
-  /// `reload()` Equatable diff `result.sections != sections` — the O(N) row
-  /// structural-equality walk on MainActor (each `EntryRowDTO` compared field by
-  /// field, including its `title` / `excerpt` strings).
+  /// The row structural-equality walk on MainActor, which compares each row
+  /// field by field.
   static let reloadDiff: StaticString = "reload-diff"
-  /// `reload()` `Set(result.allEntryIDs)` build on MainActor — the O(N) hash of
-  /// the full identifier set.
+  /// The identifier-set build on MainActor.
   static let reloadSetBuild: StaticString = "reload-set-build"
-  /// `reload()` `sections` + `visibleEntries` @State assignment on MainActor.
-  /// Marks the view dirty; the ensuing List render + layout is the
-  /// `structuralReload` residual once these named sub-intervals are subtracted.
+  /// The state assignment that marks the view dirty. The `List` render and
+  /// layout that follow are the `structuralReload` residual once the named
+  /// sub-intervals are subtracted.
   static let reloadStateAssign: StaticString = "reload-state-assign"
-  /// `VisibleEntriesKey` preference → `ContentView.body` re-evaluation: begins
-  /// on ContentView's `onPreferenceChange`, ends on the next ContentView render
-  /// pass (a version-token `.task(id:)`). Isolates the whole-split-view re-eval
-  /// a full-N preference payload triggers per reload.
+  /// Preference change → the next `ContentView` render pass. Isolates the
+  /// whole-split-view re-evaluation one reload triggers.
   static let contentViewReeval: StaticString = "contentview-reeval"
-  /// One `EntryRowView.body` evaluation (da's whole-list-re-render check).
-  /// Counting the events that fall inside a `structuralReload` window shows
-  /// whether the List rebuilds all rows or only the visible ones.
+  /// One row-body evaluation. Counting the events inside a `structuralReload`
+  /// window shows whether the `List` rebuilds every row or only the visible
+  /// ones.
   static let rowBodyBuild: StaticString = "row-body-build"
 }

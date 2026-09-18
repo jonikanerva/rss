@@ -2,9 +2,8 @@ import SwiftUI
 
 // MARK: - Focused Command Context
 
-/// Single bundle carrying every menu-bar action and enablement flag ContentView
-/// publishes for `FeederCommands` to consume. One `FocusedValueKey` replaces
-/// the eleven parallel keys the old implementation needed.
+/// Single bundle carrying every menu-bar action and enablement flag
+/// `ContentView` publishes, behind one `FocusedValueKey`.
 struct FeederCommandContext {
   let syncAction: () -> Void
   let markAllReadAction: () -> Void
@@ -32,8 +31,8 @@ extension FocusedValues {
 
 // MARK: - Focused Values Modifier
 
-/// Publishes the command context on the focused scene. Extracted so
-/// ContentView.body does not exceed the type-checker's reasonable-time limit.
+/// Publishes the command context on the focused scene. Extracted, so
+/// `ContentView.body` stays inside the type-checker's limit.
 struct FocusedValuesModifier: ViewModifier {
   let context: FeederCommandContext
 
@@ -59,13 +58,13 @@ struct FeederCommands: Commands {
       .disabled(context == nil || context?.isSyncing == true)
     }
 
-    // Bare-key shortcuts (R, B, J, K) are handled via BareKeyHandler
-    // applied on each panel's List, so they intercept before type-to-select and
-    // don't fire inside modal text fields. Menu items show the key for discoverability.
+    // The bare-key shortcuts are handled per panel, so they intercept before
+    // type-to-select and never fire inside a text field. These menu items show
+    // the key for discoverability only.
 
     CommandMenu("Article") {
-      // ⇧A intentionally has no confirmation dialog — see KeyHandling.swift
-      // (MarkAllReadKeyHandler) for the rationale.
+      // The mark-all-read chord has no confirmation dialog; `KeyHandling.swift`
+      // holds that contract.
       Button("Mark All as Read\t ⇧A") {
         context?.markAllReadAction()
       }

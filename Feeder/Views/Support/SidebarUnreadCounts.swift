@@ -1,25 +1,18 @@
 import Foundation
 
-// Pure aggregation helpers for sidebar unread badges.
+// Pure aggregation helpers for the sidebar unread badges.
 //
-// Aggregation over the live unread universe runs off-MainActor on the
-// `DataReader` actor, producing an `UnreadCountsSnapshot` (see
-// `DataReader.fetchUnreadCountsSnapshot()`). The sidebar then overlays
-// the optimistic `pendingReadIDs` set on top of that snapshot via the
-// `pendingReadCountsBy*` + `subtractingPendingCounts` helpers below.
+// Aggregation over the live unread universe runs on the reader actor. The
+// sidebar then overlays the optimistic `pendingReadIDs` set on that snapshot
+// through the helpers below.
 //
-// The two top-level `unreadCounts(in:)` overloads are retained as pure
-// aggregation helpers used by unit tests — they pin the same contract the
-// snapshot now implements off-actor, so a future regression in the cached
-// path can be cross-checked against the pure helper without spinning up a
-// SwiftUI host or a SwiftData container.
+// The `unreadCounts(in:)` overloads pin the same contract the snapshot
+// implements off-actor, so the cached path can be cross-checked against a pure
+// helper with no container and no SwiftUI host.
 
-/// Counts how many times each non-empty label appears in `labels` and returns
-/// the result as a `[label: count]` dictionary.
-///
-/// Empty labels are skipped because they signal "no folder assigned" (root
-/// category entries) or "no category yet" (unclassified entries that already
-/// do not appear in the sidebar) — neither should contribute to any badge.
+/// Count how many times each non-empty label appears in `labels`. An empty
+/// label means "no folder assigned" or "no category yet", and neither may
+/// contribute to a badge.
 nonisolated func unreadCounts(in labels: some Sequence<String>) -> [String: Int] {
   var counts: [String: Int] = [:]
   for label in labels where !label.isEmpty {
@@ -28,24 +21,17 @@ nonisolated func unreadCounts(in labels: some Sequence<String>) -> [String: Int]
   return counts
 }
 
-/// One `(label, feedbinEntryID)` pair fed into the pending-aware aggregator.
-/// The label is whatever the sidebar is grouping by (category or folder); the
-/// id is what `pendingReadIDs` keys on so we can exclude entries the user has
-/// already marked read optimistically.
+/// One label-and-id pair for the pending-aware aggregator. The label is
+/// whatever the sidebar groups by; the id is what `pendingReadIDs` keys on.
 nonisolated struct UnreadCountInput: Sendable, Equatable {
   let label: String
   let feedbinEntryID: Int
 }
 
-/// Counts how many times each non-empty label appears in `entries`, skipping
-/// any entry whose `feedbinEntryID` is in `excludingFeedbinEntryIDs`.
-///
-/// The exclusion set is the MainActor's `pendingReadIDs` — entries the user
-/// has just opened (J/K scrub) or bulk-marked (mark-all-read) but whose
-/// `isRead` write has not yet landed in the SwiftData store. Subtracting
-/// them keeps the sidebar badge in step with the dimmed article-list rows
-/// in the same frame, without having to flip `isRead` eagerly and defeat
-/// the existing debounce design.
+/// Count each non-empty label in `entries`, skipping any entry in
+/// `excludingFeedbinEntryIDs`. That exclusion set is the optimistic overlay:
+/// entries the user has marked read whose write has not yet landed. Subtracting
+/// them keeps the badge in step with the dimmed rows in the same frame.
 nonisolated func unreadCounts(
   in entries: some Sequence<UnreadCountInput>,
   excludingFeedbinEntryIDs excluded: Set<Int>
@@ -59,18 +45,13 @@ nonisolated func unreadCounts(
 
 // MARK: - Pending-overlay subtraction over a cached snapshot
 
-/// Counts, per category, how many of an `UnreadCountsSnapshot`'s unread
-/// entries the user has just optimistically marked read but whose write has
-/// not yet landed in SwiftData. The sidebar subtracts these from
-/// `snapshot.categoryCounts` so the badge tracks the dimmed article-list
-/// rows in the same frame the user pressed J/K or Mark-All-Read — without
-/// having to materialize `@Query unreadEntries` on MainActor.
+/// Per category, how many of the snapshot's unread entries the user has marked
+/// read optimistically. The sidebar subtracts these, so a badge tracks the
+/// dimmed rows in the same frame.
 ///
-/// Iteration is bounded by the number of unique categories times the size of
-/// the small `pending` set (typically 1–N). The intersection runs over the
-/// stored `Set<Int>` so a pending ID that is no longer unread on disk simply
-/// matches nothing and contributes zero — cross-device read flips do not
-/// double-subtract.
+/// The intersection runs over the snapshot's stored id set, so a pending ID
+/// that is no longer unread on disk matches nothing and a cross-device flip
+/// cannot double-subtract.
 nonisolated func pendingReadCountsByCategory(
   snapshot: UnreadCountsSnapshot, pending: Set<Int>
 ) -> [String: Int] {
@@ -83,9 +64,8 @@ nonisolated func pendingReadCountsByCategory(
   return result
 }
 
-/// Folder-axis sibling of `pendingReadCountsByCategory`. Same shape, same
-/// contract; kept as a separate function so the sidebar's badge derivation
-/// reads as two parallel one-liners instead of branching on an axis enum.
+/// Folder-axis sibling of `pendingReadCountsByCategory`, with the same
+/// contract.
 nonisolated func pendingReadCountsByFolder(
   snapshot: UnreadCountsSnapshot, pending: Set<Int>
 ) -> [String: Int] {
@@ -99,14 +79,9 @@ nonisolated func pendingReadCountsByFolder(
 }
 
 extension [String: Int] {
-  /// Subtract `other` from self, floored at zero. Returns a new dictionary
-  /// with the difference for every key in self. Used to overlay
-  /// pending-read counts onto a cached snapshot's `categoryCounts` /
-  /// `folderCounts` without mutating either input.
-  ///
-  /// Bounded by the number of keys in self (= unique categories or unique
-  /// folders), which is tiny — the whole operation costs less than a single
-  /// dictionary lookup did under the old MainActor aggregation.
+  /// Subtract `other` from self, floored at zero, into a new dictionary. Used
+  /// to overlay the pending-read counts on a cached snapshot without mutating
+  /// either input.
   nonisolated func subtractingPendingCounts(_ other: [String: Int]) -> [String: Int] {
     guard !other.isEmpty else { return self }
     var result = self

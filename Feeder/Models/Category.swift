@@ -1,9 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Live `Category` is whatever the latest `VersionedSchema` declares —
-/// see `Entry.swift` for the rationale behind the typealias-to-latest
-/// pattern.
+/// The live `Category` is whatever the latest `VersionedSchema` declares. See
+/// `Entry.swift` for the typealias-to-latest pattern.
 typealias Category = FeederSchemaV2.Category
 
 // MARK: - Collection helpers

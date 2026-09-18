@@ -5,12 +5,10 @@ import Testing
 
 // MARK: - OpenAIModelSetting — absent-key default mechanism
 
-/// Pins the stage-1 mechanism of issue #175: the `openai_model` key is
-/// written only on an explicit user pick, so an absent (or empty) key must
-/// resolve to the current app default — users who never picked a model track
-/// future default bumps automatically. Uses a per-test isolated
-/// `UserDefaults(suiteName:)` (the `ClassificationProviderResolutionTests`
-/// pattern) so parallel suites never clobber each other through `.standard`.
+/// The model key is written only on an explicit user pick, so an absent or
+/// empty key must resolve to the current app default and a user who never
+/// picked a model tracks a future default bump. A per-test isolated
+/// `UserDefaults` suite keeps parallel suites off the standard domain.
 @Suite("OpenAIModelSetting")
 struct OpenAIModelSettingTests {
   private let defaults: UserDefaults
@@ -23,8 +21,8 @@ struct OpenAIModelSettingTests {
     self.defaults = defaults
   }
 
-  /// Absent key → the app default. This is the load-bearing default bump of
-  /// issue #175 stage 1: unset users get gpt-5.6-luna without any migration.
+  /// An absent key resolves to the app default, so an unset user follows a
+  /// default bump with no migration.
   @Test
   func absentKeyResolvesToDefaultModel() {
     #expect(defaults.string(forKey: OpenAIModelSetting.userDefaultsKey) == nil)

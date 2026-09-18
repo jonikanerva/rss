@@ -23,32 +23,24 @@ struct CategoryEditSheet: View {
   private var description: String = ""
   @State
   private var selectedFolderLabel: String?
-  /// Number of entries currently carrying `primaryCategory == category.label`.
-  /// `nil` while the count fetch is in flight or hasn't been kicked off yet.
-  /// Resolved off-MainActor on `DataWriter` before the destructive flow opens
-  /// — zero orphans skip the sheet entirely (HIG: don't interrupt the user
-  /// when there's nothing to confirm), positive counts open the reassign
-  /// sheet with a dropdown target-category picker.
+  /// Entries carrying this category, or `nil` while the count fetch is in
+  /// flight. Resolved off MainActor before the destructive flow opens: a zero
+  /// count skips the sheet, because the HIG says not to interrupt the user with
+  /// nothing to confirm.
   @State
   private var orphanCount: Int?
-  /// Drives the reassign `.sheet` visibility. Distinct from the empty-category
-  /// fast path: when `orphanCount == 0` we flip straight to `performDelete()`
-  /// without showing any sheet.
+  /// Drives the reassign sheet's visibility. With no orphans the flow goes
+  /// straight to the delete and shows no sheet at all.
   @State
   private var reassignSheetIsPresented = false
-  /// Picker selection bound to the destructive sheet's `.menu`-style
-  /// `Picker`. Initialised to the system `uncategorizedLabel` when the
-  /// sheet opens so a calm default — "moves to Uncategorized" — is always
-  /// the resting state; the user has to actively choose another category.
+  /// Selection bound to the destructive sheet's picker. It opens on the system
+  /// fallback, so the resting state is always the safe move and the user must
+  /// choose any other target.
   @State
   private var reassignTarget: String = uncategorizedLabel
-  /// Debounces the destructive button against double-Return: while the
-  /// reassign-and-delete writer Task is in flight, the button is disabled
-  /// so a second `.defaultAction` keyboard fire cannot fire two
-  /// `removeCategoryAndReassignArticles` calls back-to-back. The first
-  /// call already enforces atomicity inside `DataWriter`, but a second
-  /// call after the source category has been deleted would surface a
-  /// confusing `.sourceMissing` error to the user.
+  /// Disables the destructive button while its writer task is in flight, so a
+  /// second Return cannot fire the call twice. The writer is atomic, but a
+  /// second call after the source is gone surfaces a confusing error.
   @State
   private var isReassigning = false
   /// Surfaces `CategoryReassignError` cases (target missing mid-flight,
@@ -75,13 +67,10 @@ struct CategoryEditSheet: View {
         selectedFolderLabel = category.folderLabel
       }
     }
-    // Sheet-based destructive confirmation. The prior `.confirmationDialog`
-    // collapsed past ~10 buttons (HIG-documented truncation threshold) and
-    // forced the user to scan a vertical wall of "Move to <category>"
-    // buttons. The replacement is a single dropdown `Picker` plus two
-    // buttons — cancel (escape) and destructive confirm (return) — which
-    // stays calm even at 20+ categories. HIG → Alerts → Best practices:
-    // "use a sheet for confirmations that need a non-trivial choice".
+    // A sheet, not a `confirmationDialog`: the dialog truncates past the
+    // HIG-documented button threshold, and the HIG asks for a sheet whenever a
+    // confirmation needs a non-trivial choice. One picker plus cancel and
+    // confirm stays calm at any category count.
     .sheet(isPresented: $reassignSheetIsPresented) {
       CategoryRecategorizeSheet(
         sourceDisplayName: category?.displayName ?? "",
@@ -189,12 +178,9 @@ struct CategoryEditSheet: View {
 
   // MARK: - Reassign sheet inputs
 
-  /// Categories the user can pick as the move target. Excludes the source
-  /// category (can't move articles into the category being removed); the
-  /// system `uncategorized` row stays included because that's exactly the
-  /// intended fallback per `STACK.md` § Persistence shape
-  /// (`DefaultCategoryData` seeds it as a system category, and
-  /// `applyClassification` already uses it as the validation fallback).
+  /// Categories the user can pick as the move target. The source category is
+  /// excluded, because articles cannot move into the category being removed.
+  /// The system fallback stays included: it is the intended target.
   private var reassignTargets: [Category] {
     guard let category else { return [] }
     return allCategories.filter { $0.label != category.label }
@@ -244,11 +230,9 @@ struct CategoryEditSheet: View {
     }
   }
 
-  /// Branch the delete flow on the current orphan count:
-  /// - count == 0 ⇒ delete immediately (no user prompt — nothing to confirm).
-  /// - count > 0 ⇒ open the reassign sheet with a target picker.
-  /// The count fetch runs off-MainActor on `DataWriter` so the MainActor never
-  /// iterates `@Query` rows looking for orphans.
+  /// Branch the delete flow on the orphan count: no orphans deletes at once,
+  /// because there is nothing to confirm, and any orphans open the reassign
+  /// sheet. The count fetch runs off MainActor, so no row is iterated there.
   private func beginDelete() {
     guard let writer = syncEngine.writer, let category else { return }
     let label = category.label
@@ -258,18 +242,16 @@ struct CategoryEditSheet: View {
       if count == 0 {
         performDelete()
       } else {
-        // Seed the picker to the system fallback so the resting state is
-        // always "moves to Uncategorized" — the user never has to scroll
-        // through targets just to accept the safe default.
+        // Seed the picker to the system fallback, so accepting the safe
+        // default never means scrolling through the targets.
         reassignTarget = uncategorizedLabel
         reassignSheetIsPresented = true
       }
     }
   }
 
-  /// Fast-path delete used when there are zero orphaned entries assigned to
-  /// the category — no articles need a new home, so the writer call collapses
-  /// to a single `deleteCategory`.
+  /// Delete path for a category with no orphaned entries: no article needs a
+  /// new home, so the writer call is a plain delete.
   private func performDelete() {
     guard let writer = syncEngine.writer, let category else { return }
     let label = category.label
@@ -279,12 +261,9 @@ struct CategoryEditSheet: View {
     }
   }
 
-  /// Run the atomic reassign-and-delete on the writer. The writer either moves
-  /// every orphan to the picked target and deletes the source, or fails with a
-  /// typed `CategoryReassignError` — there is no partial state. `isReassigning`
-  /// flips to true for the duration of the writer Task so the destructive
-  /// button is disabled while the call is in flight, preventing a double-Return
-  /// from firing the writer twice.
+  /// Run the atomic reassign-and-delete on the writer: it either moves every
+  /// orphan and deletes the source, or fails with a typed error. There is no
+  /// partial state. `isReassigning` disables the button for the duration.
   private func performReassignAndDelete(targetLabel: String) {
     guard let writer = syncEngine.writer, let category else { return }
     let sourceLabel = category.label
@@ -298,17 +277,14 @@ struct CategoryEditSheet: View {
         reassignSheetIsPresented = false
         dismiss()
       } catch let error as CategoryReassignError {
-        // Typed cases have localized descriptions tailored to the user
-        // (`STACK.md` § Logging & privacy — category labels are public
-        // taxonomy strings, safe to surface). Dismiss the sheet first so the
-        // alert is the only modal on screen — stacking a `.alert` on top of
-        // a `.sheet` is undefined on macOS.
+        // Dismiss the sheet first: stacking an alert on a sheet is undefined
+        // on macOS. Category labels are public taxonomy strings, so the typed
+        // description is safe to show (`STACK.md § 8`).
         reassignSheetIsPresented = false
         errorMessage = error.localizedDescription
       } catch {
-        // Generic SwiftData / NSError-style text would leak implementation
-        // detail. Log the underlying error privately and show a friendly
-        // fallback instead.
+        // A store error's own text would leak implementation detail, so log it
+        // privately and show the fallback copy.
         logger.error(
           "Category reassign failed: \(error.localizedDescription, privacy: .private)"
         )
@@ -321,12 +297,10 @@ struct CategoryEditSheet: View {
 
 // MARK: - Recategorize sheet
 
-/// Destructive confirmation sheet shown when the user removes a category that
-/// still owns articles. The user chooses a move-target via a `.menu`-style
-/// `Picker`, then confirms with the destructive button (default action,
-/// Return) or cancels (Escape). Designed to replace the prior
-/// `.confirmationDialog` which scaled poorly past ~10 categories — Apple's
-/// alert truncation kicks in there and the user is left scrolling buttons.
+/// Destructive confirmation shown when the user removes a category that still
+/// owns articles. The user picks a move target, then confirms with the
+/// destructive default action or cancels with Escape. A sheet rather than a
+/// dialog, which truncates past the HIG button threshold.
 @MainActor
 private struct CategoryRecategorizeSheet: View {
   @Environment(AppFontSettings.self)
@@ -510,11 +484,9 @@ private func categoryEditNewPreview() -> some View {
     .modelContainer(container)
 }
 
-/// Empty / zero-orphans state: the destructive path skips the recategorize
-/// sheet entirely because there is nothing to move. The preview renders the
-/// edit sheet so the destructive footer button is visible; the production
-/// flow short-circuits to `performDelete()` without ever presenting the
-/// recategorize sheet.
+/// The zero-orphan state, where the destructive path skips the recategorize
+/// sheet because there is nothing to move. The preview renders the edit sheet,
+/// so the destructive footer button is visible.
 @MainActor
 private func categoryEditReassignEmptyPreview() -> some View {
   let container = PreviewSupport.makeContainer()
@@ -542,11 +514,9 @@ private func categoryEditReassignEmptyPreview() -> some View {
 
 // MARK: - Preview host + fixtures
 
-/// Preview host that mounts `CategoryRecategorizeSheet` directly — no
-/// `@Query` wiring required because the sheet receives its target list as a
-/// plain `[Category]` parameter. Drives `selectedTarget` via local `@State`
-/// so the user can interact with the picker inside the preview canvas.
-/// Footnote annotates which state the preview is exercising.
+/// Preview host that mounts the recategorize sheet directly: it takes its
+/// target list as a plain array, so no query wiring is needed, and local state
+/// drives the picker so the canvas stays interactive.
 @MainActor
 private struct RecategorizeSheetPreviewHost: View {
   let sourceDisplayName: String
@@ -599,15 +569,12 @@ private struct RecategorizeSheetPreviewHost: View {
   }
 }
 
-/// Preview-only fixtures for the recategorize sheet's target list. Keeps
-/// the preview matrix free of repeated `Category(...)` boilerplate and
-/// ensures the four target-count scenarios (typical / single / large /
-/// expanded) share a consistent shape.
+/// Preview-only fixtures for the recategorize sheet's target list, so every
+/// target-count scenario shares one shape.
 @MainActor
 private enum PreviewCategoryFixtures {
-  /// Returns a single shared `Category` instance for the system fallback,
-  /// so every preview slots the same "Uncategorized" target at the head
-  /// of its list. `isSystem` mirrors `DefaultCategoryData`'s seed.
+  /// The system fallback target, so every preview puts the same row at the head
+  /// of its list. Its `isSystem` flag mirrors the seeded data.
   private static func uncategorized() -> Category {
     let cat = Category(
       label: uncategorizedLabel, displayName: "Uncategorized",
@@ -617,9 +584,8 @@ private enum PreviewCategoryFixtures {
     return cat
   }
 
-  /// 8 targets including the system fallback — the calm baseline the
-  /// HIG-documented `.confirmationDialog` truncation threshold sits just
-  /// above. Picker shown collapsed/expanded covers two of the matrix slots.
+  /// The calm baseline, just below the HIG-documented dialog truncation
+  /// threshold. Shown collapsed and expanded, it covers two matrix slots.
   static func typicalSet() -> [Category] {
     [
       uncategorized(),
@@ -654,18 +620,15 @@ private enum PreviewCategoryFixtures {
     ]
   }
 
-  /// Single-target edge case: only the system `Uncategorized` remains
-  /// after filtering out the source category. The sheet must still show
-  /// — the destructive confirmation is the load-bearing UX, not the
-  /// choice (HIG → Alerts: disclosure > silence).
+  /// The edge case where only the system fallback remains after the source is
+  /// filtered out. The sheet must still show: the confirmation is the
+  /// load-bearing part, not the choice.
   static func singleTargetSet() -> [Category] {
     [uncategorized()]
   }
 
-  /// `count` targets including the system fallback. Used by the large-N
-  /// preview to prove `.menu` Picker style stays usable where
-  /// `.confirmationDialog` would have collapsed past Apple's button
-  /// threshold.
+  /// `count` targets including the system fallback, for the large-N preview
+  /// that exercises the picker above the dialog button threshold.
   static func largeSet(count: Int) -> [Category] {
     let extras = (0..<max(0, count - 1)).map { i in
       Category(

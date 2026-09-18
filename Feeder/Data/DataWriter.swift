@@ -4,11 +4,10 @@ import SwiftData
 
 // MARK: - Bootstrap
 
-/// Outcome of `DataWriter.bootstrap()`. Reported by the caller for startup
-/// telemetry. The action discriminates the two legitimate startup paths:
-/// steady-state no-op and first-launch seed of the default taxonomy.
-/// Schema migration itself runs inside the `ModelContainer` open via the
-/// `FeederMigrationPlan`, not through bootstrap.
+/// Outcome of `DataWriter.bootstrap()`. The action discriminates the two
+/// legitimate startup paths: steady-state no-op, and first-launch seed of the
+/// default taxonomy. Schema migration runs inside the `ModelContainer` open
+/// via `FeederMigrationPlan`, never through bootstrap.
 nonisolated struct BootstrapOutcome: Sendable, Equatable {
   enum Action: Sendable, Equatable {
     case skipped
@@ -23,32 +22,24 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
 
 // MARK: - DataWriter Actor
 
-/// `UserDefaults` key that marks default taxonomy as seeded for this install.
-/// Lives in `UserDefaults` rather than the SwiftData store so a schema
-/// migration cannot accidentally drop or hide it — even if a future custom
-/// stage temporarily empties the categories table mid-migration, this flag
-/// stays put. The flag is cleared along with the store only by the
-/// catastrophic-reopen fallback in `FeederApp.init`, which is the correct
-/// behaviour for a manually-reset install.
+/// `UserDefaults` key that marks the default taxonomy as seeded for this
+/// install. It lives outside the SwiftData store so a custom migration stage
+/// that empties the categories table cannot drop or hide it. Only the
+/// catastrophic-reopen fallback in `FeederApp.init` clears it.
 nonisolated let defaultsSeededUserDefaultsKey = "feeder.defaultsSeeded"
 
-/// Minimal `Sendable` flag-store abstraction backing the seeded-defaults
-/// sentinel. Production wires this to `UserDefaults.standard`; tests inject
-/// an isolated in-memory implementation so the flag from one test cannot
-/// suppress seeding in another. `UserDefaults` itself is not `Sendable`,
-/// so we cannot pass it across the actor boundary that `DataWriter`
-/// requires when constructed via `makeDetached`. The protocol stays small
-/// — just the two operations bootstrap performs.
+/// Minimal `Sendable` flag store behind the seeded-defaults sentinel.
+/// `UserDefaults` is not `Sendable`, so it cannot cross the actor boundary
+/// that `makeDetached` requires. Tests inject an isolated in-memory store, so
+/// the flag from one test cannot suppress seeding in another.
 nonisolated protocol SeededDefaultsFlagStore: Sendable {
   func isSeeded(forKey key: String) -> Bool
   func setSeeded(_ value: Bool, forKey key: String)
 }
 
-/// Production implementation: read/write the live `UserDefaults.standard`
-/// suite. `Bool` and `String` are `Sendable`, so the wrapper itself is
-/// trivially `Sendable` even though `UserDefaults` is not — every call
-/// re-resolves the standard suite rather than capturing a non-`Sendable`
-/// reference.
+/// Production implementation over the live `UserDefaults.standard` suite.
+/// Every call re-resolves the suite instead of capturing the non-`Sendable`
+/// reference, which keeps the wrapper itself `Sendable`.
 nonisolated struct StandardUserDefaultsFlagStore: SeededDefaultsFlagStore {
   func isSeeded(forKey key: String) -> Bool {
     UserDefaults.standard.bool(forKey: key)
@@ -58,22 +49,19 @@ nonisolated struct StandardUserDefaultsFlagStore: SeededDefaultsFlagStore {
   }
 }
 
-/// Background actor that owns all SwiftData write operations.
-/// All data pre-computation (HTML stripping, date formatting) happens here, never on MainActor.
+/// Background actor that owns every SwiftData write. All data pre-computation
+/// — HTML stripping, date formatting — happens here, never on MainActor.
 ///
 /// Off-main execution comes from the custom `BackgroundSerialModelExecutor`
-/// binding, NOT from the `ModelActor` conformance or the explicit init: issue
-/// #135 proved `DefaultSerialModelExecutor` only serialises context access and
-/// runs on the awaiting caller's thread — main, for every MainActor call site
-/// (issue #159). Every actor-isolated method asserts the off-main invariant.
+/// binding, not from the `ModelActor` conformance: `DefaultSerialModelExecutor`
+/// only serialises context access and runs on the awaiting caller's thread,
+/// which is main for every MainActor call site (`STACK.md § 14`). Every
+/// actor-isolated method asserts the off-main invariant.
 actor DataWriter: ModelActor {
   nonisolated let modelExecutor: any ModelExecutor
   nonisolated let modelContainer: ModelContainer
-  /// Flag-store backing the seeded-defaults sentinel. `Sendable`, so it
-  /// crosses the `Task.detached` boundary in `makeDetached` cleanly.
-  /// Production passes `StandardUserDefaultsFlagStore`; tests inject an
-  /// isolated in-memory store so the flag from one test cannot suppress
-  /// seeding in another.
+  /// Flag store behind the seeded-defaults sentinel. `Sendable`, so it crosses
+  /// the `Task.detached` boundary in `makeDetached`.
   nonisolated let defaultsFlagStore: any SeededDefaultsFlagStore
 
   init(
@@ -84,14 +72,9 @@ actor DataWriter: ModelActor {
     self.defaultsFlagStore = defaultsFlagStore
     let context = ModelContext(modelContainer)
     context.autosaveEnabled = false
-    // Off-main custom executor (issues #135 / #159, STACK.md § 14).
-    // `DefaultSerialModelExecutor` guarantees only SERIALISED context access —
-    // awaited from a MainActor caller it runs the write on the MAIN thread,
-    // silently, so sync page persistence / classification writes / mark-read
-    // flushes were hanging the UI. `BackgroundSerialModelExecutor` binds this
-    // actor to its own dedicated background serial queue. Own instance — never
-    // share the reader's executor, or reads re-serialise behind writes and the
-    // panel-2 starvation PR #160 fixed comes back.
+    // Own executor instance: `DefaultSerialModelExecutor` would run a write on
+    // the caller's thread, and sharing the reader's instance would re-serialise
+    // reads behind writes (`STACK.md § 14`).
     self.modelExecutor = BackgroundSerialModelExecutor(
       modelContext: context, queueLabel: "com.feeder.datawriter")
   }
@@ -100,10 +83,8 @@ actor DataWriter: ModelActor {
 
   // MARK: - Bootstrap
 
-  /// Construct a `DataWriter` on a detached background task. Single helper
-  /// shared by every production / preview / UI-test construction site,
-  /// honouring `STACK.md § 0 → Actor boundaries` → "DataWriter init must happen on a
-  /// background thread".
+  /// Construct a `DataWriter` on a detached background task: the init must
+  /// happen off the main thread (`STACK.md § 0 → Actor boundaries`).
   static func makeDetached(
     modelContainer: ModelContainer,
     defaultsFlagStore: any SeededDefaultsFlagStore = StandardUserDefaultsFlagStore()
@@ -116,53 +97,34 @@ actor DataWriter: ModelActor {
   /// Reconcile the persistent store on launch.
   ///
   /// Three legitimate paths:
-  /// - Defaults-seeded flag present → `.skipped` (steady state), regardless
-  ///   of whether the user has since deleted some or all default categories.
-  /// - Defaults-seeded flag absent but `Category` rows already exist →
-  ///   `.skipped` after writing the flag. This is the back-compat path for
-  ///   stores written by builds that predate the sentinel (pre-PR-#112).
-  ///   Re-seeding here would let `@Attribute(.unique) label` upsert
-  ///   overwrite the user's customised `displayName` / `categoryDescription`
-  ///   / `sortOrder` / `folderLabel` / `keywords` on every default-labelled
-  ///   row — so we infer the seed has already happened from the presence
-  ///   of taxonomy and set the flag instead.
-  /// - Defaults-seeded flag absent and the categories table is empty →
-  ///   seed default folders + categories + the system `uncategorized`
-  ///   fallback, set the flag → `.seeded` (first launch on a brand-new
-  ///   install).
+  /// - Seeded flag present → `.skipped`, whether or not the user has since
+  ///   deleted default categories.
+  /// - Seeded flag absent but `Category` rows exist → set the flag, then
+  ///   `.skipped`. Re-seeding would let the `@Attribute(.unique) label` upsert
+  ///   overwrite the user's edits on every default-labelled row.
+  /// - Seeded flag absent and the categories table empty → seed the default
+  ///   folders, categories, and the system `uncategorized` fallback, set the
+  ///   flag, then `.seeded`.
   ///
-  /// The flag lives in `UserDefaults` rather than the SwiftData store so a
-  /// schema migration that temporarily empties the categories table cannot
-  /// trigger a re-seed. This honours vision non-negotiable #1: every
-  /// ingested article keeps its user-defined category assignment across
-  /// schema bumps. See `VISION.md` → Core Principles
-  /// and `STACK.md` → Persistence shape.
-  ///
-  /// Single entry point for startup writes — keeps `ModelContext` off the
-  /// MainActor per `STACK.md § 0 Repository layout & layer convention`.
+  /// Every ingested article must keep its category assignment across schema
+  /// bumps (`VISION.md → Core Principles`), so the flag lives outside the
+  /// store and a migration that empties the categories table cannot trigger a
+  /// re-seed.
   func bootstrap() throws -> BootstrapOutcome {
-    // Off-main invariant (issues #135/#159): `BackgroundSerialModelExecutor`
-    // must keep every write off the main thread. Fails loudly if a regression
-    // ever puts it back on main. Asserted at the top of every actor-isolated
-    // method on this actor (STACK.md § 5).
+    // `BackgroundSerialModelExecutor` must keep every write off the main
+    // thread. Asserted at the top of every actor-isolated method here
+    // (`STACK.md § 5`).
     dispatchPrecondition(condition: .notOnQueue(.main))
     let action: BootstrapOutcome.Action
 
     if defaultsFlagStore.isSeeded(forKey: defaultsSeededUserDefaultsKey) {
       action = .skipped
     } else if try modelContext.fetchCount(FetchDescriptor<Category>()) > 0 {
-      // Pre-PR-#112 builds never wrote the seeded-defaults sentinel: every
-      // launch on a populated store would re-enter `seedDefaultTaxonomy()`,
-      // and the `@Attribute(.unique) label` upsert would overwrite the
-      // user's customised `displayName` / `categoryDescription` /
-      // `sortOrder` / `folderLabel` / `keywords` on every default-labelled
-      // row. The first launch after upgrade to a sentinel-aware build sees
-      // the flag absent on disk; without this guard it would re-seed once
-      // more before setting the flag, trampling user data exactly once.
-      // Infer the "already seeded" state from the presence of any
-      // `Category` rows, set the flag, and skip the seed path so the
-      // upgrade path collapses to a no-op. New installs hit neither branch
-      // and still seed via the `else` below.
+      // A store written without the sentinel reaches this branch with the
+      // flag absent and taxonomy present. Infer "already seeded" from the
+      // `Category` rows and set the flag, or the `@Attribute(.unique) label`
+      // upsert would overwrite the user's edits on every default-labelled
+      // row. A new install hits neither branch and seeds below.
       defaultsFlagStore.setSeeded(true, forKey: defaultsSeededUserDefaultsKey)
       action = .skipped
     } else {
@@ -287,14 +249,12 @@ actor DataWriter: ModelActor {
     }
   }
 
-  /// Shared: build icon-host lookup and fetch all feeds once.
   private func resolveIconMapping(_ icons: [FeedbinIcon]) throws -> ([String: String], [Feed]) {
     let iconsByHost = Dictionary(icons.map { ($0.host, $0.url) }, uniquingKeysWith: { first, _ in first })
     let feeds = try modelContext.fetch(FetchDescriptor<Feed>())
     return (iconsByHost, feeds)
   }
 
-  /// Shared: match a feed's site host to an icon URL.
   private func matchIconURL(feed: Feed, iconsByHost: [String: String]) -> String? {
     guard let host = URL(string: feed.siteURL)?.host() else { return nil }
     let lookupHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
@@ -303,15 +263,14 @@ actor DataWriter: ModelActor {
 
   // MARK: - Entry persistence
 
-  /// Insert newly synced entries; EXISTING rows are skipped, never re-written.
+  /// Insert newly synced entries. An existing row is skipped, never
+  /// re-written.
   ///
-  /// IMMUTABILITY INVARIANT (issue #155 — keyset paging correctness): because
-  /// existing rows are skipped, a persisted row's `(publishedAt,
-  /// feedbinEntryID)` pair — the `EntryListCursor` sort key — never mutates.
-  /// Keyset pages tile exactly (no duplicate, no skip) only under this
-  /// invariant. If this method ever starts UPDATING existing rows, it must
-  /// not touch `publishedAt` or `feedbinEntryID`; `EntryListFetchResult
-  /// .appending`'s dedupe demotes a violation to a dropped row, not a fix.
+  /// IMMUTABILITY INVARIANT: because existing rows are skipped, a persisted
+  /// row's `(publishedAt, feedbinEntryID)` pair — the `EntryListCursor` sort
+  /// key — never mutates, and keyset pages tile exactly only under that
+  /// invariant. If this method ever starts updating existing rows, it must not
+  /// touch `publishedAt` or `feedbinEntryID`.
   func persistEntries(_ entries: [FeedbinEntry], unreadIDs: Set<Int>) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     guard !entries.isEmpty else { return 0 }
@@ -467,42 +426,31 @@ actor DataWriter: ModelActor {
         let blocks = parseHTMLToBlocks(replaceVideoIframes(content))
         entry.articleBlocksData = blocks.toJSONData()
         entry.plainText = parseHTMLToBlocks(content).classificationText
-        // No view-level cache to invalidate — EntryDetailView decodes via
-        // `.task(id: entry.articleBlocksData)` and reacts to this write automatically.
+        // `EntryDetailView` decodes via `.task(id: entry.articleBlocksData)`,
+        // so this write needs no view-level cache invalidation.
       }
     }
     try modelContext.save()
   }
 
-  // MARK: - Article list + unread aggregation reads → DataReader
-  //
-  // `fetchEntrySections`, `fetchUnreadCountsSnapshot`, and the shared
-  // `unreadEligiblePredicate` moved to `DataReader` (a second read-only
-  // `ModelContext` on the same container) so article-list reads run on their
-  // own actor and never queue behind a long write here. Both fetchers moved
-  // together to keep them on ONE reader context (a split would risk torn
-  // reads) and to preserve the #103 predicate-drift DRY guard. `DataWriter`
-  // keeps only writes and intra-write reads (which must see pending changes).
+  // `DataWriter` keeps only writes and the intra-write reads that must see
+  // pending changes. The article-list and unread-aggregation reads live on
+  // `DataReader`, so they never queue behind a long write here.
 
   // MARK: - Classification
 
   /// Shared predicate for "not yet classified, inside the retention window".
   /// `countUnclassifiedEntries` and `fetchUnclassifiedInputs` compose it
-  /// verbatim so the live progress denominator (a count) and the work the
-  /// runner actually drains (a bounded fetch) can never disagree about which
-  /// rows are pending — the same DRY guard `unreadEligiblePredicate` gives the
-  /// sidebar / article-list pair.
+  /// verbatim, so the progress denominator and the work the runner drains can
+  /// never disagree about which rows are pending.
   static func unclassifiedPredicate(cutoffDate: Date) -> Predicate<Entry> {
     #Predicate<Entry> { !$0.isClassified && $0.publishedAt >= cutoffDate }
   }
 
-  /// SQLite-level count of pending-classification rows. Backs the live
-  /// "Categorizing Y/X" denominator: the runner re-seeds a local `remaining`
-  /// from this at each chunk boundary so the total grows as sync persists more
-  /// entries. `fetchCount` runs the aggregate in SQLite — no `Entry`
-  /// materialization, no `plainText` hydration — so it stays cheap enough to
-  /// call at chunk-boundary cadence (well below `persistEntries`' per-page
-  /// rate; see `STACK.md § 4`).
+  /// SQLite-level count of pending-classification rows, behind the live
+  /// "Categorizing Y/X" denominator. `fetchCount` runs the aggregate in
+  /// SQLite, so no `Entry` is materialised and the call stays cheap enough for
+  /// chunk-boundary cadence (`STACK.md § 4`).
   func countUnclassifiedEntries(cutoffDate: Date) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     return try modelContext.fetchCount(
@@ -510,12 +458,11 @@ actor DataWriter: ModelActor {
     )
   }
 
-  /// Fetch up to `limit` pending-classification inputs, newest-first. `limit`
-  /// is required: the classification runner drains in bounded chunks, so we
-  /// never materialize the whole backlog (which previously hydrated every
-  /// pending row's `plainText` at once — a memory-ceiling risk on a large
-  /// first sync, `STACK.md § 4`). The `createdAt`-descending sort keeps the
-  /// most recently ingested entries classified first.
+  /// Fetch up to `limit` pending-classification inputs, newest first. `limit`
+  /// is required: materialising the whole backlog hydrates every pending row's
+  /// `plainText` at once, which risks the memory ceiling on a large first sync
+  /// (`STACK.md § 4`). The `createdAt`-descending sort classifies the most
+  /// recently ingested entries first.
   func fetchUnclassifiedInputs(cutoffDate: Date, limit: Int) throws -> [ClassificationInput] {
     dispatchPrecondition(condition: .notOnQueue(.main))
     var descriptor = FetchDescriptor<Entry>(
@@ -618,8 +565,8 @@ actor DataWriter: ModelActor {
       category.sortOrder = existingRootCount + index
     }
 
-    // Clear primaryFolder on all entries that reference this folder (covers both
-    // current categories and orphaned entries from previously deleted categories)
+    // Cover the folder's current categories and the orphaned entries left by
+    // deleted ones.
     let entryDescriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.primaryFolder == label }
     )
@@ -650,11 +597,10 @@ actor DataWriter: ModelActor {
     return try modelContext.fetch(descriptor).first?.sortOrder
   }
 
-  /// Re-assign `sortOrder` for top-level folders to match the position of each
-  /// label in `orderedLabels`. Labels not present in the store are silently
-  /// skipped — this matches `reorderCategories` and keeps the writer tolerant
-  /// of a stale UI snapshot. `[String]` is `Sendable`; no `Folder` objects
-  /// cross the actor boundary.
+  /// Re-assign `sortOrder` for top-level folders to match each label's
+  /// position in `orderedLabels`. A label missing from the store is skipped, so
+  /// the writer tolerates a stale UI snapshot. `[String]` is `Sendable`; no
+  /// `Folder` crosses the actor boundary.
   func reorderFolders(orderedLabels: [String]) throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
     for (index, label) in orderedLabels.enumerated() {
@@ -693,10 +639,9 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  /// Count entries currently assigned to a category. Used by the management
-  /// UI to decide whether to show the recategorize confirmation dialog — when
-  /// the count is zero, removal proceeds without prompting the user.
-  /// Predicate runs at the SQLite level so we never materialise rows here.
+  /// Count entries assigned to a category. The management UI shows the
+  /// recategorize confirmation only when the count is non-zero. The predicate
+  /// runs at SQLite level, so no row is materialised here.
   func countEntries(primaryCategoryLabel label: String) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>(
@@ -706,29 +651,19 @@ actor DataWriter: ModelActor {
   }
 
   /// Reassign every entry whose `primaryCategory == sourceLabel` to
-  /// `targetLabel` (and the target's folder), then delete the source category.
-  /// The reassignment loop plus the source delete run inside
-  /// `ModelContext.transaction(block:)` — Apple's documented atomic primitive
-  /// (`developer.apple.com/documentation/swiftdata/modelcontext/transaction(block:)`).
-  /// `transaction(block:)` commits all pending changes when the closure
-  /// returns normally and discards them if the closure throws, so a save-time
-  /// failure (constraint violation, disk pressure, store-level error) leaves
-  /// the store byte-equivalent to its pre-call state. Pre-flight guards
-  /// (`sourceEqualsTarget`, `sourceMissing`, `sourceIsSystem`,
-  /// `targetMissing`) run before the transaction opens so they short-circuit
-  /// without any pending mutations to roll back.
+  /// `targetLabel` and the target's folder, then delete the source category.
+  /// The reassignment loop and the delete run inside
+  /// `ModelContext.transaction(block:)`, so a save-time failure leaves the
+  /// store byte-equivalent to its pre-call state. The pre-flight guards run
+  /// before the transaction opens, so they short-circuit with no pending
+  /// mutation to roll back.
   ///
   /// Errors:
   /// - `.sourceMissing` — no category with `sourceLabel` exists.
   /// - `.targetMissing` — no category with `targetLabel` exists.
   /// - `.sourceEqualsTarget` — refuses to delete the category the caller asked
   ///   to keep its articles in.
-  /// - `.sourceIsSystem` — built-in (`uncategorized`) cannot be removed.
-  ///
-  /// Updating `primaryCategory` / `primaryFolder` in place is a runtime
-  /// mutation, not a schema change — these are denormalised display fields per
-  /// `STACK.md` § Persistence shape, so no migration stage is involved.
-  /// Returns a `RecategorizeOutcome` for telemetry / logging at the call site.
+  /// - `.sourceIsSystem` — the built-in `uncategorized` cannot be removed.
   func removeCategoryAndReassignArticles(
     _ sourceLabel: String, to targetLabel: String
   ) throws -> RecategorizeOutcome {
@@ -757,11 +692,9 @@ actor DataWriter: ModelActor {
       predicate: #Predicate<Entry> { $0.primaryCategory == sourceLabel }
     )
     let affected = try modelContext.fetch(entryDescriptor)
-    // `transaction(block:)` commits at the closing brace and rolls back on
-    // any throw — we do NOT call `save()` again afterwards. Apple's contract
-    // guarantees rollback of every pending mutation in the closure if the
-    // commit fails, so either every entry moves AND the source is gone, or
-    // nothing changed.
+    // `transaction(block:)` commits at the closing brace and rolls back on any
+    // throw, so do not call `save()` afterwards. Either every entry moves and
+    // the source is gone, or nothing changed.
     try modelContext.transaction {
       for entry in affected {
         entry.primaryCategory = targetLabel
@@ -798,12 +731,12 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  /// Re-assign `sortOrder` for categories in a single folder (or at root when
-  /// `folderLabel` is `nil`) to match the position of each label in
-  /// `orderedLabels`. Labels not present in `orderedLabels` are left untouched.
-  /// System categories are skipped so the "uncategorized" pseudo-row cannot be
-  /// reordered into another slot. `[String]` is `Sendable`; no `Category`
-  /// objects cross the actor boundary.
+  /// Re-assign `sortOrder` for the categories in one folder, or at root when
+  /// `folderLabel` is `nil`, to match each label's position in
+  /// `orderedLabels`. A label missing from `orderedLabels` is left untouched,
+  /// and system categories are skipped so `uncategorized` cannot be reordered
+  /// into another slot. `[String]` is `Sendable`; no `Category` crosses the
+  /// actor boundary.
   func reorderCategories(inFolder folderLabel: String?, orderedLabels: [String]) throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
     for (index, label) in orderedLabels.enumerated() {
@@ -859,24 +792,16 @@ actor DataWriter: ModelActor {
 
   // MARK: - Purge
 
-  /// Delete entries whose `publishedAt` is older than `days` ago, so the
-  /// SwiftData store does not balloon. The cutoff (`Date.now - days * 86_400`)
-  /// matches how `articleCutoffDate()` computes `queryCutoffDate` and how
-  /// `maxRetentionAge` is defined — raw seconds, no calendar boundary — so
-  /// the purge window is consistent with the read-side predicates in
-  /// `fetchEntrySections` and `fetchUnreadCountsSnapshot`.
+  /// Delete entries whose `publishedAt` is older than `days` ago, so the store
+  /// does not grow without bound. The cutoff is raw seconds, with no calendar
+  /// boundary, exactly as `articleCutoffDate()` and `maxRetentionAge` compute
+  /// theirs, so the purge window stays consistent with the read-side
+  /// predicates.
   ///
-  /// The day count lives in the writer's API (not as a `Date` parameter)
-  /// so callers don't recompute retention math at every call site. Production
-  /// callers pass the fixed 30-day ceiling (`maxRetentionAge / 86_400`),
-  /// which is the maximum value the keepDays picker offers — toggling the
-  /// keepDays setting between 1 and 30 days then never requires a
-  /// refetch + recategorise round-trip.
-  ///
-  /// Returns a `PurgeOutcome` so the caller can log how many rows were
-  /// removed. Purge is a pure runtime delete — not a schema migration —
-  /// so no `VersionedSchema` change is involved and no denormalised
-  /// display fields need recomputing.
+  /// The day count is the parameter, not a `Date`, so no call site recomputes
+  /// retention math. Production callers pass the fixed 30-day ceiling, the
+  /// largest value the keep-days picker offers, so changing that setting never
+  /// needs a refetch and recategorise round-trip.
   func purgeEntriesOlderThan(_ days: Int) throws -> PurgeOutcome {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)

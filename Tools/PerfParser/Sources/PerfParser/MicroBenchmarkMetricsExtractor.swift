@@ -20,10 +20,9 @@ struct MicroBenchmarkMedians {
 /// Per-iteration values are seconds — converted to milliseconds for parity
 /// with the Level 2 signpost medians.
 enum MicroBenchmarkMetricsExtractor {
-  /// Names of the four hot-path benchmarks shipped in PR 4. New benchmarks
-  /// added under `FeederTests/MicroBenchmarkTests` are picked up
-  /// automatically by the suffix match — this list is only the documented
-  /// minimum the perf gate enforces, not an exhaustive enumeration.
+  /// The hot-path benchmarks the perf gate enforces as a minimum. A new
+  /// benchmark is picked up automatically by the suffix match, so this list is
+  /// not an exhaustive enumeration.
   static let knownBenchmarkNames: [String] = [
     "fetchUnreadCountsSnapshot_micro",
     "fetchEntrySections_category_micro",

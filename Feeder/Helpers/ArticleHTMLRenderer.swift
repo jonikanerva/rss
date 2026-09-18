@@ -2,20 +2,13 @@ import Foundation
 
 // MARK: - Article HTML rendering
 
-/// Pure, MainActor-free renderer for the article web view.
+/// Pure, MainActor-free renderer for the article web view. Every input is a
+/// plain `Sendable` value, so a detached task can run the regex sanitisation
+/// and the template injection off MainActor.
 ///
-/// The regex-heavy sanitization passes and the seven template-injection
-/// passes used to live on `ArticleWebView`, which is `@MainActor`. Moving
-/// them into a `nonisolated` helper lets `Task.detached` run them on a
-/// background cooperative thread, keeping the render path off the
-/// MainActor. All inputs are plain `Sendable` values (`String`, `Date`,
-/// `Character`, `CGFloat`) so the helper can be invoked from any
-/// isolation domain.
-///
-/// `scaleFactor` is the same multiplier `AppFontSettings` applies to every
-/// SwiftUI font alias. Injecting it into the article HTML as the CSS custom
-/// property `--app-scale` makes the WebView reader pane scale in lockstep
-/// with the SwiftUI surfaces driven by the user's Appearance picker.
+/// `scaleFactor` is the same multiplier `AppFontSettings` applies to its font
+/// aliases. Injecting it as a CSS custom property keeps the reader pane in
+/// lockstep with the SwiftUI surfaces.
 nonisolated func renderArticleHTML(
   feedHTMLBody: String,
   title: String?,
@@ -34,9 +27,8 @@ nonisolated func renderArticleHTML(
   let escapedDomain = (displayDomain ?? "").lowercased().htmlEscaped
   let body = stripFeedStyles(replaceVideoIframes(feedHTMLBody))
   let favicon = renderFaviconHTML(base64: faviconBase64, fallbackInitial: feedTitleInitial)
-  // Format with up to four decimal places (matches the precision of the
-  // `AppTextSize.scaleFactor` rationals). `String(format:)` uses the C
-  // locale so the resulting CSS is always `1.15`, never `1,15`.
+  // Four decimal places match the scale factors' own precision, and the
+  // C locale keeps the CSS decimal separator a point in every locale.
   let scaleCSS = String(format: "%.4f", scaleFactor)
 
   return
@@ -53,8 +45,8 @@ nonisolated func renderArticleHTML(
 
 // MARK: - Favicon composition
 
-/// Compose the favicon HTML used in the article header. Uses a base64-encoded
-/// PNG when the feed has one; otherwise renders an initial-letter placeholder.
+/// Compose the favicon HTML for the article header: a base64 PNG when the feed
+/// has one, and an initial-letter placeholder otherwise.
 nonisolated private func renderFaviconHTML(
   base64: String?,
   fallbackInitial: Character?
@@ -69,24 +61,16 @@ nonisolated private func renderFaviconHTML(
 
 // MARK: - Feed style stripping
 
-/// Patterns that strip feed CSS, scripts, event handlers, and in-page typing
-/// surfaces from feed HTML.
-/// JS is fully disabled in the web view, so this stripping is the only defence.
-/// Each `(pattern, template)` pair is applied in order via
-/// `replacingOccurrences(options: [.regularExpression, .caseInsensitive])`,
-/// which uses `NSRegularExpression` under the hood — a value-type-safe API that
-/// does not require carrying a non-`Sendable` `Regex<>` across actor boundaries.
-/// Case-insensitive so uppercase markup (`<INPUT>`, `ONCLICK=`) cannot slip
-/// through; most templates are empty (delete the match), the `contenteditable`
-/// rule keeps its captured tag prefix.
+/// Patterns that strip feed CSS, scripts, event handlers and typing surfaces
+/// from feed HTML. JavaScript is disabled in the web view, so this stripping is
+/// the only defence. The pairs apply in order, case-insensitively, so uppercase
+/// markup cannot slip through; most templates delete the match, and the
+/// `contenteditable` rule keeps its captured tag prefix.
 ///
-/// Typing surfaces (`<input>`, `<textarea>`, `<select>`, `<button>`,
-/// `contenteditable`) are stripped because a plain HTML form control is
-/// focusable and editable even with JS off: a click into one would put the
-/// in-page caret behind the bare-key routing in `ArticleWebView`, so typing
-/// r/b there would act instead of type. Stripping makes "bare keys never
-/// fire while typing" true by construction — and forms are dead weight in a
-/// JS-off reading pane anyway (B opens the article in the browser).
+/// A plain HTML form control stays focusable and editable with JavaScript off,
+/// and a click into one would put the in-page caret behind the bare-key routing
+/// — typing there would act instead of type. Stripping the typing surfaces
+/// makes "bare keys never fire while typing" true by construction.
 nonisolated private let articleHTMLSanitizerPatterns: [(pattern: String, template: String)] = [
   ("<style[^>]*>[\\s\\S]*?</style>", ""),
   ("<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>", ""),
@@ -99,11 +83,9 @@ nonisolated private let articleHTMLSanitizerPatterns: [(pattern: String, templat
   ("\\s+on\\w+\\s*=\\s*'[^']*'", ""),
   ("\\s+style\\s*=\\s*\"[^\"]*\"", ""),
   ("\\s+style\\s*=\\s*'[^']*'", ""),
-  // `contenteditable` turns any element into a typing surface. The rule is
-  // anchored inside a tag via the captured prefix (`[^>]*?` cannot cross a
-  // `>`), so the word "contenteditable" in article prose is never touched;
-  // covers double-quoted, single-quoted, unquoted, and bare-attribute forms.
-  // The lookahead keeps `contenteditable`-prefixed attribute names intact.
+  // `contenteditable` turns any element into a typing surface. The captured
+  // prefix anchors the rule inside a tag, so the word in article prose is never
+  // touched, and the lookahead keeps a longer attribute name intact.
   (
     "(<[a-zA-Z][^>]*?)\\s+contenteditable(?![\\w-])(\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+))?",
     "$1"

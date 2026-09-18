@@ -11,69 +11,47 @@ struct FeederApp: App {
 
   @State
   private var syncEngine = SyncEngine()
-  /// Constructed via `makeClassificationEngine()` so that under `HeadlessMode`
-  /// it carries the headless no-op provider — closing the OpenAI credential seam
-  /// at construction (`buildProvider()` and its Keychain read are then never
-  /// reached on an automated launch, even if a batch fired on seeded data).
+  /// Built by `makeClassificationEngine()`, so a headless launch carries the
+  /// no-op provider and never reaches `buildProvider()` or its Keychain read.
   @State
   private var classificationEngine = FeederApp.makeClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
-  /// App-wide font settings. `AppFontSettings` is `@Observable`, owns the
-  /// persisted `textSize`, and exposes every font alias the app renders.
-  /// Injected into both scenes via `.environment(fontSettings)` so any view
-  /// with `@Environment(AppFontSettings.self)` re-renders precisely the rows
-  /// that read a font when the user picks a new size — `ContentView`'s
-  /// `@State` (selection, focus, scroll anchor) stays intact.
+  /// App-wide font settings, injected into both scenes. A size change
+  /// re-renders only the views that read a font alias, so `ContentView`'s
+  /// selection, focus, and scroll anchor survive it.
   @State
   private var fontSettings = AppFontSettings()
-  /// Perf-only activation delegate. Constructed on every launch but INERT in
-  /// shipping builds — both of its hooks early-return unless `FEEDER_PERF_MODE`
-  /// is set (`PerfActivationAppDelegate`). It exists solely so the headless
-  /// `make perf` launch (`xctrace record --launch`) foregrounds the app and
-  /// orders its window front, which is what makes SwiftUI fire the
-  /// `WindowGroup` window's `.onAppear`/`.task` — and therefore
-  /// `ContentView → runPerfScenario()`. Without it the non-activated launch
-  /// leaves the window undisplayed and the scenario never runs (issue #132).
+  /// Perf-only activation delegate. Constructed on every launch but inert in a
+  /// shipping build: both hooks return early unless `FEEDER_PERF_MODE` is set.
   @NSApplicationDelegateAdaptor(PerfActivationAppDelegate.self)
   private var perfActivationDelegate
 
   init() {
-    // Must run before any window or split view exists: `SplitViewAutosaveReset`
-    // removes AppKit's autosaved split-view frames so the split view lays out
-    // both leading columns at the `ideal` widths Feeder stores itself
-    // (`ColumnWidthSetting`). `STACK.md § 14` records the reliance on the
-    // undocumented key name.
+    // Must run before any window or split view exists, so the split view lays
+    // out both leading columns at the `ideal` widths Feeder stores itself.
+    // `STACK.md § 14` records the reliance on the undocumented key name.
     SplitViewAutosaveReset.removeStaleFrames()
 
     let processEnvironment = ProcessInfo.processInfo.environment
-    // Headless launches (any `FEEDER_HEADLESS=1` run — `make test` sets it on the
-    // XCTest host) boot with an EMPTY in-memory store so they never load the real
-    // reading DB. This is one half of the single-source headless gate:
-    // `HeadlessMode.isEnabled` is the SAME property the credential-skip in
-    // `ContentView.checkCredentials` reads, so the two can never diverge (no
-    // on-disk store paired with a credential skip). The UITEST_* flags remain for
-    // the existing UI-test modes.
+    // A headless launch boots with an empty in-memory store, so it never opens
+    // the real reading database. This gate and the credential skip in
+    // `ContentView.checkCredentials` read the same `HeadlessMode.isEnabled`, so
+    // an on-disk store can never pair with a credential skip.
     let useInMemoryStore =
       HeadlessMode.isEnabled
       || processEnvironment["UITEST_IN_MEMORY_STORE"] == "1"
       || processEnvironment["UITEST_DEMO_MODE"] == "1"
 
-    // `Schema(versionedSchema:)` resolves the `@Model` types and version
-    // identifier `FeederSchemaV2` advertises; the resulting `Schema` is
-    // what `ModelContainer` accepts alongside the migration plan. The
-    // plan in `FeederMigrationPlan` carries V1 forward via a lightweight
-    // stage, so stores still on V1 migrate up on first launch.
+    // `FeederMigrationPlan` carries a V1 store forward with a lightweight
+    // stage, so it migrates up on the first launch.
     let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let config = ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: useInMemoryStore)
 
-    // SwiftData opens the store against `FeederSchemaV2` and applies the
-    // stages declared in `FeederMigrationPlan` — a V1-on-disk store is
-    // migrated lightweight-style to V2 here. The
-    // fallback below survives non-schema corruption only (unreadable
-    // store file, locked WAL, etc.). This is the only place we still do
-    // a synchronous `ModelContainer` open on MainActor — `DataWriter.bootstrap()`
-    // handles everything past this line on the background actor.
+    // The fallback below covers non-schema corruption only, such as an
+    // unreadable store file or a locked WAL. This is the one synchronous
+    // `ModelContainer` open on MainActor; `DataWriter.bootstrap()` handles
+    // everything past this line on the background actor.
     do {
       modelContainer = try ModelContainer(
         for: schema,
@@ -98,11 +76,9 @@ struct FeederApp: App {
     }
   }
 
-  /// Build the classification engine, injecting the headless no-op provider when
-  /// `HeadlessMode.isEnabled`. The override is bound to an explicitly-typed local
-  /// so the optional-closure type is unambiguous (a bare `cond ? { … } : nil` in
-  /// the `@State` initialiser defeats inference). Reads the same single-source
-  /// `HeadlessMode.isEnabled` as the store and credential gates (#141).
+  /// Build the classification engine, injecting the headless no-op provider
+  /// when `HeadlessMode.isEnabled`. The override needs an explicitly typed
+  /// local: a bare conditional in the `@State` initialiser defeats inference.
   private static func makeClassificationEngine() -> ClassificationEngine {
     let headlessOverride: (@Sendable () -> any ClassificationProvider)? =
       HeadlessMode.isEnabled
@@ -153,9 +129,8 @@ struct FeederApp: App {
   }
 
   private var bootstrapPendingView: some View {
-    // HIG (macOS): avoid labeling a spinning progress indicator. A plain
-    // large spinner centred in the window matches the "calm/native" pattern
-    // — no launch-card decoration to compete with system chrome.
+    // The macOS HIG says not to label a spinning progress indicator, so this
+    // stays a plain centred spinner.
     ProgressView()
       .controlSize(.large)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,12 +152,9 @@ struct FeederApp: App {
   }
 
   /// Run the single bootstrap entry point on the `DataWriter` background
-  /// actor. Constructs the writer via the shared `makeDetached` helper,
-  /// runs `bootstrap()`, then injects the writer into `SyncEngine` so the
-  /// rest of the app can use it. Schema migration itself runs inside the
-  /// `ModelContainer` open in `init` — bootstrap only seeds taxonomy on
-  /// a freshly-created store, so the data layer can survive a schema
-  /// bump without losing folders, categories, or classified entries.
+  /// actor, then inject the writer into `SyncEngine`. Schema migration runs
+  /// inside the `ModelContainer` open in `init`; bootstrap only seeds taxonomy
+  /// on a freshly created store.
   private func runBootstrap() async {
     let writer = await DataWriter.makeDetached(modelContainer: modelContainer)
     do {
@@ -192,15 +164,10 @@ struct FeederApp: App {
         "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
       syncEngine.attachWriter(writer)
-      // Attach the read-only companion: a separate actor owning a SECOND
-      // read-only `ModelContext` on the SAME app container (`C_app`), created
-      // now that `C_app` is up and bootstrapped. Its own actor/executor keeps
-      // article-list + sidebar reads off the writer actor's mailbox (the
-      // panel-2 starvation fix), while sharing one container/coordinator keeps
-      // `PersistentIdentifier`s interoperable for the selection path. Because
-      // it is just a 2nd context on `C_app` (born after `C_app`, dies with it),
-      // there is no separate container to migrate or to hold a connection
-      // across `init`'s destructive-reset fallback.
+      // The read-only companion is created only once the container is up and
+      // bootstrapped. It is a second context on that same container, so there
+      // is no separate store to migrate and no connection held across the
+      // destructive-reset fallback in `init`.
       let reader = await DataReader.makeDetached(modelContainer: modelContainer)
       syncEngine.attachReader(reader)
       bootstrapPhase = .ready
@@ -212,7 +179,8 @@ struct FeederApp: App {
 
   // MARK: - Disk fallback
 
-  /// Delete SwiftData store files from disk (fallback when store can't be opened at all).
+  /// Delete the SwiftData store files. The fallback for a store that cannot be
+  /// opened at all.
   private static func deleteStoreFiles() {
     guard let appSupport = storeDirectoryURL() else { return }
     for suffix in ["store", "store-shm", "store-wal"] {
@@ -221,9 +189,8 @@ struct FeederApp: App {
     }
   }
 
-  /// Directory that hosts the SwiftData store files — Application Support.
-  /// Used by both `deleteStoreFiles()` and the "Show in Finder" recovery
-  /// action so a user can inspect the location if bootstrap fails.
+  /// Directory that holds the SwiftData store files. Shared by
+  /// `deleteStoreFiles()` and the "Show in Finder" recovery action.
   private static func storeDirectoryURL() -> URL? {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
   }
@@ -234,62 +201,45 @@ struct FeederApp: App {
 /// The app's single `NSApplicationDelegate`. Its hooks foreground the app for
 /// the headless perf run and are otherwise inert.
 ///
-/// Why it exists: `make perf` launches the app through `xctrace record
-/// --launch`, which starts the process WITHOUT activating it. A non-activated
-/// macOS app may never order its `WindowGroup` window on screen, so SwiftUI
-/// never fires the window's `.onAppear`/`.task` — and `ContentView`'s
-/// `checkCredentials() → runPerfScenario()` trigger (which only runs once the
-/// window renders) never fires. The scenario then idles instead of driving the
-/// nav walk and self-exiting, so no `perf-nav-window` signpost is emitted and
-/// the parser has nothing to measure (issue #132).
+/// `xctrace record --launch` starts the process without activating it, and a
+/// non-activated macOS app may never order its `WindowGroup` window on screen.
+/// SwiftUI then never fires the window's `.onAppear` or `.task`, so the perf
+/// scenario never starts.
 ///
-/// Both hooks gate on `PerfScenarioRunner.isEnabled` as their FIRST statement —
-/// the single `FEEDER_PERF_MODE` source of truth shared with
-/// `ContentView.isPerfScenarioMode`, so the forced activation and the scenario
-/// trigger can never diverge. In a shipping launch both return immediately:
-/// the delegate is constructed-but-inert, adds no UI/menu/setting, and never
-/// calls `exit()` (that stays in `PerfScenarioRunner`, at the end of the walk).
-///
-/// MainActor-isolated by default (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`);
-/// every AppKit call here is MainActor-only, matching where AppKit delivers
-/// these launch callbacks.
+/// Both hooks gate on `PerfScenarioRunner.isEnabled` as their first statement,
+/// the same source of truth `ContentView` reads, so the forced activation and
+/// the scenario trigger cannot diverge. In a shipping launch both return at
+/// once: the delegate adds no UI and never calls `exit()`.
 final class PerfActivationAppDelegate: NSObject, NSApplicationDelegate {
-  /// Owned handle for the one-shot window-ordering retry (`STACK.md § 9`): the
-  /// async work has an explicit owner rather than being fire-and-forget. It
-  /// completes in a single main-actor hop, so no cancellation is needed beyond
-  /// the app lifetime that bounds the delegate.
+  /// Owned handle for the one-shot window-ordering retry, so the async work is
+  /// not fire-and-forget (`STACK.md § 9`). It completes in one main-actor hop,
+  /// and the delegate's lifetime bounds it.
   private var windowOrderRetry: Task<Void, Never>?
 
   func applicationWillFinishLaunching(_ notification: Notification) {
-    // Load-bearing gate — MUST stay the first statement. `FEEDER_PERF_MODE` is
-    // the single source of truth for perf-only behaviour; a shipping launch
+    // Load-bearing gate: keep it the first statement. A shipping launch
     // returns here and the delegate does nothing.
     guard PerfScenarioRunner.isEnabled else { return }
-    // Force a normal foreground app so the window can become key and order
-    // front. Set before launch finishes so the policy is in place by the time
-    // SwiftUI creates the scene.
+    // Force a normal foreground app so the window can become key. Set before
+    // launch finishes, so the policy holds when SwiftUI creates the scene.
     NSApp.setActivationPolicy(.regular)
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    // Same load-bearing gate — MUST stay the first statement (see above).
+    // Load-bearing gate: keep it the first statement.
     guard PerfScenarioRunner.isEnabled else { return }
-    // `activate()` is the current macOS 14+ API (NOT the deprecated
-    // `activate(ignoringOtherApps:)`); it brings the app forward under the
-    // cooperative activation model.
+    // `activate()` brings the app forward under the cooperative activation
+    // model.
     NSApp.activate()
     if let window = NSApp.windows.first {
-      // The load-bearing per-window primitive: activation alone does not
-      // guarantee a specific window is key/ordered — this orders it front so
-      // SwiftUI displays it and fires the window's `.onAppear`/`.task`.
+      // Activation alone does not order a specific window front, and SwiftUI
+      // fires `.onAppear` and `.task` only for a displayed window.
       window.makeKeyAndOrderFront(nil)
     } else {
-      // SwiftUI may not have created the `WindowGroup` window yet at
-      // `didFinishLaunching`. ONE bounded, owned next-runloop-tick retry orders
-      // it front once the window exists — a single self-correcting Task, never
-      // a loop (`STACK.md § 7 / § 9`). If the window still is not there, no
-      // render fires and the run fails closed downstream (the parser's
-      // render-path floor refuses to report against an empty window).
+      // SwiftUI may not have created the window yet at `didFinishLaunching`.
+      // One owned next-tick retry orders it front once the window exists —
+      // never a loop (`STACK.md § 7 / § 9`). With no window the run fails
+      // closed downstream.
       windowOrderRetry = Task { @MainActor in
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
       }
