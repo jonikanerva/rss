@@ -1,9 +1,9 @@
 import SwiftData
 import SwiftUI
 
-/// Header shown above the sidebar — the app name plus lightweight sync /
-/// classification progress strings. Isolated from the article list so
-/// progress ticks don't force the list to re-render.
+/// Header above the sidebar: the app name plus the sync and classification
+/// progress strings. Isolated from the article list, so a progress tick never
+/// re-renders the list.
 struct SyncStatusView: View {
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -76,9 +76,9 @@ struct SyncStatusView: View {
 
   // MARK: - Error banner
 
-  /// Inline secondary-styled banner shown beneath the sync status text.
-  /// Calm/premium per `STACK.md § 11 → Readability`: no `.red`, no alert /
-  /// sheet — orange-accented icon plus a contextual recovery button.
+  /// Inline banner beneath the sync status text. Calm per
+  /// `STACK.md § 11 → Readability`: no red, no alert, no sheet — an accented
+  /// icon and a contextual recovery button.
   private func errorBanner(error: SyncError) -> some View {
     HStack(spacing: 6) {
       Image(systemName: errorSymbol(for: error))
@@ -136,13 +136,10 @@ struct SyncStatusView: View {
 
   // MARK: - Classification banner
 
-  /// Inline banner for the outcome of the most recent classification batch
-  /// attempt, mirroring `errorBanner`'s shape (icon + secondary text +
-  /// contextual `.link` button). "Open Settings" is offered only for causes
-  /// the user can fix there (key / model); offline and provider
-  /// unavailability self-heal via the 2 s poll, so no button. Meaning is
-  /// carried by the words, never by color alone. When `lastAbort` is nil
-  /// the line disappears entirely.
+  /// Inline banner for the most recent classification batch outcome, in the
+  /// same shape as `errorBanner`. It offers Settings only for a cause the user
+  /// can fix there; a self-healing cause gets no button. The words carry the
+  /// meaning, never colour alone. With no abort the line disappears.
   private func classificationBanner(abort: ClassificationAbortReason) -> some View {
     HStack(spacing: 6) {
       Image(systemName: abort.symbolName)
@@ -172,14 +169,10 @@ struct SyncStatusView: View {
 
 // MARK: - Previews
 
-/// Preview-only state seed describing each `SyncStatusView` variant the
-/// STACK.md § 0 applicable-states checklist requires, plus the
-/// classification-progress cases issue #124 exercises (classifying-only,
-/// sync + classify together, a mid-drain grown denominator, and the
-/// large-number layout at the 220 pt sidebar width). Each case seeds both
-/// engines so the "Fetching" and "Categorizing" rows can be shown together —
-/// the seam previously only touched `SyncEngine`, leaving the classify row
-/// with no preview coverage at all. No production code path reads this.
+/// Preview-only state seed covering each `SyncStatusView` variant the
+/// applicable-states checklist requires (`STACK.md § 0`), plus the
+/// classification-progress cases. Each case seeds both engines, so the fetch
+/// and categorize rows can appear together. No production path reads it.
 private enum SyncStatusPreviewState {
   case idle
   case syncing
@@ -223,18 +216,18 @@ private enum SyncStatusPreviewState {
       classification.applyPreviewState(
         isClassifying: true, classifiedCount: 120, totalToClassify: 480)
     case .midDrainGrownDenominator:
-      // The denominator has grown past the first snapshot's value as sync kept
-      // persisting — issue #124's core case (150/1000, not stuck at 150/200).
+      // The denominator has grown past the first snapshot's value while sync
+      // kept persisting, instead of staying pinned to it.
       classification.applyPreviewState(
         isClassifying: true, classifiedCount: 150, totalToClassify: 1000)
     case .largeNumbers:
-      // Threshold layout check: widest realistic strings at the 220 pt sidebar
-      // width must not truncate (STACK.md § 11 — exercise at the threshold).
+      // Threshold check: the widest realistic strings at the narrow sidebar
+      // width must not truncate (`STACK.md § 11`).
       sync.applyPreviewState(isSyncing: true, fetchedCount: 1234, totalToFetch: 12345)
       classification.applyPreviewState(
         isClassifying: true, classifiedCount: 999, totalToClassify: 9999)
     case .syncingNoTotal:
-      // totalToFetch == 0 → the fetch row falls back to "Syncing...".
+      // A zero total makes the fetch row fall back to its indeterminate copy.
       sync.applyPreviewState(isSyncing: true, fetchedCount: 0, totalToFetch: 0)
     case .abortedModel:
       // Classification banner with the "Open Settings" recovery button.
@@ -245,9 +238,8 @@ private enum SyncStatusPreviewState {
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .offline)
     case .abortedWhileSyncing:
-      // Both banners stacked at the 220 pt frame: sync error + the LONGEST
-      // classification label ("Categorizing paused — provider unavailable")
-      // — must not truncate (STACK.md § 11, exercise at the threshold).
+      // Both banners stacked at the narrow frame, with the longest
+      // classification label, must not truncate (`STACK.md § 11`).
       sync.applyPreviewState(
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .network("The Internet connection appears to be offline."))

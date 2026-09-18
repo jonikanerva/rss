@@ -12,9 +12,8 @@ import os
 nonisolated enum ColumnWidthDiagnostics {
   static let logger = Logger(subsystem: "com.feeder.app", category: "ContentColumnWidth")
 
-  /// D1, once per launch and column: the `ideal` handed to the split view and
-  /// the raw stored value behind it. The one line that tells a future reader
-  /// what the store held at launch.
+  /// Once per launch and column: the `ideal` handed to the split view and the
+  /// raw stored value behind it.
   static func logRestoredIdeal(
     _ restored: CGFloat, for column: ColumnWidthSetting.Column, in defaults: UserDefaults = .standard
   ) {

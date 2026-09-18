@@ -14,8 +14,8 @@ nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
 /// Timestamp of the last successful sync completion.
 nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
 
-/// Maximum age for articles in days. Configurable via Settings → Sync.
-/// Anything older than this is never fetched or persisted, and existing older articles are purged.
+/// Maximum age for articles, in days. Nothing older is fetched or persisted,
+/// and an older row is purged.
 nonisolated var articleKeepDays: Int {
   let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
   return stored > 0 ? stored : 7
@@ -25,30 +25,28 @@ nonisolated var maxArticleAge: TimeInterval {
   TimeInterval(articleKeepDays) * 24 * 60 * 60
 }
 
-/// Fixed 30-day ceiling for disk purge — the maximum value the keepDays picker offers.
+/// Fixed 30-day ceiling for the disk purge: the largest value the keep-days
+/// picker offers.
 nonisolated let maxRetentionAge: TimeInterval = 30 * 24 * 60 * 60
 
-/// Current cutoff date based on keepDays. Articles older than this are hidden from UI.
+/// Current cutoff date. An article older than this is hidden from the UI.
 nonisolated func articleCutoffDate() -> Date {
   Date().addingTimeInterval(-maxArticleAge)
 }
 
 // MARK: - SyncError
 
-/// Categorised sync failure. `SyncEngine.lastError` exposes this so the
-/// sidebar can choose a contextual action (Retry vs Sign in again) without
-/// the view having to introspect a free-form error string. The
-/// `.message` carries the localized description for diagnostics; the
-/// case discriminates the actionable category.
+/// Categorised sync failure, so a view picks a contextual recovery action
+/// without parsing a free-form error string. The case discriminates the
+/// action; `message` carries the localized description.
 nonisolated enum SyncError: Error, Sendable, Equatable {
-  /// Offline, timeout, dropped connection, or transient server failure.
-  /// User action: retry once the network is reachable again.
+  /// Offline, timeout, dropped connection, or transient server failure. The
+  /// user retries once the network is reachable.
   case network(String)
-  /// Feedbin returned 401 — stored credentials no longer work.
-  /// User action: re-enter credentials in Settings → Account.
+  /// Feedbin returned 401. The user re-enters the credentials in Settings.
   case authFailed(String)
-  /// Anything else (decoding failure, 4xx/5xx outside the auth window).
-  /// User action: surface the message and let the user retry manually.
+  /// Anything else, such as a decoding failure or a non-auth HTTP error. The
+  /// UI surfaces the message and the user retries manually.
   case other(String)
 
   /// Localized message suitable for inline secondary-styled UI.
@@ -58,20 +56,16 @@ nonisolated enum SyncError: Error, Sendable, Equatable {
     }
   }
 
-  /// True when this represents a connectivity / transient transport failure
-  /// — used by `EntryListView` to surface the offline empty state instead
-  /// of "No articles in this category".
+  /// True for a connectivity or transient transport failure, so
+  /// `EntryListView` shows the offline empty state instead of "No Articles".
   var isNetworkError: Bool {
     if case .network = self { return true }
     return false
   }
 }
 
-/// Map any thrown error into a `SyncError`. Inspects `URLError` codes for
-/// connectivity classification and `FeedbinError.unauthorized` for the auth
-/// branch; everything else falls into `.other`. Pure — kept `nonisolated`
-/// so call sites in `SyncEngine` and future actors can categorise without
-/// hopping isolation.
+/// Map any thrown error into a `SyncError`. Pure and `nonisolated`, so any
+/// actor can categorise without hopping isolation.
 nonisolated func categorizeSyncError(_ error: Error) -> SyncError {
   if let urlError = error as? URLError {
     switch urlError.code {
@@ -133,44 +127,35 @@ nonisolated func fetchExtractedContentBatch(
   }
 }
 
-/// Orchestrates Feedbin API sync. All SwiftData writes are delegated to DataWriter (background actor).
-/// SyncEngine stays @MainActor @Observable only for progress UI — zero data processing on MainActor.
+/// Orchestrates Feedbin sync. Every SwiftData write is delegated to
+/// `DataWriter`; this type is `@MainActor @Observable` for progress display
+/// only, and processes no data on MainActor.
 @MainActor
 @Observable
 final class SyncEngine {
-  /// Guards both primary sync (`sync()`) and history backfill (`refetchHistory()`)
-  /// from overlapping each other. Either operation acquires the flag at the start
-  /// and releases it before returning. UI consumers read this flag to show the
-  /// sync status indicator; they don't need to distinguish between the two
-  /// operations.
+  /// Keeps `sync()` and `refetchHistory()` from overlapping: either acquires
+  /// the flag at the start and releases it before returning.
   private(set) var isSyncing = false
   private(set) var isFetchingContent = false
-  /// Categorised last failure (network / auth / other) or `nil` after a
-  /// successful sync. Views read this to render the inline error banner
-  /// and pick a contextual recovery action — see `SyncStatusView`.
+  /// The last categorised failure, or `nil` after a successful sync. Views
+  /// read it to render the inline error banner and its recovery action.
   private(set) var lastError: SyncError?
 
   private(set) var fetchedCount: Int = 0
   private(set) var totalToFetch: Int = 0
 
-  /// Number of entries that changed during the most recent sync / backfill —
-  /// inserts plus cross-device read-state flips. Used by `ContentView` to
-  /// decide whether the article list needs refreshing. Inserts alone are not
-  /// the full signal: `updateReadState` can flip `isRead` on existing rows
-  /// when the user marked articles read/unread on another device, and those
-  /// rows move in and out of the `isRead == showRead` predicate that backs
-  /// the list. Both count toward "the list snapshot may now be stale".
+  /// Entries changed by the most recent sync: inserts plus cross-device
+  /// read-state flips. Inserts alone are not the full signal, because a flipped
+  /// row moves in and out of the predicate behind the list, and `ContentView`
+  /// gates its refresh on this count.
   private(set) var lastSyncChangedEntryCount: Int = 0
 
-  /// Monotonic counter bumped after **each page** persisted during a
-  /// multi-page entry fetch. Lets `ContentView` route a deferred middle-pane
-  /// refresh while the sync is still running, so newly-persisted entries
-  /// appear in the article list as they land instead of only on the terminal
-  /// `isSyncing` false-edge. The `lastSyncChangedEntryCount` terminal signal
-  /// stays in place — this counter is purely additive.
+  /// Monotonic counter bumped after each persisted page, so `ContentView` can
+  /// route a deferred article-list refresh while the sync still runs. Additive
+  /// to the terminal `lastSyncChangedEntryCount` signal, never a replacement.
   private(set) var lastPersistedPageVersion: Int = 0
 
-  /// Reactive cutoff date for @Query filtering. Updated when keepDays changes.
+  /// Cutoff date for the read predicates. Updated when keep-days changes.
   private(set) var queryCutoffDate: Date = articleCutoffDate()
 
   /// Recalculate article cutoff from current keepDays setting.
@@ -178,26 +163,21 @@ final class SyncEngine {
     queryCutoffDate = articleCutoffDate()
   }
 
-  /// Last sync date — persisted to `defaults` so incremental sync works across app restarts.
+  /// Last sync date, persisted so incremental sync survives a restart.
   private(set) var lastSyncDate: Date? {
     get { defaults.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
     set { defaults.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
   }
 
-  /// `UserDefaults` instance backing `lastSyncDate` and `pendingReadIDsToSync`.
-  /// Defaults to `.standard` in production; tests pass an isolated
-  /// `UserDefaults(suiteName:)` instance so suite-level state can't leak
-  /// across the test target — see `SyncEngineTests` which is parallelised
-  /// against `DataWriterBootstrapTests` and would otherwise race on the
-  /// shared `lastSyncDate` key.
+  /// `UserDefaults` behind `lastSyncDate` and `pendingReadIDsToSync`. A test
+  /// passes an isolated suite, or parallel suites race on the shared keys.
   private let defaults: UserDefaults
 
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
-  /// Read-only companion to `writer`, on a second `ModelContext` over the same
-  /// container. Vended to the article list + sidebar so their reads run on a
-  /// separate actor and do not queue behind writes (`DataReader`). Owned by the
-  /// caller (typically `FeederApp`); the engine only holds the reference.
+  /// Read-only companion to `writer`. Vended to the article list and sidebar,
+  /// so their reads run on a separate actor and never queue behind a write.
+  /// The caller owns it; the engine only holds the reference.
   private(set) var reader: DataReader?
   private var periodicSyncTask: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
@@ -215,43 +195,35 @@ final class SyncEngine {
     }
   }
 
-  /// Default-argumented init — production sites (`FeederApp`, every
-  /// `#Preview`) keep their existing `SyncEngine()` call; tests pass an
-  /// isolated `UserDefaults(suiteName:)` to keep their reads/writes off the
-  /// shared standard domain.
+  /// The default argument keeps every production call site at `SyncEngine()`.
+  /// A test passes an isolated suite to stay off the standard domain.
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
   }
 
-  /// Configure the sync engine with credentials. The caller is responsible
-  /// for attaching a `DataWriter` via `attachWriter(_:)` before invoking
-  /// `sync()`. In the production path `FeederApp` constructs the writer
-  /// inside its bootstrap task and injects it before `ContentView` renders.
+  /// Configure the engine with credentials. The caller must attach a
+  /// `DataWriter` through `attachWriter(_:)` before calling `sync()`.
   func configure(username: String, password: String) {
     self.client = FeedbinClient(username: username, password: password)
     logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never", privacy: .private).")
   }
 
-  /// Inject the pre-built `DataWriter` that this engine should delegate
-  /// writes to. The writer is owned by the caller (typically `FeederApp`);
-  /// the engine merely holds a reference. Synchronous — no detached task
-  /// here because the caller has already paid the background-init cost.
+  /// Inject the pre-built `DataWriter` this engine delegates writes to. The
+  /// caller owns it and has already paid the background-init cost, so this
+  /// stays synchronous.
   func attachWriter(_ writer: DataWriter) {
     self.writer = writer
   }
 
   /// Inject the pre-built read-only `DataReader`. Same ownership contract as
-  /// `attachWriter` — the caller builds it on the same `ModelContainer` and
-  /// hands it over before `ContentView` renders the article list.
+  /// `attachWriter`, and the caller must build it on the same container.
   func attachReader(_ reader: DataReader) {
     self.reader = reader
   }
 
-  /// Inject a pre-built `FeedbinClientProtocol` implementation. Production
-  /// code uses `configure(username:password:)` to build a real `FeedbinClient`;
-  /// tests use this hook to install a fake that simulates API responses
-  /// without touching the network. Single-method seam keeps the production
-  /// path unchanged.
+  /// Inject a pre-built `FeedbinClientProtocol`. Production builds its client
+  /// in `configure(username:password:)`; a test installs a fake here and never
+  /// touches the network.
   func attachClient(_ client: any FeedbinClientProtocol) {
     self.client = client
   }
@@ -307,10 +279,9 @@ final class SyncEngine {
     extractedContentTask = nil
   }
 
-  /// Perform a sync: pull subscriptions + icons, then fetch entries since the
-  /// last successful sync. On the first run `since` falls back to the keepDays
-  /// cutoff, so the initial call already pulls the full window — no separate
-  /// backfill pass is needed.
+  /// Pull subscriptions and icons, then fetch entries since the last
+  /// successful sync. On the first run `since` falls back to the keep-days
+  /// cutoff, so the first call already covers the full window.
   func sync() async {
     guard let client, let writer, !isSyncing else { return }
 
@@ -325,7 +296,7 @@ final class SyncEngine {
       logger.info("Fetched \(subscriptions.count) subscriptions")
       try await writer.syncFeeds(subscriptions)
 
-      // Fetch and store favicon icons — only download icons that actually need updating
+      // Only download an icon whose URL changed or whose data is missing.
       let icons = try await client.fetchIcons()
       let needed = try await writer.iconURLsNeedingFetch(icons)
       var iconData: [String: Data] = [:]
@@ -338,14 +309,13 @@ final class SyncEngine {
       }
       try await writer.syncIcons(icons, prefetchedData: iconData)
 
-      // Push queued local read-state changes before pulling entries back, so
-      // the `unreadIDs` set we're about to fetch reflects our intent.
+      // Push queued local read-state changes first, so the `unreadIDs` set
+      // fetched below reflects them.
       await pushPendingReads()
 
-      // `max` with the cutoff keeps a stale lastSyncDate (user was offline
-      // longer than the keepDays window) from reaching further back than we
-      // intend to store. On the first sync lastSyncDate is nil and this
-      // falls back to the cutoff directly.
+      // The `max` keeps a stale `lastSyncDate` from reaching further back than
+      // the retention window allows. On the first sync it falls back to the
+      // cutoff directly.
       let since = max(lastSyncDate ?? queryCutoffDate, queryCutoffDate)
       let changed = try await fetchEntriesSince(since, using: client, writer: writer)
 
@@ -369,14 +339,11 @@ final class SyncEngine {
 
   // MARK: - Entry fetch
 
-  /// Single entry-fetch path used by both `sync()` (delta since last sync) and
-  /// `refetchHistory()` (full keepDays window). The caller picks `since`; this
-  /// function pages through `/entries.json?since=...`, persists each page with
-  /// the server's current unread-IDs set so read-state is accurate, and
-  /// finally syncs the full read-state map so local rows outside this page
-  /// window converge too. Returns the total number of changed rows — inserts
-  /// plus cross-device read-state flips — so callers can gate UI refreshes
-  /// on the full "something actually changed" signal, not just inserts.
+  /// The single entry-fetch path behind both `sync()` and `refetchHistory()`;
+  /// the caller picks `since`. Each page persists with the server's current
+  /// unread-IDs set, and the full read-state map syncs afterwards so rows
+  /// outside the paged window converge too. Returns the changed-row count —
+  /// inserts plus read-state flips — so a caller can gate a UI refresh on it.
   private func fetchEntriesSince(_ since: Date, using client: any FeedbinClientProtocol, writer: DataWriter) async throws -> Int {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
@@ -387,20 +354,16 @@ final class SyncEngine {
     var totalFetched = 0
     for try await page in client.fetchAllEntryPages(since: since) {
       if let total = page.totalCount { totalToFetch = total }
-      // C3 Tpersist (issue #138): time one sync-page persist. Back-to-back
-      // `write-persist-page` intervals with no `net-fetch-page` gap between
-      // them are the coordinator-saturation signature the measurement gates on.
+      // Back-to-back persist intervals with no fetch gap between them are the
+      // coordinator-saturation signature the measurement gates on.
       let persistSignpost = perfSignposter.beginInterval(PerformanceSignpostName.writePersistPage)
       let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
       perfSignposter.endInterval(PerformanceSignpostName.writePersistPage, persistSignpost)
       totalNew += newCount
       totalFetched += page.entries.count
-      // Signal to `ContentView` that a page just landed so the middle pane
-      // can refresh mid-sync. Bumped per persisted page even when `newCount`
-      // is zero — a page with only de-duplicated rows still shifts no UI
-      // state, but the counter contract is "a page was processed". The
-      // downstream `.onChange` coalesces these via the existing deferred
-      // refresh channel.
+      // Bumped per persisted page even when the page inserted nothing: the
+      // counter's contract is "a page was processed". The downstream deferred
+      // refresh channel coalesces the bumps.
       lastPersistedPageVersion &+= 1
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
@@ -456,11 +419,9 @@ final class SyncEngine {
 
   // MARK: - Background backfill
 
-  /// Full keepDays-window re-fetch. Called from Settings when keepDays is
-  /// raised so the newly-included older window gets populated without waiting
-  /// for `lastSyncDate` to age out. `sync()` already covers the full window
-  /// on its first run via the cutoff fallback, so no post-first-sync trigger
-  /// is needed here.
+  /// Full-window re-fetch, called from Settings when keep-days rises, so the
+  /// newly included older window fills without waiting for `lastSyncDate` to
+  /// age out.
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
@@ -475,11 +436,9 @@ final class SyncEngine {
 
       fetchedCount = 0
       totalToFetch = 0
-      // Reset on entry and assign on completion so the `isSyncing = false`
-      // edge always reports this backfill's count, not a stale value from
-      // the last primary `sync()`. `ContentView` reads this in its
-      // `isSyncing` onChange gate; a stale value would either block a
-      // legitimate refresh or trigger a bogus one.
+      // Reset on entry and assign on completion, so the `isSyncing` false edge
+      // reports this backfill's count. A stale value would block a legitimate
+      // refresh or trigger a bogus one.
       lastSyncChangedEntryCount = 0
       var changed = 0
 
@@ -495,27 +454,21 @@ final class SyncEngine {
 
       lastSyncChangedEntryCount = changed
 
-      // Extracted-content fetch rides the same post-sync pipeline sync()
-      // uses — no need to duplicate the fetch-and-apply loop here.
+      // The extracted-content fetch rides the same post-sync pipeline as
+      // `sync()`.
       startExtractedContentFetch()
     }
   }
 
   // MARK: - Preview / test seam
 
-  /// Seed the engine's observable state for SwiftUI previews. Production
-  /// code never calls this — keeping the seam on the engine itself avoids
-  /// loosening `private(set)` on the real fields. Mirrors only the
-  /// surface the UI reads (`isSyncing`, `lastError`, `lastSyncDate`,
-  /// progress counters) — every other field stays at its init default.
+  /// Seed the engine's observable state for SwiftUI previews. Production never
+  /// calls it; the seam lives here so `private(set)` stays tight on the real
+  /// fields. Every field it does not touch keeps its init default.
   ///
-  /// Not gated behind `#if DEBUG`: the seam is reached from the
-  /// `SyncStatusView` / `EntryListView` preview helpers, which are
-  /// themselves visible to the Release compiler (SwiftUI's `#Preview`
-  /// macro strips the preview body in Release, but its enclosing
-  /// helper types and free functions still need to type-check). Keeping
-  /// the function unconditionally available avoids a Release-build
-  /// failure without forcing every call site into `#if DEBUG`.
+  /// Not gated behind `#if DEBUG`: preview helpers reach it from types that
+  /// must still type-check in Release, even though the `#Preview` body is
+  /// stripped.
   func applyPreviewState(
     isSyncing: Bool = false,
     lastSyncDate: Date? = nil,

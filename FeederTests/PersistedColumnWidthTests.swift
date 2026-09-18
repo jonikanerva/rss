@@ -4,24 +4,19 @@ import Testing
 
 @testable import Feeder
 
-/// Pins the modifier ORDER `persistedColumnWidth` encodes: the width
-/// preference must be the outermost modifier on a column's content. An
-/// `onGeometryChange` placed outside `navigationSplitViewColumnWidth` hides
-/// the preference from the split view, and the column lays out at the
-/// platform default. Hosts a three-column `NavigationSplitView` offscreen
-/// and reads the backing `NSSplitView`'s arranged-subview frames.
+/// Pins the modifier order `persistedColumnWidth` encodes: the width preference
+/// must be the outermost modifier on a column's content, because a geometry
+/// observer placed outside it hides the preference from the split view and the
+/// column lays out at the platform default. It hosts a split view offscreen and
+/// reads the backing arranged-subview frames.
 ///
-/// Flake guards: a distinct root view TYPE per case (the bridge keys some
-/// per-type state, incl. autosave, on the root type); the host is 1400 pt
-/// wide, so sidebar + content + the detail minimum always fit; a 1-pt
-/// tolerance for Retina half points; the negative control asserts "below
-/// the ideal", not a platform-default constant; and every case checks that
-/// the hosted split view added no `NSSplitView Subview Frames` key to the
-/// test host's `UserDefaults.standard` (a later run would otherwise meet
-/// AppKit's `width − x` restore). The check detects instead of deleting:
+/// The flake guards: a distinct root view type per case, because the bridge keys
+/// per-type state on it; a host wide enough that every column fits; a one-point
+/// tolerance for Retina half points; a negative control that asserts "below the
+/// ideal" rather than a platform constant; and a check that the hosted split
+/// view added no autosave key to the test host's defaults, which a later run
+/// would otherwise restore from. The check detects rather than deletes, because
 /// the test host shares its defaults domain with the installed app.
-/// `.serialized`: shares the offscreen-window hosting pattern with
-/// `EntryRowGeometryTests`.
 @Suite("Persisted column width order", .serialized)
 struct PersistedColumnWidthTests {
   private static let sidebarIdeal: CGFloat = 300

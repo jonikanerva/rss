@@ -3,15 +3,12 @@ import SwiftUI
 
 /// Persists which sidebar folders the user has collapsed.
 ///
-/// We store *collapsed* labels (rather than expanded ones) so the default — an
-/// empty set — means every folder is expanded. New folders surfaced after a
-/// schema/migration are visible without the user touching settings, matching
-/// the pre-disclosure-group behaviour.
+/// It stores the collapsed labels, not the expanded ones, so the empty default
+/// means every folder is expanded and a newly synced folder is visible without
+/// the user touching Settings.
 ///
-/// Backed by a single `@AppStorage("sidebar.collapsedFolders")` key holding a
-/// JSON array of label strings. Using one key avoids the per-folder cleanup
-/// dance when a folder is renamed or deleted: stale labels in the set are
-/// inert and harmless.
+/// One storage key holds a JSON array of labels, so renaming or deleting a
+/// folder needs no cleanup: a stale label in the set is inert.
 nonisolated struct SidebarCollapsedFolders: RawRepresentable, Equatable, Sendable {
   var labels: Set<String>
 
@@ -48,9 +45,9 @@ nonisolated struct SidebarCollapsedFolders: RawRepresentable, Equatable, Sendabl
 }
 
 extension SidebarCollapsedFolders {
-  /// Returns a `Binding<Bool>` for whether a given folder is expanded, suitable
-  /// for `DisclosureGroup(isExpanded:)`. Reads / writes back into the same
-  /// `@AppStorage` value via the supplied outer binding.
+  /// A `Binding<Bool>` for whether one folder is expanded, for
+  /// `DisclosureGroup(isExpanded:)`. It reads and writes through the supplied
+  /// outer binding.
   static func expansionBinding(
     for label: String,
     store: Binding<SidebarCollapsedFolders>

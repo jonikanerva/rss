@@ -10,15 +10,14 @@ struct SettingsView: View {
   private var fontSettings
   @Environment(\.modelContext)
   private var modelContext
-  /// Category list used only for its `.count`. Small set (< 100 typical) so the full
-  /// `@Query` is effectively free, and keeping it reactive means the Data section
-  /// refreshes the moment the user adds or deletes a category in the Categories tab —
-  /// which a `fetchCount` on a sync-only trigger would leave stale.
+  /// Category list, used only for its count. The set is small enough that the
+  /// full query is cheap, and staying reactive keeps the Data section in step
+  /// when the user edits categories in another tab.
   @Query
   private var categories: [Category]
-  /// Entries can grow into the thousands, so we avoid materializing them for a counter.
-  /// Refreshed from `fetchCount` on sync completion; the user can't mutate entries from
-  /// Settings, so sync is the only path that changes this number while Settings is open.
+  /// Entry count, fetched as an aggregate rather than materialised: entries run
+  /// into the thousands. Sync is the only path that changes it while Settings is
+  /// open, so it refreshes on sync completion.
   @State
   private var entryCount: Int = 0
   @State
@@ -117,12 +116,9 @@ struct SettingsView: View {
 
   // MARK: - Appearance Tab
 
-  /// Picker bound to the live `AppFontSettings.textSize` through
-  /// `@Bindable`. Mutating the binding writes through the observed object's
-  /// `didSet`, which persists to `UserDefaults` and notifies every
-  /// `@Environment(AppFontSettings.self)` consumer — no `@AppStorage`
-  /// duplication, and the rest of the app's `@State` (sidebar selection,
-  /// scroll position) is untouched.
+  /// Picker bound to the live text size. The write goes through the observed
+  /// object, which persists it and notifies every consumer, so no
+  /// `@AppStorage` duplicates the value and the app's own state survives.
   private var appearanceTab: some View {
     @Bindable
     var bindableFontSettings = fontSettings
@@ -356,8 +352,8 @@ extension Double {
   settingsSeededPreview()
 }
 
-// Xcode opens the first tab by default; clicking the "Appearance" tab item
-// in the preview canvas surfaces the text-size picker for visual review.
+// The preview opens on the first tab; the Appearance tab holds the text-size
+// picker.
 #Preview("Settings - Appearance Tab") {
   settingsSeededPreview()
 }

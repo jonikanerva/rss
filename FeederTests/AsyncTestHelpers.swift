@@ -3,19 +3,13 @@ import Testing
 
 // MARK: - Async polling helper
 
-/// Poll `condition` until it returns `true` or `timeout` elapses, sleeping
-/// 5 ms between checks. Records a test issue on timeout (without throwing)
-/// so the calling test can decide whether to also assert on the
-/// post-condition state — matching the behaviour of the
-/// `SyncEngineTests` / `ClassificationEngineTests` race-guards that this
-/// helper consolidates.
+/// Poll `condition` until it returns `true` or the timeout elapses. It records
+/// an issue on timeout without throwing, so the calling test decides whether to
+/// assert on the post-condition state too.
 ///
-/// `description` is interpolated into the timeout `Issue.record` message
-/// so the failure surface stays specific even though the helper itself
-/// is generic. The closure is `@Sendable` so callers can read state from
-/// actors (`await client.callCount`) without crossing isolation by hand.
-///
-/// Lives in the test target only.
+/// `description` is interpolated into that timeout message, so the failure stays
+/// specific even though the helper is generic. The closure is `@Sendable`, so a
+/// caller reads actor state without crossing isolation by hand.
 func waitUntil(
   _ description: String,
   timeout: Duration = .seconds(2),

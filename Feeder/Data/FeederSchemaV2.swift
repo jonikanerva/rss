@@ -1,28 +1,19 @@
 import Foundation
 import SwiftData
 
-/// Second versioned schema for the Feeder persistent store.
+/// Second versioned schema for the Feeder persistent store, and the live one.
 ///
-/// V2's only diff from V1 is the removal of `Entry.detectedLanguage` —
-/// a write-only column that no read site ever consumed (issue #90). The
-/// removal is structural (`.lightweight` stage in `FeederMigrationPlan`)
-/// because the field is not an input to any denormalized display field
-/// (`plainText`, `formattedDate`, `formattedPublishedTime`,
-/// `primaryCategory`, `primaryFolder`, `displayDomain`, `summaryPlainText`,
-/// `articleBlocksData`), so no recomputation is needed.
+/// V2 differs from V1 only by dropping `Entry.detectedLanguage`. The removal is
+/// structural, so `FeederMigrationPlan` uses a lightweight stage: the column
+/// feeds no denormalized display field and nothing needs recomputing.
 ///
-/// `Feed`, `Folder`, and `Category` are unchanged at the V1→V2 boundary,
-/// but they are still declared here in their entirety rather than
-/// typealiased to V1. The reason: V2's `Entry.feed` relationship must
-/// resolve to V2's `Feed` so the entire V2 model graph is internally
-/// consistent. Apple's "Trips" SwiftData sample applies the same pattern.
-/// SwiftData maps V1.Feed ↔ V2.Feed by class shape during the
-/// lightweight stage — no migration cost for the unchanged tables.
+/// `Feed`, `Folder`, and `Category` are unchanged, yet declared here in full
+/// rather than typealiased to V1: `Entry.feed` must resolve to V2's `Feed` for
+/// the model graph to stay internally consistent. SwiftData maps the unchanged
+/// tables by class shape during the lightweight stage.
 ///
-/// All live (non-migration) code references the unqualified `Entry`,
-/// `Feed`, `Folder`, `Category` symbols defined as typealiases in
-/// `Feeder/Models/*.swift`. Those typealiases point at the V2 nested
-/// types here. The next schema version re-points them.
+/// Live code uses the unqualified `Entry`, `Feed`, `Folder`, and `Category`
+/// typealiases in `Feeder/Models/`, which point at the nested types here.
 enum FeederSchemaV2: VersionedSchema {
   static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
 

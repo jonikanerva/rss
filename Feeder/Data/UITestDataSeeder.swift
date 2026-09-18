@@ -3,8 +3,8 @@ import SwiftData
 
 // MARK: - UI Test Seeding
 
-/// Seed demo data used by UI tests in in-memory mode. Kept separate from the
-/// production `DataWriter` actor so the actor file stays focused on write ops.
+/// Seed demo data for the UI tests, in memory. Separate from the writer's own
+/// file, which stays focused on the production write operations.
 extension DataWriter {
   /// Populate an empty in-memory store with a fixed set of feeds, categories,
   /// and classified entries. Returns `true` if seeding ran, `false` if entries
@@ -24,10 +24,9 @@ extension DataWriter {
     let world = Category(
       label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
-    // A category with ZERO entries, in the same folder as `apple`. Selecting
-    // it shows the "No Articles" empty view; selecting `apple` afterwards
-    // swaps the empty view for a `List` that already has rows, so UI tests
-    // can drive that transition on demand.
+    // A category with no entries, beside a populated one in the same folder, so
+    // a UI test can drive the transition from the empty view to a list with
+    // rows on demand.
     let gadgets = Category(
       label: "gadgets", displayName: "Gadgets",
       categoryDescription: "Empty category for local UI testing", sortOrder: 0,

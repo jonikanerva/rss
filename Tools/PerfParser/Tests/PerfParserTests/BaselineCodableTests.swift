@@ -5,12 +5,10 @@ import Testing
 
 // MARK: - Baseline JSON Codable round-trip
 
-/// Pins the `BaselineDocument` Codable shape so a future field rename or
-/// reordering does not silently strip data on `make perf-record-baseline`.
-/// The blocker that triggered this work was exactly that: a new
-/// `level1_microbench` block lived in the JSON but the Codable type had no
-/// matching field, so the first write silently dropped the block. These
-/// tests fail fast if the same drift happens again.
+/// Pins the baseline document's `Codable` shape, so a field rename or a
+/// reorder cannot silently strip data when a baseline is recorded. A block
+/// present in the JSON with no matching field on the type is dropped on the
+/// first write, and these tests fail fast on that drift.
 @Suite("BaselineDocument Codable round-trip")
 struct BaselineCodableTests {
   @Test("Decoding a complete baseline preserves every section")
@@ -92,9 +90,8 @@ struct BaselineCodableTests {
 
   // MARK: - Fixtures
 
-  /// Mirror of `Tests/PerfBaselines/baseline-current.json` at the time this
-  /// test was authored. Kept inline so a renamed real baseline file cannot
-  /// silently invalidate the round-trip guarantee.
+  /// Mirror of the real baseline document, kept inline so a renamed baseline
+  /// file cannot silently invalidate the round-trip guarantee.
   static let sampleBaselineJSON: String = """
     {
       "captured_host_cpu" : "Apple M3",

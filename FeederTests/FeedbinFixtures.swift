@@ -6,9 +6,8 @@ import Foundation
 /// through the production `makeFeedbinDecoder()` so tests exercise the same
 /// key-decoding strategy and date format the real API path uses.
 enum FeedbinFixtures {
-  /// Build a `FeedbinSubscription`. Defaults match the values
-  /// `DataWriterEntryTests` and `DataWriterBootstrapTests` historically
-  /// constructed by hand.
+  /// Build a `FeedbinSubscription`, with defaults the writer suites can use
+  /// unchanged.
   static func subscription(
     id: Int = 1,
     feedId: Int = 100,

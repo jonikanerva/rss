@@ -1,12 +1,9 @@
 import Foundation
 
-/// First-launch taxonomy shipped with the app. Kept in its own file so
-/// `FeederApp` stays focused on lifecycle and the seed data is easy to review.
-///
-/// Pure data: insert logic lives on `DataWriter.bootstrap()` so all writes
-/// go through the single actor-isolated entry point.
-/// `nonisolated` so the `DataWriter` background actor can read the static
-/// definitions without crossing back to MainActor.
+/// First-launch taxonomy shipped with the app. Pure data: the insert lives on
+/// `DataWriter.bootstrap()`, so every write goes through the one actor-isolated
+/// entry point. `nonisolated`, so that background actor reads the definitions
+/// without crossing back to MainActor.
 nonisolated enum DefaultCategoryData {
   struct FolderDefinition: Sendable {
     let label: String

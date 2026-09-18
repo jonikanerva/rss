@@ -5,26 +5,15 @@ import Testing
 
 // MARK: - ClassificationEngine.buildProvider — keychain prompt avoidance
 
-/// Bug-fix coverage for the "OpenAI key prompts twice on launch" regression:
-/// when the user has selected `.openAI` in Settings but has not yet saved a
-/// key, `buildProvider()` must fall back to the on-device Apple FM provider
-/// rather than constructing an `OpenAIClassificationProvider` with an empty
-/// key. The empty-key path used to fire a keychain access prompt during the
-/// background classification runner's first batch, surfacing a system-modal
-/// prompt to a user who had never opted into OpenAI.
+/// With OpenAI selected in Settings but no key saved, provider resolution must
+/// fall back to the on-device provider instead of constructing an empty-key
+/// OpenAI provider, which fires a system-modal keychain prompt during the first
+/// background batch.
 ///
-/// The injected keychain-load closure replaces the production
-/// `KeychainHelper.load` so the test never touches the real keychain — no
-/// chance of polluting the per-process Security session or seeing a UI prompt
-/// during test runs. Provider-kind state is stored in a per-test isolated
-/// `UserDefaults(suiteName:)` instance — mirroring `SyncEngineTests`'s
-/// per-test defaults injection — so the four cases in this suite can run in
-/// parallel (Swift Testing's default) without clobbering each other's
-/// `persist`/`current` reads through the shared `.standard` domain. The
-/// production `ClassificationProviderKind.current` (zero-arg form) and the
-/// `buildProvider(defaults:keychainLoad:)` overload that takes a
-/// `UserDefaults` keep their existing production behavior — only the test
-/// reads/writes are redirected.
+/// The injected keychain-load closure keeps the test off the real keychain, so
+/// no run pollutes the Security session or raises a prompt. The provider-kind
+/// state lives in a per-test isolated `UserDefaults` suite, so parallel cases
+/// cannot clobber each other through the standard domain.
 @Suite("ClassificationEngine.buildProvider")
 struct ClassificationProviderResolutionTests {
   // MARK: - Per-test isolation
@@ -118,7 +107,7 @@ struct ClassificationProviderResolutionTests {
     #expect(provider.name == "OpenAI")
   }
 
-  // MARK: - OpenAI model resolution (issue #175)
+  // MARK: - OpenAI model resolution
 
   /// An explicit model pick stored under `OpenAIModelSetting.userDefaultsKey`
   /// must reach the provider verbatim — `buildProvider` is the single
@@ -136,9 +125,8 @@ struct ClassificationProviderResolutionTests {
     #expect(openAIProvider?.model == "gpt-example-custom")
   }
 
-  /// Stage-1 regression guard for issue #175: with no model key stored the
-  /// provider must resolve to the current app default, gpt-5.6-luna — unset
-  /// users track future default bumps automatically.
+  /// With no model key stored, the provider must resolve to the current app
+  /// default, so a user who never picked a model tracks a future default bump.
   @Test
   func buildProviderDefaultsToLunaWhenNoModelStored() {
     ClassificationProviderKind.persist(.openAI, in: defaults)

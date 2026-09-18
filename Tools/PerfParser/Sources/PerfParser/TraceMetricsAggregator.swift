@@ -29,25 +29,16 @@ struct TraceMetrics {
 /// across iterations. Fails closed on missing schemas or empty output —
 /// `make perf` must never declare a silent green.
 enum TraceMetricsAggregator {
-  /// The render-path signpost that must have at least one closed occurrence
-  /// inside `perf-nav-window` for a trace to count as a real render (the
-  /// non-degeneracy floor, issue #132). `sidebar-click` fires from the view
-  /// layer on EVERY J/K selection commit → content-column re-render task (see
-  /// `Feeder/Helpers/PerformanceSignposts.swift`), so it appears ~17-18× inside
-  /// the window and closes ONLY when SwiftUI actually commits a selection and
-  /// re-renders. `perf-nav-window` itself is emitted unconditionally by
-  /// `PerfScenarioRunner.run`, so it is NOT proof that anything rendered;
-  /// `sidebar-click` is.
+  /// The render-path signpost that must close at least once inside the nav
+  /// window for a trace to count as a real render. It fires from the view layer
+  /// on every selection commit and closes only when SwiftUI actually re-renders,
+  /// whereas the nav window itself is emitted unconditionally and proves
+  /// nothing about rendering.
   ///
-  /// `article-click` / `detail-render` are intentionally NOT required. The
-  /// scenario emits them only when the middle-pane article LIST has populated
-  /// in time for an article-selection step, which races the `DataReader`
-  /// refresh under write pressure and does not fire on a fresh-seeded launch —
-  /// every deterministic iteration emits ZERO of them. Gating on them made the
-  /// floor unsatisfiable. The article-list under-population is a separate,
-  /// pre-existing scenario limitation (the runner is out of this change's
-  /// scope); it is tracked as a follow-up so the middle-pane render can be
-  /// re-exercised without weakening this gate.
+  /// The article-side signposts are deliberately not required: the scenario
+  /// emits them only when the article list has populated in time for a
+  /// selection step, which races the reader refresh under write pressure, so
+  /// gating on them makes the floor unsatisfiable.
   static let requiredRenderSignpostName = "sidebar-click"
 
   static func run(traceDir: String) throws -> TraceMetrics {
@@ -128,12 +119,10 @@ enum TraceMetricsAggregator {
       )
     }
 
-    // Prefer the AGGREGATED, SYMBOLICATED `time-profile` table over the raw
-    // `time-sample` table. Only `time-profile` carries `<frame name="…">`
-    // symbol names and per-sample `<weight>`, which the getter-percentage
-    // buckets need. `time-sample` holds address-only `kperf-bt` backtraces (no
-    // symbols), so parsing it yields all-zero shares — the reason the parser
-    // reported 0 % on real traces before this was fixed (issue #132).
+    // Prefer the aggregated, symbolicated table over the raw sample table. Only
+    // the aggregated one carries frame symbol names and per-sample weights,
+    // which the percentage buckets need; the raw one holds address-only
+    // backtraces and yields all-zero shares.
     let schemaName = tocXML.contains("schema=\"time-profile\"") ? "time-profile" : "time-sample"
     let hangSchema =
       tocXML.contains("schema=\"hang-events\"")
@@ -157,33 +146,26 @@ enum TraceMetricsAggregator {
     )
     let hangEvents = try parseHangEvents(xml: hangsXML)
 
-    // Signpost-window resolution — four distinct outcomes, deliberately NOT
-    // collapsed (the taxonomy is load-bearing: the central risk is never
-    // blessing a stale/wrong-binary OR a non-rendering trace as green):
+    // Four distinct outcomes, deliberately not collapsed: the central risk is
+    // blessing a stale-binary or a non-rendering trace as green.
     //
-    // (a) NO os_signpost table at all → the template did not record signposts.
-    //     Degrade gracefully: window is nil, windowed metrics report SKIP,
-    //     whole-trace metrics + sidebar_nav still report, the run does NOT
-    //     fail. Hard-throwing here would make the harness unusable on a clean
-    //     host whose template happens not to capture signposts.
-    // (b) os_signpost table PRESENT but the `perf-nav-window` interval ABSENT
-    //     → the dangerous case: LaunchServices almost certainly resolved the
-    //     launch to a stale/wrong `com.feeder.app` build that emits older
-    //     signposts (e.g. `sidebar-click`) but not `perf-nav-window`. Fail
-    //     LOUD — a stale-code trace must never pass as green.
-    // (d) `perf-nav-window` present but the render/nav path is EMPTY — none of
-    //     the render-path signposts closed inside the window. `perf-nav-window`
-    //     is emitted directly by `PerfScenarioRunner.run`, so it closes even if
-    //     the List never rendered a row; the render-path signposts close ONLY
-    //     when the view-layer `.task`/render fires. Their absence means the
-    //     window never rendered (e.g. forced activation failed to bring a live
-    //     window on screen). Fail LOUD — a green here would be a false pass on
-    //     a partial-render run (issue #132, non-degeneracy floor).
-    // (c) table present WITH `perf-nav-window` AND the render-path floor met →
-    //     window the hang counts.
+    // No signpost table at all means the template recorded no signposts.
+    // Degrade gracefully: the window is nil and the windowed metrics skip,
+    // while the whole-trace metrics still report. Throwing here would make the
+    // harness unusable on a host whose template does not capture signposts.
+    //
+    // A signpost table with no nav-window interval is the dangerous case: the
+    // launch almost certainly resolved to a stale build that emits older
+    // signposts. Fail loud, because a stale-code trace must never pass.
+    //
+    // A nav window with no closed render-path signpost inside it means nothing
+    // rendered: the window is emitted unconditionally and closes even when the
+    // list never rendered a row. Fail loud, or a partial-render run passes.
+    //
+    // A nav window that meets the render-path floor windows the hang counts.
     let window: (start: Double, end: Double)?
     if !hasSignpost {
-      window = nil  // (a)
+      window = nil
     } else {
       let signpostSchema =
         tocXML.contains("schema=\"os-signpost\"")
@@ -195,15 +177,13 @@ enum TraceMetricsAggregator {
           "--xpath", "/trace-toc/run/data/table[@schema=\"\(signpostSchema)\"]",
         ]
       )
-      // Parse the signpost rows once — both the window resolution and the
+      // Parse the signpost rows once: the window resolution and the
       // render-path floor read the same export.
       let rows = parseSignpostRows(xml: signpostXML)
       guard let resolved = resolveInterval(rows: rows, name: "perf-nav-window") else {
-        // (b) — no `perf-nav-window` at all. Two causes, ordered by likelihood
-        // now that the scenario runs headless: a TOTAL activation failure (the
-        // dominant future mode) is checked BEFORE the stale-binary
-        // wild-goose-chase, so a broken activation delegate does not send the
-        // dev to clear DerivedData for nothing.
+        // No nav window at all. Check the total-activation failure before the
+        // stale-binary cause, so a broken activation delegate does not send the
+        // reader off to clear derived data for nothing.
         throw PerfParserError(
           message: "trace \(traceURL.lastPathComponent) has an os_signpost table but no resolvable "
             + "`perf-nav-window` interval — the perf scenario never reached `beginInterval`. Two "
@@ -218,12 +198,10 @@ enum TraceMetricsAggregator {
             + "and re-run. Refusing to report windowed metrics against a trace with no nav window."
         )
       }
-      // (d) Non-degeneracy floor: the measured nav path must have actually
-      // rendered inside the window. Require at least one closed, positive-
-      // duration `sidebar-click` occurrence inside the window — it is the
-      // reliable witness that SwiftUI committed a selection and re-rendered,
-      // which `perf-nav-window` alone (emitted unconditionally by the runner)
-      // does not prove. Distinct from (b): here the window WAS resolvable.
+      // The measured nav path must have rendered inside the window. One closed,
+      // positive-duration render-path occurrence is the reliable witness that
+      // SwiftUI committed a selection and re-rendered, which the window alone
+      // does not prove.
       guard
         hasRenderSignpostInWindow(
           rows: rows, name: Self.requiredRenderSignpostName, window: resolved)
@@ -240,7 +218,7 @@ enum TraceMetricsAggregator {
             + "Confirm the perf launch activated a foreground window and re-run (issue #132)."
         )
       }
-      window = resolved  // (c)
+      window = resolved
     }
 
     let counts = countHangs(hangEvents, window: window)
@@ -301,9 +279,8 @@ enum TraceMetricsAggregator {
     resolveInterval(rows: parseSignpostRows(xml: xml), name: name)
   }
 
-  /// Parse an os-signpost / points-of-interest export into raw signpost rows.
-  /// Split out so the window resolution and the render-path floor (issue #132)
-  /// share a single parse of the same export.
+  /// Parse an os-signpost export into raw rows. Split out so the window
+  /// resolution and the render-path floor share one parse of the same export.
   static func parseSignpostRows(xml: Data) -> [SignpostRow] {
     let handler = SignpostRowHandler()
     let parser = XMLParser(data: xml)
@@ -312,16 +289,14 @@ enum TraceMetricsAggregator {
     return handler.rows
   }
 
-  /// True when `rows` carries a CLOSED, positive-duration interval named `name`
-  /// whose start falls inside `window`. The render-path floor's per-signpost
-  /// check (issue #132): the render-path signposts only CLOSE when the view
-  /// layer actually rendered, so one closed occurrence inside the measured
-  /// window witnesses that a real render happened under load.
+  /// True when `rows` carries a closed, positive-duration interval named `name`
+  /// whose start falls inside `window`. A render-path signpost closes only when
+  /// the view layer rendered, so one closed occurrence inside the measured
+  /// window witnesses a real render under load.
   ///
-  /// Scans EVERY matching row, not just the first: `PerfScenarioRunner` fires
-  /// one `sidebar-click` from its pre-window `navigate(.next)` priming step —
-  /// BEFORE `perf-nav-window` opens — so a first-match resolver would reject a
-  /// healthy run. A later in-window occurrence still satisfies the floor.
+  /// It must scan every matching row, not the first: the runner fires one such
+  /// signpost from its priming step before the window opens, so a first-match
+  /// resolver would reject a healthy run.
   static func hasRenderSignpostInWindow(
     rows: [SignpostRow], name: String, window: (start: Double, end: Double)
   ) -> Bool {
@@ -445,12 +420,11 @@ func medianInt(_ values: [Int]) -> Int {
 /// every sample whose backtrace names a hot symbol and divide by the total so
 /// the result is the inclusive share of main-thread time the symbol consumed.
 ///
-/// Like the signpost export, `time-profile` INTERNS repeated values: a frame
-/// seen before appears as `<frame ref="N"/>` and a repeated weight as
-/// `<weight ref="N"/>`. Refs MUST be resolved against the interning tables, or
-/// most samples lose their symbols (and all but the first lose their weight),
-/// skewing every share (issue #132). Plain `<weight>` + `<backtrace>` text is
-/// still accepted for hand-built test fixtures.
+/// Like the signpost export, this one interns repeated values: a frame seen
+/// before appears as a ref, and so does a repeated weight. Every ref must be
+/// resolved against the interning tables, or most samples lose their symbols
+/// and all but the first lose their weight, which skews every share. Plain
+/// inline text is still accepted for hand-built fixtures.
 final class TimeProfileSampleHandler: NSObject, XMLParserDelegate {
   var totalWeight: Double = 0
   var bodyWeight: Double = 0
@@ -557,17 +531,13 @@ struct SignpostRow {
 /// SAX-style handler for the os-signpost / points-of-interest export. Collects
 /// one `SignpostRow` per `<row>` — the resolver picks the matching interval.
 ///
-/// The real `xctrace` export names the columns `<event-time>` (nanoseconds),
-/// `<event-type>` (`Begin`/`End`), and `<signpost-name>`. It also INTERNS
-/// repeated values: the first occurrence of a value carries `id="N"` plus the
-/// value (element text, or the `fmt` attribute), and every later occurrence is
-/// a self-closing `<element ref="N"/>`. Begin/End rows almost always ref their
-/// `event-type` and `signpost-name`, so refs MUST be resolved against the
-/// interning table — otherwise the interval name and phase come back empty and
-/// no window resolves (issue #132; the pre-fix handler read `<name>` and
-/// ignored refs, so it never parsed a real trace). The synthetic `<name>` /
-/// `<start-time>` / `<duration>` shapes are still accepted for hand-built test
-/// fixtures.
+/// The real export names its columns event-time, event-type and signpost-name,
+/// and interns repeated values: the first occurrence carries an id plus the
+/// value, and every later one is a self-closing ref. A begin or end row almost
+/// always refs its type and name, so every ref must be resolved against the
+/// interning table, or the interval name and phase come back empty and no
+/// window resolves. The synthetic inline shapes are still accepted for
+/// hand-built fixtures.
 final class SignpostRowHandler: NSObject, XMLParserDelegate {
   var rows: [SignpostRow] = []
   private var characterBuffer: String = ""
@@ -781,9 +751,8 @@ func compareTraceMetrics(_ metrics: TraceMetrics, baseline: BaselineDocument) ->
     }
   }
 
-  // Active gates (max populated): the architectural invariants the perf fix
-  // established. These stay live so a regression in the body / unread path
-  // still fails the gate in the interim.
+  // Active gates, with a populated maximum: the architectural invariants that
+  // must keep holding, so a regression in the body or unread path fails here.
   compareOptional(
     name: "contentview_body_getter_pct",
     captured: metrics.contentviewBodyGetterPct,
@@ -796,8 +765,8 @@ func compareTraceMetrics(_ metrics: TraceMetrics, baseline: BaselineDocument) ->
     metric: baseline.level4Trace.contentviewUnreadEntriesGetterPct,
     capturedFmt: "%.2f%%", compareFmt: "%.2f%% vs threshold %.2f%%"
   )
-  // Report-only until the real fix is Time-Profiler-verified (Guard #1): the
-  // sidebar-nav share and every hang count ship with a null max so they SKIP.
+  // Report-only: the sidebar-nav share and the hang counts carry a null
+  // maximum, so they skip rather than gate.
   compareOptional(
     name: "sidebar_nav_getter_pct",
     captured: metrics.sidebarNavGetterPct,
@@ -816,9 +785,8 @@ func compareTraceMetrics(_ metrics: TraceMetrics, baseline: BaselineDocument) ->
     metric: baseline.level4Trace.fullHangsGe500MsCount,
     capturedFmt: "%.0f", compareFmt: "%.0f vs threshold %.0f"
   )
-  // Windowed hang counts: SKIP with a distinct reason when the metric was not
-  // captured (no signpost table — case (a) in extractMetrics), separate from
-  // the report-only null-max SKIP.
+  // Windowed hang counts skip with their own reason when the metric was not
+  // captured at all, which is distinct from the report-only skip.
   func compareWindowed(name: String, captured: Int?, metric: ThresholdMetric?) {
     guard let captured else {
       print(

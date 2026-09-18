@@ -100,11 +100,9 @@ nonisolated struct OpenAIModelsClient: Sendable {
 // MARK: - Pure catalog helpers
 
 /// Case-insensitive id-substring denylist of model families that cannot do
-/// chat-completion classification (embeddings, speech, image, …). This
-/// filter is cosmetic UX hygiene ONLY — unknown/future ids pass (fail-open,
-/// the issue's "no rebuild for new models" requirement). The safety
-/// mechanism for a genuinely bad pick is the `ClassificationFailure` abort
-/// path, not this list.
+/// chat-completion classification. Cosmetic hygiene only: an unknown or future
+/// id passes, so a new model needs no rebuild. The safety mechanism for a
+/// genuinely bad pick is the `ClassificationFailure` abort path, not this list.
 nonisolated let classificationModelDenylist: [String] = [
   "embedding", "whisper", "tts", "dall-e", "audio", "realtime",
   "image", "moderation", "transcribe", "search", "davinci", "babbage",

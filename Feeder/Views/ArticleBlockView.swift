@@ -87,11 +87,9 @@ struct ArticleBlockView: View {
 
   // MARK: - Headings
 
-  /// Maps HTML heading level (1–6) to a text-size-aware semantic font.
-  /// `level` outside 1–4 falls back to `fontSettings.minorInlineHeading` — a
-  /// reader-pane alias kept distinct from `fontSettings.headline` (sheet
-  /// titles) and `fontSettings.rowTitle` (article-list rows) so a future
-  /// reader redesign can retune h5/h6 without rippling into other surfaces.
+  /// Map an HTML heading level to a text-size-aware font. A level past the
+  /// mapped range falls back to the reader-pane alias, which is kept distinct
+  /// from the sheet and row aliases so the reader retunes on its own.
   private func headingFont(_ level: Int) -> Font {
     switch level {
     case 1: fontSettings.articleTitle

@@ -147,11 +147,10 @@ struct UnreadCountsSnapshotFetchTests {
     #expect(snapshot.unreadIDByFolder.isEmpty)
   }
 
-  /// Regression pin for the PR #103 sidebar/list cutoff asymmetry: the
-  /// snapshot's predicate must include the same `publishedAt >= cutoffDate`
-  /// clause that `fetchEntrySections` applies. Without it, entries between
-  /// `articleKeepDays` (default 7d) and `maxRetentionAge` (30d) get counted
-  /// in the sidebar but hidden from the list.
+  /// The snapshot's predicate must carry the same cutoff clause the
+  /// article-list fetch applies. Without it, an entry between the keep-days
+  /// setting and the retention ceiling is counted in the sidebar but hidden
+  /// from the list.
   @Test
   func snapshotExcludesPreCutoffUnreadEntries() async throws {
     let writer = try await makeWriter()

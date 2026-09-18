@@ -2,15 +2,9 @@ import Foundation
 
 // MARK: - Day sectioning (pure transform over row snapshots)
 
-/// Group already-sorted rows by calendar day, preserving order, returning the
-/// section DTOs the article list renders. Moved from `DataWriter`'s
-/// `groupEntriesByDay` (issue #148) with the element type switched from
-/// `Entry` to `EntryRowDTO` — the transform is now pure and reusable from
-/// tests without a container. The `Calendar.current` / `startOfDay`
-/// day-bucketing and the `entryListSectionLabel` labels are UNCHANGED through
-/// the move: grouping deliberately follows the user's local calendar, like
-/// the "Today" / "Yesterday" labels it feeds (`STACK.md § 10` — the
-/// pre-computed display-label divergence, § 14).
+/// Group already-sorted rows by calendar day, preserving order. Grouping
+/// follows the user's local calendar on purpose, like the day labels it feeds
+/// (`STACK.md § 10` and § 14).
 nonisolated func groupRowsByDay(_ rows: [EntryRowDTO]) -> [EntryListSection] {
   let calendar = Calendar.current
   var sections: [EntryListSection] = []

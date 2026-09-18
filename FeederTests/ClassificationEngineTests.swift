@@ -5,51 +5,25 @@ import Testing
 
 // MARK: - ClassificationEngine integration tests
 //
-// These tests exercise `ClassificationEngine`'s orchestration: end-to-end
-// classification of pending entries, cancellation of an in-flight batch,
-// the one-shot-replaces-continuous-loop slot management, and the
-// error-recovery branch inside `ClassificationRunner.runOneBatch`.
-//
-// The on-device Foundation Model / OpenAI providers are bypassed entirely:
-// the engine is constructed with `init(providerFactoryOverride:)` so each
-// batch resolves through a `FakeClassificationProvider`. That means no
-// `UserDefaults` and no Keychain access in the test target — strictly
-// cleaner than the per-suite-UserDefaults pattern `SyncEngineTests` uses,
-// because classification's only external dependency is the provider itself.
-//
-// Why these four scenarios:
-//   1. Pending classification → covers the happy path: every unclassified
-//      entry that survives the cutoff is handed to the provider and the
-//      returned category is persisted onto the entry.
-//   2. Cancel mid-flight       → covers `Task.isCancelled` honoured between
-//      iterations of the batch loop. Regression guard against future
-//      refactors that drop the in-loop cancellation check.
-//   3. Slot management         → covers the one-shot-replays-continuous-loop
-//      path in `runReplacingContinuousLoop` — manual triggers cancel the
-//      polling loop, run inline, then restart it. Tests the UUID-tagged
-//      `runExclusively` slot, not just clobber semantics.
-//   4. Error recovery          → covers the `catch` branch in `runOneBatch`:
-//      one provider call throws, but the batch continues and remaining
-//      entries still get classified.
+// The real providers are bypassed: the engine is built with a provider factory
+// override, so every batch resolves through a fake. The test target therefore
+// touches neither `UserDefaults` nor the Keychain.
 
 @MainActor
 @Suite("ClassificationEngine")
 struct ClassificationEngineTests {
   // MARK: - Fixtures
 
-  /// Default category set that satisfies `runOneBatch`'s
-  /// "categories non-empty" early return. "tech" is the label the fake
-  /// provider returns by default so happy-path tests don't need extra
-  /// configuration.
+  /// Default category set, which clears the "no categories" early return. The
+  /// fake provider returns the first label by default, so a happy-path test
+  /// needs no extra configuration.
   private static let categories: [(label: String, displayName: String, description: String)] = [
     ("tech", "Tech", "Technology news"),
     ("world", "World", "World news"),
   ]
 
-  /// Build a freshly-isolated in-memory `DataWriter`, an attached engine,
-  /// and the fake provider that backs the engine. Seeds the category
-  /// taxonomy (tech, world, uncategorized) so `runOneBatch` clears the
-  /// "no categories" early return.
+  /// Build an isolated in-memory writer, the engine attached to it, and the
+  /// fake provider behind that engine, with the category taxonomy seeded.
   private func makeEngineAndWriter() async throws -> (
     ClassificationEngine, DataWriter, FakeClassificationProvider
   ) {
@@ -71,10 +45,9 @@ struct ClassificationEngineTests {
         sortOrder: index
       )
     }
-    // Runner falls back to `uncategorizedLabel` on errors / low confidence,
-    // and `applyClassification` filters labels against the known set. Without
-    // the uncategorized row present, the error-recovery test would silently
-    // collapse the fallback label.
+    // The runner falls back to the uncategorized label, and the writer filters
+    // labels against the known set. Without that row seeded, the error-recovery
+    // test would silently collapse its fallback.
     try await writer.addCategory(
       label: uncategorizedLabel,
       displayName: "Uncategorized",
@@ -83,14 +56,12 @@ struct ClassificationEngineTests {
     )
   }
 
-  /// Seed `count` Feedbin entries through the production
-  /// `persistEntries` path so the engine sees them exactly as it would in
-  /// production. Returns the entry IDs in seed order.
+  /// Seed entries through the production persist path, so the engine sees them
+  /// as it would in production. Returns the entry IDs in seed order.
   ///
-  /// Entries are stamped with a current-day `published` value so they pass
-  /// `articleCutoffDate()`'s `publishedAt >= cutoff` filter — the default
-  /// `FeedbinFixtures.entry` uses 2025-06-15 which would fall outside the
-  /// cutoff and skip classification entirely.
+  /// Each entry carries a current-day timestamp, so it passes the retention
+  /// cutoff; the fixture's own default date falls outside it and would skip
+  /// classification entirely.
   @discardableResult
   private func seedEntries(_ writer: DataWriter, count: Int) async throws -> [Int] {
     let subscription = try FeedbinFixtures.subscription()
@@ -129,9 +100,8 @@ struct ClassificationEngineTests {
       let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
       #expect(snapshot != nil)
       #expect(snapshot?.isClassified == true)
-      // Default fake response is "tech" — `applyConfidenceGate` keeps it at
-      // confidence 1.0, and the label survives the `validLabels` filter
-      // because we seeded the "tech" category in `seedCategories`.
+      // The fake's default response passes the confidence gate and survives the
+      // valid-label filter, because the seed created that category.
       #expect(snapshot?.primaryCategory == "tech")
     }
   }
@@ -143,27 +113,24 @@ struct ClassificationEngineTests {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     try await seedEntries(writer, count: 10)
 
-    // 100 ms per call → 10 entries take ≥1 s end-to-end. Cancelling after a
-    // single call has landed is far below that and gives the runner plenty
-    // of time to honour the cancellation check before the next iteration.
+    // The per-call delay keeps the whole batch far longer than the point where
+    // the test cancels, so the runner reaches its cancellation check with time
+    // to spare.
     await provider.configureDelay(.milliseconds(100))
 
     engine.startContinuousClassification(writer: writer)
 
-    // Gate on the **provider** call counter — proves the runner has entered
-    // its batch loop and is awaiting inside `provider.classify(...)`. The
-    // `isClassifying` MainActor flag is set asynchronously via the progress
-    // reporter and races the first provider call.
+    // Gate on the provider call counter: it proves the runner is inside its
+    // batch loop. The MainActor flag is set asynchronously and races the first
+    // provider call.
     try await waitUntil("provider.callCount >= 1") {
       await provider.callCount >= 1
     }
 
     engine.stopContinuousClassification()
 
-    // Give the cancellation a moment to propagate through the runner: the
-    // current `classify` returns (the fake's `Task.sleep` exits on cancel),
-    // `applyClassification` runs, then the for-loop's `Task.isCancelled`
-    // check fires and breaks the batch. 200 ms covers that comfortably.
+    // Let the cancellation propagate: the in-flight call returns, its result
+    // persists, and the loop's cancellation check then breaks the batch.
     try await Task.sleep(for: .milliseconds(200))
 
     let callCount = await provider.callCount
@@ -177,10 +144,8 @@ struct ClassificationEngineTests {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     try await seedEntries(writer, count: 3)
 
-    // Small delay keeps the continuous loop's first batch in flight long
-    // enough for the manual trigger to land while the loop is awaiting a
-    // provider call. Without the delay the loop would empty its queue
-    // before the test thread gets a chance to call `classifyUnclassified`.
+    // The delay keeps the loop's first batch in flight long enough for the
+    // manual trigger to land while it awaits a provider call.
     await provider.configureDelay(.milliseconds(50))
 
     engine.startContinuousClassification(writer: writer)
@@ -189,48 +154,40 @@ struct ClassificationEngineTests {
     let initialTaskID = engine.currentClassificationTaskID
     #expect(initialTaskID != nil)
 
-    // Wait for the continuous loop to enter the provider — proves the slot
-    // is occupied and the loop's batch is actually running, not just queued.
+    // Wait until the loop is inside the provider, which proves the slot is
+    // occupied and its batch is running rather than queued.
     try await waitUntil("provider.callCount >= 1") {
       await provider.callCount >= 1
     }
 
-    // Manual trigger fires while the continuous loop is mid-batch. The
-    // engine must (a) cancel the loop, (b) run the one-shot inline,
-    // (c) restart the loop because `isContinuousModeActive` was true when
-    // `runReplacingContinuousLoop` recorded it. This is the path the
-    // planning discussion called out — continuous-restart-after-one-shot,
-    // not just UUID clobber.
+    // The manual trigger fires mid-batch. The engine must cancel the loop, run
+    // the one-shot inline, and restart the loop, because continuous mode was
+    // active when the replacement recorded it.
     await engine.classifyUnclassified(writer: writer)
 
-    // (c) Continuous loop restarted: flag is back to true and the slot
-    // holds a freshly-generated UUID, not the one from before the one-shot.
+    // The loop restarted: the flag is true again and the slot holds a fresh
+    // UUID, not the one from before the one-shot.
     #expect(engine.isContinuousLoopActive == true)
     let restartedTaskID = engine.currentClassificationTaskID
     #expect(restartedTaskID != nil)
     #expect(restartedTaskID != initialTaskID, "Restarted continuous loop must occupy a new slot UUID")
 
-    // (b) Manual task ran to completion — every seeded entry is classified.
-    // If the one-shot had been clobbered by the loop's restart it would have
-    // returned before classifying these.
+    // The manual task ran to completion. A one-shot clobbered by the restart
+    // would have returned before classifying these.
     let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)
     #expect(snapshot?.isClassified == true)
 
-    // Clean shutdown so the restarted continuous loop doesn't leak into
-    // the next test's process state.
+    // Shut down cleanly, so the restarted loop does not leak into the next
+    // test's process state.
     engine.stopContinuousClassification()
   }
 
   // MARK: - 4. Mid-batch progress bumps drive the live-refresh signal
 
-  /// `ContentView` listens to `batchProgressVersion` to refresh the middle
-  /// pane while a classification batch is still running. Without a per-
-  /// snapshot bump the article list only updates on the terminal
-  /// `isClassifying` false-edge, so freshly-classified entries stay in
-  /// their old category until the whole batch finishes. The bump fires on
-  /// every non-terminal `apply(snapshot)` — the initial "starting"
-  /// snapshot, every throttled progress tick, and the final mid-batch
-  /// tick — but **not** on the terminal `.terminal` snapshot.
+  /// The article list refreshes mid-batch from `batchProgressVersion`. Without
+  /// a per-snapshot bump it would update only on the terminal edge, and a
+  /// freshly classified entry would sit in its old category until the batch
+  /// ended. Every non-terminal snapshot bumps; the terminal one does not.
   @Test
   func batchProgressVersionBumpsDuringBatch() async throws {
     let (engine, writer, _) = try await makeEngineAndWriter()
@@ -239,29 +196,23 @@ struct ClassificationEngineTests {
 
     await engine.classifyUnclassified(writer: writer)
 
-    // Engine is back to idle, so the terminal snapshot has already
-    // landed. The counter must have advanced at least once during the
-    // batch — proves the mid-flight signal is observable to
-    // `ContentView`'s `.onChange`.
+    // The engine is idle again, so the terminal snapshot has landed. The
+    // counter must have advanced during the batch, which is what makes the
+    // mid-flight signal observable.
     let bumps = engine.batchProgressVersion - baseline
     #expect(bumps >= 1, "Expected at least one mid-batch bump; got \(bumps)")
     #expect(engine.isClassifying == false)
   }
 
-  /// The terminal `.terminal` snapshot must not bump
-  /// `batchProgressVersion` — the existing `isClassifying` false-edge
-  /// path in `ContentView` already covers the post-batch refresh, and a
-  /// double bump on the terminal edge would race the deferred-drain
-  /// dwell timer. This test runs the engine with **zero** unclassified
-  /// inputs: `runOneBatch` exits via the no-inputs early return, which
-  /// emits only a single `.terminal` snapshot and never the
-  /// `isClassifying: true` opening snapshot. The counter must stay put.
+  /// The terminal snapshot must not bump `batchProgressVersion`: the
+  /// `isClassifying` false edge already covers the post-batch refresh, and a
+  /// second bump would race the deferred drain. With no unclassified inputs the
+  /// runner emits only that terminal snapshot, so the counter must stay put.
   @Test
   func batchProgressVersionDoesNotBumpOnTerminalOnly() async throws {
     let (engine, writer, _) = try await makeEngineAndWriter()
-    // Deliberately seed no entries — `fetchUnclassifiedInputs` returns
-    // an empty list, the runner emits `.terminal` immediately, and
-    // there is no non-terminal snapshot to bump the counter.
+    // Seed no entries, so the runner emits the terminal snapshot at once and no
+    // non-terminal snapshot can bump the counter.
     let baseline = engine.batchProgressVersion
 
     await engine.classifyUnclassified(writer: writer)
@@ -277,10 +228,8 @@ struct ClassificationEngineTests {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     let entryIDs = try await seedEntries(writer, count: 5)
 
-    // Fail exactly the first classify call. The runner's `catch` branch
-    // assigns `uncategorizedLabel` to that entry and proceeds; the remaining
-    // four calls receive the default "tech" response and produce normal
-    // classifications.
+    // Fail the first classify call alone. The runner's catch branch assigns the
+    // fallback to that entry and proceeds, and the rest classify normally.
     await provider.configureErrors(FakeProviderError(), count: 1)
 
     await engine.classifyUnclassified(writer: writer)
@@ -301,24 +250,18 @@ struct ClassificationEngineTests {
         Issue.record("Unexpected category \(snapshot?.primaryCategory ?? "<nil>") for entry \(id)")
       }
     }
-    // Entries are fetched in `createdAt`-descending order by
-    // `fetchUnclassifiedInputs`, so the exact entry that hits the failure
-    // depends on insertion ordering. The invariant the test cares about is
-    // not "which entry failed" but "exactly one failed, the rest succeeded".
+    // The fetch order decides which entry meets the failure, so the invariant
+    // is that exactly one failed and the rest succeeded, not which one.
     #expect(uncategorizedCount == 1)
     #expect(techCount == entryIDs.count - 1)
   }
 
   // MARK: - 6. Live denominator: total grows as entries arrive mid-drain
 
-  /// Regression pin for issue #124. While a classification drain runs,
-  /// entries that `SyncEngine` persists mid-flight must push the reported
-  /// denominator (`totalToClassify`) up at the next chunk boundary — the total
-  /// must not stay frozen at the first snapshot's value (the "stuck at
-  /// 1/200 while 1000 were fetched" bug). Driving the `ClassificationRunner`
-  /// directly (not via the engine) exposes the full snapshot timeline,
-  /// including the drain-end snapshot the engine's `apply()` would otherwise
-  /// collapse into its terminal reset.
+  /// An entry persisted mid-drain must push the reported denominator up at the
+  /// next chunk boundary; the total must not stay frozen at the first
+  /// snapshot's value. Driving the runner directly exposes the whole snapshot
+  /// timeline, including the drain-end snapshot the engine would collapse.
   @Test
   func denominatorGrowsAsEntriesArriveMidDrain() async throws {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
@@ -327,8 +270,8 @@ struct ClassificationEngineTests {
     try await seedEntries(writer, count: 3)
 
     let provider = FakeClassificationProvider()
-    // A per-call delay keeps the first chunk in flight long enough for the
-    // mid-drain insert to land before the chunk-boundary re-count.
+    // The per-call delay keeps the first chunk in flight long enough for the
+    // mid-drain insert to land before the boundary re-count.
     await provider.configureDelay(.milliseconds(80))
 
     let recorder = SnapshotRecorder()
@@ -338,12 +281,12 @@ struct ClassificationEngineTests {
       reportProgress: { await recorder.record($0) }
     )
 
-    // chunkSize 50 > the 3 seeded rows, so they drain in one chunk; the two
-    // mid-drain inserts land in the second chunk fetched at the boundary.
+    // The chunk size exceeds the seeded rows, so they drain in one chunk and the
+    // mid-drain inserts land in the chunk fetched at the boundary.
     let drain = Task { await runner.runOneBatch(cutoffDate: .distantPast, chunkSize: 50) }
 
-    // Once the first classify is in flight, persist two more unclassified
-    // entries — exactly the SyncEngine-persists-mid-classification case (#124).
+    // With the first classify in flight, persist more unclassified entries: the
+    // sync-persists-mid-classification case.
     try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
     let extra = [
       try FeedbinFixtures.entry(id: 2001, title: "Late A"),
@@ -353,28 +296,29 @@ struct ClassificationEngineTests {
 
     await drain.value
 
-    // The provider saw all five entries in one continuous drain — the drain did
-    // not stop at the initial three.
+    // The provider saw every entry in one continuous drain, so the drain did not
+    // stop at the seeded rows.
     #expect(await provider.callCount == 5)
 
     let snapshots = await recorder.snapshots
     let nonTerminal = snapshots.filter(\.isClassifying)
     #expect(!nonTerminal.isEmpty)
 
-    // Denominator opens at the 3 seeded rows, is non-decreasing, and reaches
-    // the grown total of 5 — proving the mid-drain inserts widened it.
+    // The denominator opens at the seeded rows, never decreases, and reaches the
+    // grown total, which proves the mid-drain inserts widened it.
     let totals = nonTerminal.map(\.totalToClassify)
     #expect(nonTerminal.first?.totalToClassify == 3)
     #expect(totals == totals.sorted())
     #expect(totals.last == 5)
 
-    // classifiedCount never resets mid-drain: monotonically non-decreasing and
-    // ending at the whole-drain total.
+    // The classified count never resets mid-drain: it never decreases and ends
+    // at the whole-drain total.
     let classified = nonTerminal.map(\.classifiedCount)
     #expect(classified == classified.sorted())
     #expect(classified.last == 5)
 
-    // AC1: the final pre-terminal snapshot is X == Y == processedCount (5/5).
+    // The final pre-terminal snapshot reports both numbers equal to the
+    // processed count.
     #expect(nonTerminal.last?.totalToClassify == 5)
     #expect(nonTerminal.last?.classifiedCount == 5)
 
@@ -384,12 +328,9 @@ struct ClassificationEngineTests {
 
   // MARK: - 7. Abort path: deterministic provider failure persists nothing
 
-  /// A `ClassificationFailure` with a non-nil `batchAbort` thrown on the
-  /// very first entry must end the drain with ZERO persisted classifications —
-  /// every entry stays `isClassified == false` for the next poll to retry,
-  /// and the snapshot timeline still closes with the terminal snapshot.
-  /// Drives the runner directly (pattern of test 6) so the timeline is
-  /// observable.
+  /// An aborting failure on the first entry must end the drain with nothing
+  /// persisted: every entry stays unclassified for the next poll, and the
+  /// timeline still closes with the terminal snapshot.
   @Test
   func abortingFailureOnFirstEntryPersistsNothing() async throws {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
@@ -409,17 +350,16 @@ struct ClassificationEngineTests {
     )
     await runner.runOneBatch(cutoffDate: .distantPast)
 
-    // The batch stopped at the first provider call — no further entries
-    // were attempted, none were persisted.
+    // The batch stopped at the first provider call: no further entry was
+    // attempted and none was persisted.
     #expect(await provider.callCount == 1)
     for id in entryIDs {
       let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
       #expect(snapshot?.isClassified == false, "Aborted batch must not persist entry \(id)")
     }
 
-    // The abort path closes the batch with an OWNING outcome snapshot so
-    // the progress UI never hangs on a stale "Categorizing…" row and the
-    // banner carries the mapped cause.
+    // The abort path closes the batch with an owning outcome snapshot, so the
+    // progress row never hangs and the banner carries the mapped cause.
     let last = await recorder.snapshots.last
     #expect(last?.isClassifying == false)
     #expect(last?.ownsAbort == true)
@@ -427,14 +367,14 @@ struct ClassificationEngineTests {
   }
 
   /// An abort mid-drain keeps the successes persisted before the failure and
-  /// leaves the remainder untouched — partial progress survives, nothing is
+  /// leaves the remainder untouched: partial progress survives and nothing is
   /// misclassified.
   @Test
   func abortingFailureMidDrainKeepsPriorSuccesses() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     let entryIDs = try await seedEntries(writer, count: 5)
 
-    // Succeed for the first two calls, abort on the third.
+    // Succeed for the first calls, then abort.
     await provider.configureErrors(
       FakeClassificationFailure(batchAbort: .providerUnavailable), count: 1, afterSuccesses: 2
     )
@@ -459,9 +399,8 @@ struct ClassificationEngineTests {
     #expect(engine.isClassifying == false)
   }
 
-  /// A `ClassificationFailure` with `batchAbort == nil` keeps today's
-  /// per-entry behavior: the failing entry persists as Uncategorized and the
-  /// drain continues to the end.
+  /// A failure with no batch abort keeps the per-entry behaviour: the failing
+  /// entry persists as uncategorized and the drain continues to the end.
   @Test
   func nonAbortingFailurePersistsUncategorizedAndContinues() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -488,16 +427,15 @@ struct ClassificationEngineTests {
     #expect(techCount == entryIDs.count - 1)
   }
 
-  /// Recoverable-worst-case proof: `reclassifyAll` resets every category
-  /// first, so an always-aborting provider (e.g. a bad model pick) must
-  /// leave the corpus fully unclassified — never misclassified — and the
-  /// next poll can recover it once the configuration is fixed.
+  /// A full reclassify resets every category first, so an always-aborting
+  /// provider must leave the corpus unclassified and never misclassified. The
+  /// next poll recovers it once the configuration is fixed.
   @Test
   func reclassifyAllWithAlwaysAbortingProviderLeavesEverythingUnclassified() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
     let entryIDs = try await seedEntries(writer, count: 3)
 
-    // First classify successfully so every entry holds a real category.
+    // Classify successfully first, so every entry holds a real category.
     await engine.classifyUnclassified(writer: writer)
     for id in entryIDs {
       let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
@@ -505,14 +443,14 @@ struct ClassificationEngineTests {
       #expect(snapshot?.primaryCategory == "tech")
     }
 
-    // Now every call aborts — the worst case for a bad model selection.
+    // Now every call aborts: the worst case for a bad model selection.
     await provider.configureErrors(
       FakeClassificationFailure(batchAbort: .modelRejected), count: Int.max)
 
     await engine.reclassifyAll(writer: writer)
 
-    // Reset ran, the batch aborted on its first call (3 successes + 1 abort),
-    // and nothing was misclassified: every entry awaits the next poll.
+    // The reset ran, the batch aborted on its first call, and nothing was
+    // misclassified: every entry awaits the next poll.
     #expect(await provider.callCount == entryIDs.count + 1)
     for id in entryIDs {
       let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
@@ -524,10 +462,9 @@ struct ClassificationEngineTests {
 
   // MARK: - 8. Abort visibility: lastAbort lifecycle
 
-  /// An aborted batch surfaces its mapped cause on `lastAbort`; the next
-  /// clean batch clears it. The fake's error window exhausts after the first
-  /// batch, modelling "config fixed" — the per-batch provider factory would
-  /// deliver a swapped provider through exactly the same path.
+  /// An aborted batch surfaces its mapped cause, and the next clean batch clears
+  /// it. The fake's error window closes after the first batch, which models a
+  /// fixed configuration reaching the engine through the per-batch factory.
   @Test
   func abortedBatchSetsLastAbortAndCleanBatchClears() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -542,13 +479,10 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil, "A clean drain must clear the banner")
   }
 
-  /// Evidence of successful progress clears a stale banner MID-BATCH: after
-  /// an abort (e.g. `.offline` from sleep/wake), the resumed drain's first
-  /// counting snapshot (`classifiedCount > 0`) must clear `lastAbort`
-  /// immediately — not minutes later when the whole drain ends. Waiting on
-  /// `engine.classifiedCount > 0` observes the applied counting snapshot
-  /// itself (`apply(_:)` sets the count and clears the banner in the same
-  /// MainActor call), so the assertion is race-free.
+  /// Evidence of progress clears a stale banner mid-batch: after an abort, the
+  /// resumed drain's first counting snapshot must clear it at once, not when
+  /// the drain ends. Waiting on the count observes that snapshot itself,
+  /// because one MainActor call sets the count and clears the banner.
   @Test
   func midBatchProgressClearsStaleAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -565,12 +499,10 @@ struct ClassificationEngineTests {
     engine.stopContinuousClassification()
   }
 
-  /// Full sleep/wake shape: a stale `.offline` banner, then a resumed
-  /// fully-successful drain. The FIRST counting snapshot clears the banner
-  /// (asserted mid-drain), and the drain end adds no second write — the AC1
-  /// final snapshot sees `lastAbort == nil` and skips, and the owning
-  /// `outcome(nil)` terminal is equality-suppressed. Exactly one write
-  /// overall: the evidence-of-progress clear.
+  /// A stale banner followed by a fully successful drain. The first counting
+  /// snapshot clears the banner, and the drain end adds no second write: the
+  /// final snapshot sees a cleared banner and skips, and the owning terminal is
+  /// equality-suppressed. Exactly one write overall.
   @Test
   func resumedDrainClearsStaleAbortOnceAtFirstProgress() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -585,7 +517,7 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil, "First counting snapshot must clear the stale banner")
 
     // Let the drain complete: the engine returns to idle when the owning
-    // `outcome(nil)` terminal lands.
+    // terminal lands.
     try await waitUntil("engine.isClassifying == false") {
       await engine.isClassifying == false
     }
@@ -598,12 +530,10 @@ struct ClassificationEngineTests {
   }
 
   /// A persistently failing retry loop never blinks the banner: every drain
-  /// aborts before any entry completes, so `classifiedCount` stays 0 and the
-  /// evidence-of-progress rule never fires. Zero writes overall — the
-  /// count-0 opening snapshots carry no evidence, and the repeated
-  /// same-value `outcome(.offline)` terminals are equality-suppressed.
-  /// Deterministic: no delays, both drains run to completion inline.
-  /// (The preview seed bypasses the write counter by design.)
+  /// aborts before an entry completes, so the count stays at zero and the
+  /// evidence-of-progress rule never fires. Zero writes overall, because the
+  /// opening snapshots carry no evidence and the repeated same-value terminals
+  /// are equality-suppressed.
   @Test
   func persistentlyFailingRetryPreservesLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -619,16 +549,14 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbortWriteCount == 0, "No snapshot in a failing retry loop may write lastAbort")
   }
 
-  /// A zero-pending drain OWNS a nil outcome and clears a stale banner —
-  /// da amendment A3 semantics: `lastAbort` is "the outcome of the most
-  /// recent batch attempt", NOT "the configuration is broken". Pending
-  /// entries can age out overnight via the keep-days window even while the
-  /// config stays bad; the next arriving article re-trips the banner within
-  /// one poll.
+  /// A zero-pending drain owns a nil outcome and clears a stale banner, because
+  /// `lastAbort` means "the outcome of the most recent batch attempt", not "the
+  /// configuration is broken". Entries can age out of the retention window
+  /// while the configuration stays bad, and the next article re-trips it.
   @Test
   func zeroPendingDrainClearsStaleAbort() async throws {
     let (engine, writer, _) = try await makeEngineAndWriter()
-    // No entries seeded — the drain takes the zero-pending early return.
+    // With no entries seeded the drain takes the zero-pending early return.
     engine.applyPreviewState(lastAbort: .modelRejected)
 
     await engine.classifyUnclassified(writer: writer)
@@ -636,14 +564,12 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil)
   }
 
-  /// Cancellation PRESERVES the banner (da's flicker guard): the cancelled
-  /// batch aborts with the SAME reason as the live banner (same-value
-  /// outcome — equality-suppressed), its count-0 snapshots carry no
-  /// evidence of progress, and the loop-exit plain `.terminal` does not own
-  /// the field. Zero writes proves all three paths left `lastAbort` alone.
-  /// An always-aborting provider is deliberate: a working provider under
-  /// the evidence-of-progress rule would race the throttled counting
-  /// snapshot against the stop call (flaky by design).
+  /// Cancellation preserves the banner: the cancelled batch aborts with the same
+  /// reason, so the outcome is equality-suppressed, its zero-count snapshots
+  /// carry no evidence of progress, and the plain terminal does not own the
+  /// field. Zero writes proves all three paths left the banner alone. The
+  /// always-aborting provider is deliberate — a working one would race the
+  /// throttled counting snapshot against the stop call.
   @Test
   func cancellationPreservesLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -656,19 +582,17 @@ struct ClassificationEngineTests {
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
     engine.stopContinuousClassification()
-    // Post-stop settle: let the loop-exit `.terminal` flow through
-    // apply(_:) before asserting — the point is that it must not write.
+    // Let the loop-exit terminal flow through before asserting: the point is
+    // that it must not write.
     try await Task.sleep(for: .milliseconds(300))
 
     #expect(engine.lastAbort == .offline, "Cancellation must not clear the banner")
     #expect(engine.lastAbortWriteCount == 0, "No snapshot on the cancel path may write lastAbort")
   }
 
-  /// A repeated identical outcome must not rewrite `lastAbort` — the
-  /// equality guard stops @Observable same-value churn on the 2 s poll
-  /// cadence (which would re-announce the banner to VoiceOver). Asserted
-  /// via the DEBUG-only write counter, following the engine's existing
-  /// test-introspection precedent.
+  /// A repeated identical outcome must not rewrite `lastAbort`: the equality
+  /// guard stops same-value churn on the poll cadence, which would re-announce
+  /// the banner to VoiceOver. Asserted through the debug-only write counter.
   @Test
   func repeatedSameAbortDoesNotRewriteLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -685,10 +609,9 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbortWriteCount == 1, "Same-value outcome must not rewrite lastAbort")
   }
 
-  /// The `isAvailable` early return emits an OWNING `.providerUnavailable`
-  /// outcome (da amendment A2) — this makes Apple FM unavailability visible
-  /// too, and prevents a plain terminal from wrongly leaving a stale banner
-  /// state unowned while the provider is unusable.
+  /// The availability early return emits an owning provider-unavailable outcome,
+  /// so an unusable on-device provider is visible too and no plain terminal
+  /// leaves a stale banner unowned.
   @Test
   func unavailableProviderEmitsProviderUnavailableOutcome() async throws {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
@@ -717,13 +640,10 @@ struct ClassificationEngineTests {
 
 // MARK: - OpenAIError → ClassificationAbortReason mapping
 
-/// Pins the batch-abort mapping from the round-2 design of issue #175:
-/// provider-level failures abort with a user-facing cause (401 → key,
-/// other 4xx → model, 429/5xx → provider, network → offline); per-entry
-/// model-output defects return nil and keep the Uncategorized fallback.
-/// A silent flip here would either reintroduce the mass-misclassification
-/// hazard (abort → fallback) or stall the drain on harmless per-entry
-/// defects (fallback → abort).
+/// Pins the batch-abort mapping: a provider-level failure aborts with a
+/// user-facing cause, and a per-entry model-output defect returns nil and keeps
+/// the uncategorized fallback. A silent flip either reintroduces the
+/// mass-misclassification hazard or stalls the drain on a harmless defect.
 @Suite("OpenAIError batch-abort mapping")
 struct OpenAIErrorBatchAbortMappingTests {
   @Test
@@ -759,11 +679,8 @@ struct OpenAIErrorBatchAbortMappingTests {
 
 // MARK: - Abort reason copy lock
 
-/// Locks the owner-approved banner literals and symbols: payload-free by
-/// design, so these fixed strings are the entire user-visible surface of a
-/// batch abort (raw API/response text structurally cannot reach the UI).
-/// Fragment convention — no trailing periods — matches the SyncStatusView
-/// labels.
+/// Locks the banner literals and symbols. The abort reason is payload-free, so
+/// these fixed strings are the entire user-visible surface of a batch abort.
 @Suite("ClassificationAbortReason copy")
 struct ClassificationAbortReasonCopyTests {
   @Test

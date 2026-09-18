@@ -5,14 +5,9 @@ import SwiftUI
 
 // MARK: - Sidebar nav direction
 
-/// Direction for the perf scenario's keyboard-nav walk. Maps onto the app's
-/// J (next) / K (previous) sidebar shortcuts so the runner exercises the real
-/// `bareKeyActions` handler — per-keystroke `sidebarItems → visibleFolderGroups
-/// → inFolder` recompute plus `panelFocus` resolution — rather than writing
-/// `selection` directly and skipping that work.
-///
-/// `nonisolated` + `Sendable` so it crosses the runner's closure boundary
-/// without isolation friction; it is an immutable tag.
+/// Direction for the perf scenario's keyboard walk. It maps onto the J and K
+/// sidebar shortcuts, so the runner exercises the real key handler and pays the
+/// per-keystroke recompute instead of writing `selection` directly.
 nonisolated enum SidebarNavDirection: Sendable {
   case next
   case previous
@@ -20,36 +15,29 @@ nonisolated enum SidebarNavDirection: Sendable {
 
 // MARK: - Perf scenario runner
 
-/// Drives a deterministic keyboard + mouse navigation sequence against the
-/// running app so `xctrace record` can capture the production code path under
-/// realistic contention: a background write-pressure task hammers the store
-/// (matching the currently-selected `@Query` predicate) WHILE the user
-/// navigates with J/K and clicks articles. This reproduces the felt keyboard-
-/// nav stutter so the Level 4 parser can measure it. Used by the headless perf
-/// suite (`make perf`); a no-op when `FEEDER_PERF_MODE` is unset.
+/// Drives a deterministic keyboard and mouse navigation sequence against the
+/// running app, so a trace captures the production code path under contention:
+/// a write-pressure task hammers the store while the walk navigates and opens
+/// articles. A no-op when the perf-mode flag is unset.
 ///
-/// **What this measures vs. what it does not** — the write-pressure proxy
-/// exercises the background-write ↔ `@Query`/re-render MainActor contention
-/// only. It does NOT reproduce Foundation Models inference-CPU contention, so
-/// a green gate here must not be read as "classification-concurrent nav is
-/// fine". See the PR body and `Tests/PerfBaselines/README.md`.
+/// The write-pressure proxy exercises background-write against re-render
+/// contention only. It does not reproduce inference-CPU contention, so a green
+/// gate here does not say that classification-concurrent navigation is fine.
 ///
-/// Why MainActor: every mutation here goes through SwiftUI `@State` /
-/// `@Binding`, which must be written on MainActor. The runner only sleeps
-/// between writes; SwiftData reads/writes still happen off-MainActor inside
-/// the existing `DataWriter` and `.task(id:)` modifiers.
+/// `@MainActor`, because every mutation goes through SwiftUI state. The runner
+/// only sleeps between writes; the store work stays off MainActor.
 @MainActor
 enum PerfScenarioRunner {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "PerfScenarioRunner")
 
-  /// True when the launch should run the perf scenario. Production builds with
-  /// the env var unset stay on the normal `checkCredentials` path.
+  /// True when the launch must run the perf scenario. With the variable unset,
+  /// the app stays on its normal credential path.
   static var isEnabled: Bool {
     ProcessInfo.processInfo.environment["FEEDER_PERF_MODE"] == "1"
   }
 
-  /// Override for the seeded dataset size. Defaults to 5000 — the suite's
-  /// reference scenario. `make perf` may shrink this for fast feedback runs.
+  /// Seeded dataset size. The default is the suite's reference scenario; a fast
+  /// feedback run may shrink it.
   static var datasetSize: Int {
     guard let raw = ProcessInfo.processInfo.environment["FEEDER_PERF_DATASET_SIZE"],
       let parsed = Int(raw), parsed > 0
@@ -59,44 +47,38 @@ enum PerfScenarioRunner {
 
   // MARK: - Write-pressure tuning
 
-  /// Rows inserted per write-pressure save. A single save touches the
-  /// DataWriter actor, then the runner bumps the visible list on MainActor —
-  /// so the batch size trades off save cost against bump frequency.
+  /// Rows inserted per write-pressure save. The size trades save cost against
+  /// how often the runner bumps the visible list.
   private static let writePressureBatchSize = 50
 
-  /// Maximum number of write-pressure batches. FIXED count (not duration) so
-  /// the induced work is reproducible run to run; the nav walk finishing first
-  /// cancels the remainder (cancel-awaited before exit). Large enough that the
-  /// pressure stays CONTINUOUS across the whole nav window with no idle gap.
+  /// Maximum number of write-pressure batches. A fixed count, not a duration,
+  /// so the induced work is reproducible; the walk finishing first cancels the
+  /// remainder. Large enough to keep the pressure continuous across the whole
+  /// window.
   private static let writePressureMaxBatches = 60
 
-  /// First `feedbinEntryID` for pressure rows. Sits far above
-  /// `seedPerfTestData`'s range (10_000 ..< 10_000 + datasetSize) so the
-  /// `.unique` attribute never collides.
+  /// First `feedbinEntryID` for pressure rows. It must stay far above the
+  /// seeded range, or the `.unique` attribute collides.
   private static let writePressureStartingID = 1_000_000
 
   // MARK: - Nav walk tuning
 
-  /// Number of keyboard-nav steps in the interleaved walk. Every fourth step
-  /// also drives a mouse article selection + reader-mode toggle.
+  /// Keyboard steps in the interleaved walk. Every fourth step also drives an
+  /// article selection and a reader-mode toggle.
   private static let navWalkSteps = 24
 
-  /// Gap between nav steps. Short enough that many keystrokes overlap the
-  /// continuous write pressure inside the window, long enough that `xctrace`
-  /// samples land on each keystroke's main-thread work.
+  /// Gap between steps: short enough that many keystrokes overlap the write
+  /// pressure, long enough that the sampler lands on each keystroke's
+  /// main-thread work.
   private static let navStepGap: Duration = .milliseconds(200)
 
   // MARK: - Run
 
-  /// Run the scenario end-to-end against the live app:
-  /// 1. seed the deterministic dataset on `DataWriter` (BEFORE the window);
-  /// 2. wait for the first frame (BEFORE the window);
-  /// 3. START an owned, cancellable, fixed-count write-pressure `Task`;
-  /// 4. WHILE it runs, drive the interleaved keyboard + mouse nav walk,
-  ///    bracketed by the `perf-nav-window` signpost interval;
-  /// 5. `cancel()` the write-pressure task and `await` its value (no
-  ///    fire-and-forget — `STACK.md § 9`);
-  /// 6. flush pending reads, then `exit(0)` so `xctrace` finalises the trace.
+  /// Run the scenario end-to-end against the live app. Seeding and the first
+  /// frame must complete before the measured window opens, so cold start stays
+  /// out of it. The write-pressure task is owned and cancel-awaited, never
+  /// fire-and-forget (`STACK.md § 9`), and the run ends in `exit(0)` so the
+  /// trace is finalised.
   static func run(
     writer: DataWriter,
     syncEngine: SyncEngine,
@@ -110,22 +92,21 @@ enum PerfScenarioRunner {
     do {
       _ = try await writer.seedPerfTestData(entryCount: datasetSize)
     } catch {
-      // Seeding failure is fatal — the trace would otherwise capture an
-      // empty timeline and the parser would compare against junk numbers.
+      // Seeding failure is fatal: the trace would capture an empty timeline
+      // and the parser would compare against junk numbers.
       logger.error("Perf seeding failed: \(error.localizedDescription, privacy: .public)")
       exit(EXIT_FAILURE)
     }
 
-    // Let the first frame paint and the unread snapshot refresh task land.
-    // This happens BEFORE the window opens, so cold start is excluded.
+    // Let the first frame paint and the snapshot refresh land, before the
+    // window opens, so cold start stays out of the measurement.
     try? await Task.sleep(for: .milliseconds(500))
 
-    // Establish an initial selection before the window so the first pressure
-    // batch has a real target and the nav walk starts from a known row.
+    // Establish a selection before the window, so the first pressure batch has
+    // a real target and the walk starts from a known row.
     navigate(.next)
 
-    // (3) Start the owned, cancellable write-pressure task. Held in a local so
-    // it is cancel-awaited before exit — never fire-and-forget.
+    // Held in a local, so the task is cancel-awaited before exit.
     let writePressureTask = Task { @MainActor in
       await runWritePressure(
         writer: writer,
@@ -134,7 +115,7 @@ enum PerfScenarioRunner {
       )
     }
 
-    // (4) Drive the interleaved nav walk inside the measured window.
+    // Drive the interleaved walk inside the measured window.
     let window = perfSignposter.beginInterval(PerformanceSignpostName.perfNavWindow)
     await driveNavWalk(
       apply: apply,
@@ -142,16 +123,16 @@ enum PerfScenarioRunner {
       navigate: navigate,
       currentSelection: currentSelection
     )
-    // Let trailing signpost / render intervals close before ending the window.
+    // Let trailing render intervals close before the window ends.
     try? await Task.sleep(for: .milliseconds(300))
     perfSignposter.endInterval(PerformanceSignpostName.perfNavWindow, window)
 
-    // (5) Stop write pressure and wait for it to unwind — structured, owned,
-    // cancel-awaited (`STACK.md § 7 / § 9`).
+    // Stop the write pressure and wait for it to unwind
+    // (`STACK.md § 7 / § 9`).
     writePressureTask.cancel()
     await writePressureTask.value
 
-    // (6) Flush reads and exit so xctrace finalises the trace.
+    // Flush the reads, then exit so the trace is finalised.
     await syncEngine.pushPendingReads()
     logger.info("Perf scenario complete; exiting")
     exit(EXIT_SUCCESS)
@@ -159,13 +140,10 @@ enum PerfScenarioRunner {
 
   // MARK: - Write pressure
 
-  /// Continuously insert fixed-count batches that match the live sidebar
-  /// selection's `@Query` predicate, bumping the visible list after each so
-  /// its `.task(id:)` refetch fires — the coupling that starves the MainActor
-  /// while the user navigates. Loops until the fixed batch count is reached or
-  /// the task is cancelled (nav walk finished first). No `Task.sleep` between
-  /// batches: the DataWriter `await` is the only suspension, keeping the
-  /// pressure continuous with no idle gap for interleaving jitter to return.
+  /// Insert batches matching the live selection's predicate and bump the
+  /// visible list after each one, so its refetch fires. Loops until the batch
+  /// count is reached or the task is cancelled. No sleep between batches: the
+  /// writer `await` is the only suspension, which keeps the pressure continuous.
   private static func runWritePressure(
     writer: DataWriter,
     currentSelection: @MainActor () -> SidebarSelection?,
@@ -174,9 +152,8 @@ enum PerfScenarioRunner {
     var nextID = writePressureStartingID
     var batch = 0
     while batch < writePressureMaxBatches, !Task.isCancelled {
-      // Target the row the user is looking at; fall back to a known-seeded
-      // leaf category so the very first batch (before any nav) is still
-      // targeted and the pressure stays continuous.
+      // Target the current selection, and fall back to a seeded leaf category
+      // so the first batch is targeted too.
       let selection = currentSelection() ?? .category("perf_0")
       nextID =
         (try? await writer.seedPerfTestBatch(
@@ -185,8 +162,8 @@ enum PerfScenarioRunner {
           startingID: nextID
         )) ?? nextID
       guard !Task.isCancelled else { return }
-      // Force the visible list's refetch + re-render on MainActor — the same
-      // path sync/classification drains use in production.
+      // Force the visible list's refetch and re-render on MainActor, the same
+      // path the production drains use.
       bumpEntryList()
       batch += 1
     }
@@ -194,10 +171,9 @@ enum PerfScenarioRunner {
 
   // MARK: - Nav walk
 
-  /// Deterministic interleaved walk: keyboard J/K sidebar moves (the real
-  /// `bareKeyActions` handler) with a mouse article selection + reader-mode
-  /// toggle every fourth step so the detail-render path is exercised under
-  /// load too. Fixed step count so the window is reproducible.
+  /// Deterministic interleaved walk: real J/K sidebar moves, with an article
+  /// selection and a reader-mode toggle every fourth step so the detail-render
+  /// path runs under load too. Fixed step count, so the window is reproducible.
   private static func driveNavWalk(
     apply: @MainActor (SidebarSelection?, PersistentIdentifier?, ArticleViewMode) -> Void,
     visibleEntryIDs: @MainActor () -> [PersistentIdentifier],
@@ -205,15 +181,14 @@ enum PerfScenarioRunner {
     currentSelection: @MainActor () -> SidebarSelection?
   ) async {
     for step in 0..<navWalkSteps {
-      // Mostly move forward; a periodic backward move exercises both
-      // directions of the sidebar recompute.
+      // A periodic backward move exercises both directions of the sidebar
+      // recompute.
       let direction: SidebarNavDirection = step.isMultiple(of: 6) && step > 0 ? .previous : .next
       navigate(direction)
       try? await Task.sleep(for: navStepGap)
 
-      // Every fourth step, drive a mouse article selection on the currently
-      // visible list, then toggle reader mode and back to exercise the HTML
-      // renderer while write pressure churns the store.
+      // Select an article, then toggle reader mode and back, so the HTML
+      // renderer runs while write pressure churns the store.
       if step.isMultiple(of: 4), let first = visibleEntryIDs().first,
         let selection = currentSelection()
       {

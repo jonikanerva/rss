@@ -2,7 +2,7 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - retainedPendingReadIDs (two-sided overlay retention, issue #148)
+// MARK: - retainedPendingReadIDs (two-sided overlay retention)
 
 /// Pure, container-free pins for the two-sided prune criterion: an overlay ID
 /// is released only once BOTH the unread snapshot AND the rendered rows

@@ -1,8 +1,3 @@
-//
-//  FeederUITests.swift
-//  FeederUITests
-//
-
 import XCTest
 
 final class FeederUITests: XCTestCase {
@@ -108,13 +103,10 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(anotherUnread.waitForExistence(timeout: 10))
   }
 
-  /// Click-focus fix, hardest starting state (Step-0 assumptions A + B):
-  /// with first responder INSIDE the article WKWebView, a click on a sidebar
-  /// row must both commit the selection (A: the List row click invokes the
-  /// selection-binding setter even when focus is elsewhere) and reclaim
-  /// keyboard focus from the AppKit view (B: the binding's `panelFocus`
-  /// write wins over the web view) — so arrow keys act on the sidebar
-  /// immediately, no Tab required.
+  /// The hardest starting state for focus-follows-click: with first responder
+  /// inside the article web view, a click on a sidebar row must both commit the
+  /// selection and reclaim keyboard focus from the AppKit view, so the arrow
+  /// keys act on the sidebar at once and no Tab is needed.
   @MainActor
   func testClickReclaimsFocusFromWebViewForSidebarArrows() throws {
     let app = makeApp()
@@ -148,9 +140,9 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(worldEntry.waitForExistence(timeout: 10))
   }
 
-  /// Click-focus fix, article list: clicking a row must move keyboard focus
-  /// to the list so arrow-down selects the next row immediately — proven by
-  /// the detail pane switching to the next article, no Tab pressed.
+  /// Clicking a row in the article list must move keyboard focus to that list,
+  /// so arrow-down selects the next row at once, which the detail pane switching
+  /// proves.
   @MainActor
   func testClickArticleRowThenArrowSelectsNextRow() throws {
     let app = makeApp()
@@ -176,11 +168,9 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(secondArticleDetail.waitForExistence(timeout: 10))
   }
 
-  /// Bare-key fix: with first responder inside the article web view, typing
-  /// "r" must toggle the view mode (web → reader) via
-  /// `BareKeyForwardingWebView` — proven by the detail toolbar button
-  /// flipping its label from "Reader Mode" to "Web Mode". No UI test for B
-  /// (it opens the system browser).
+  /// With first responder inside the article web view, the reader-mode key must
+  /// still toggle the view mode, which the detail toolbar button's label proves.
+  /// The open-in-browser key has no UI test, because it leaves the app.
   @MainActor
   func testBareKeyRInsideWebViewTogglesViewMode() throws {
     let app = makeApp()

@@ -16,12 +16,10 @@ enum DataWriterTestSupport {
     return DataWriter(modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
   }
 
-  /// On-disk temp container (WAL — the production journal mode) at a unique
-  /// store URL. Used ONLY by the isolated 1+1 stress test (which needs
-  /// production's WAL journal mode); the light reader-using suites use the fast
-  /// in-memory container. Concurrent coordinators are capped by the `make test`
-  /// gate's `-parallel-testing-enabled NO` (serial run), not by the per-suite
-  /// `@Suite(.serialized)` traits (STACK.md §14).
+  /// On-disk temporary container in the production journal mode, at a unique
+  /// store URL. Only the isolated stress test needs it; the light reader suites
+  /// use the fast in-memory container. The serial unit-target run caps
+  /// concurrent coordinators, not the per-suite traits (`STACK.md § 14`).
   static func makeOnDiskContainer() throws -> ModelContainer {
     let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -31,20 +29,18 @@ enum DataWriterTestSupport {
       for: schema, migrationPlan: FeederMigrationPlan.self, configurations: config)
   }
 
-  /// Build a read-only `DataReader` as a SECOND `ModelContext` on the SAME
-  /// container the writer owns (option (i) — shared `C_app`). One container ⇒
-  /// one coordinator ⇒ `PersistentIdentifier`s minted by the reader resolve in
-  /// the writer / MainActor context (render + selection path unchanged).
+  /// Build a read-only reader as a second `ModelContext` on the same container
+  /// the writer owns. One container means one coordinator, so an identifier the
+  /// reader mints resolves in the writer and MainActor contexts.
   static func makeReader(sharing writer: DataWriter) async -> DataReader {
     await DataReader.makeDetached(modelContainer: writer.modelContainer)
   }
 
-  /// Writer + read-only reader over ONE shared in-memory container — the
-  /// canonical setup for the read/write split (option (i)). In-memory keeps the
-  /// light reader suites fast. Concurrent coordinators are capped by the `make
-  /// test` gate's `-parallel-testing-enabled NO` (serial run), not by the
-  /// per-suite `@Suite(.serialized)` traits, which only order tests within a
-  /// suite (STACK.md §14).
+  /// Writer and read-only reader over one shared in-memory container: the
+  /// canonical setup for the read/write split, and fast enough for the light
+  /// reader suites. The serial unit-target run caps concurrent coordinators, not
+  /// the per-suite traits, which only order tests within a suite
+  /// (`STACK.md § 14`).
   static func makeWriterAndReader() async throws -> (DataWriter, DataReader) {
     let writer = try await makeWriter()
     let reader = await DataReader.makeDetached(modelContainer: writer.modelContainer)
@@ -121,12 +117,10 @@ extension DataReader {
 // MARK: - Gated writer hooks (test-only concurrency probes)
 
 extension DataWriter {
-  /// Test-only: resolve a `PersistentIdentifier` minted by the `DataReader`
-  /// (a 2nd context on the SAME container) to an `Entry` in THIS writer's
-  /// context via `model(for:)`, returning its `feedbinEntryID`, or `nil` if it
-  /// does not resolve to a live row. Proves the reader's IDs are interoperable
-  /// with the writer / MainActor context — the production `ContentView`
-  /// selection path resolves reader-returned IDs exactly this way.
+  /// Test-only: resolve an identifier the reader minted to an entry in this
+  /// writer's context, returning its Feedbin id, or `nil` when it resolves to no
+  /// live row. The production selection path resolves reader-returned ids the
+  /// same way.
   func testResolveEntry(_ id: PersistentIdentifier) -> Int? {
     guard let entry = modelContext.model(for: id) as? Entry else { return nil }
     return entry.feedbinEntryID
@@ -156,15 +150,14 @@ extension DataWriter {
     try modelContext.save()
   }
 
-  /// Test-only: wipe every persisted row so a fresh fixture can be re-seeded on
-  /// the SAME container. The C3 measurement reuses ONE on-disk container across
-  /// all reps (churning many coordinators flakily crashes the test host — the
-  /// proven-safe shape is one reused container, `DataReaderConcurrencyTests`),
-  /// resetting between reps to keep each rep isolated.
+  /// Test-only: wipe every persisted row, so a fresh fixture re-seeds on the
+  /// same container. The measurement suite reuses one on-disk container across
+  /// its repetitions, because churning many coordinators crashes the test host,
+  /// and resets between them to keep each repetition isolated.
   func resetStoreForMeasurement() throws {
-    // Individual deletes (not `delete(model:)`) so the object graph is managed —
-    // a batch delete trips Entry's mandatory `feed` inverse constraint. Entries
-    // first (children), then the taxonomy/feeds.
+    // Delete row by row rather than by model type: a batch delete trips the
+    // entry's mandatory inverse relationship. Children first, then the taxonomy
+    // and the feeds.
     for entry in try modelContext.fetch(FetchDescriptor<Entry>()) { modelContext.delete(entry) }
     for feed in try modelContext.fetch(FetchDescriptor<Feed>()) { modelContext.delete(feed) }
     for category in try modelContext.fetch(FetchDescriptor<Feeder.Category>()) {

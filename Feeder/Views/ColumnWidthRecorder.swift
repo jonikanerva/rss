@@ -87,8 +87,8 @@ struct ColumnWidthRecorder: ViewModifier {
         }
         let outcome = ColumnWidthSetting.persist(
           geometry.width, for: column, isLaunchLayout: isLaunchLayout, in: defaults)
-        // D4: every settled measurement and its decision. Numbers, Bools and
-        // the column key only (`STACK.md § 8`).
+        // Every settled measurement and its decision. Numbers, Bools and the
+        // column key only (`STACK.md § 8`).
         ColumnWidthDiagnostics.logger.notice(
           "settled column=\(column.rawValue, privacy: .public) width=\(geometry.width, privacy: .public) x=\(geometry.originX, privacy: .public) t=\(elapsedMilliseconds(), privacy: .public)ms launch=\(isLaunchLayout, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)"
         )

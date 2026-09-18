@@ -2,22 +2,21 @@ import Foundation
 
 @testable import Feeder
 
-// MARK: - C3 fake sync client (issue #138)
+// MARK: - Fake sync client for the measurement
 
-/// A `FeedbinClientProtocol` fake that replays a large paged first-sync with an
-/// INJECTED per-page network latency (`Tnet`), so the C3 measurement can drive
-/// the REAL `SyncEngine`-shaped consume path (unbounded `AsyncThrowingStream`
-/// prefetch) against a real `DataWriter` — the exact buffering behaviour whose
-/// coordinator saturation issue #138 is measuring.
+/// A `FeedbinClientProtocol` fake that replays a large paged first sync with an
+/// injected per-page network latency, so the measurement drives the real
+/// consume path — an unbounded stream prefetch — against a real writer. That
+/// buffering behaviour is what the measurement is about.
 ///
-/// The pages are pre-built once and handed in, so yielding is allocation-free
-/// and the only per-page delay is the injected `Tnet`. All entry IDs sit far
-/// above `seedPerfTestData`'s fixture range so the burst never collides with
-/// the seeded read fixture.
+/// The pages are pre-built and handed in, so yielding is allocation-free and
+/// the injected latency is the only per-page delay. Every entry id sits far
+/// above the seeded fixture range, so the burst never collides with the read
+/// fixture.
 ///
-/// Only `fetchAllEntryPages` (stream arms) and `fetchOnePage` (the sequential
-/// 3a arm) carry behaviour; the rest are inert stubs — `SyncEngine`'s entry
-/// path is the only surface this fake needs (`STACK.md § 13`, narrow protocol).
+/// Only the two page-fetch methods carry behaviour; the rest are inert stubs,
+/// because the entry path is the only surface this fake needs
+/// (`STACK.md § 13`).
 actor FakeSyncFeedbinClient: FeedbinClientProtocol {
   /// Pre-built pages, in order. `Sendable` (`FeedbinEntriesPage` is), so the
   /// nonisolated stream closure captures them directly.

@@ -4,14 +4,12 @@ import Testing
 
 @testable import Feeder
 
-/// Pure paging math + window merge (issue #155): cursor derivation, the
-/// append-trigger index, pin-coverage limit growth, the refresh-empty
-/// fallback rule, and `EntryListFetchResult.appending`'s section merge with
-/// its dedupe guard. `PersistentIdentifier` has no public initializer, so row
-/// fixtures mint identifiers by inserting throwaway `Entry` rows into an
-/// in-memory container — the store is never fetched; the functions under
-/// test are pure. `@MainActor` only because fixture minting touches
-/// `container.mainContext`.
+/// Pure paging math and window merge: cursor derivation, the append-trigger
+/// index, pin-coverage growth, the refresh-empty fallback rule, and the section
+/// merge with its dedupe guard. `PersistentIdentifier` has no public
+/// initializer, so the fixtures mint identifiers from throwaway rows in an
+/// in-memory container; the store is never fetched and the functions under test
+/// are pure. `@MainActor` only because that minting touches the main context.
 @MainActor
 @Suite("EntryListPaging (pure)")
 struct EntryListPagingTests {
@@ -195,9 +193,8 @@ struct EntryListPagingTests {
     #expect(merged.renderedUnreadFeedbinEntryIDs == [2])
   }
 
-  /// Dedupe guard (issue #155): a page row whose `feedbinEntryID` already
-  /// exists in the window is dropped — the belt-and-braces demotion of a
-  /// `persistEntries` immutability-invariant violation to a non-event.
+  /// A page row whose id already exists in the window is dropped, which demotes
+  /// a violation of the persist-time immutability invariant to a non-event.
   @Test
   func appendingDropsRowsAlreadyInTheWindow() {
     let a = row(id: 1, publishedAt: dayOne.addingTimeInterval(900))

@@ -128,8 +128,8 @@ actor FeedbinClient {
   /// Fetch entries with optional `since` date for incremental sync.
   /// Returns entries and whether there are more pages.
   func fetchEntries(since: Date? = nil, page: Int = 1, perPage: Int = 100) async throws -> FeedbinEntriesPage {
-    // C3 Tnet (issue #138): time one sync-page network GET. The gap this
-    // interval represents is what the unbounded prefetch stream buffers away.
+    // The gap this interval represents is what the unbounded prefetch stream
+    // buffers away.
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.netFetchPage)
     defer { perfSignposter.endInterval(PerformanceSignpostName.netFetchPage, signpost) }
     guard var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false) else {

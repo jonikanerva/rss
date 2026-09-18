@@ -10,13 +10,12 @@ enum PanelFocus: Hashable {
 
 // MARK: - Mark All Read Key Handler
 
-/// Intercepts Shift+A before List type-to-select can capture it.
-//
-// ⇧A (mark all as read) does not show a confirmation dialog by design:
-// the modifier+letter chord is already a two-key gesture and is not
-// pressed accidentally. A confirmation would break the calm reading
-// flow (VISION.md → Core Principles, reading comfort). Undo support is the right answer,
-// not a dialog.
+/// Intercepts the mark-all-read chord before `List` type-to-select captures it.
+///
+/// The chord shows no confirmation dialog on purpose: a modifier-and-letter
+/// gesture is not pressed by accident, and a dialog would break the calm
+/// reading flow (`VISION.md → Core Principles`). Undo is the right answer here,
+/// not a dialog.
 struct MarkAllReadKeyHandler: ViewModifier {
   let action: () -> Void
 
@@ -52,14 +51,10 @@ extension EnvironmentValues {
   }
 }
 
-/// Intercepts bare-key shortcuts on each panel's List/view, preventing
-/// List type-to-select from consuming them.
-//
-// Per-panel bare-key dispatcher. Lives on each panel's List so J/K/R/B
-// only fire when that List has focus — see ContentView for the rationale
-// behind the three-route design (per-panel handlers here, the web-view
-// adapter in ArticleWebView.swift, and the root fallback), which keeps
-// shortcuts from triggering while typing in text fields.
+/// Intercepts the bare-key shortcuts on each panel, so `List` type-to-select
+/// cannot consume them. It must stay on the panel's own list, so a shortcut
+/// fires only while that list has focus and never while the user types in a
+/// text field. `ContentView` documents the three routes together.
 struct BareKeyHandler: ViewModifier {
   @Environment(\.bareKeyActions)
   private var actions

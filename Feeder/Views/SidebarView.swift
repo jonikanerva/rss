@@ -2,11 +2,10 @@ import SwiftUI
 
 // MARK: - Sidebar DTOs
 //
-// Cross-actor-safe snapshots of the sidebar's input model. They carry only
-// strings and labels — never a `@Model` reference — so the `Equatable` shape
-// is structural and SwiftUI can compare two `SidebarView` instances in O(n)
-// without crossing the SwiftData actor boundary or triggering any `@Model`
-// faulting. Same pattern as `EntryListSection` / `DataWriterDTOs`.
+// Cross-actor-safe snapshots of the sidebar's input model. They must carry
+// only strings and labels, never a `@Model` reference, so the `Equatable`
+// comparison stays structural and never crosses the SwiftData actor boundary
+// or faults a model.
 
 /// Snapshot of one expanded folder row plus the labels of its child
 /// categories. The order in `categoryLabels` is the order the categories
@@ -19,9 +18,8 @@ nonisolated struct SidebarFolderGroup: Sendable, Equatable, Identifiable {
   var id: String { label }
 }
 
-/// Snapshot of one selectable category row. Carries only what the sidebar
-/// row builder needs: stable `label` (used as `SidebarSelection.category`'s
-/// payload) plus the user-visible `displayName`.
+/// Snapshot of one selectable category row: the stable `label` that becomes
+/// the selection payload, plus the user-visible `displayName`.
 nonisolated struct SidebarCategorySnapshot: Sendable, Equatable, Identifiable {
   let label: String
   let displayName: String
@@ -31,26 +29,16 @@ nonisolated struct SidebarCategorySnapshot: Sendable, Equatable, Identifiable {
 
 // MARK: - Sidebar View
 
-/// The article-list column's sidebar, extracted from `ContentView` so
-/// SwiftUI can skip re-rendering it when nothing the sidebar depends on
-/// has changed.
+/// The sidebar column, `Equatable` over DTO snapshots so `EquatableView` at the
+/// call site can skip its body whenever the structural inputs match the
+/// previous render. Keyboard navigation and mark-read overlay flips mutate
+/// state that feeds none of these inputs, so they never re-render the sidebar.
 ///
-/// The view is `Equatable` and its inputs are DTO snapshots (plus two
-/// `@Binding`s that SwiftUI keeps stable across body re-evaluations).
-/// `ContentView` wraps the call site in `EquatableView(content:)`, which
-/// is the documented Apple primitive for "render-skip when `==` returns
-/// true". The hot path (arrow-key keyboard nav, mark-as-read overlay
-/// flips) mutates state that does not feed any of the `let` inputs here,
-/// so the sidebar's body is no longer re-evaluated on those events.
-///
-/// The header (`SyncStatusView`) intentionally lives inside this view
-/// and reads `SyncEngine` / `ClassificationEngine` from `@Environment`.
-/// Those reads observe their own `@Observable` properties and continue
-/// to re-render the header sub-tree when sync progresses — the
-/// `Equatable` skip only short-circuits the outer body, not nested
-/// observation. The toolbar stays at the `ContentView` call site (outside
-/// the `EquatableView`) so it stays reactive to
-/// `syncEngine.isSyncing || classificationEngine.isClassifying`.
+/// The header lives inside this view and reads the engines from
+/// `@Environment`: the `Equatable` skip short-circuits the outer body only, so
+/// nested observation still re-renders the header as sync progresses. The
+/// toolbar stays at the call site, outside the wrap, so it keeps observing the
+/// engines.
 struct SidebarView: View, Equatable {
   let visibleFolderGroups: [SidebarFolderGroup]
   let rootCategories: [SidebarCategorySnapshot]
@@ -63,19 +51,13 @@ struct SidebarView: View, Equatable {
   var collapsedFolders: SidebarCollapsedFolders
 
   static func == (lhs: Self, rhs: Self) -> Bool {
-    // `@Binding`-wrapped properties expose their `wrappedValue` directly via
-    // the dot-accessor on the view instance, which is what we need here:
-    // selection identity and the collapsed-folders set are both part of the
-    // render contract. Bindings themselves are stable across re-evals —
-    // SwiftUI hands the same projection on each re-build — so comparing
-    // the wrapped value is the meaningful check.
+    // Compare the bindings' wrapped values, not the bindings: SwiftUI hands
+    // back the same projection on every rebuild, while selection identity and
+    // the collapsed-folder set are part of the render contract.
     //
-    // `fontBody` is read by `rowLabel(title:count:)` — without it in the
-    // comparison, changing the app text size in Settings would leave the
-    // sidebar row titles stuck at the previous font until some other
-    // structural input (sync state, selection, classification batch)
-    // changed. `SidebarUnreadBadge` and `SyncStatusView` self-observe
-    // `AppFontSettings`, but the row title text reads through this `let`.
+    // `fontBody` must stay in the comparison. The row titles read it through
+    // this `let`, so without it a text-size change leaves them at the previous
+    // font until some other structural input moves.
     lhs.visibleFolderGroups == rhs.visibleFolderGroups
       && lhs.rootCategories == rhs.rootCategories
       && lhs.categoryUnreadCounts == rhs.categoryUnreadCounts
@@ -103,26 +85,15 @@ struct SidebarView: View, Equatable {
 
   // MARK: - Row builders
 
-  /// A folder row plus its child categories rendered as a `DisclosureGroup`.
-  /// The label carries the folder selection tag so the folder aggregate stays
-  /// selectable (J/K nav and click). The trailing unread count is a
-  /// `SidebarUnreadBadge` rather than `.badge(_:)` so we control its font
-  /// and contrast — `.badge` renders a high-contrast system pill on macOS
-  /// that has no public styling hook and clashed with the calm reader
-  /// surface (`VISION.md`). Unread counts are passed in as
-  /// already-computed dictionaries so the row builder never re-aggregates
-  /// per render.
+  /// A folder row and its child categories, as a `DisclosureGroup`. The label
+  /// carries the folder selection tag, so the folder aggregate stays selectable
+  /// by click and by J/K. The unread counts arrive as computed dictionaries, so
+  /// the row builder never re-aggregates per render.
   ///
-  /// The `sidebar.folder.<label>` identifier is attached to the inner
-  /// title `Text` rather than the `DisclosureGroup` label container. On
-  /// macOS 26, XCUITest no longer flattens an HStack-shaped
-  /// `DisclosureGroup` label down to a discoverable `staticText`, so the
-  /// previous outer placement caused UI tests to time out (#104). Putting
-  /// the identifier on the leaf `Text` exposes a real
-  /// `staticTexts["sidebar.folder.<label>"]` element while the row's
-  /// composed accessibility (label + unread badge + selection traits)
-  /// stays intact — no ancestor uses `accessibilityElement(children:
-  /// .ignore)` so VoiceOver still combines them.
+  /// The accessibility identifier must sit on the leaf title `Text`, not on the
+  /// `DisclosureGroup` label: XCUITest does not flatten an `HStack`-shaped
+  /// label into a discoverable `staticText`. No ancestor ignores its children,
+  /// so VoiceOver still combines the row.
   @ViewBuilder
   private func folderGroup(_ group: SidebarFolderGroup) -> some View {
     DisclosureGroup(
@@ -143,12 +114,9 @@ struct SidebarView: View, Equatable {
     }
   }
 
-  /// A single selectable category row with its unread badge. Shared by
-  /// in-folder children and root-level categories.
-  ///
-  /// The category identifier sits on the title `Text` (same rationale as
-  /// `folderGroup` above — leaf `staticText` discoverability under macOS
-  /// 26 / Xcode 26 XCUITest).
+  /// One selectable category row with its unread badge, shared by in-folder
+  /// children and root categories. The identifier sits on the title `Text` for
+  /// the same reason as in `folderGroup`.
   @ViewBuilder
   private func categoryRow(_ category: SidebarCategorySnapshot) -> some View {
     rowLabel(
@@ -159,13 +127,9 @@ struct SidebarView: View, Equatable {
     .tag(SidebarSelection.category(category.label))
   }
 
-  /// Shared row layout for sidebar entries — folder labels and category
-  /// labels both need "title left, quiet count right". Lifting this avoids
-  /// duplicating the `HStack` + `Spacer()` + `SidebarUnreadBadge` triplet
-  /// in two call sites and gives the count a stable trailing column.
-  ///
-  /// `titleAccessibilityIdentifier` is attached to the leaf `Text` so
-  /// XCUITest can find the row via `staticTexts[…]` on macOS 26.
+  /// Shared row layout: title left, quiet count right, with a stable trailing
+  /// column. `titleAccessibilityIdentifier` goes on the leaf `Text`, so
+  /// XCUITest can find the row.
   @ViewBuilder
   private func rowLabel(title: String, count: Int, titleAccessibilityIdentifier: String) -> some View {
     HStack(spacing: 6) {

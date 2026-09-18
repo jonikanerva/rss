@@ -1,7 +1,7 @@
 import Foundation
 
-/// A structured block representing one semantic unit of article content.
-/// Produced by parsing HTML at persist time, consumed by SwiftUI at display time.
+/// One semantic unit of article content. Parsed from HTML at persist time and
+/// rendered by SwiftUI at display time.
 enum ArticleBlock: Codable, Sendable, Equatable {
   case paragraph(text: String)
   case heading(level: Int, text: String)

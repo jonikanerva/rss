@@ -4,20 +4,17 @@ import os.signpost
 
 // MARK: - Entry Row View
 
-/// One article-list row, rendered ENTIRELY from its `EntryRowDTO` value
-/// snapshot plus the pre-decoded favicon image (issue #148). No
-/// `modelContext`, no `model(for:)`, no `entry.feed` relationship fault — the
-/// row performs zero store access on MainActor. The optimistic
-/// `pendingReadIDs` overlay dims a just-opened row before the committed
-/// `isRead` lands in a refetched DTO.
+/// One article-list row, rendered entirely from its `EntryRowDTO` snapshot and
+/// the pre-decoded favicon image: no `modelContext`, no `model(for:)`, no
+/// relationship fault, and no store access on MainActor. The optimistic
+/// `pendingReadIDs` overlay dims a just-opened row before the committed state
+/// lands in a refetched DTO.
 ///
-/// Layout constants live in `EntryRowMetrics`. The text column has a FIXED
-/// height (`AppFontSettings.entryRowTextColumnHeight`), so the row's natural
-/// height equals the list's row-height floor minus the margin for every
-/// content shape. Inside the column the title takes one or two lines, the
-/// domain keeps its reserved line, and the summary fills the rest: three
-/// lines under a one-line title, two under a two-line title. Only the
-/// summary yields, by ellipsis truncation at a line end; nothing is clipped.
+/// Layout constants live in `EntryRowMetrics`. The text column has a fixed
+/// height, so the row's natural height is the same for every content shape.
+/// Inside it the title takes one or two lines, the domain keeps its reserved
+/// line, and the summary fills the rest. Only the summary yields, by ellipsis
+/// at a line end; nothing is clipped.
 struct EntryRowView: View {
   let row: EntryRowDTO
   let faviconImage: NSImage?
@@ -28,10 +25,9 @@ struct EntryRowView: View {
 
   private var isRead: Bool { row.isRead || pendingReadIDs.contains(row.feedbinEntryID) }
 
-  /// Domain line text. `DataReader` maps a stored empty domain to `nil`;
-  /// the view guards the empty string too, because previews and tests build
-  /// DTOs directly. One `isEmpty` check per row on top of the `lowercased()`
-  /// the row already paid for.
+  /// Domain line text. The reader maps a stored empty domain to `nil`, and the
+  /// view guards the empty string too, because previews and tests build DTOs
+  /// directly.
   private var domainText: String {
     guard let domain = row.displayDomain, !domain.isEmpty else {
       return EntryRowMetrics.reservedDomainPlaceholder
@@ -40,10 +36,9 @@ struct EntryRowView: View {
   }
 
   var body: some View {
-    // Whole-list-re-render check (issue #146, DIAGNOSTIC-ONLY): one event per
-    // body evaluation. Events inside a `structuralReload` window reveal whether
-    // the List rebuilds every row or only the visible ones. Mirrors the SwiftUI
-    // `Self._printChanges()` body-diagnostic idiom; zero-cost with no profiler.
+    // One event per body evaluation. Events inside a `structuralReload` window
+    // reveal whether the `List` rebuilds every row or only the visible ones.
+    // Diagnostic only, and zero-cost with no profiler attached.
     let _ = perfSignposter.emitEvent(PerformanceSignpostName.rowBodyBuild)
     return HStack(alignment: .top, spacing: EntryRowMetrics.faviconSpacing) {
       // Favicon — own vertical column
@@ -51,24 +46,18 @@ struct EntryRowView: View {
         .frame(width: EntryRowMetrics.faviconSize, height: EntryRowMetrics.faviconSize)
         .padding(.top, EntryRowMetrics.faviconTopPadding)
 
-      // All text content aligned to the right of the icon. The column has a
-      // FIXED height, so the row's natural height is the same for every
-      // content shape. Layout priorities settle the split:
-      // the title row (2) is offered the column minus the other slots'
-      // minimum heights and takes one or two lines; the domain (1) takes
-      // its reserved line; the summary (0) receives the exact remainder and
-      // truncates with an ellipsis at a line end. With equal priorities
-      // SwiftUI would split the free space evenly between the title and
-      // the summary, and a two-line title would collapse to one line at
-      // every text size.
+      // The column has a fixed height, and the layout priorities settle the
+      // split: the title is offered the column minus the other slots' minimum
+      // heights, the domain takes its reserved line, and the summary gets the
+      // remainder. With equal priorities SwiftUI splits the free space evenly
+      // and a two-line title collapses to one line at every text size.
       VStack(alignment: .leading, spacing: EntryRowMetrics.textSpacing) {
         // Title + time
         HStack(alignment: .top, spacing: EntryRowMetrics.titleTimeSpacing) {
           Text(row.title ?? "Untitled")
             .font(fontSettings.rowTitle)
-            // The semibold/regular swap on `isRead` carries the unread/read
-            // visual hierarchy the rest of the row design depends on. It has
-            // no height effect: both weights report the same line metrics.
+            // The weight swap carries the unread and read hierarchy. It has no
+            // height effect: both weights report the same line metrics.
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(EntryRowMetrics.titleLineLimit)
             .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
@@ -81,11 +70,10 @@ struct EntryRowView: View {
         }
         .layoutPriority(2)
 
-        // Domain line. A row without a domain renders the placeholder space,
-        // which reserves the font's own line height (an empty string would
-        // reserve 14 pt at every size), so the space left for the summary is
-        // the same with and without a domain; a long domain truncates in the
-        // middle instead of wrapping so the slot stays one line tall.
+        // A row without a domain renders the placeholder space, which reserves
+        // the font's own line height, so the summary gets the same space either
+        // way. A long domain truncates in the middle rather than wrapping, so
+        // the slot stays one line tall.
         Text(domainText)
           .font(fontSettings.rowFeedName)
           .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
@@ -93,11 +81,9 @@ struct EntryRowView: View {
           .foregroundStyle(FontTheme.domainPillColor)
           .layoutPriority(1)
 
-        // Summary excerpt (summary-preferred / plainText fallback, applied at
-        // projection time by `rowExcerpt`). Fills the rest of the column:
-        // three lines under a one-line title, two under a two-line title
-        // (`excerptLineLimit`). An empty excerpt leaves its blank space at
-        // the bottom of the column, never between the title and the domain.
+        // The summary fills the rest of the column. An empty excerpt leaves its
+        // blank space at the bottom of the column, never between the title and
+        // the domain.
         Text(row.excerpt)
           .font(fontSettings.rowSummary)
           .lineLimit(EntryRowMetrics.excerptLineLimit)
@@ -114,10 +100,10 @@ struct EntryRowView: View {
 
 // MARK: - Favicon View
 
-/// The 24×24 favicon slot: a pre-decoded image when the `FaviconStore` has
-/// one, otherwise the feed-initial fallback in the SAME fixed box (no layout
-/// shift on cache miss). The render-time `NSImage(data:)` decode that used to
-/// live here is gone — decoding happens once per feed in `FaviconStore`.
+/// The favicon slot: a pre-decoded image when `FaviconStore` has one, and the
+/// feed-initial fallback in the same fixed box otherwise, so a cache miss
+/// causes no layout shift. The decode happens once per feed in the store, never
+/// here.
 struct FaviconView: View {
   let image: NSImage?
   let fallbackLetter: String
@@ -159,43 +145,38 @@ struct FaviconView: View {
 }
 
 #Preview("Unread Entry — Huge Text") {
-  // `.dynamicTypeSize(_:)` propagates the environment value but does not
-  // re-resolve system fonts on macOS, so it makes the preview look
-  // identical to `.medium`. Inject `AppFontSettings(textSize: .xxLarge)`
-  // through the view's regular environment slot instead — that is the
-  // mechanism shipped code uses, so the preview actually shows the
-  // largest layout reviewers ship to users.
+  // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
+  // the preview injects the font settings the shipped code uses.
   entryRowPreview(
     row: unreadPreviewRow(), fontSettings: AppFontSettings(textSize: .xxLarge),
     faviconImage: previewFaviconImage())
 }
 
 #Preview("Unread Entry — Initials Fallback") {
-  // No favicon image: the fixed 24×24 slot renders the feed-initial fallback
-  // with no layout shift relative to the image case above.
+  // No favicon image: the fixed slot renders the feed-initial fallback with no
+  // layout shift against the image case above.
   entryRowPreview(row: unreadPreviewRow(), fontSettings: AppFontSettings())
 }
 
 #Preview("Short Title — Three Excerpt Lines") {
-  // A one-line title leaves one title line free; the summary takes it and
-  // shows three lines, the third with an ellipsis. No blank line between
-  // the title and the domain; the row is as tall as the two-line case.
+  // A one-line title leaves one title line free, and the summary takes it. No
+  // blank line between the title and the domain, and the row stays as tall as
+  // the two-line case.
   entryRowPreview(
     row: shortTitlePreviewRow(), fontSettings: AppFontSettings(), faviconImage: previewFaviconImage())
 }
 
 #Preview("Short Title — Three Excerpt Lines, Huge Text") {
-  // Same shape at the largest text size: the third summary line still fits
-  // (the title line height is at least the summary line height at every
-  // size, `EntryRowMetricsTests`).
+  // The same shape at the largest text size: the extra summary line still fits,
+  // because the title line height is at least the summary line height at every
+  // size (`EntryRowMetricsTests`).
   entryRowPreview(
     row: shortTitlePreviewRow(), fontSettings: AppFontSettings(textSize: .xxLarge),
     faviconImage: previewFaviconImage())
 }
 
-/// A programmatically drawn stand-in favicon so the base previews cover the
-/// favicon-image SUCCESS state — `FaviconStore`'s primary render state — while
-/// the Initials Fallback preview keeps the distinct nil-image case.
+/// A drawn stand-in favicon, so the base previews cover the favicon-image
+/// state while the fallback preview keeps the nil-image case.
 @MainActor
 private func previewFaviconImage() -> NSImage {
   let image = NSImage(size: NSSize(width: 24, height: 24))
@@ -208,9 +189,9 @@ private func previewFaviconImage() -> NSImage {
   return image
 }
 
-/// Container-free row previews (issue #148): the row renders from a DTO value
-/// alone. Only the `PersistentIdentifier` needs minting (it has no public
-/// initializer); every rendered field is set right here.
+/// Container-free row previews: the row renders from a DTO value alone. Only
+/// the `PersistentIdentifier` needs minting, because it has no public
+/// initializer.
 @MainActor
 private func unreadPreviewRow() -> EntryRowDTO {
   EntryRowDTO(

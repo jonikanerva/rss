@@ -13,18 +13,17 @@ struct OnboardingView: View {
   private var isVerifying = false
   @State
   private var errorMessage: String?
-  /// Scales the welcome icon alongside the rest of the typography when the
-  /// user enables macOS *Larger Text*. Anchored to `.largeTitle` so it tracks
-  /// the welcome title above it instead of growing on its own curve.
+  /// Scales the welcome icon with the rest of the typography. Anchored to the
+  /// title's text style, so it tracks the title instead of growing on its own
+  /// curve.
   @ScaledMetric(relativeTo: .largeTitle)
   private var iconSize: CGFloat = 50
   let onComplete: () -> Void
 
   var body: some View {
-    // ScrollView keeps the welcome layout reachable at every Dynamic Type
-    // size — at AX3 the scaled icon, `.largeTitle` welcome string, and
-    // bordered text fields together exceed the default 380pt height and
-    // would clip behind a fixed-height frame.
+    // The scroll view keeps the layout reachable at every Dynamic Type size: at
+    // the largest sizes the icon, title and fields exceed the default height and
+    // a fixed-height frame would clip them.
     ScrollView {
       VStack(spacing: 24) {
         Image(systemName: "newspaper.fill")
@@ -77,9 +76,9 @@ struct OnboardingView: View {
       .padding(40)
       .frame(maxWidth: .infinity)
     }
-    // `.frame(width:height:)` would clip at AX3; `.frame(width:, minHeight:)`
-    // is not a valid overload. Pin the width and let the ScrollView consume
-    // any extra vertical space the window provides.
+    // A fixed height clips at the largest text sizes, and there is no
+    // width-and-minimum-height overload. Pin the width and let the scroll view
+    // take the extra vertical space.
     .frame(width: 400)
     .frame(minHeight: 380)
   }
@@ -112,11 +111,8 @@ struct OnboardingView: View {
 }
 
 #Preview("Onboarding — Huge Text") {
-  // `.dynamicTypeSize(_:)` propagates the environment value but does not
-  // re-resolve system fonts on macOS, so a `.accessibility3` modifier
-  // here would render identically to `.medium`. Inject the largest
-  // `AppFontSettings` instead — that is the mechanism shipped code uses,
-  // so the preview reflects what a user picking *Huge* actually sees.
+  // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
+  // the preview injects the font settings the shipped code uses.
   OnboardingView(onComplete: {})
     .environment(SyncEngine())
     .environment(AppFontSettings(textSize: .xxLarge))

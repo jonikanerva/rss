@@ -1,19 +1,12 @@
 import Foundation
 
-/// Decode persisted article block JSON into the in-memory `[ArticleBlock]` model used by the
-/// reader view. Pure function — same input, same output, no side effects. `nonisolated` so the
-/// caller may invoke it from any actor (typically `EntryDetailView.task` on MainActor; the JSON
-/// blobs are small enough — 30–100 KB — that a synchronous decode in the task body costs <1 ms
-/// and avoids a loading-state flash on entry switch).
+/// Decode the persisted article block JSON into the reader view's model. Pure
+/// and `nonisolated`, so any actor may call it; the blobs are small enough that
+/// a synchronous decode avoids a loading flash on an entry switch.
 ///
-/// Falls back gracefully when persisted data is missing or unreadable:
-///   • `data` decodes to a non-empty `[ArticleBlock]` → return as-is.
-///   • `data` is nil, decodes to empty, or fails decoding → synthesize a fallback containing the
-///     pre-stripped `plainText` (if any) followed by an "Open in browser" markdown link.
-///   • Empty `plainText` + missing `data` → minimal fallback with just the "Open in browser" link.
-///
-/// The "Open in browser" affordance is always present in the fallback so the user can recover when
-/// there is no rendered content to read.
+/// Missing, empty or unreadable data falls back to the pre-stripped plain text,
+/// if any. The fallback always ends with an "Open in browser" link, so the user
+/// can recover when there is nothing rendered to read.
 nonisolated func decodeBlocks(
   data: Data?,
   fallbackPlainText: String,

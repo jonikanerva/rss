@@ -3,7 +3,7 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - Headless mode (#141)
+// MARK: - Headless mode
 
 /// The mandated always-run assurance for the headless credential bypass. It runs
 /// on every `make test-all` (which sets `FEEDER_HEADLESS=1` on the host) and is

@@ -177,7 +177,7 @@ struct PickerOptionsTests {
   /// INVARIANT: options always contain the persisted selection and the app
   /// default, deduped, in every state — a `Picker` whose selection is not
   /// among its tags renders blank. Covers the selection-absent-from-fetched-
-  /// list case (a previously picked model the API no longer returns).
+  /// list case, where the stored pick is missing from the API's response.
   @Test
   func selectionAndDefaultArePresentAndDedupedInEveryState() {
     let states: [ModelListState] = [

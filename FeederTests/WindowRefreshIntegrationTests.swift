@@ -4,14 +4,14 @@ import Testing
 
 @testable import Feeder
 
-/// Data-level pins for the issue #163 trust condition: a refresh suppressed
-/// as "no-op" must be provably unable to change the visible window, so the
-/// cases where the window DOES change must keep flowing through the fetches
-/// the view consumes. Runs the production writer + reader pair on one shared
-/// in-memory container; concurrent-coordinator pressure is capped by the
-/// serial unit-target run (STACK.md §14) — `.serialized` only orders tests
-/// within the suite.
-@Suite("Window refresh integration (issue #163)", .serialized)
+/// Data-level pins for the trust condition behind refresh suppression: a
+/// refresh suppressed as a no-op must be provably unable to change the visible
+/// window, so every case where the window does change must keep flowing through
+/// the fetches the view consumes. It runs the production writer and reader on
+/// one shared in-memory container; the serial unit-target run caps coordinator
+/// pressure (`STACK.md § 14`), because `.serialized` orders tests within the
+/// suite only.
+@Suite("Window refresh integration", .serialized)
 struct WindowRefreshIntegrationTests {
   private static let base = Date(timeIntervalSince1970: 1_750_000_000)
 
@@ -56,12 +56,11 @@ struct WindowRefreshIntegrationTests {
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil, window: window)
   }
 
-  /// O4 named edge: reclassification lands an OLDER row BELOW the
-  /// fully-loaded small window's cursor. The whole-window refresh returns
-  /// IDENTICAL sections — only `hasMore` flips true, which re-arms the
-  /// append trigger, so "the row must appear" holds as "the row becomes
-  /// reachable". (The view side consuming a sections-unchanged result's
-  /// `hasMore` is the `apply()` guard branch shipped in #162.)
+  /// Reclassification lands an older row below the loaded window's cursor. The
+  /// whole-window refresh returns identical sections and flips `hasMore`, which
+  /// re-arms the append trigger, so "the row must appear" holds as "the row
+  /// becomes reachable". The view consumes that flag through its own guard
+  /// branch for a sections-unchanged result.
   @Test
   func reclassificationBelowCursorFlipsOnlyHasMore() async throws {
     var specs = (1...5).map { (id: 1000 + $0, age: $0 * 60, category: "tech") }

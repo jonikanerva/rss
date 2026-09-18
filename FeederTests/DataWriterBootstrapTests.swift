@@ -4,20 +4,15 @@ import Testing
 
 @testable import Feeder
 
-/// Bootstrap is the single entry point for startup-time reconciliation of
-/// the persistent store. Two legitimate startup paths exist now that
-/// schema migration runs inside the `ModelContainer` open
-/// (`FeederMigrationPlan`):
+/// Bootstrap is the single entry point for startup-time reconciliation of the
+/// store, and it has two legitimate paths:
 ///
-/// - Defaults-seeded flag absent → seed defaults → `.seeded` (first launch).
-/// - Defaults-seeded flag present → `.skipped` (steady state), even if the
-///   user has deleted some or all default categories.
+/// - The seeded flag is absent, so it seeds the defaults.
+/// - The seeded flag is present, so it skips, even when the user has deleted
+///   default categories.
 ///
-/// The pre-migration version of this suite asserted the destructive
-/// "schema version bump wipes everything" path; that path is gone because
-/// schema changes now migrate the store rather than recreate it. The
-/// data-loss safety guarantees those old tests defended are now covered
-/// by `FeederMigrationPlanTests`.
+/// Schema migration runs inside the container open, so the data-loss guarantees
+/// belong to `FeederMigrationPlanTests`, not here.
 @Suite("DataWriter.bootstrap")
 struct DataWriterBootstrapTests {
   // MARK: - Seeded
@@ -99,11 +94,9 @@ struct DataWriterBootstrapTests {
     #expect(outcome.folderCount == DefaultCategoryData.folders.count + 1)
   }
 
-  /// Issue #87 acceptance: a user who deletes every default category does
-  /// NOT see them re-seeded on next launch. The old table-empty bootstrap
-  /// would have silently re-inserted the defaults, trampling a deliberate
-  /// taxonomy reset. The sentinel-based bootstrap respects the user's
-  /// explicit deletions.
+  /// A user who deletes every default category must not see them re-seeded on
+  /// the next launch: the sentinel makes bootstrap respect an explicit
+  /// taxonomy reset.
   @Test
   func emptyCategoriesAfterSeedDoesNotReSeed() async throws {
     let flagStore = InMemoryFlagStore()
@@ -112,9 +105,8 @@ struct DataWriterBootstrapTests {
 
     _ = try await writer.bootstrap()
 
-    // Simulate the user deleting every default category — including the
-    // system uncategorized fallback — through manual SQL or a future
-    // settings-pane "reset taxonomy" action.
+    // Delete every default category, including the system fallback, the way a
+    // deliberate taxonomy reset would.
     let initialDefs = try await writer.fetchCategoryDefinitions()
     for def in initialDefs {
       try await writer.updateSystemFlag(label: def.label, isSystem: false)
@@ -126,18 +118,13 @@ struct DataWriterBootstrapTests {
     #expect(outcome.categoryCount == 0)
   }
 
-  /// Pre-PR-#112 upgrade path: an existing install has a populated
-  /// taxonomy on disk but no `feeder.defaultsSeeded` flag in `UserDefaults`
-  /// (the sentinel was introduced after the user's previous install). On
-  /// the first launch of the sentinel-aware build, bootstrap must NOT
-  /// re-enter `seedDefaultTaxonomy()` — the `@Attribute(.unique) label`
-  /// upsert would otherwise overwrite every customised
-  /// `displayName` / `categoryDescription` / `sortOrder` / `folderLabel` /
-  /// `keywords` on default-labelled rows. Boss's manual-test report on
-  /// the installed app surfaced this exact regression.
+  /// The upgrade path: an install has a populated taxonomy on disk but no
+  /// seeded flag, because the sentinel did not exist when it was written.
+  /// Bootstrap must not re-seed there, or the unique-label upsert overwrites
+  /// every customised field on a default-labelled row.
   ///
-  /// The fix: when the flag is absent but the categories table is
-  /// non-empty, treat it as "seed has happened on a previous build", set
+  /// With the flag absent and the categories table non-empty, treat it as
+  /// already seeded, set
   /// the flag, and skip the seed path entirely. Subsequent launches see
   /// the flag set and short-circuit through the steady-state path.
   @Test
@@ -172,10 +159,9 @@ struct DataWriterBootstrapTests {
     #expect(outcome.folderCount == 1)
   }
 
-  /// Issue #87 acceptance: a user who customises a default category
-  /// (rename, description, keyword edit) does NOT see those edits reverted
-  /// by a subsequent bootstrap. The sentinel makes the first seed
-  /// authoritative; subsequent bootstraps never write to the taxonomy.
+  /// A user who customises a default category must not see those edits reverted
+  /// by a later bootstrap: the first seed is authoritative, and no later
+  /// bootstrap writes to the taxonomy.
   @Test
   func customisedCategoryEditsSurviveSubsequentBootstrap() async throws {
     let writer = try await DataWriterTestSupport.makeWriter()

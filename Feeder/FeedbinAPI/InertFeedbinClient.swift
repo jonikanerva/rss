@@ -2,11 +2,10 @@ import Foundation
 
 // MARK: - Inert Feedbin client (seam 1, defence in depth)
 
-/// A no-op `FeedbinClientProtocol` used only in headless mode (#141). Every
-/// method performs no network I/O and returns an empty result. Headless boot
-/// attaches it to `SyncEngine` so that even if a sync path were somehow reached,
-/// it can never contact Feedbin — belt-and-suspenders behind the credential-skip
-/// that already stops periodic sync from starting on an automated launch.
+/// A no-op `FeedbinClientProtocol` for headless mode: every method performs no
+/// network I/O and returns an empty result. Headless boot attaches it, so a sync
+/// path that is somehow reached still cannot contact Feedbin. Defence in depth
+/// behind the credential skip, which already stops periodic sync.
 actor InertFeedbinClient: FeedbinClientProtocol {
   func fetchSubscriptions() async throws -> [FeedbinSubscription] { [] }
 

@@ -5,16 +5,13 @@ import Testing
 
 // MARK: - Pending-read yield-then-insert contract
 //
-// Regression coverage for the article-list keyboard-nav perf bug. Before the
-// fix `ContentView` mutated `pendingReadIDs` inline inside the selection
-// `.onChange` handler (now `.onChange(of: selectedEntryID)`, issue #148),
-// which cascaded through the sidebar unread aggregation and `EntryRowView`'s
-// dimming overlay on the same frame the selection committed — visible as
-// arrow-down feeling sluggish. The fix
-// routes the mutation through `applyPendingReadAfterYield`, which schedules
-// a `Task { @MainActor in await Task.yield(); apply(id) }`. Tests pin the
-// contract: synchronous observation must show the overlay unchanged; after
-// awaiting the returned Task, the insertion has happened.
+// Mutating the overlay inside the selection handler cascades through the
+// sidebar aggregation and the row dimming overlay on the same frame the
+// selection commits, which the user feels as sluggish arrow-key navigation.
+// Routing it through `applyPendingReadAfterYield` defers it one tick.
+//
+// These tests pin that contract: a synchronous observation must show the
+// overlay unchanged, and awaiting the returned task must show the insertion.
 
 @MainActor
 struct PendingReadAfterYieldTests {
@@ -26,28 +23,25 @@ struct PendingReadAfterYieldTests {
 
   @Test
   func mutationIsDeferredOffTheCallingFrame() async {
-    // Pinning the "selection commit returns before the overlay grows" half
-    // of the contract: the caller observes the overlay as it was at the
-    // moment of the call, not the state after the deferred mutation lands.
-    // On the pre-fix code (synchronous insert) this assertion would fail.
+    // The caller observes the overlay as it was at the moment of the call, not
+    // the state after the deferred mutation lands. A synchronous insert would
+    // fail this assertion.
     let state = State()
     let task = applyPendingReadAfterYield(feedbinEntryID: 42) { id in
       state.pendingReadIDs.insert(id)
     }
     // Synchronously — before any yield point — the overlay is unchanged.
     #expect(state.pendingReadIDs.isEmpty)
-    // Drain the spawned Task so the unstructured work doesn't leak into
-    // the next test through shared MainActor scheduling state.
+    // Drain the spawned task, so its work does not leak into the next test
+    // through shared MainActor scheduling state.
     await task.value
   }
 
   @Test
   func mutationLandsAfterTheSpawnedTaskCompletes() async {
-    // After awaiting the returned Task, the closure has applied. A pre-fix
-    // synchronous insert would also satisfy this expect (the overlay
-    // would already be `[42]` before any wait), so this test pairs with
-    // `mutationIsDeferredOffTheCallingFrame` above: together they exclude
-    // both "never lands" and "lands immediately".
+    // Awaiting the returned task shows the closure applied. A synchronous
+    // insert would satisfy this alone, so it pairs with the deferral test above:
+    // together they exclude both "never lands" and "lands immediately".
     let state = State()
     let task = applyPendingReadAfterYield(feedbinEntryID: 42) { id in
       state.pendingReadIDs.insert(id)

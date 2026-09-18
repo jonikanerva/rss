@@ -4,77 +4,65 @@ import Foundation
 
 // MARK: - Fake classification provider
 
-/// In-memory `ClassificationProvider` implementation for
-/// `ClassificationEngineTests`. Lets the engine run end-to-end against a
-/// fixed default response, an optional pre-configured error count, and an
-/// optional per-call delay — without touching `UserDefaults`, the
-/// Keychain, the on-device Foundation Model, or OpenAI.
+/// In-memory `ClassificationProvider` for the engine tests. The engine runs end
+/// to end against a fixed response, an optional error count, and an optional
+/// per-call delay, without touching `UserDefaults`, the Keychain, or a real
+/// backend.
 ///
-/// Implemented as an `actor` so the fake stays trivially `Sendable` (the
-/// protocol requires it) and so mutators called from tests don't race the
-/// detached `ClassificationRunner` task that consumes `classify(...)`.
+/// An `actor`, so the fake stays `Sendable` as the protocol requires and a
+/// mutator called from a test cannot race the detached runner.
 ///
-/// The surface is deliberately narrow — every member is exercised by at
-/// least one `ClassificationEngineTests` case. Adding configuration knobs
-/// "for future tests" would be dead scaffolding; grow the surface only
-/// when a new test actually needs it.
+/// Keep the surface narrow: every member is exercised by at least one test, and
+/// a knob added for a future test is dead scaffolding.
 actor FakeClassificationProvider {
   // MARK: ClassificationProvider — synchronous metadata
 
-  /// `nonisolated` to satisfy the protocol's synchronous requirement.
-  /// Constant per instance — no actor state needs to be touched.
+  /// `nonisolated`, to satisfy the protocol's synchronous requirement. Constant
+  /// per instance, so it touches no actor state.
   nonisolated let name = "Fake"
 
   // MARK: State
 
-  /// Fixed response every call returns. "tech" matches one of the
-  /// categories `ClassificationEngineTests` seeds, so it survives the
-  /// `validLabels` filter inside `DataWriter.applyClassification` and the
-  /// confidence gate inside `ClassificationRunner.runOneBatch`.
+  /// The fixed response every call returns. Its label matches a category the
+  /// tests seed, so it survives both the valid-label filter and the confidence
+  /// gate.
   ///
-  /// `nonisolated`: statics on an actor are not instance-isolated, so under
-  /// default MainActor isolation this would be MainActor-isolated and
-  /// unreadable from the actor-isolated `classify(...)` (an error since the
-  /// Xcode 27 beta compiler). An immutable `Sendable` value needs no
-  /// isolation.
+  /// `nonisolated`: a static on an actor is not instance-isolated, so under
+  /// default MainActor isolation it would be unreadable from the actor-isolated
+  /// witness. An immutable `Sendable` value needs no isolation.
   private nonisolated static let defaultResponse = ProviderClassificationResult(
     category: "tech",
     confidence: 1.0
   )
 
-  /// Number of remaining `classify(...)` invocations that should `throw`
-  /// before returning `defaultResponse`. Decremented on each thrown call.
-  /// Lets `errorRecoveryContinuesWithNextBatch` model "fail the first N
-  /// calls, succeed for the rest" without per-call state machinery.
+  /// How many further calls must throw before the default response returns.
+  /// Decremented on each thrown call, so a test models "fail the first calls,
+  /// succeed for the rest" with no per-call state machinery.
   private var errorsRemaining = 0
   private var errorToThrow: Error?
 
-  /// Number of leading `classify(...)` calls that must succeed before the
-  /// configured error starts throwing. Lets the abort-path tests model
-  /// "succeed for N entries, then fail mid-drain" so prior persisted
-  /// successes can be asserted against the untouched remainder.
+  /// How many leading calls must succeed before the configured error starts
+  /// throwing, so an abort-path test asserts the persisted successes against the
+  /// untouched remainder.
   private var successesBeforeError = 0
 
-  /// Delay inserted before each `classify(...)` returns. Used by tests
-  /// that need to keep the runner suspended long enough for a
-  /// `Task.cancel()` or a manual trigger to land between iterations.
+  /// Delay before each call returns, which keeps the runner suspended long
+  /// enough for a cancellation or a manual trigger to land between iterations.
   private var perCallDelay: Duration = .zero
 
-  /// Count of `classify(...)` invocations. The single piece of observable
-  /// state tests assert on.
+  /// Call count: the one piece of observable state the tests assert on.
   private(set) var callCount: Int = 0
 
   // MARK: - ClassificationProvider conformance
 
-  /// Availability the runner's `isAvailable` guard sees. Defaults to true;
-  /// `unavailableProviderEmitsProviderUnavailableOutcome` flips it to prove
-  /// the early return emits an owning `.providerUnavailable` outcome.
+  /// The availability the runner's guard sees. One test flips it, to prove the
+  /// early return emits an owning provider-unavailable outcome.
   private var available = true
 
   var isAvailable: Bool { available }
 
-  /// Nil = "all languages". The runner's language-gate branch is exercised
-  /// in pure-helper tests; integration tests don't need to flip it.
+  /// `nil` means every language. The pure-helper tests exercise the runner's
+  /// language gate, so an integration test never flips this.
   var supportedLanguageCodes: Set<String>? { nil }
 
   func classify(
@@ -99,44 +87,39 @@ actor FakeClassificationProvider {
 
   // MARK: - Test configuration setters
 
-  /// Configure the fake to throw `error` on the next `count` calls before
-  /// reverting to the default response. Used by
-  /// `errorRecoveryContinuesWithNextBatch`. `afterSuccesses` shifts the
-  /// failure window past that many leading successful calls — used by the
-  /// mid-drain abort test.
+  /// Throw `error` on the next `count` calls, then revert to the default
+  /// response. `afterSuccesses` shifts that failure window past a number of
+  /// leading successful calls.
   func configureErrors(_ error: Error, count: Int, afterSuccesses: Int = 0) {
     errorToThrow = error
     errorsRemaining = count
     successesBeforeError = afterSuccesses
   }
 
-  /// Insert `value` before each `classify(...)` returns. Used by the
-  /// cancellation and slot-management tests to keep the runner's batch
-  /// loop suspended long enough for a control-plane event to land.
+  /// Insert `value` before each call returns, which keeps the runner's batch
+  /// loop suspended long enough for a control event to land.
   func configureDelay(_ value: Duration) {
     perCallDelay = value
   }
 
-  /// Flip the availability the runner's `isAvailable` guard reads.
+  /// Flip the availability the runner's guard reads.
   func configureAvailability(_ value: Bool) {
     available = value
   }
 }
 
-/// Conformance stated in an extension on purpose: on the primary declaration
-/// the protocol's `nonisolated` would be inferred onto the actor itself,
-/// which the compiler rejects ("'nonisolated' on an actor's synchronous
-/// initializer is invalid"). The actor-isolated members satisfy the
-/// protocol's async requirements as usual.
+/// The conformance sits in an extension on purpose: on the primary declaration
+/// the protocol's `nonisolated` would be inferred onto the actor itself, which
+/// the compiler rejects. The actor-isolated members satisfy the protocol's
+/// async requirements as usual.
 extension FakeClassificationProvider: ClassificationProvider {}
 
 // MARK: - Snapshot recorder
 
-/// Records the `ProgressSnapshot` timeline a `ClassificationRunner` reports.
-/// Driving the runner directly and recording every snapshot lets tests assert
-/// on the full sequence — including the drain-end snapshot the engine's
-/// MainActor `apply()` collapses into its terminal reset. An `actor` so the
-/// runner's `@Sendable` reporter closure can append without a data race.
+/// Records the snapshot timeline the runner reports. Driving the runner
+/// directly and recording every snapshot lets a test assert on the full
+/// sequence, including the drain-end snapshot the engine collapses into its
+/// terminal reset. An `actor`, so the reporter closure appends without a race.
 actor SnapshotRecorder {
   private(set) var snapshots: [ProgressSnapshot] = []
 
@@ -147,18 +130,15 @@ actor SnapshotRecorder {
 
 // MARK: - Test errors
 
-/// Stable error type for `errorRecoveryContinuesWithNextBatch` so the test
-/// doesn't have to reach into production error namespaces it isn't
-/// otherwise exercising. Carries no payload — the runner's `catch` branch
-/// only cares that *some* error was thrown.
+/// Stable error type for the error-recovery test, so it reaches into no
+/// production error namespace. It carries no payload: the runner's catch branch
+/// only cares that something was thrown.
 struct FakeProviderError: Error {}
 
-/// Test error conforming to `ClassificationFailure` with a configurable
-/// disposition — drives both the abort branch (non-nil reason) and the
-/// per-entry-fallback branch (nil) of the runner's failure handling.
-/// `nonisolated` because the protocol's synchronous `batchAbort` witness
-/// must be callable off the main actor (the runner catches it on a
-/// background task).
+/// Test error with a configurable disposition, which drives both the abort
+/// branch and the per-entry-fallback branch of the runner's failure handling.
+/// `nonisolated`, because the synchronous witness must be callable off the main
+/// actor, where the runner catches it.
 nonisolated struct FakeClassificationFailure: ClassificationFailure {
   let batchAbort: ClassificationAbortReason?
 }

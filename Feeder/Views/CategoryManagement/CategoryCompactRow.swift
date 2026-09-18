@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Compact list row for a category inside the management view. Displays the
-/// name, a one-line description preview, and an Edit button (hidden for system
-/// categories). Drop highlighting is handled by the enclosing folder/drop
-/// zones, not the row itself.
+/// Compact list row for a category in the management view. The edit button is
+/// hidden for a system category, and the enclosing drop zones own the drop
+/// highlighting, not the row.
 struct CategoryCompactRow: View {
   let displayName: String
   let descriptionPreview: String

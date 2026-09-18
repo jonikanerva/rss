@@ -5,48 +5,27 @@ import Testing
 
 // MARK: - SyncEngine integration tests
 //
-// These tests exercise `SyncEngine`'s orchestration logic — the
-// state-machine, error handling, and race-guard behaviour — using a fake
-// `FeedbinClientProtocol` implementation. The HTTP/JSON/Link-header layer
-// owned by `FeedbinClient` is intentionally not covered here; that surface
-// is a different test scope.
-//
-// Why these four scenarios:
-//   1. Happy path  → verifies the engine fetches subscriptions, fetches
-//                    entry pages, hands them to `DataWriter`, and resets
-//                    its state on success.
-//   2. Auth error  → verifies the `isSyncing = false` reset on the error
-//                    branch (the bug PR 9 fixed). Without the `defer`/
-//                    explicit reset the indicator would stick forever.
-//   3. Race guard  → verifies that `refetchHistory()` declines to start a
-//                    second entry-fetch pipeline while `sync()` is still
-//                    in flight. This is the PR 9 fix point.
-//   4. Mark-read   → verifies that queued read IDs are flushed via
-//                    `deleteUnreadEntries` during a normal sync.
+// These tests exercise the engine's orchestration — its state machine, error
+// handling, and race guard — against a fake client. The HTTP, JSON and
+// Link-header layer is a different test scope and is not covered here.
 
 @MainActor
 @Suite("SyncEngine")
 struct SyncEngineTests {
   // MARK: - Per-test isolation
 
-  /// Per-test isolated `UserDefaults` instance. Built with a unique
-  /// `suiteName` so reads/writes of `lastSyncDate` and `pendingReadIDsToSync`
-  /// never touch `.standard` and therefore can't race
-  /// `DataWriterBootstrapTests` (which asserts on the `lastSyncDate` key in
-  /// the standard domain). Swift Testing's `.serialized` trait can only
-  /// serialise within a single suite — it does not cross suite boundaries —
-  /// so a shared lock would not have worked here. Injecting a private
-  /// `UserDefaults` is the cleaner fix.
+  /// Per-test isolated `UserDefaults`, under a unique suite name, so this
+  /// suite's keys never touch the standard domain and cannot race a sibling
+  /// suite that asserts on them. `.serialized` would not help: it orders tests
+  /// within one suite only.
   private let defaults: UserDefaults
   private let suiteName: String
 
   init() {
     let id = "FeederTests.SyncEngine.\(UUID().uuidString)"
     self.suiteName = id
-    // `init(suiteName:)` returns nil for reserved names ("standard",
-    // "main", etc.). A random UUID never hits one of those, so the force
-    // unwrap here is safe and surfaces an immediate test failure if Apple
-    // changes that contract.
+    // The initialiser returns nil only for a reserved name, and a random UUID is
+    // never one, so the unwrap is safe and fails loudly if that changes.
     guard let defaults = UserDefaults(suiteName: id) else {
       fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
     }
@@ -55,16 +34,13 @@ struct SyncEngineTests {
 
   // MARK: - Builders
 
-  /// Build a configured `SyncEngine` with an in-memory `DataWriter` and the
-  /// supplied fake client already attached. The engine reads/writes its
-  /// `lastSyncDate` and queued-read-IDs against the per-test `defaults`
-  /// suite — never the standard domain.
+  /// Build a configured engine over an in-memory writer with the fake client
+  /// attached. Its stored keys live in the per-test suite, never the standard
+  /// domain.
   ///
-  /// `writer.bootstrap()` is deliberately **not** called: this suite
-  /// covers sync orchestration, not store initialization, and only needs
-  /// `Feed` rows (populated via `syncFeeds`) for the entry-persisting
-  /// path — not the seeded category/folder taxonomy. Bootstrap itself is
-  /// covered by `DataWriterBootstrapTests`.
+  /// It deliberately does not bootstrap the writer: this suite covers sync
+  /// orchestration, and the entry-persisting path needs feed rows, not the
+  /// seeded taxonomy.
   private func makeEngine(with client: FakeFeedbinClient) async throws -> (SyncEngine, DataWriter) {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
     let writer = DataWriter(modelContainer: container)
@@ -127,32 +103,29 @@ struct SyncEngineTests {
     await client.setSubscriptionsResponse([subscription])
     await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
     await client.setUnreadIDsResponse([])
-    // Hold the entry-page stream open long enough for the race-guard test
-    // window. The delay sits between the `fetchEntryPagesCallCount` bump
-    // and the first page yield, so the moment the counter flips to 1 we
-    // know the stream's task has started and we have the full delay
-    // window to fire `refetchHistory()` before `sync()` can complete.
+    // Hold the entry-page stream open for the race-guard window. The delay sits
+    // between the call-count bump and the first page yield, so once the counter
+    // moves the stream has started and the whole delay is available.
     await client.setEntryPagesInitialDelay(.milliseconds(400))
 
     let (engine, _) = try await makeEngine(with: client)
 
     let syncHandle = Task { await engine.sync() }
 
-    // Gate on the **client** call counter, not `engine.isSyncing`.
-    // `isSyncing` flips to `true` long before `fetchAllEntryPages` is
-    // entered — gating on the flag would race the actual stream start.
+    // Gate on the client call counter, not the engine flag: that flag turns true
+    // long before the stream is entered.
     try await waitUntil("fetchEntryPagesCallCount >= 1") {
       await client.fetchEntryPagesCallCount >= 1
     }
 
     engine.refetchHistory()
 
-    // Let `refetchHistory`'s `backfillTask` run to completion. It should
-    // observe `isSyncing == true` and bail out immediately without touching
-    // the client. A 50 ms yield is plenty — the guarded path does no I/O.
+    // Let the backfill task run to completion. It must observe the in-flight
+    // sync and bail out without touching the client, and the guarded path does
+    // no I/O.
     try await Task.sleep(for: .milliseconds(50))
 
-    // Wait for the primary sync to finish naturally.
+    // Wait for the primary sync to finish on its own.
     await syncHandle.value
 
     let pagesAfter = await client.fetchEntryPagesCallCount
@@ -162,12 +135,10 @@ struct SyncEngineTests {
 
   // MARK: - 4. Mid-flight page bumps drive the live-refresh signal
 
-  /// `ContentView` listens to `lastPersistedPageVersion` to refresh the
-  /// middle pane while a sync is still in flight. Without a per-page bump
-  /// the article list only updates on the terminal `isSyncing` false-edge,
-  /// so entries persisted by earlier pages stay hidden until the whole
-  /// sync finishes. This test drives the engine through a three-page
-  /// response and asserts the counter advances once per persisted page.
+  /// The article list refreshes mid-sync from `lastPersistedPageVersion`.
+  /// Without a per-page bump it would update only on the terminal edge, and
+  /// entries from earlier pages would stay hidden until the sync ended. The
+  /// counter must advance once per persisted page.
   @Test
   func lastPersistedPageVersionBumpsPerPage() async throws {
     let client = FakeFeedbinClient()
@@ -210,29 +181,26 @@ struct SyncEngineTests {
 
     let calls = await client.deleteUnreadEntriesCallLog
     #expect(calls.count == 1, "Expected a single delete-unread batch flush")
-    // Order inside a batch comes from `Set`'s `Array`-conversion; assert
-    // by set equality so the test stays stable across Swift releases.
+    // The order inside a batch comes from the set's array conversion, so assert
+    // by set equality and stay stable across Swift releases.
     #expect(Set(calls.first ?? []) == queuedIDs)
   }
 
   // MARK: - 6. Fetch total (B) is live mid-stream
 
-  /// Issue #124 asks for both the "Fetching A/B" total (B) and the
-  /// "Categorizing Y/X" total (X) to update in real time. B is already live:
-  /// `SyncEngine.sync()` sets `totalToFetch` un-throttled from each page's
-  /// record-count total the instant a page lands — only the numerator
-  /// (`fetchedCount`) is 200 ms-throttled. This test pins that behaviour so a
-  /// future refactor can't silently start deferring B to the terminal edge.
+  /// The fetch total must update in real time: the engine sets it un-throttled
+  /// from each page's record count the instant that page lands, and only the
+  /// numerator is throttled. This pins the behaviour, so a refactor cannot
+  /// silently defer the total to the terminal edge.
   ///
-  /// The fake holds the stream open with a 400 ms inter-page delay after
-  /// page 1, so the assertion window sees `totalToFetch == 1000` while
-  /// `isSyncing == true` and page 2 has not yet been processed.
+  /// The fake holds the stream open between pages, so the assertion window sees
+  /// the total while the sync is still running.
   @Test
   func fetchTotalIsLiveWhileStreamOpen() async throws {
     let client = FakeFeedbinClient()
     let subscription = try FeedbinFixtures.subscription(id: 1, feedId: 100)
-    // Feedbin's X-Feedbin-Record-Count is the query total — the same on every
-    // page — so both pages carry totalCount 1000 even though each yields one row.
+    // The record-count header is the query total and is the same on every page,
+    // so both pages carry it even though each yields one row.
     let pages = [
       FeedbinFixtures.entriesPage([try FeedbinFixtures.entry(id: 5001)], totalCount: 1000),
       FeedbinFixtures.entriesPage(
@@ -247,9 +215,8 @@ struct SyncEngineTests {
 
     let syncHandle = Task { await engine.sync() }
 
-    // Poll the engine on MainActor (no Sendable closure needed — the test is
-    // MainActor-isolated) until B lands from page 1. The inter-page delay keeps
-    // the stream open well past this 5 ms cadence.
+    // Poll the engine until the total lands from the first page. The inter-page
+    // delay keeps the stream open well past this cadence.
     let deadline = ContinuousClock.now.advanced(by: .seconds(2))
     while engine.totalToFetch == 0 && ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(5))

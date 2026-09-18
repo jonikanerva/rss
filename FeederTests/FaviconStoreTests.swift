@@ -4,7 +4,7 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - FaviconStore (issue #148)
+// MARK: - FaviconStore
 
 /// The store's contract: decode once per feed, dedupe in-flight ids,
 /// negative-cache no-favicon feeds, and un-mark a batch on loader failure so

@@ -34,12 +34,9 @@ struct EntryListSectionLabelTests {
 
 // MARK: - groupRowsByDay
 
-/// The grouping moved from `@Model Entry` input (`groupEntriesByDay` in
-/// `DataWriter`) to pure `EntryRowDTO` input (issue #148). The
-/// `Calendar.current` / `startOfDay` day-bucketing and the
-/// `entryListSectionLabel` labels are UNCHANGED through the move — these
-/// tests carry over the same expectations against the same wall-clock
-/// scenarios to pin that.
+/// Pins the day bucketing and the section labels of `groupRowsByDay` against
+/// fixed wall-clock scenarios. Grouping follows the user's local calendar, like
+/// the labels it feeds.
 @MainActor
 struct GroupRowsByDayTests {
   /// Builds row DTOs with the given publish dates. Only the

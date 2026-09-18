@@ -9,25 +9,19 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   static let userDefaultsKey = "classification_provider"
   static let `default`: Self = .appleFM
 
-  /// Production callers read the user's currently-selected provider from
-  /// `UserDefaults.standard`. Tests pass an isolated `UserDefaults` suite —
-  /// mirroring the precedent set by `SyncEngine(defaults:)` — so two
-  /// `@Suite` cases running in parallel cannot clobber each other's stored
-  /// value via the shared standard domain.
+  /// The user's selected provider. A test passes an isolated suite, so two
+  /// parallel suites cannot clobber each other through the standard domain.
   static func current(in defaults: UserDefaults = .standard) -> Self {
     let stored = defaults.string(forKey: userDefaultsKey) ?? Self.default.rawValue
     return Self(rawValue: stored) ?? Self.default
   }
 
-  /// Convenience alias for production call sites that read the property-style
-  /// API (`ClassificationProviderKind.current`). Delegates to the
-  /// `UserDefaults`-injected form above so the standard-domain read stays
-  /// in exactly one place.
+  /// Property-style alias, delegating to the injected form above so the
+  /// standard-domain read stays in one place.
   static var current: Self { current(in: .standard) }
 
-  /// Persist the user's provider selection. Defaults to `UserDefaults.standard`
-  /// for production call sites; tests pass an isolated suite to avoid racing
-  /// with parallel suite cases on the shared standard domain.
+  /// Persist the user's provider selection. A test passes an isolated suite, so
+  /// parallel suites do not race on the standard domain.
   static func persist(_ kind: Self, in defaults: UserDefaults = .standard) {
     defaults.set(kind.rawValue, forKey: userDefaultsKey)
   }

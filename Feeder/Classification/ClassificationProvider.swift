@@ -3,15 +3,13 @@ import FoundationModels
 
 // MARK: - Provider protocol
 
-/// A classification backend that takes article text and returns structured classification.
-/// Implementations must be Sendable for use in detached Tasks.
+/// A classification backend that takes article text and returns a structured
+/// classification. Every implementation must be `Sendable`, for use in a
+/// detached task.
 ///
 /// Explicitly `nonisolated`: under default MainActor isolation the protocol
-/// would otherwise be MainActor-isolated, and the Xcode 27 beta compiler
-/// (correctly) rejects an `actor` conforming to a global-actor-isolated
-/// protocol — which broke the test target's `FakeClassificationProvider`.
-/// Isolation-free is the documented intent above; every shipped conformer is
-/// already a `nonisolated struct`.
+/// would be MainActor-isolated, and an `actor` cannot conform to a
+/// global-actor-isolated protocol.
 nonisolated protocol ClassificationProvider: Sendable {
   nonisolated var name: String { get }
   var isAvailable: Bool { get async }
@@ -35,21 +33,18 @@ nonisolated struct ProviderClassificationResult: Sendable {
 
 // MARK: - Failure disposition
 
-/// The user-facing cause of a classification batch abort.
-///
-/// Payload-free by design: raw API/response text structurally cannot reach
-/// the UI through this type — the full failure detail stays in the runner's
-/// `.private` log line. The fixed display literals below are the whole
-/// user-visible surface.
+/// The user-facing cause of a classification batch abort. Payload-free by
+/// design, so raw API text cannot reach the UI through this type; the detail
+/// stays in the runner's `.private` log line, and the literals below are the
+/// whole user-visible surface.
 nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case modelRejected
   case keyRejected
   case offline
   case providerUnavailable
 
-  /// Fixed banner copy. Fragment convention (no trailing period) matches
-  /// the existing `SyncStatusView` labels ("Sync failed", "Sign in
-  /// expired"). Literals are copy-locked by test.
+  /// Fixed banner copy, as a fragment with no trailing period, like the other
+  /// status labels. A test locks the literals.
   var displayLabel: String {
     switch self {
     case .modelRejected: "Model rejected the request"
@@ -67,28 +62,26 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   }
 }
 
-/// Contract for provider errors that carry a batch-level disposition.
+/// Contract for a provider error that carries a batch-level disposition.
 ///
-/// When a thrown provider error conforms and `batchAbort` is non-nil, the
-/// classification runner persists NOTHING for the failing entry, ends the
-/// drain, and reports a terminal snapshot that owns the abort outcome — the
-/// failing entry and the remainder stay `isClassified == false` and are
-/// refetched by the next poll. This is the safety mechanism that makes a
-/// user-chosen model safe: a deterministic provider failure (bad model id,
-/// revoked key, quota) must never mass-persist the fallback category, and
-/// `reclassifyAll` (which resets categories first) must stay recoverable.
+/// With a non-nil `batchAbort` the runner persists nothing for the failing
+/// entry, ends the drain, and reports a terminal snapshot owning the outcome,
+/// so the entry and the remainder stay unclassified for the next poll. This is
+/// what keeps a user-chosen model safe: a deterministic provider failure must
+/// never mass-persist the fallback category, and a full reclassify must stay
+/// recoverable.
 ///
-/// `batchAbort == nil` keeps the per-entry fallback behavior: the entry is
-/// persisted as Uncategorized and the drain continues. Errors that do not
-/// conform to this protocol also keep that per-entry behavior.
+/// A nil `batchAbort`, and any error that does not conform, keeps the per-entry
+/// fallback: the entry persists as uncategorized and the drain continues.
 nonisolated protocol ClassificationFailure: Error {
   var batchAbort: ClassificationAbortReason? { get }
 }
 
 // MARK: - Apple Foundation Models provider
 
-/// Classifies articles using the on-device Apple Foundation Model with constrained decoding.
-/// Uses native token counting to maximize article content within the context window.
+/// Classifies articles with the on-device Apple Foundation Model and
+/// constrained decoding, using native token counting to fit as much article
+/// content as the context window allows.
 nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
   let name = "Apple FM"
 
@@ -153,9 +146,9 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
 
 // MARK: - Token-aware body fitting
 
-/// Fit as much article body as possible within the token budget.
-/// On macOS 26.4+ uses native token counting with binary search refinement.
-/// On earlier versions falls back to character-based estimation (~4 chars per token).
+/// Fit as much article body as the token budget allows: native token counting
+/// with a binary search where it is available, and a character-based estimate
+/// otherwise.
 nonisolated private func fitBody(
   body: String,
   prefix: String,
@@ -189,7 +182,7 @@ nonisolated private func fitBodyWithTokenCounting(
     return body
   }
 
-  // Full-range binary search over the entire body for correctness across all scripts
+  // Search the full range, so the result is correct in every script.
   var low = 0
   var high = body.count
   var bestEnd = 0

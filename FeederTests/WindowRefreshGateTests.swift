@@ -3,12 +3,12 @@ import Testing
 
 @testable import Feeder
 
-/// Truth table for the pure window-refresh gate plus the key-composition
-/// pins the issue #163 scheduling fix depends on: `shouldRunWindowRefresh`
-/// decides whether an `entryRefreshVersion` bump refetches the visible
-/// window; the resolve-flip re-fire works only while `resolvedStructuralKey`
-/// is a `refreshTaskKey` component; the flush's snapshot-only channel works
-/// only while `snapshotRefreshVersion` is an `unreadSnapshotKey` component.
+/// Truth table for the pure window-refresh gate, plus the key-composition pins
+/// its scheduling depends on. The gate decides whether a refresh bump refetches
+/// the visible window; the resolve-flip re-fire works only while the resolved
+/// structural key is a component of the refresh task key; the snapshot-only
+/// channel works only while the snapshot version is a component of the snapshot
+/// key.
 @Suite("Window-refresh gate (pure)")
 struct WindowRefreshGateTests {
   private let key = "tech||unread|0.0"
@@ -64,7 +64,7 @@ struct WindowRefreshGateTests {
         refreshVersion: 4, consumedVersion: 3))
   }
 
-  // MARK: - Filter-flip ordering (issue #163, O3)
+  // MARK: - Filter-flip ordering
 
   /// Bump lands BEFORE the structural pre-fetch snapshot: the snapshot
   /// captures the bumped version, so after resolve `consumed == refreshVersion`

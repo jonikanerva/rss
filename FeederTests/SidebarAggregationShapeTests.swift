@@ -5,27 +5,19 @@ import Testing
 
 // MARK: - Sidebar unread aggregation architectural shape
 
-/// Architectural-shape coverage closing #105: the sidebar must derive its
-/// badge counts from a pre-computed `UnreadCountsSnapshot` and never
-/// re-aggregate the unread universe per render. The original issue framed
-/// this as "move aggregation off MainActor", but the planning audit found
-/// the heavy work already runs on `DataReader.fetchUnreadCountsSnapshot()`
-/// (off-MainActor by virtue of `@ModelActor`).
+/// Pins the contract the sidebar consumes: it derives its badge counts from a
+/// pre-computed snapshot and never re-aggregates the unread universe per
+/// render.
 ///
-/// What remains, and what these tests pin, is the architectural contract
-/// the sidebar consumes:
+/// 1. Every badge count is a direct dictionary lookup on the snapshot, so no
+///    MainActor iteration derives a count.
+/// 2. The pending-overlay subtraction is bounded by the number of unique
+///    categories or folders, not by the number of unread entries, so a
+///    re-render stays proportional to the buckets.
 ///
-/// 1. Every badge count the sidebar needs is reachable as a direct
-///    dictionary lookup on the snapshot. No MainActor entry iteration is
-///    required to derive a count.
-/// 2. The pending-overlay subtraction (`pendingReadCountsByCategory` /
-///    `pendingReadCountsByFolder` + `subtractingPendingCounts`) is bounded
-///    by the number of unique categories or folders — not the number of
-///    unread entries — so re-renders stay O(buckets), not O(entries).
-///
-/// If a future refactor reintroduces a per-render entry walk on MainActor,
-/// these tests fail because the contract they pin disappears from the
-/// snapshot's surface or because the bounded-shape invariant breaks.
+/// A refactor that reintroduces a per-render entry walk on MainActor fails
+/// these tests, because the contract disappears from the snapshot's surface or
+/// the bounded shape breaks.
 struct SidebarAggregationShapeTests {
   // MARK: - Snapshot exposes every aggregation MainActor needs
 

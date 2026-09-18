@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Sendable DTOs for crossing actor boundaries
 
-/// Input data for classification — extracted from Entry on background actor, consumed by FM inference.
+/// Classification input, extracted from an `Entry` on a background actor.
 nonisolated struct ClassificationInput: Sendable {
   let entryID: Int
   let title: String
@@ -11,14 +11,14 @@ nonisolated struct ClassificationInput: Sendable {
   let url: String
 }
 
-/// Classification result — produced by FM inference, applied to Entry on background actor.
+/// Classification result, applied to an `Entry` on a background actor.
 nonisolated struct ClassificationResult: Sendable {
   let entryID: Int
   let categoryLabel: String
   let confidence: Double
 }
 
-/// Category definition — read from SwiftData, passed to classification as Sendable.
+/// Category definition, passed to classification as a `Sendable` value.
 nonisolated struct CategoryDefinition: Sendable {
   let label: String
   let description: String
@@ -33,28 +33,21 @@ nonisolated struct CategoryDefinition: Sendable {
   }
 }
 
-/// One rendered article-list row — a value snapshot of COMMITTED store state,
-/// projected off-MainActor by `DataReader.projectEntryRow(_:)` (issue #148).
-/// `EntryRowView` renders from this DTO alone: no `modelContext.model(for:)`,
-/// no `entry.feed` relationship fault, no per-row store access on MainActor.
+/// One rendered article-list row: a value snapshot of committed store state,
+/// projected off MainActor. `EntryRowView` renders from this DTO alone, with no
+/// `modelContext.model(for:)`, no relationship fault, and no per-row store
+/// access on MainActor.
 ///
-/// **Freshness contract (replaces the retired "no volatile scalar" rule).**
-/// Rows deliberately carry volatile scalars (`isRead`, `title`, …): a row is a
-/// snapshot of the last committed fetch, and freshness is bounded by the bump
-/// pipeline — mutation paths bump `entryRefreshVersion` immediately, mid-flight
-/// drains land within ≤ 1 s idle / ≤ 4 s selection dwell, and remote read-state
-/// flips land on the sync-edge tick. The optimistic `pendingReadIDs` overlay
-/// dims a row the moment the user opens it and is RETAINED until a refetched
-/// source confirms the committed `isRead == true` (two-sided prune,
-/// `retainedPendingReadIDs`), so no frame renders stale-unread regardless of
-/// fetch landing order. `@Model` objects still never cross the actor boundary
-/// (`STACK.md § 0`); the projection reads only the columns listed in
-/// `fetchEntrySections`' `propertiesToFetch` plus the prefetched `feed`.
+/// A row carries volatile scalars such as `isRead` on purpose. It is a snapshot
+/// of the last committed fetch, and freshness is bounded by the refresh-bump
+/// pipeline in `ContentView`. The optimistic `pendingReadIDs` overlay dims a row
+/// as soon as the user opens it and is retained until a refetched source
+/// confirms the committed state, so no frame renders stale-unread whatever
+/// order the fetches land in.
 ///
-/// FULL-content `Equatable` / `Hashable` (synthesized over every stored field)
-/// is load-bearing: content equality IS the row re-render mechanism — a
-/// refetched row with any changed field compares non-equal and SwiftUI re-diffs
-/// it. Do not shortcut either conformance to identity-only.
+/// The full-content `Equatable` and `Hashable` conformances are load-bearing:
+/// content equality is the row re-render mechanism. Do not shortcut either one
+/// to identity.
 nonisolated struct EntryRowDTO: Sendable, Equatable, Hashable, Identifiable {
   let persistentID: PersistentIdentifier
   let feedbinEntryID: Int
@@ -66,83 +59,65 @@ nonisolated struct EntryRowDTO: Sendable, Equatable, Hashable, Identifiable {
   let displayDomain: String?
   let excerpt: String
   let isRead: Bool
-  /// Grouping input for `groupRowsByDay` only — never rendered (`STACK.md
-  /// § 10`: user-facing time comes from the pre-computed display fields).
+  /// Grouping input for `groupRowsByDay` only. Never rendered — user-facing
+  /// time comes from the pre-computed display fields (`STACK.md § 10`).
   let publishedAt: Date
-  /// Favicon key — `feed.feedbinFeedID`, resolved once off-main from the
-  /// prefetched relationship; nil when the entry has no feed.
+  /// Favicon key, resolved once off-main from the prefetched relationship.
+  /// `nil` when the entry has no feed.
   let feedFeedbinID: Int?
-  /// Fallback initial for `FaviconView` when no favicon image exists: first
-  /// letter of the feed title, uppercased; "?" when the feed is nil.
+  /// Fallback initial when no favicon image exists: the feed title's first
+  /// letter, uppercased, or "?" when the feed is `nil`.
   let feedInitial: String
 
   var id: PersistentIdentifier { persistentID }
 }
 
-/// One day-grouped section of the article list. Built off-MainActor by
-/// `DataReader.fetchEntrySections` and rendered directly by `EntryListView` —
-/// the rows are complete `EntryRowDTO` snapshots (issue #148), so the view
-/// layer performs zero store access. Freshness contract: see `EntryRowDTO`.
+/// One day-grouped section of the article list, built off MainActor. Its rows
+/// are complete `EntryRowDTO` snapshots, so the view layer performs no store
+/// access. For the freshness contract, see `EntryRowDTO`.
 nonisolated struct EntryListSection: Sendable, Identifiable, Equatable {
   let id: Date  // start-of-day, used as ForEach identity
   let label: String
   let rows: [EntryRowDTO]
 }
 
-/// Keyset cursor into the canonical article-list order (issue #155): the
-/// `(publishedAt, feedbinEntryID)` sort key of a loaded row, always DERIVED
-/// from the currently applied sections (`entryListCursor(of:)`), never stored.
-/// The loaded window is defined entirely by its bottom edge — the cursor of
-/// the LAST loaded row.
+/// Keyset cursor into the canonical article-list order: the `(publishedAt,
+/// feedbinEntryID)` sort key of a loaded row. Always derived from the applied
+/// sections, never stored. The loaded window is defined entirely by its bottom
+/// edge, the cursor of the last loaded row.
 ///
-/// Cursor keys are stable by the persistence invariant documented at
-/// `DataWriter.persistEntries`: existing rows are never re-written, so the
-/// `(publishedAt, feedbinEntryID)` pair of a persisted row never mutates.
-/// Keyset paging correctness (pages that tile exactly, no dup / no skip)
-/// depends on that invariant.
+/// Cursor keys are stable only under the immutability invariant on
+/// `DataWriter.persistEntries`, and keyset pages tile exactly only while that
+/// invariant holds.
 nonisolated struct EntryListCursor: Sendable, Equatable {
   let publishedAt: Date
   let feedbinEntryID: Int
 }
 
-/// Which slice of the canonical order `fetchEntrySections` returns
-/// (issue #155). All three modes run the SAME eligibility predicate and the
-/// SAME sort (`publishedAt` DESC, `feedbinEntryID` DESC); they differ only in
-/// the keyset clause:
-/// - `firstPage(limit:)` — the top `limit` rows. Internally an `after` fetch
-///   from a top sentinel cursor, so the first page and its appends tile by
-///   construction. The limit GROWS past the request only for pin coverage
-///   (a pinned/selected row deeper than the page stays reachable).
-/// - `atOrAbove(cursor)` — every row at or above the cursor: the whole-window
-///   refresh. Replaces the loaded window in one snapshot; bounded by the
-///   window the user has actually grown, not by the category size.
-/// - `after(cursor, limit:)` — the next `limit` rows strictly below the
-///   cursor: the append page.
+/// Which slice of the canonical order `fetchEntrySections` returns. The three
+/// modes share one eligibility predicate and one sort, and differ only in the
+/// keyset clause:
+/// - `firstPage(limit:)` — the top `limit` rows, fetched as an `after` from a
+///   top sentinel cursor so the page and its appends tile by construction. The
+///   limit grows past the request only to keep a pinned row reachable.
+/// - `atOrAbove(cursor)` — every row at or above the cursor, replacing the
+///   loaded window in one snapshot. Bounded by how far the user has grown the
+///   window, not by the category size.
+/// - `after(cursor, limit:)` — the next `limit` rows strictly below the cursor.
 nonisolated enum EntryListWindow: Sendable, Equatable {
   case firstPage(limit: Int)
   case atOrAbove(EntryListCursor)
   case after(EntryListCursor, limit: Int)
 }
 
-/// Background-fetched article list payload: the day-grouped row sections plus
-/// three pre-flattened aggregates the MainActor consumes without walking the
-/// row set again (each MainActor allocation eats into the 8.3 ms ProMotion
-/// frame budget, `STACK.md` § Performance budgets):
-/// - `allEntryIDs` — the `VisibleEntriesKey` preference ids (Tab-into-list,
-///   anchor restore);
-/// - `distinctFeedIDs` — the favicon keys `FaviconStore.ensureLoaded` warms
-///   after each reload;
-/// - `renderedUnreadFeedbinEntryIDs` — the rendered-unread side of the
-///   two-sided `pendingReadIDs` retention prune (`retainedPendingReadIDs`).
+/// Background-fetched article-list payload: the day-grouped sections plus three
+/// aggregates flattened by the reader, so MainActor never walks the row set
+/// again inside the frame budget (`STACK.md § 4`).
 ///
-/// `hasMore` (issue #155) is exact: for `firstPage` / `after` the reader
-/// fetches `limit + 1` rows and drops the extra; for `atOrAbove` it probes
-/// with one `after(lastRow, limit: 1)` fetch. `true` means the store holds at
-/// least one eligible row below the returned window.
-///
-/// `PersistentIdentifier` conforms to `Sendable`
-/// (`developer.apple.com/documentation/swiftdata/persistentidentifier`), so the
-/// payload crosses the actor boundary cleanly.
+/// `hasMore` is exact. For `firstPage` and `after` the reader fetches one row
+/// past the limit and drops it; for `atOrAbove` it probes with a single
+/// one-row fetch below the window. `true` means the store holds at least one
+/// eligible row below the returned window.
 nonisolated struct EntryListFetchResult: Sendable, Equatable {
   let sections: [EntryListSection]
   let allEntryIDs: [PersistentIdentifier]
@@ -155,38 +130,32 @@ nonisolated struct EntryListFetchResult: Sendable, Equatable {
     hasMore: false)
 }
 
-/// Result of `DataWriter.purgeEntriesOlderThan(_:)`. Reported to the caller for
-/// logging the disk-retention cleanup pass. Purge is a pure runtime delete —
-/// not a schema migration — so the outcome is intentionally small.
+/// Result of `DataWriter.purgeEntriesOlderThan(_:)`, reported so the caller can
+/// log the retention cleanup.
 nonisolated struct PurgeOutcome: Sendable, Equatable {
   let purgedCount: Int
 }
 
-/// Result of `DataWriter.removeCategoryAndReassignArticles(_:to:)`.
-/// Carries the number of entries whose `primaryCategory` (and possibly
-/// `primaryFolder`) was reassigned to the target category, plus the new folder
-/// label so the caller can log the user-facing summary. The category-deletion
-/// step is implicit — when this DTO returns successfully the source category
-/// is gone from the store.
+/// Result of `DataWriter.removeCategoryAndReassignArticles(_:to:)`: how many
+/// entries moved, and the new folder label. The deletion is implicit — when
+/// this value returns, the source category is gone from the store.
 nonisolated struct RecategorizeOutcome: Sendable, Equatable {
   let reassignedCount: Int
   let targetFolderLabel: String
 }
 
-/// Errors thrown by category-management writes that participate in the
-/// confirm-and-reassign flow surfaced by `CategoryManagementView`.
-/// Typed so the UI can route each case to a precise alert message without
-/// string-matching `localizedDescription`.
+/// Errors thrown by the confirm-and-reassign category writes. Typed, so the UI
+/// routes each case to its own alert without matching on
+/// `localizedDescription`.
 nonisolated enum CategoryReassignError: Error, Sendable, Equatable, LocalizedError {
   /// The source category label does not resolve to a row in the store.
   case sourceMissing
   /// The target category label does not resolve to a row in the store.
   case targetMissing
-  /// Source and target labels are equal — would delete the category the
-  /// caller asked to keep articles in.
+  /// Source and target labels are equal, which would delete the category the
+  /// caller asked to keep the articles in.
   case sourceEqualsTarget
-  /// The source category is system-owned (e.g. `uncategorized`) and must
-  /// not be deleted.
+  /// The source category is system-owned and must not be deleted.
   case sourceIsSystem
 
   var errorDescription: String? {
@@ -203,15 +172,10 @@ nonisolated enum CategoryReassignError: Error, Sendable, Equatable, LocalizedErr
   }
 }
 
-/// Cached aggregation over the classified-unread universe used by the sidebar
-/// to render its badges. Computed off-MainActor by
-/// `DataReader.fetchUnreadCountsSnapshot()` so `ContentView.body` never pays
-/// the cost of `@Query unreadEntries` materialization + per-row property
-/// access — Time Profiler showed that path consuming 85% of body time at 33%
-/// of total main-thread CPU. The dictionaries are read as direct lookups; the
-/// ID sets back the optimistic-overlay subtraction in
-/// `pendingReadCountsByCategory` / `pendingReadCountsByFolder` and the
-/// mark-all-read fast path.
+/// Cached aggregation over the classified-unread universe behind the sidebar
+/// badges, computed off MainActor so `body` never materialises the unread rows.
+/// The dictionaries are read as direct lookups; the ID sets back the
+/// optimistic-overlay subtraction and the mark-all-read fast path.
 nonisolated struct UnreadCountsSnapshot: Sendable, Equatable {
   let categoryCounts: [String: Int]
   let folderCounts: [String: Int]

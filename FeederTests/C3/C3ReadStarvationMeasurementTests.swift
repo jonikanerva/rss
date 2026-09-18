@@ -5,22 +5,21 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - C3 read-starvation measurement suite (issue #138 PR A)
+// MARK: - Read-starvation measurement suite
 //
-// Pre-registered measurement that RESOLVES the disposition: does a dense
-// cold-start / large-sync write burst saturate the shared SwiftData coordinator
-// and starve the article-list read (REAL), or not (BENIGN)? This suite ships
-// the TOOLING + the VERDICT; the product fix (if REAL) is PR B.
+// A pre-registered measurement that resolves one question: does a dense
+// cold-start or large-sync write burst saturate the shared SwiftData
+// coordinator and starve the article-list read?
 //
-// HEAVY (tens of minutes at locked params): gated OFF the `make test-all` fast
-// gate two ways — `.enabled(if: FEEDER_C3_MEASURE)` self-skip AND
-// `-skip-testing` in the Makefile `test` target. Run it with `make c3-measure`.
-// `FEEDER_C3_SMOKE=1` runs a fast harness self-check (NOT a verdict).
+// It runs for tens of minutes at the locked parameters, so it is gated off the
+// fast test gate twice: it self-skips unless its own variable is set, and the
+// Makefile's test target skips it as well. The smoke variable swaps in tiny
+// parameters for a harness self-check, which is never a verdict.
 
-/// Build the burst pages once — `FeedbinEntry` only constructs through the real
-/// decoder (`FeedbinFixtures.entry`), so pre-building keeps yielding
-/// allocation-free. IDs sit far above `seedPerfTestData`'s fixture range;
-/// `feedId` matches a seeded fixture feed so persist associates cleanly.
+/// Build the burst pages once. An entry only constructs through the real
+/// decoder, so pre-building keeps the yielding allocation-free. The IDs sit far
+/// above the seeded fixture range, and the feed id matches a seeded feed so the
+/// persist associates cleanly.
 func c3BuildPages(entryCount: Int, perPage: Int, idBase: Int, feedId: Int) throws -> [FeedbinEntriesPage] {
   var pages: [FeedbinEntriesPage] = []
   var idx = 0

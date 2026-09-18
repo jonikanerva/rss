@@ -70,9 +70,9 @@ struct ClassificationSettingsView: View {
 
           OpenAIModelPickerRow(selection: $modelSelection, state: modelListState)
 
-          // Outcome of the most recent classification batch attempt — the
-          // 2 s poll refreshes or clears it within seconds of a settings
-          // change, which IS the save-time verification (no eager clear).
+          // The outcome of the most recent batch attempt. The poll refreshes or
+          // clears it within seconds of a settings change, and that poll is the
+          // save-time verification, so nothing clears it eagerly.
           if let abort = classificationEngine.lastAbort {
             Label(abort.displayLabel, systemImage: abort.symbolName)
               .font(fontSettings.caption)
@@ -89,23 +89,22 @@ struct ClassificationSettingsView: View {
       await refreshModelList()
     }
     .onChange(of: selectedProvider) { _, newValue in
-      // SwiftUI fires onChange only on Equatable change, so no manual diff guard needed.
+      // `onChange` fires only on an actual change, so no diff guard is needed.
       ClassificationProviderKind.persist(newValue)
-      // Only prompt reclassify when switching to a provider that's ready to use
+      // Prompt for a reclassify only when the new provider is ready to use.
       if newValue == .appleFM || hasStoredKey {
         reclassifyTrigger = .provider
         showReclassifyAlert = true
       }
     }
     .onChange(of: modelSelection) { _, newValue in
-      // The ONLY call site of OpenAIModelSetting.persist: the key is written
-      // exclusively on an explicit user pick, so unset users keep tracking
-      // future app-default bumps. Nothing writes modelSelection
-      // programmatically — that would fire this onChange and silently pin
-      // every user to the then-current value.
+      // The only call site that persists the model: the key is written on an
+      // explicit user pick alone, so a user who never picked keeps tracking the
+      // app default. Nothing may write the selection programmatically — that
+      // fires this handler and pins every user to the current value.
       OpenAIModelSetting.persist(newValue)
-      // Same readiness gate as the provider switch: a keyless model change
-      // must not offer a reclassify that would silently run on Apple FM.
+      // The same readiness gate as the provider switch: a keyless model change
+      // must not offer a reclassify that would run on the other provider.
       if hasStoredKey {
         reclassifyTrigger = .model
         showReclassifyAlert = true
@@ -115,7 +114,7 @@ struct ClassificationSettingsView: View {
       if isPresented {
         hadKeyBeforeEdit = hasStoredKey
       } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == .openAI {
-        // Prompt only when a key was added (not removed)
+        // Prompt only when a key was added, never when one was removed.
         reclassifyTrigger = .provider
         showReclassifyAlert = true
       }
@@ -139,10 +138,9 @@ struct ClassificationSettingsView: View {
     }
   }
 
-  /// Drives the `.task(id:)` fetch: re-fires when the OpenAI section's
-  /// visibility (provider) or the stored-key state changes — never at launch
-  /// (this view only exists while Settings is open) and never from
-  /// background sync.
+  /// Drives the fetch task: it re-fires when the provider or the stored-key
+  /// state changes. This view exists only while Settings is open, so the fetch
+  /// never runs at launch or from background sync.
   private var modelFetchKey: String {
     "\(selectedProvider.rawValue)|\(hasStoredKey)"
   }
@@ -164,15 +162,15 @@ struct ClassificationSettingsView: View {
     } catch {
       outcome = .failure(error)
     }
-    // .task owns cancellation: a cancelled fetch surfaces as .network — don't
-    // flash a failure state for a fetch the view itself abandoned.
+    // The task owns cancellation, and a cancelled fetch surfaces as a network
+    // failure. Do not flash a failure the view itself abandoned.
     guard !Task.isCancelled else { return }
     modelListState = resolveModelListState(outcome: outcome)
   }
 }
 
-/// Which settings change is offering the reclassify prompt — parameterizes
-/// the single alert's message copy (provider switch vs model pick).
+/// Which settings change is offering the reclassify prompt, which selects the
+/// single alert's message copy.
 private enum ReclassifyTrigger {
   case provider
   case model
@@ -180,11 +178,10 @@ private enum ReclassifyTrigger {
 
 // MARK: - OpenAI model picker row
 
-/// The model picker plus its quiet status line. Extracted so the preview
-/// matrix can exercise every `ModelListState` directly. The picker is always
-/// enabled with at least the floor options (current selection + app default)
-/// so the surface never dead-ends; `.menu` style because the loaded list
-/// exceeds the ~7-option threshold (`STACK.md § 11`).
+/// The model picker and its quiet status line, extracted so the preview matrix
+/// exercises every list state. The picker stays enabled with at least the floor
+/// options, so the surface never dead-ends, and uses the menu style because the
+/// loaded list passes the option-count threshold (`STACK.md § 11`).
 private struct OpenAIModelPickerRow: View {
   @Binding
   var selection: String
@@ -313,9 +310,9 @@ private struct APIKeyEditSheet: View {
     .frame(width: 400)
   }
 
-  // Commit only what the keychain actually accepted: errors keep the sheet
-  // open with an inline message so the parent view never shows "A key is
-  // currently saved" for a write that failed.
+  // Commit only what the keychain accepted. An error keeps the sheet open with
+  // an inline message, so the parent never claims a key is saved after a failed
+  // write.
   private func performSave() {
     do {
       try KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
@@ -359,8 +356,8 @@ private struct APIKeyEditSheet: View {
     .frame(width: 480, height: 360)
 }
 
-// Model-picker state matrix. Large N is deliberately above the ~7-option
-// STACK.md § 11 threshold (reference shape: PR #118 "Large N" preview).
+// Model-picker state matrix. The large case sits above the option-count
+// threshold in `STACK.md § 11` on purpose.
 
 #Preview("Model Picker - Loaded (Large N)") {
   @Previewable

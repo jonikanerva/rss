@@ -3,49 +3,24 @@ import SwiftData
 
 /// First versioned schema for the Feeder persistent store.
 ///
-/// `VersionedSchema` is the SwiftData primitive that lets us evolve the
-/// schema without dropping the store. V1 captures the inception on-disk
-/// shape that exists in users' stores from PRs prior to the V1→V2 cut —
-/// notably the `detectedLanguage` property on `Entry`, which V2 drops.
-///
-/// V1 is FROZEN: any change to the nested `@Model` declarations below
-/// invalidates the on-disk contract for stores already migrated through
-/// V1, including the lightweight V1→V2 stage in `FeederMigrationPlan`.
-/// New schema work happens in `FeederSchemaV2` (or later), not here.
-///
-/// Bumping the schema next time:
-/// 1. Add `FeederSchemaV3` next to `FeederSchemaV2`, declare any changed
-///    model types nested inside `FeederSchemaV3` (and copy-forward the
-///    unchanged ones).
-/// 2. Add a stage (`.lightweight` for additive / removal-only changes;
-///    `.custom` when a denormalized field — `plainText`, `formattedDate`,
-///    `primaryCategory` — needs recomputing).
-/// 3. Append `FeederSchemaV3.self` to `FeederMigrationPlan.schemas` and
-///    the stage to `FeederMigrationPlan.stages`.
-/// 4. Re-point the top-level `Entry` / `Feed` / `Folder` / `Category`
-///    typealiases in the per-model files to `FeederSchemaV3.<Type>`.
-///
-/// SwiftData stages live inside the container open; they do not flow
-/// through `DataWriter`. That is the documented Apple pattern and the
-/// reason `migrate` closures take a raw `ModelContext` rather than the
-/// `DataWriter` actor.
+/// V1 is frozen. Any change to the nested `@Model` declarations invalidates the
+/// on-disk contract for every store already migrated through V1, including the
+/// lightweight V1→V2 stage. New schema work happens in the newest version, not
+/// here. `STACK.md § 5` states how to add the next version.
 enum FeederSchemaV1: VersionedSchema {
-  /// Initial schema version. Bump the major component when the on-disk
-  /// shape changes in a way that requires a migration stage.
+  /// Initial schema version.
   static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
-  /// Every `@Model` type that participates in the V1 store shape. Keep
-  /// this list in lock-step with the nested declarations below.
+  /// Every `@Model` type in the V1 store shape. Keep it in lock-step with the
+  /// nested declarations below.
   static var models: [any PersistentModel.Type] {
     [Feed.self, Entry.self, Category.self, Folder.self]
   }
 
   // MARK: - V1 models (frozen)
 
-  /// V1's `Feed`. Identical in shape to V2's `Feed` — feed metadata did
-  /// not change at the V1→V2 boundary. Nested here so the relationship
-  /// to V1's `Entry` resolves to the V1-scoped class, preserving the
-  /// on-disk contract for stores still on V1.
+  /// V1's `Feed`, nested here so its relationship to V1's `Entry` resolves to
+  /// the V1-scoped class and the on-disk contract holds.
   @Model
   final class Feed {
     @Attribute(.unique)
@@ -78,9 +53,9 @@ enum FeederSchemaV1: VersionedSchema {
     }
   }
 
-  /// V1's `Entry`. Carries `detectedLanguage` as a stored property —
-  /// this column exists in every V1-on-disk store and must remain
-  /// declared here so the lightweight V1→V2 stage can drop it cleanly.
+  /// V1's `Entry`. Its `detectedLanguage` column exists in every V1 store on
+  /// disk and must stay declared here, or the lightweight V1→V2 stage cannot
+  /// drop it.
   @Model
   final class Entry {
     @Attribute(.unique)
@@ -107,10 +82,8 @@ enum FeederSchemaV1: VersionedSchema {
 
     var feed: Feed?
 
-    /// V1-only stored property. Dropped in V2 via lightweight migration —
-    /// no read site ever consumed it, but it lives on disk in every
-    /// pre-V2 store and must remain on V1's `Entry` so the V1 schema
-    /// description matches what's on disk.
+    /// V1-only stored property. It must stay declared, so the V1 schema
+    /// description matches what every pre-V2 store holds on disk.
     var detectedLanguage: String?
 
     init(
@@ -136,7 +109,7 @@ enum FeederSchemaV1: VersionedSchema {
     }
   }
 
-  /// V1's `Folder`. Identical in shape to V2's `Folder`.
+  /// V1's `Folder`.
   @Model
   final class Folder {
     @Attribute(.unique)
@@ -151,7 +124,7 @@ enum FeederSchemaV1: VersionedSchema {
     }
   }
 
-  /// V1's `Category`. Identical in shape to V2's `Category`.
+  /// V1's `Category`.
   @Model
   final class Category {
     @Attribute(.unique)

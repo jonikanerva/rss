@@ -23,12 +23,10 @@ nonisolated struct ProgressSnapshot: Sendable {
   let totalToClassify: Int
   /// The batch-outcome cause, meaningful only when `ownsAbort` is true.
   let abort: ClassificationAbortReason?
-  /// True ONLY on batch-outcome terminals (zero-pending, provider
-  /// unavailable, abort, clean end-of-drain). Mid-batch snapshots and the
-  /// plain cancellation `.terminal` never own the field, so they never SET
-  /// or OVERWRITE a banner. A counting mid-batch snapshot
-  /// (`classifiedCount > 0`) CLEARS a stale one via the engine's
-  /// evidence-of-progress rule in `ClassificationEngine.apply(_:)`.
+  /// True only on a batch-outcome terminal. A mid-batch snapshot and the
+  /// plain cancellation terminal never own the field, so they never set or
+  /// overwrite a banner. A counting mid-batch snapshot clears a stale banner
+  /// through the evidence-of-progress rule in `ClassificationEngine.apply(_:)`.
   let ownsAbort: Bool
 
   init(
@@ -51,8 +49,8 @@ nonisolated struct ProgressSnapshot: Sendable {
     isClassifying: false, progress: "", classifiedCount: 0, totalToClassify: 0
   )
 
-  /// Terminal snapshot that OWNS the batch outcome: `nil` records a clean
-  /// attempt (clearing any stale banner), non-nil records the abort cause.
+  /// Terminal snapshot that owns the batch outcome: `nil` records a clean
+  /// attempt and clears a stale banner, non-nil records the abort cause.
   static func outcome(_ abort: ClassificationAbortReason?) -> ProgressSnapshot {
     ProgressSnapshot(
       isClassifying: false, progress: "", classifiedCount: 0, totalToClassify: 0,
@@ -63,9 +61,9 @@ nonisolated struct ProgressSnapshot: Sendable {
 
 // MARK: - Classification Engine
 
-/// Classifies articles using a pluggable ClassificationProvider.
-/// Stays @MainActor @Observable for progress UI only — all classification work runs in a
-/// detached `.utility` Task via ClassificationRunner so MainActor cannot be blocked.
+/// Classifies articles through a pluggable `ClassificationProvider`. It is
+/// `@MainActor @Observable` for progress display only: all classification work
+/// runs in a detached `.utility` task, so MainActor is never blocked.
 @MainActor
 @Observable
 final class ClassificationEngine {
@@ -80,42 +78,32 @@ final class ClassificationEngine {
   /// polling ticks that had nothing to classify.
   private(set) var lastBatchClassifiedCount = 0
 
-  /// The outcome of the MOST RECENT classification batch attempt — nil when
-  /// that attempt ended cleanly. NOTE the exact semantics (da amendment A3):
-  /// this is "the outcome of the most recent batch attempt", NOT "the
-  /// configuration is broken". A zero-pending poll legitimately clears it
-  /// even if the config is still bad (pending entries can age out overnight
-  /// via the keep-days window); the next arriving article re-trips it within
-  /// one 2 s poll. Never persisted; never cleared eagerly by Settings — the
-  /// poll itself is the save-time verification.
+  /// The outcome of the most recent batch attempt, `nil` when that attempt
+  /// ended cleanly. It means exactly that, not "the configuration is broken":
+  /// a zero-pending poll clears it even while the configuration is still bad,
+  /// and the next arriving article re-trips it. Never persisted, and never
+  /// cleared eagerly by Settings — the poll is the save-time verification.
   ///
-  /// Also cleared mid-batch by the first snapshot carrying evidence of
-  /// successful progress (`isClassifying && classifiedCount > 0`): a resumed
-  /// drain must not keep a stale banner alive until drain end. Entries that
-  /// complete without a provider call (skip-gate, language-gate) also count,
-  /// so a run of them can clear the banner once before the next
-  /// provider-needing entry re-trips it — the same accepted imprecision
-  /// class as the zero-pending clear above.
+  /// The first mid-batch snapshot carrying evidence of progress also clears
+  /// it, so a resumed drain does not keep a stale banner alive until drain
+  /// end. An entry that completes without a provider call counts as progress.
   private(set) var lastAbort: ClassificationAbortReason?
 
-  /// Monotonic counter bumped on every **non-terminal** progress snapshot
-  /// while a batch is in flight. Lets `ContentView` route a deferred middle-
-  /// pane refresh during the batch — newly-classified entries appear in
-  /// their target category as they're written, instead of only on the
-  /// terminal `isClassifying` false-edge. The 200 ms throttle inside the
-  /// runner rate-limits these bumps; the terminal snapshot does not bump
-  /// because the existing `isClassifying` false-edge already handles that.
+  /// Monotonic counter bumped on every non-terminal progress snapshot while a
+  /// batch is in flight, so `ContentView` can route a deferred article-list
+  /// refresh mid-batch. The runner's throttle rate-limits the bumps. The
+  /// terminal snapshot does not bump — the `isClassifying` false edge already
+  /// covers it.
   private(set) var batchProgressVersion: Int = 0
 
-  /// The single-slot task that owns whatever classification work is in flight.
-  /// `startContinuousClassification`, `classifyUnclassified`, and `reclassifyAll`
-  /// all route through this slot — so only ever one runner is active, and manual
-  /// triggers cannot race with the polling loop to duplicate provider calls.
+  /// The single slot that owns whatever classification work is in flight.
+  /// Every entry point routes through it, so only one runner is ever active
+  /// and a manual trigger cannot race the polling loop into duplicate provider
+  /// calls.
   private var classificationTask: Task<Void, Never>?
-  /// Unique ID per stored task, used to safely clear the slot from an awaiting
-  /// one-shot entry point without clobbering a newer task that may have
-  /// replaced it while we were awaiting. `Task` is a value type so `===`
-  /// isn't available.
+  /// Unique ID per stored task, so an awaiting one-shot entry point can clear
+  /// the slot without clobbering a newer task. `Task` is a value type, so `===`
+  /// is not available.
   private var classificationTaskID: UUID?
 
   /// User-intent flag: true between `startContinuousClassification` and
@@ -123,21 +111,16 @@ final class ClassificationEngine {
   /// to restart the polling loop after the reset+batch completes.
   private var isContinuousModeActive = false
 
-  /// Optional test-only provider factory. When non-nil, `makeRunner` uses
-  /// this in place of the static `buildProvider()` — letting integration
-  /// tests inject a fake provider without touching `UserDefaults` or the
-  /// Keychain. Production code paths leave this nil and continue to resolve
-  /// the provider per batch from the production configuration.
+  /// Test-only provider factory. When non-nil, `makeRunner` uses it instead of
+  /// `buildProvider()`, so a test injects a fake provider without touching
+  /// `UserDefaults` or the Keychain. Production leaves it nil.
   private let providerFactoryOverride: (@Sendable () -> any ClassificationProvider)?
 
   // MARK: - Initializer
 
-  /// Default-argumented init — production call sites (`FeederApp`, every
-  /// `#Preview`) keep their existing `ClassificationEngine()` invocation;
-  /// integration tests pass a factory that resolves to a
-  /// `FakeClassificationProvider` so the engine bypasses the production
-  /// `buildProvider()` static (which reads `UserDefaults` + the Keychain).
-  /// Mirrors the precedent set by `SyncEngine(defaults:)`.
+  /// The default argument keeps every production call site at
+  /// `ClassificationEngine()`. A test passes a factory so the engine bypasses
+  /// `buildProvider()`, which reads `UserDefaults` and the Keychain.
   init(providerFactoryOverride: (@Sendable () -> any ClassificationProvider)? = nil) {
     self.providerFactoryOverride = providerFactoryOverride
   }
@@ -164,12 +147,9 @@ final class ClassificationEngine {
 
   // MARK: - One-shot classification
 
-  /// Manual trigger for classifying unclassified entries. Briefly takes over
-  /// the `classificationTask` slot — cancels the polling loop (if running),
-  /// runs a one-shot batch inline, then restarts the polling loop if it was
-  /// active before. This gives manual "Sync Now" callers immediate feedback
-  /// instead of waiting up to 2 s for the next polling tick, without risking
-  /// duplicate provider calls from a parallel runner.
+  /// Manual trigger for classifying unclassified entries. Takes over the
+  /// `classificationTask` slot, so a manual call gives immediate feedback
+  /// without a parallel runner duplicating provider calls.
   func classifyUnclassified(writer: DataWriter) async {
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
@@ -178,9 +158,8 @@ final class ClassificationEngine {
     }
   }
 
-  /// Destructive one-shot: cancels the polling loop (if running), resets all
-  /// classifications, re-classifies from scratch, then restarts the polling
-  /// loop if it was previously active. Exclusive by construction.
+  /// Destructive one-shot: resets every classification and re-classifies from
+  /// scratch. Exclusive by construction, and it restores the polling loop.
   func reclassifyAll(writer: DataWriter) async {
     let runner = makeRunner(writer: writer)
     let cutoff = articleCutoffDate()
@@ -189,9 +168,8 @@ final class ClassificationEngine {
     }
   }
 
-  /// Cancel the polling loop (if active), run `work` exclusively in the
-  /// `classificationTask` slot, then restart the polling loop if it was
-  /// running before. Shared by `classifyUnclassified` and `reclassifyAll`.
+  /// Cancel the polling loop, run `work` exclusively in the
+  /// `classificationTask` slot, then restart the loop if it was running.
   private func runReplacingContinuousLoop(
     writer: DataWriter,
     _ work: @escaping @Sendable () async -> Void
@@ -211,9 +189,8 @@ final class ClassificationEngine {
   }
 
   /// Run classification work exclusively in the `classificationTask` slot.
-  /// UUID-tagged so the slot is only cleared if no newer task has replaced
-  /// ours while awaiting — prevents a stale one-shot from nil-ing out a
-  /// freshly-started continuous loop.
+  /// UUID-tagged, so the slot is cleared only when no newer task has taken it
+  /// and a stale one-shot cannot nil out a fresh continuous loop.
   private func runExclusively(_ work: @escaping @Sendable () async -> Void) async {
     let id = UUID()
     let task = Task.detached(priority: .utility) {
@@ -230,63 +207,50 @@ final class ClassificationEngine {
 
   // MARK: - Test introspection
   //
-  // These read-only accessors expose the orchestration state that
-  // `ClassificationEngineTests` needs to assert on. They are not compiled
-  // into Release builds — `#if DEBUG` strips them from the shipping
-  // binary entirely. Debug app builds still see them (the cost of using
-  // an in-module test target), but the engine's own logic continues to
-  // read the private storage directly so no production-code path relies
-  // on this surface. Tests use the accessors to prove the
-  // continuous-loop restart path in `runReplacingContinuousLoop` instead
-  // of poking at private state through reflection.
+  // Read-only accessors for the orchestration state the tests assert on.
+  // `#if DEBUG` strips them from a Release build. The engine's own logic must
+  // keep reading the private storage directly, so no production path depends
+  // on this surface.
 
   #if DEBUG
     var isContinuousLoopActive: Bool { isContinuousModeActive }
     var currentClassificationTaskID: UUID? { classificationTaskID }
-    /// Number of times `apply(_:)` actually WROTE `lastAbort` — both
-    /// owning-terminal writes and evidence-of-progress clears. Lets the
-    /// same-value no-rewrite guard (which stops @Observable churn every 2 s
-    /// and the resulting VoiceOver re-announcement) be asserted
-    /// deterministically without Observation plumbing.
+    /// How many times `apply(_:)` actually wrote `lastAbort`, so the
+    /// same-value no-rewrite guard can be asserted without Observation
+    /// plumbing.
     private(set) var lastAbortWriteCount = 0
   #endif
 
   // MARK: - MainActor sink for progress snapshots
 
   private func apply(_ snapshot: ProgressSnapshot) {
-    // Capture the just-finished batch's classified count before the terminal
-    // snapshot resets `classifiedCount` to 0. `ContentView` reads this to
-    // decide whether a classification tick actually changed anything.
+    // Capture the finished batch's count before the terminal snapshot resets
+    // `classifiedCount`. `ContentView` reads it to decide whether the tick
+    // changed anything.
     if isClassifying && !snapshot.isClassifying {
       lastBatchClassifiedCount = classifiedCount
     }
-    // Only batch-outcome terminals own the abort field. The equality guard
-    // stops @Observable same-value churn on the 2 s poll cadence — a
-    // rewrite of an unchanged value would re-announce the banner to
-    // VoiceOver on every tick.
+    // Only a batch-outcome terminal owns the abort field. The equality guard
+    // stops `@Observable` same-value churn on the poll cadence: rewriting an
+    // unchanged value re-announces the banner to VoiceOver on every tick.
     if !snapshot.isClassifying, snapshot.ownsAbort, lastAbort != snapshot.abort {
       lastAbort = snapshot.abort
       #if DEBUG
         lastAbortWriteCount += 1
       #endif
     }
-    // Evidence of successful progress: at least one entry completed its
-    // classification attempt this drain WITHOUT a batch-abort — the abortable
-    // failure classes throw before any persist, so a non-zero count proves the
-    // banner's cause is not currently occurring. Clears a stale banner on
-    // resume instead of minutes later at drain end. `lastAbort != nil`
-    // preserves the no-write guarantee: in a persistently failing retry loop
-    // classifiedCount stays 0 and the banner never blinks.
+    // Evidence of progress: an abortable failure throws before any persist, so
+    // a non-zero count proves the banner's cause is not occurring now. The
+    // `lastAbort != nil` guard keeps the banner steady in a persistently
+    // failing retry loop, where the count stays 0.
     if snapshot.isClassifying, snapshot.classifiedCount > 0, lastAbort != nil {
       lastAbort = nil
       #if DEBUG
         lastAbortWriteCount += 1
       #endif
     }
-    // Signal mid-batch progress to the middle pane. Only non-terminal
-    // snapshots bump — the terminal false-edge is already covered by the
-    // `isClassifying` `.onChange` path in `ContentView`. The runner's
-    // 200 ms throttle naturally rate-limits this counter.
+    // Only a non-terminal snapshot bumps: `ContentView` already covers the
+    // terminal false edge through `isClassifying`.
     if snapshot.isClassifying {
       batchProgressVersion &+= 1
     }
@@ -298,18 +262,15 @@ final class ClassificationEngine {
 
   // MARK: - Runner factory
 
-  /// Build a runner. Captures `self` strongly for the progress reporter — the runner is owned
-  /// by the detached Task whose lifetime is bounded by `classificationTask?.cancel()` on stop,
-  /// so no retain cycle. CLAUDE.md prohibits `[weak self]` in Task closures.
+  /// Build a runner. The progress reporter captures `self` strongly: the
+  /// detached task owns the runner and `classificationTask?.cancel()` bounds
+  /// its lifetime, so there is no retain cycle.
   private func makeRunner(writer: DataWriter) -> ClassificationRunner {
     let reporter: @Sendable (ProgressSnapshot) async -> Void = { snapshot in
       await MainActor.run { self.apply(snapshot) }
     }
-    // Provider is built per-batch via this Sendable factory, so a Settings change
-    // (provider switch / OpenAI key entry) takes effect on the next polling cycle
-    // without requiring `stopContinuousClassification` + `start` round-trip.
-    // The test-only override (when set) bypasses `buildProvider()`'s Settings/
-    // Keychain lookup so integration tests can inject a fake provider.
+    // The provider is built per batch, so a Settings change takes effect on the
+    // next polling cycle with no stop-and-start round-trip.
     let providerFactory: @Sendable () -> any ClassificationProvider =
       providerFactoryOverride ?? { Self.buildProvider() }
     return ClassificationRunner(
@@ -319,17 +280,13 @@ final class ClassificationEngine {
 
   // MARK: - Preview / test seam
 
-  /// Seed the engine's observable state for SwiftUI previews. Production code
-  /// never calls this — keeping the seam on the engine itself avoids loosening
-  /// `private(set)` on the real fields. Mirrors only the surface the UI reads
-  /// for progress display (`isClassifying`, `progress`, `classifiedCount`,
-  /// `totalToClassify`).
+  /// Seed the engine's observable state for SwiftUI previews. Production never
+  /// calls it; the seam lives here so `private(set)` stays tight on the real
+  /// fields.
   ///
-  /// Not gated behind `#if DEBUG` for symmetry with `SyncEngine.applyPreviewState`:
-  /// the seam is reached from `EntryListView` preview helpers, whose enclosing
-  /// types still need to type-check in Release even though the `#Preview` body
-  /// is stripped. Keeping the function unconditionally available avoids a
-  /// Release-build failure without forcing every call site into `#if DEBUG`.
+  /// Not gated behind `#if DEBUG`: preview helpers reach it from types that
+  /// must still type-check in Release, even though the `#Preview` body is
+  /// stripped.
   func applyPreviewState(
     isClassifying: Bool = false,
     progress: String = "",
@@ -346,22 +303,17 @@ final class ClassificationEngine {
 
   // MARK: - Provider factory
 
-  /// Resolve the configured classification provider from UserDefaults + Keychain.
-  /// Static + nonisolated so it can be invoked from background tasks per batch.
+  /// Resolve the configured classification provider from `UserDefaults` and
+  /// the Keychain. `nonisolated`, so a background task can call it per batch.
   ///
-  /// The Keychain lookup for the OpenAI key is deferred until the batch actually
-  /// starts (called from `makeRunner`'s per-batch factory closure), and only
-  /// runs when the user has explicitly chosen `.openAI` in Settings. A user on
-  /// Apple FM never hits the keychain at all — the previous prompt on first
-  /// launch that surfaced even for on-device-only users is gone with that
-  /// branch.
+  /// The Keychain lookup runs only when the user has chosen OpenAI, and only
+  /// once the batch starts, so a user on Apple Foundation Models never
+  /// triggers a Keychain prompt.
   ///
-  /// When `.openAI` is selected but no key is stored, fall back to the
-  /// on-device Apple FM provider for this batch instead of constructing
-  /// `OpenAIClassificationProvider(apiKey: "")` (which would later fail
-  /// `isAvailable` and silently swallow the batch). The user keeps getting
-  /// classifications until they enter a key via `ClassificationSettingsView`;
-  /// once saved, the next batch picks it up via this same factory.
+  /// With OpenAI selected but no key stored, fall back to the on-device
+  /// provider for this batch: an empty-key provider would fail `isAvailable`
+  /// and swallow the batch silently. The next batch picks up a key as soon as
+  /// the user saves one.
   nonisolated static func buildProvider(
     defaults: UserDefaults = .standard,
     keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
@@ -385,12 +337,13 @@ final class ClassificationEngine {
 
 // MARK: - Classification Runner (nonisolated, runs on background task)
 
-/// Executes the classification loop entirely off MainActor. Created per run by the engine and
-/// driven from a `.utility` priority detached Task. Reports progress back to MainActor via the
-/// Sendable `reportProgress` closure, throttled to once per 200ms.
+/// Executes the classification loop entirely off MainActor, from a `.utility`
+/// detached task. Progress reaches MainActor through the `Sendable`
+/// `reportProgress` closure, throttled to one call per 200 ms.
 nonisolated struct ClassificationRunner: Sendable {
   let writer: DataWriter
-  /// Resolved per batch so a provider/key change in Settings takes effect without restart.
+  /// Resolved per batch, so a provider or key change in Settings takes effect
+  /// without a restart.
   let providerFactory: @Sendable () -> any ClassificationProvider
   let reportProgress: @Sendable (ProgressSnapshot) async -> Void
 
@@ -409,30 +362,26 @@ nonisolated struct ClassificationRunner: Sendable {
     await runOneBatch(cutoffDate: cutoffDate)
   }
 
-  /// Drain every pending-classification entry, fetching work in bounded
-  /// chunks of `chunkSize`. The denominator reported to the UI
-  /// (`totalToClassify`) is `processedCount + remaining`, where `remaining` is
-  /// re-seeded from a fresh `countUnclassifiedEntries` at each chunk boundary
-  /// and decremented exactly per processed entry in between. So as `SyncEngine`
-  /// persists more entries mid-drain, the "Categorizing Y/X" total grows at the
-  /// next chunk boundary instead of staying pinned to the first snapshot's
-  /// value (issue #124). The count is queried only at chunk boundaries
-  /// (~0.1–0.4 Hz), never on the 200 ms display tick, so the added SQLite work
-  /// stays well below `persistEntries`' per-page cadence (`STACK.md § 4`).
+  /// Drain every pending-classification entry in bounded chunks of
+  /// `chunkSize`. The reported denominator is `processedCount + remaining`,
+  /// and `remaining` is re-seeded from a fresh count at each chunk boundary, so
+  /// the total grows as sync persists more entries mid-drain. Query the count
+  /// only at a chunk boundary, never on the display tick, or the added SQLite
+  /// work passes the per-page write cadence (`STACK.md § 4`).
   func runOneBatch(cutoffDate: Date, chunkSize: Int = 50) async {
     guard let categories = try? await writer.fetchCategoryDefinitions(),
       !categories.isEmpty
     else { return }
 
-    // Peek the first chunk. Nothing pending → clear any leftover spinner and stop.
+    // Peek the first chunk. Nothing pending clears a leftover spinner and
+    // stops.
     guard
       let firstChunk = try? await writer.fetchUnclassifiedInputs(
         cutoffDate: cutoffDate, limit: chunkSize),
       !firstChunk.isEmpty
     else {
-      // Zero-pending is a batch outcome: it OWNS the field and clears a
-      // stale abort banner (see `ClassificationEngine.lastAbort` semantics —
-      // "most recent batch attempt", not "config is broken").
+      // Zero-pending is a batch outcome: it owns the field and clears a stale
+      // abort banner.
       await reportProgress(.outcome(nil))
       return
     }
@@ -440,9 +389,9 @@ nonisolated struct ClassificationRunner: Sendable {
     let provider = providerFactory()
     guard await provider.isAvailable else {
       logger.error("Classification provider '\(provider.name)' not available")
-      // A batch outcome, not a plain terminal: makes provider unavailability
-      // (Apple FM included) visible and prevents wrongly clearing a live
-      // banner while the provider stays unusable.
+      // A batch outcome, not a plain terminal: it makes provider
+      // unavailability visible and keeps a live banner while the provider
+      // stays unusable.
       await reportProgress(.outcome(.providerUnavailable))
       return
     }
@@ -452,14 +401,14 @@ nonisolated struct ClassificationRunner: Sendable {
     let validLabels = Set(categories.map(\.label))
     let supportedLangCodes = await provider.supportedLanguageCodes
 
-    // Live pending count for the denominator — see the method doc comment.
+    // Live pending count behind the reported denominator.
     var remaining =
       (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? firstChunk.count
     var processedCount = 0
-    // Rows already attempted this drain. Guards the save()-throws stuck-row
-    // edge: an entry that fails to persist stays unclassified and would keep
-    // reappearing in the next chunk fetch — skipping attempted IDs lets the
-    // drain terminate and leaves the retry to the next 2 s poll, same as today.
+    // Rows already attempted this drain. An entry that fails to persist stays
+    // unclassified and reappears in the next chunk fetch, so skipping
+    // attempted IDs lets the drain terminate and leaves the retry to the next
+    // poll.
     var attemptedIDs = Set<Int>()
     var lastProgressUpdate: ContinuousClock.Instant = .now
 
@@ -481,8 +430,8 @@ nonisolated struct ClassificationRunner: Sendable {
       if Task.isCancelled { break }
 
       let pending = chunk.filter { !attemptedIDs.contains($0.entryID) }
-      // Every row in the chunk was already attempted (all stuck) → nothing new
-      // to do this drain; the next poll retries.
+      // Every row in the chunk was already attempted, so the next poll
+      // retries.
       if pending.isEmpty { break }
 
       for input in pending {
@@ -538,12 +487,10 @@ nonisolated struct ClassificationRunner: Sendable {
               )
             } catch {
               if let reason = (error as? any ClassificationFailure)?.batchAbort {
-                // Deterministic provider-level failure (bad model id,
-                // revoked key, quota, network): persist NOTHING for this
-                // entry or the remainder — they stay isClassified == false
-                // and the next poll retries. Only the payload-free reason
-                // reaches the UI; the full detail stays in this .private
-                // log line.
+                // Deterministic provider-level failure: persist nothing for
+                // this entry or the remainder, so they stay unclassified and
+                // the next poll retries. Only the payload-free reason reaches
+                // the UI; the detail stays in this `.private` line.
                 logger.error(
                   "Classification provider '\(providerName)' failed, aborting batch: \(String(describing: error), privacy: .private)"
                 )
@@ -578,16 +525,15 @@ nonisolated struct ClassificationRunner: Sendable {
       }
 
       if Task.isCancelled { break }
-      // Chunk boundary: pull the next chunk and re-seed the live pending count.
+      // Chunk boundary: pull the next chunk and re-seed the pending count.
       chunk =
         (try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate, limit: chunkSize)) ?? []
       remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? chunk.count
     }
 
-    // AC1: on a clean drain, emit exactly one final snapshot with the pending
-    // count spent, so X == Y == processedCount at the most-watched moment (the
-    // queue just emptied) before the terminal snapshot resets the row. Skipped
-    // on cancellation — the terminal snapshot below still clears the spinner.
+    // On a clean drain, emit one final snapshot with the pending count spent,
+    // so the two numbers match at the moment the queue empties. Skipped on
+    // cancellation, where the terminal snapshot below clears the spinner.
     if !Task.isCancelled {
       await reportProgress(
         ProgressSnapshot(
@@ -601,9 +547,9 @@ nonisolated struct ClassificationRunner: Sendable {
 
     logger.info("Classification batch complete: \(processedCount) entries")
     if Task.isCancelled {
-      // A cancelled batch is NOT an outcome: the plain terminal preserves
-      // any live banner. Sync-Now / Reclassify replace the continuous loop
-      // mid-batch — an owning nil here would clear-then-retrip → flicker.
+      // A cancelled batch is not an outcome, so the plain terminal preserves a
+      // live banner. A manual trigger replaces the continuous loop mid-batch,
+      // and an owning nil here would clear the banner and re-trip it.
       await reportProgress(.terminal)
     } else {
       await reportProgress(.outcome(nil))
@@ -645,14 +591,15 @@ nonisolated let confidenceThreshold = 0.3
 /// Minimum keyword confidence to override an LLM "uncategorized" result.
 nonisolated let keywordOverrideThreshold = 0.8
 
-/// Apply confidence gate: if LLM chose uncategorized and keywords have a strong match, use keywords.
-/// If LLM chose a real category but confidence is too low, fall back to uncategorized.
+/// Apply the confidence gate. A strong keyword match overrides an
+/// uncategorized result; a real category below the threshold falls back to
+/// uncategorized.
 nonisolated func applyConfidenceGate(
   label: String,
   llmConfidence: Double,
   keywordScores: [String: Double]
 ) -> String {
-  // If LLM chose uncategorized, check if keywords can override
+  // An uncategorized result can be overridden by keywords.
   if label == uncategorizedLabel {
     let bestKeyword = keywordScores.max(by: { $0.value < $1.value })
     if let best = bestKeyword, best.value >= keywordOverrideThreshold {
@@ -661,7 +608,7 @@ nonisolated func applyConfidenceGate(
     return label
   }
 
-  // LLM chose a real category — apply confidence threshold
+  // A real category passes only above the confidence threshold.
   let keywordScore = keywordScores[label] ?? 0.0
   let finalConfidence = max(llmConfidence, keywordScore)
   if finalConfidence < confidenceThreshold {
@@ -670,8 +617,9 @@ nonisolated func applyConfidenceGate(
   return label
 }
 
-/// Compute keyword match confidence per category. Title matches weigh more than body matches.
-/// Returns a dictionary of categoryLabel → confidence (0.0–1.0) for categories with any match.
+/// Compute keyword match confidence per category; a title match weighs more
+/// than a body match. Returns category label → confidence in 0.0...1.0 for
+/// every category with a match.
 nonisolated func keywordMatchConfidence(
   title: String,
   body: String,

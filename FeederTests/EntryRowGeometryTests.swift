@@ -5,33 +5,26 @@ import Testing
 
 @testable import Feeder
 
-/// Headless geometry check for the row-height floor and the title / summary
-/// split. Hosts the same `List` shape `EntryListView` renders — inset
-/// style, hidden separators, explicit row insets, `defaultMinListRowHeight`
-/// floor — in an offscreen `NSHostingView`, then reads the backing
-/// `NSTableView` through public API. Invariants:
+/// Headless geometry check for the row-height floor and the title and summary
+/// split. It hosts the same `List` shape the article list renders in an
+/// offscreen hosting view, then reads the backing table through public API. The
+/// invariants:
 ///
-/// 1. The table's fallback row height (`NSTableView.rowHeight`) equals the
-///    floor. This is the value the macOS 27 bridge draws in its failure mode
-///    (rows at the fallback until a scroll re-tiles), so it must already be
-///    the full row height.
-/// 2. Every row the table lays out is exactly one floor tall and rows sit one
-///    floor apart (zero intercell spacing), for every row shape.
-/// 3. Every row shape's natural height is the floor minus
-///    `rowHeightMargin`, exactly: the text column has a fixed height, so the
-///    content shape cannot move the row height.
-/// 4. The split fits the column budget (T1): the heights SwiftUI lays the
-///    title row, the domain line and the summary out at leave room for three
-///    summary lines under a one-line title and two under a two-line title.
-/// 5. The rendered line counts (T2): an `ImageRenderer` bitmap of the row is
-///    scanned for ink bands. A one-line title shows three summary lines, a
-///    two-line title two; the bands are equally tall; the bottom padding has
-///    no ink (the `.frame` does not clip, so overflow would land there).
+/// 1. The table's fallback row height equals the floor. The bridge draws that
+///    value in its failure mode, so it must already be the full row height.
+/// 2. Every laid-out row is exactly one floor tall, and rows sit one floor
+///    apart, for every row shape.
+/// 3. Every row shape's natural height is the floor minus the margin, exactly,
+///    because the text column's height is fixed.
+/// 4. The split fits the column budget: the laid-out heights leave room for the
+///    summary lines each title length allows.
+/// 5. The rendered line counts match: a bitmap of the row is scanned for ink
+///    bands, the bands are equally tall, and the bottom padding holds no ink,
+///    which would be where overflow landed.
 ///
-/// Runs at every `AppTextSize` and at three content-column widths: 200 pt
-/// (the platform's default column width; the column has no width bound, so
-/// 200 is a shipped state), 320 pt and 600 pt. No screen: the window is
-/// ordered offscreen and the bitmap render needs no window.
+/// It runs at every text size and at three content-column widths, including the
+/// platform's default width, which is a shipped state because the column has no
+/// width bound. No screen is needed: the window is ordered offscreen.
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
   private static let widths: [CGFloat] = [200, 320, 600]
