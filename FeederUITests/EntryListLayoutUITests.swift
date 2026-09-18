@@ -1,7 +1,6 @@
 import XCTest
 
-/// Deterministic layout invariant for the article list, one trial. The
-/// measurement that sized this trial count lives on the issue.
+/// Deterministic layout invariant for the article list, one trial.
 ///
 /// After the empty-category -> populated-category swap, the row pitch
 /// equals the row-height floor: the floor is the row height, so a lost row
