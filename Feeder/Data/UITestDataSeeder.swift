@@ -19,13 +19,22 @@ extension DataWriter {
 
     let apple = Category(
       label: "apple", displayName: "Apple",
-      categoryDescription: "Apple news for local UI testing", sortOrder: 0,
+      categoryDescription: "Apple news for local UI testing", sortOrder: 1,
       folderLabel: "technology")
     let world = Category(
       label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
+    // A category with ZERO entries, in the same folder as `apple`. Selecting
+    // it shows the "No Articles" empty view; selecting `apple` afterwards
+    // swaps the empty view for a `List` that already has rows, so UI tests
+    // can drive that transition on demand.
+    let gadgets = Category(
+      label: "gadgets", displayName: "Gadgets",
+      categoryDescription: "Empty category for local UI testing", sortOrder: 0,
+      folderLabel: "technology")
     modelContext.insert(apple)
     modelContext.insert(world)
+    modelContext.insert(gadgets)
 
     let feed1 = Feed(
       feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge",

@@ -266,6 +266,14 @@ struct EntryListView: View {
                   .tag(row.persistentID)
                   .id(row.persistentID)
                   .listRowSeparator(.hidden)
+                  // Zero vertical inset: the row's own padding carries the
+                  // rhythm, so the table's row height equals the row content
+                  // height and the floor below matches it exactly.
+                  .listRowInsets(
+                    EdgeInsets(
+                      top: 0, leading: EntryRowMetrics.horizontalInset,
+                      bottom: 0, trailing: EntryRowMetrics.horizontalInset)
+                  )
                   // Keyboard-parity append trigger (issue #155): the trigger
                   // row's appearance fires for scroll AND for J/K row
                   // navigation — `List` materialises the row either way. A
@@ -284,6 +292,17 @@ struct EntryListView: View {
             }
           }
           .listStyle(.inset(alternatesRowBackgrounds: false))
+          // Row-height floor: `List` bounds row height below by
+          // `defaultMinListRowHeight`. Set equal to the row's natural
+          // height, so a re-measure that falls back to the platform default
+          // has nothing left to clip. The natural height is the same for
+          // every row because the row's TEXT COLUMN has a fixed height
+          // (`EntryRowView.entryRowTextColumnHeight`) and only the summary
+          // yields inside it, by ellipsis truncation. The ROW itself has no
+          // `.frame(height:)`, so this stays a floor and never becomes a
+          // cap. Scoped to this `List` only; the sidebar keeps the system
+          // value.
+          .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
           .preference(key: VisibleEntriesKey.self, value: visibleEntries)
@@ -721,6 +740,174 @@ struct EntryListView: View {
 
 #Preview("Empty - No Articles (at rest)") {
   EntryListEmptyAtRestPreview()
+}
+
+// Row matrix: the row-height floor and the title / summary split at every
+// text size in a 320-pt content column, once at 600 pt, and once at 200 pt
+// — the platform's default column width, a shipped state now that the
+// column has no width bounds; the fixed text column keeps the row height,
+// and the title + time row is what to look at. Every row must be exactly
+// `entryRowHeight` tall. The thirteen row shapes, in list order:
+//   1001  one-line title, long excerpt: three summary lines, ellipsis on the
+//         third, no blank line under the title
+//   1002  two-line title, long excerpt: title keeps two lines, two summary
+//         lines with an ellipsis
+//   1003  title longer than two lines: two lines with an ellipsis, the time
+//         stays top-right
+//   1004  one-line title, NO domain, long excerpt: the domain line stays
+//         reserved and empty, three summary lines
+//   1005  one-line title, EMPTY excerpt: blank only at the row bottom
+//   1006  two-line title, EMPTY excerpt: blank only at the row bottom
+//   1007  threshold: an excerpt that fills exactly three lines with no
+//         ellipsis at medium / 320 pt
+//   1008  the same excerpt plus one word: three lines and an ellipsis
+//   1009  unread row, and 1010 its read twin (dimmed via the
+//         `pendingReadIDs` overlay): same height, same split
+//   1011  emoji in the title: one or two summary lines under a two-line
+//         emoji title (T2 in `EntryRowGeometryTests` pins the range 1...2;
+//         2...3 under a one-line emoji title) — the emoji does not enlarge
+//         the line height, so the summary keeps its lines
+//   1012  long domain: middle truncation, the slot stays one line tall
+//   1013  two-line title, EMPTY-STRING domain (what `extractDomain` stores
+//         for a URL without a host): the reader maps it to nil, the domain
+//         line stays reserved, two summary lines
+
+#Preview("Row Matrix - Small") {
+  EntryListRowMatrixPreview(textSize: .small)
+}
+
+#Preview("Row Matrix - Medium") {
+  EntryListRowMatrixPreview(textSize: .medium)
+}
+
+#Preview("Row Matrix - Large") {
+  EntryListRowMatrixPreview(textSize: .large)
+}
+
+#Preview("Row Matrix - Extra Large") {
+  EntryListRowMatrixPreview(textSize: .xLarge)
+}
+
+#Preview("Row Matrix - Huge") {
+  EntryListRowMatrixPreview(textSize: .xxLarge)
+}
+
+#Preview("Row Matrix - Medium, Dark") {
+  EntryListRowMatrixPreview(textSize: .medium)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Row Matrix - Medium, 600 pt") {
+  EntryListRowMatrixPreview(textSize: .medium, width: 600)
+}
+
+#Preview("Row Matrix - Medium, 200 pt") {
+  EntryListRowMatrixPreview(textSize: .medium, width: 200)
+}
+
+/// Seeds thirteen `apple` rows covering the row shapes above and renders
+/// `EntryListView` at the given content-column width (default 320 pt) with
+/// the given text size. Row 1010 is unread in the store but
+/// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
+@MainActor
+private struct EntryListRowMatrixPreview: View {
+  let textSize: AppTextSize
+  var width: CGFloat = 320
+  @State
+  private var reader: DataReader?
+  @State
+  private var selectedEntryID: PersistentIdentifier?
+  private let container: ModelContainer = {
+    let container = PreviewSupport.makeContainer()
+    let context = container.mainContext
+    let feed = Feed(
+      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "Matrix Feed",
+      feedURL: "https://matrix.example.com/feed", siteURL: "https://matrix.example.com",
+      createdAt: .now)
+    context.insert(feed)
+    let longExcerpt =
+      "A long excerpt that runs past the summary budget at every text size and every column width, "
+      + "so the last summary line ends with an ellipsis and the split between the title and the "
+      + "summary is visible: three lines under a one-line title, two lines under a two-line title, "
+      + "and the row height does not change."
+    // This exact text fills exactly three lines at medium / 320 pt; the next
+    // word pushes it onto a fourth line, so 1008 shows an ellipsis.
+    let threeLineExcerpt =
+      "The excerpt fills the third line to its last word so the row shows three full lines and no "
+      + "ellipsis at the medium text size in a"
+    let twinTitle = "Twin rows, unread above and read below"
+    let twinExcerpt = "The weight swap to regular changes neither the row height nor the split."
+    let shapes: [(id: Int, title: String, domain: String?, excerpt: String)] = [
+      (1001, "One-line title", "matrix.example.com", longExcerpt),
+      (1002, "A title long enough to wrap onto a second line in a narrow column", "matrix.example.com", longExcerpt),
+      (
+        1003,
+        "A title so long that it runs past the second line and has to end with an ellipsis while the time stays top-right",
+        "matrix.example.com", longExcerpt
+      ),
+      (1004, "No domain on this row", nil, longExcerpt),
+      (1005, "Empty excerpt, one-line title", "matrix.example.com", ""),
+      (1006, "Empty excerpt under a title that wraps onto a second line", "matrix.example.com", ""),
+      (1007, "Threshold: three full lines", "matrix.example.com", threeLineExcerpt),
+      (1008, "Threshold plus one word", "matrix.example.com", threeLineExcerpt + " column"),
+      (1009, twinTitle, "matrix.example.com", twinExcerpt),
+      (1010, twinTitle, "matrix.example.com", twinExcerpt),
+      (1011, "Emoji in the title 🚀 may cost a summary line", "matrix.example.com", longExcerpt),
+      (
+        1012, "Long domain truncates in the middle", "a-very-long-subdomain.of-an-even-longer-domain.example.com",
+        longExcerpt
+      ),
+      (1013, "Empty-string domain in the store under a title that wraps onto a second line", "", longExcerpt),
+    ]
+    for (offset, shape) in shapes.enumerated() {
+      let published = Date.now.addingTimeInterval(-Double(offset + 1) * 600)
+      let entry = Entry(
+        feedbinEntryID: shape.id, title: shape.title, author: "Bot",
+        url: "https://matrix.example.com/\(shape.id)", content: "<p>\(shape.excerpt)</p>",
+        summary: shape.excerpt, extractedContentURL: nil, publishedAt: published, createdAt: published)
+      entry.feed = feed
+      entry.primaryCategory = "apple"
+      entry.primaryFolder = "technology"
+      entry.isClassified = true
+      entry.formattedDate = formatEntryDate(published)
+      entry.formattedPublishedTime = formatEntryTime(published)
+      entry.displayDomain = shape.domain
+      entry.plainText = shape.excerpt
+      entry.summaryPlainText = shape.excerpt
+      context.insert(entry)
+    }
+    try? context.save()
+    return container
+  }()
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: .unread,
+          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntryID: $selectedEntryID,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(\.pendingReadIDs, [1010])
+    .environment(SyncEngine())
+    .environment(AppFontSettings(textSize: textSize))
+    .environment(FaviconStore())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: width, height: 1400)
+  }
 }
 
 /// Renders `EntryListView` in the offline-empty state: container is seeded

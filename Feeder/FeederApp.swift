@@ -39,6 +39,13 @@ struct FeederApp: App {
   private var perfActivationDelegate
 
   init() {
+    // Must run before any window or split view exists: `SplitViewAutosaveReset`
+    // removes AppKit's autosaved split-view frames so the split view lays out
+    // both leading columns at the `ideal` widths Feeder stores itself
+    // (`ColumnWidthSetting`). `STACK.md § 14` records the reliance on the
+    // undocumented key name.
+    SplitViewAutosaveReset.removeStaleFrames()
+
     let processEnvironment = ProcessInfo.processInfo.environment
     // Headless launches (any `FEEDER_HEADLESS=1` run — `make test` sets it on the
     // XCTest host) boot with an EMPTY in-memory store so they never load the real
@@ -224,8 +231,8 @@ struct FeederApp: App {
 
 // MARK: - Perf activation delegate
 
-/// `FEEDER_PERF_MODE`-gated `NSApplicationDelegate` that foregrounds the app
-/// for the headless perf run and INERT otherwise.
+/// The app's single `NSApplicationDelegate`. Its hooks foreground the app for
+/// the headless perf run and are otherwise inert.
 ///
 /// Why it exists: `make perf` launches the app through `xctrace record
 /// --launch`, which starts the process WITHOUT activating it. A non-activated
