@@ -5,12 +5,10 @@ import Testing
 @testable import Feeder
 
 /// Headless check of `ColumnWidthRecorder` for both columns in the shipped
-/// shape, `persistedColumnWidth(column:ideal:)` (issue #170): the geometry
-/// observer, the launch-layout skip, the width-only debounce key, the settle
-/// debounce, the write and the termination flush registry reach an injected
-/// `UserDefaults` suite without a split view. `.serialized`: shares the
-/// offscreen-window hosting pattern with `EntryRowGeometryTests` and the
-/// MainActor-global `PendingColumnWidths` registry.
+/// shape, `persistedColumnWidth(column:ideal:)`: the geometry observer, the
+/// launch-layout skip, the width-only debounce key and the settle debounce
+/// reach an injected `UserDefaults` suite without a split view. `.serialized`:
+/// shares the offscreen-window hosting pattern with `EntryRowGeometryTests`.
 @Suite("Column width recorder", .serialized)
 struct ColumnWidthRecorderTests {
   /// Drives the recorder's width and leading edge independently inside a
@@ -47,8 +45,6 @@ struct ColumnWidthRecorderTests {
     let suiteName = "ColumnWidthRecorderTests.\(column.rawValue)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defaults.removePersistentDomain(forName: suiteName)
-    PendingColumnWidths.reset()
-    defer { PendingColumnWidths.reset() }
     let key = column.userDefaultsKey
     let box = GeometryBox()
 
@@ -88,46 +84,11 @@ struct ColumnWidthRecorderTests {
     box.width = 350
     hosting.layoutSubtreeIfNeeded()
     #expect(try await Self.storedValue(in: defaults, key: key, becomes: 350))
-
-    // The registry holds the last sample with the recorder's own store.
-    let sample = try #require(PendingColumnWidths.samples[column])
-    #expect(sample.width == 350)
-    #expect(sample.isLaunchLayout == false)
-    #expect(sample.defaults === defaults)
-  }
-
-  @Test("the termination flush persists pending samples with the recorder's rules into their own stores")
-  @MainActor
-  func terminationFlush() throws {
-    PendingColumnWidths.reset()
-    defer { PendingColumnWidths.reset() }
-    let suiteName = "ColumnWidthRecorderTests.flush"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defaults.removePersistentDomain(forName: suiteName)
-
-    // A drag inside the settle window at quit: stored.
-    PendingColumnWidths.record(470.5, for: .content, isLaunchLayout: false, in: defaults)
-    // A quit before the first settle: the launch layout is honoured, not stored.
-    PendingColumnWidths.record(300, for: .sidebar, isLaunchLayout: true, in: defaults)
-    var outcomes = PendingColumnWidths.flush()
-    #expect(outcomes[.content] == .stored(470))
-    #expect(outcomes[.sidebar] == .skippedLaunchLayout)
-    #expect(defaults.object(forKey: ColumnWidthSetting.Column.content.userDefaultsKey) as? Double == 470)
-    #expect(defaults.object(forKey: ColumnWidthSetting.Column.sidebar.userDefaultsKey) == nil)
-    #expect(PendingColumnWidths.samples.isEmpty, "flush clears the registry")
-
-    // Equal and below-floor samples follow the same rules; nothing pending → nothing flushed.
-    PendingColumnWidths.record(470, for: .content, isLaunchLayout: false, in: defaults)
-    PendingColumnWidths.record(0, for: .sidebar, isLaunchLayout: false, in: defaults)
-    outcomes = PendingColumnWidths.flush()
-    #expect(outcomes[.content] == .skippedEqualToStored)
-    #expect(outcomes[.sidebar] == .skippedBelowSanityFloor)
-    #expect(PendingColumnWidths.flush().isEmpty)
   }
 
   /// Polls the suite until `key` holds `expected` or two seconds pass.
   /// Polling keeps the test independent of run-loop timing on a loaded
-  /// machine; the debounce itself is 300 ms.
+  /// machine; the debounce itself is 150 ms.
   @MainActor
   private static func storedValue(in defaults: UserDefaults, key: String, becomes expected: Double) async throws -> Bool {
     for _ in 0..<40 {

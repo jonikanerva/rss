@@ -25,4 +25,14 @@ nonisolated enum ColumnWidthDiagnostics {
       "restored column=\(column.rawValue, privacy: .public) ideal=\(restored, privacy: .public) storedRaw=\(rawText, privacy: .public)"
     )
   }
+
+  /// `.error` level, at most once per launch and column: the first settled
+  /// width missed the restored `ideal` by more than 1 pt, so the launch
+  /// layout did not come from our own preference. Makes a broken launch
+  /// visible without reading every `.notice` line.
+  static func logLaunchMismatch(measured: CGFloat, ideal: CGFloat, for column: ColumnWidthSetting.Column) {
+    logger.error(
+      "launchMismatch column=\(column.rawValue, privacy: .public) measured=\(measured, privacy: .public) ideal=\(ideal, privacy: .public)"
+    )
+  }
 }
