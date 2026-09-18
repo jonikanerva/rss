@@ -23,9 +23,9 @@ nonisolated enum EntryRowMetrics {
   /// Whole-point line heights of the three row fonts at one text-size
   /// scale: `ceil(ascender - descender + leading)` each. This is the
   /// arithmetic the column and the floor are built from, not a promise
-  /// about layout: SwiftUI's laid-out line pitch differs from these values
-  /// by up to 1 pt per slot in either direction (measured on macOS 27).
-  /// `EntryRowGeometryTests` (T1) pins the measured sum against the column.
+  /// about layout: SwiftUI's laid-out line pitch can differ from these
+  /// values by up to 1 pt per slot. `EntryRowGeometryTests` (T1) checks
+  /// the rendered sum against the column.
   nonisolated struct LineHeights: Equatable, Sendable {
     let title: CGFloat
     let meta: CGFloat
@@ -46,11 +46,10 @@ nonisolated enum EntryRowMetrics {
   static let excerptColumnLines = 2
   /// Text of the domain line when the row has no domain (`nil` or an empty
   /// string). A single space, not an empty string: SwiftUI lays an EMPTY
-  /// `Text` with reserved space out 14 pt tall at every font size
-  /// (measured), while a space takes the font's own line height, so the
-  /// space left for the summary is the same with and without a domain.
-  /// Invisible; the row sets its own accessibility label, so VoiceOver
-  /// never reads it.
+  /// `Text` with reserved space out 14 pt tall at every font size, while a
+  /// space takes the font's own line height, so the space left for the
+  /// summary is the same with and without a domain. Invisible; the row
+  /// sets its own accessibility label, so VoiceOver never reads it.
   static let reservedDomainPlaceholder = " "
   /// Render-time line limit of the summary: the column budget plus every
   /// title line a short title leaves free. Precondition for the extra line
@@ -75,14 +74,10 @@ nonisolated enum EntryRowMetrics {
   static let faviconSpacing: CGFloat = 15
   /// Horizontal gap between the title and the time label on the title row.
   static let titleTimeSpacing: CGFloat = 5
-  /// Head-room between the row's natural height and the floor. With the
-  /// text column fixed, the natural height is `textColumnHeight` plus the
-  /// vertical padding exactly, for every content shape. The margin guards
-  /// against a sub-point rounding difference between the bridge's normal
-  /// and fallback row heights: a hypothesis, not a measurement. Without it
-  /// floor == natural, and a 1-pt split between the two modes could not be
-  /// ruled out. `EntryRowGeometryTests` pins `floor - natural ==
-  /// rowHeightMargin` for every row shape.
+  /// Head-room between the row's natural height and the list's row-height
+  /// floor. With the text column fixed, the natural height is
+  /// `textColumnHeight` plus the vertical padding for every content shape,
+  /// so this margin keeps the floor at or above the rendered height.
   static let rowHeightMargin: CGFloat = 2
 
   // MARK: - Derivation
@@ -113,12 +108,10 @@ nonisolated enum EntryRowMetrics {
   }
 
   /// Line heights of the row fonts at a text-size `scale`
-  /// (`AppTextSize.scaleFactor`). Each is the font's own metrics,
-  /// `ascender - descender + leading`, rounded UP to a whole point
-  /// (`NSLayoutManager.defaultLineHeight(for:)` was rejected: its docs say
-  /// the value varies with typesetter behaviour). `Font.system(size:weight:)`
-  /// resolves to the same `NSFont.systemFont`. Weight does not change the
-  /// metrics: semibold and regular report identical values at every scale.
+  /// (`AppTextSize.scaleFactor`). Each line height is the font's own
+  /// `ascender - descender + leading`, rounded UP to a whole point, and
+  /// `Font.system(size:weight:)` resolves to the same `NSFont.systemFont`
+  /// so the arithmetic matches what SwiftUI renders.
   static func lineHeights(scale: CGFloat) -> LineHeights {
     func lineHeight(_ baseSize: CGFloat, weight: NSFont.Weight) -> CGFloat {
       let font = NSFont.systemFont(ofSize: baseSize * scale, weight: weight)

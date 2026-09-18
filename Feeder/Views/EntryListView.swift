@@ -830,8 +830,8 @@ private struct EntryListRowMatrixPreview: View {
       + "so the last summary line ends with an ellipsis and the split between the title and the "
       + "summary is visible: three lines under a one-line title, two lines under a two-line title, "
       + "and the row height does not change."
-    // Exactly three lines at medium / 320 pt (measured headlessly); the next
-    // word pushes the excerpt onto a fourth line, so 1008 shows an ellipsis.
+    // This exact text fills exactly three lines at medium / 320 pt; the next
+    // word pushes it onto a fourth line, so 1008 shows an ellipsis.
     let threeLineExcerpt =
       "The excerpt fills the third line to its last word so the row shows three full lines and no "
       + "ellipsis at the medium text size in a"
