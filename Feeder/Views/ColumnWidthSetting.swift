@@ -1,16 +1,15 @@
 import Foundation
 
 /// Stores the widths of the two leading `NavigationSplitView` columns — the
-/// sidebar and the content column (article list) — across launches (issue
-/// #170). Feeder owns these widths because on macOS 27 the split-view
-/// bridge's own autosave restores the content frame as `width − x` (see
-/// `SplitViewAutosaveReset`); the stored value is handed to the split view
-/// as the launch `ideal`, the only width preference the bridge honours.
+/// sidebar and the content column (article list) — across launches. Feeder
+/// owns these widths because the split-view bridge's own autosave can
+/// restore the content frame incorrectly (see `SplitViewAutosaveReset`); the
+/// stored value is handed to the split view as the launch `ideal`, the only
+/// width preference the bridge honours.
 ///
-/// No width bounds. Owner decision (2026-09-17, binding): the app must not
-/// limit how people lay out their screen. The stored value is applied as
-/// `ideal` only; the platform divider and the column content's own minimum
-/// size are the only limits.
+/// No width bounds: the app must not limit how people lay out their screen.
+/// The stored value is applied as `ideal` only; the platform divider and the
+/// column content's own minimum size are the only limits.
 ///
 /// Single-setting pattern (`OpenAIModelSetting`), not an `@Observable` owner:
 /// the widths have no in-session reader. `ColumnWidthRecorder` writes them
@@ -21,9 +20,9 @@ import Foundation
 /// Window-layout preferences like the text size, not user data. Never
 /// transmitted. Reads and writes one `UserDefaults` key per column.
 nonisolated enum ColumnWidthSetting {
-  /// The two persisted columns. The raw value is the `UserDefaults` key; the
-  /// content key predates the sidebar one and is unchanged, so a value
-  /// stored by an earlier build survives.
+  /// The two persisted columns. The raw value is the `UserDefaults` key;
+  /// changing `content_column_width` makes an existing stored value
+  /// unreadable.
   nonisolated enum Column: String, CaseIterable, Sendable {
     case sidebar = "sidebar_column_width"
     case content = "content_column_width"
@@ -31,9 +30,7 @@ nonisolated enum ColumnWidthSetting {
     var userDefaultsKey: String { rawValue }
 
     /// Launch width when nothing usable is stored: fresh install, reset, or a
-    /// corrupt value. Content 400 = the width the owner drags the column to;
-    /// sidebar 238 = the sidebar width measured in the owner's launch log, so
-    /// a user who never drags sees today's layout.
+    /// corrupt value.
     var defaultIdealWidth: CGFloat {
       switch self {
       case .sidebar: 238

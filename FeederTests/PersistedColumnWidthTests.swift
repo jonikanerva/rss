@@ -4,13 +4,12 @@ import Testing
 
 @testable import Feeder
 
-/// Pins the modifier ORDER `persistedColumnWidth` encodes (issue #170): the
-/// width preference must be the outermost modifier on a column's content.
-/// Measured on macOS 27 (headless spike, 2026-09-17): an `onGeometryChange`
-/// placed outside `navigationSplitViewColumnWidth` hides the preference from
-/// the split view, and the column lays out at the platform default. Hosts a
-/// three-column `NavigationSplitView` offscreen and reads the backing
-/// `NSSplitView`'s arranged-subview frames.
+/// Pins the modifier ORDER `persistedColumnWidth` encodes: the width
+/// preference must be the outermost modifier on a column's content. An
+/// `onGeometryChange` placed outside `navigationSplitViewColumnWidth` hides
+/// the preference from the split view, and the column lays out at the
+/// platform default. Hosts a three-column `NavigationSplitView` offscreen
+/// and reads the backing `NSSplitView`'s arranged-subview frames.
 ///
 /// Flake guards: a distinct root view TYPE per case (the bridge keys some
 /// per-type state, incl. autosave, on the root type); the host is 1400 pt

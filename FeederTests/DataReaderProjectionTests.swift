@@ -3,14 +3,14 @@ import Testing
 
 @testable import Feeder
 
-/// Row projection contract (issue #170): `EntryRowDTO.displayDomain` is `nil`
-/// whenever the entry has no domain. `extractDomain` stores "" for a URL
-/// without a host; `DataReader.projectEntryRow` maps that to `nil`, so the
-/// row reserves its domain line with the placeholder in every no-domain case
-/// and never renders an empty `Text` (14 pt at every size). Runs against the
-/// production writer + reader pair on one shared in-memory container;
-/// concurrent-coordinator pressure is capped by the serial unit-target run
-/// (`STACK.md § 14`), `.serialized` only orders tests within the suite.
+/// Row projection contract: `EntryRowDTO.displayDomain` is `nil` whenever
+/// the entry has no domain. `extractDomain` stores "" for a URL without a
+/// host; `DataReader.projectEntryRow` maps that to `nil`, so the row
+/// reserves its domain line with the placeholder in every no-domain case
+/// and never renders an empty `Text`. Runs against the production writer +
+/// reader pair on one shared in-memory container; concurrent-coordinator
+/// pressure is capped by the serial unit-target run (`STACK.md § 14`),
+/// `.serialized` only orders tests within the suite.
 @Suite("DataReader row projection", .serialized)
 struct DataReaderProjectionTests {
   /// Seed one feed with `siteUrl` and one classified `tech` entry through the

@@ -1,9 +1,8 @@
 import AppKit
 
-/// Geometry of one article-list row (issue #170): the line budget of the
-/// text column, the spacing and padding constants `EntryRowView` lays out
-/// with, the fixed text-column height and the row-height floor derived from
-/// them.
+/// Geometry of one article-list row: the line budget of the text column, the
+/// spacing and padding constants `EntryRowView` lays out with, the fixed
+/// text-column height and the row-height floor derived from them.
 ///
 /// Pure and `nonisolated`: no view state, no side effects. The file is a
 /// member of BOTH the app target and `FeederUITests`, so the UI test that
@@ -64,9 +63,7 @@ nonisolated enum EntryRowMetrics {
   /// `.padding(.vertical, _)` around the whole row content. Carries the
   /// whole vertical rhythm between rows: the `List` row insets are set to
   /// zero vertically (`listRowInsets`), so the row height the table sees is
-  /// exactly this content height and the floor equals it by construction
-  /// instead of by a measured inset constant. 12 = the previous 4 plus the
-  /// 8 the default inset added above and below.
+  /// exactly this content height and the floor equals it by construction.
   static let verticalPadding: CGFloat = 12
   /// Explicit horizontal `listRowInsets`. The macOS `.inset` list style's
   /// default, read from the row frames on macOS 27 (17 pt each side), pinned

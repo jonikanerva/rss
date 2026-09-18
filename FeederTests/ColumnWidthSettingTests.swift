@@ -3,12 +3,12 @@ import Testing
 
 @testable import Feeder
 
-/// Pins the column width setting for both leading columns (issue #170): the
-/// launch `ideal` read from `UserDefaults` with its per-column default and NO
+/// Pins the column width setting for both leading columns: the launch
+/// `ideal` read from `UserDefaults` with its per-column default and NO
 /// clamp, and the decision table of `persist` in its check ORDER (sanity
-/// floor, equal-to-stored, launch layout, store), whole points rounded down,
-/// no upper bound. Every test uses its own `UserDefaults` suite, so nothing
-/// leaks into the developer's app preferences or between tests.
+/// floor, equal-to-stored, launch layout, store), whole points rounded
+/// down, no upper bound. Every test uses its own `UserDefaults` suite, so
+/// nothing leaks into the developer's app preferences or between tests.
 @Suite("Column width setting")
 struct ColumnWidthSettingTests {
   private typealias Setting = ColumnWidthSetting

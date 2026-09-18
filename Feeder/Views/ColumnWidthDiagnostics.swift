@@ -1,12 +1,11 @@
 import Foundation
 import os
 
-/// Log lines for the split-view column widths (issue #170). Numbers, Bools
-/// and the column key only (`STACK.md § 8`): no category labels, no paths, no
-/// article data. `.notice` level on purpose: `.info` and `.debug` are not
-/// persisted to disk by default, so `log show` after the owner's run would
-/// be empty. The category name predates the sidebar column and is kept so
-/// the owner's `log show` predicate stays valid.
+/// Log lines for the split-view column widths. Numbers, Bools and the column
+/// key only (`STACK.md § 8`): no category labels, no paths, no article data.
+/// `.notice` level on purpose: `.info` and `.debug` are not persisted to disk
+/// by default, so `log show` would find nothing. The category name covers
+/// both columns so one `log show` predicate reads either.
 ///
 /// Read with:
 /// `log show --predicate 'subsystem == "com.feeder.app" AND category == "ContentColumnWidth"' --last 2h`

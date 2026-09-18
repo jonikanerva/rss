@@ -3,11 +3,11 @@ import Testing
 
 @testable import Feeder
 
-/// Pins the article-row geometry (issue #170): the pure arithmetic in
+/// Pins the article-row geometry: the pure arithmetic in
 /// `EntryRowMetrics.textColumnHeight` and `rowHeight`, the line-height
-/// derivation and its precondition for the title / summary split, the stored
-/// `AppFontSettings.entryRowHeight` and `entryRowTextColumnHeight` at every
-/// text size, and the recompute on a text-size change.
+/// derivation and its precondition for the title / summary split, the
+/// stored `AppFontSettings.entryRowHeight` and `entryRowTextColumnHeight`
+/// at every text size, and the recompute on a text-size change.
 @Suite("Entry row metrics")
 struct EntryRowMetricsTests {
   private static let suiteName = "EntryRowMetricsTests"

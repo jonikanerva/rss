@@ -3,9 +3,9 @@ import Testing
 
 @testable import Feeder
 
-/// Pins `SplitViewAutosaveReset` (issue #170): only keys with the
-/// `NSSplitView Subview Frames` prefix are removed; window-frame keys and
-/// Feeder's own width keys stay; the count is exact.
+/// Pins `SplitViewAutosaveReset`: only keys with the `NSSplitView Subview
+/// Frames` prefix are removed; window-frame keys and Feeder's own width
+/// keys stay; the count is exact.
 @Suite("Split view autosave reset")
 struct SplitViewAutosaveResetTests {
   private static func makeSuite(_ name: String) throws -> UserDefaults {

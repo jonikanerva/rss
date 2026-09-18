@@ -266,9 +266,9 @@ struct EntryListView: View {
                   .tag(row.persistentID)
                   .id(row.persistentID)
                   .listRowSeparator(.hidden)
-                  // Zero vertical inset (issue #170): the row's own padding
-                  // carries the rhythm, so the table's row height equals the
-                  // row content height and the floor below matches it exactly.
+                  // Zero vertical inset: the row's own padding carries the
+                  // rhythm, so the table's row height equals the row content
+                  // height and the floor below matches it exactly.
                   .listRowInsets(
                     EdgeInsets(
                       top: 0, leading: EntryRowMetrics.horizontalInset,
@@ -292,19 +292,16 @@ struct EntryListView: View {
             }
           }
           .listStyle(.inset(alternatesRowBackgrounds: false))
-          // Row-height floor (issue #170). On macOS 27 the NSTableView-backed
-          // `List` sometimes keeps its fallback row height and never applies
-          // the measured height until a scroll re-tiles, so rows render at
-          // about 24 pt with the content clipped. The docs bound row height
-          // below by `defaultMinListRowHeight`; with the floor equal to the
-          // row's natural height, a lost re-measure has nothing left to
-          // change. The natural height is the same for every row because
-          // the row's TEXT COLUMN has a fixed height (`EntryRowView`,
-          // `entryRowTextColumnHeight` = floor minus padding and margin) and
-          // only the summary yields inside it, by ellipsis truncation. The
-          // ROW itself has no `.frame(height:)`, so this stays a floor and
-          // never becomes a cap.
-          // Scoped to this `List` only; the sidebar keeps the system value.
+          // Row-height floor: `List` bounds row height below by
+          // `defaultMinListRowHeight`. Set equal to the row's natural
+          // height, so a re-measure that falls back to the platform default
+          // has nothing left to clip. The natural height is the same for
+          // every row because the row's TEXT COLUMN has a fixed height
+          // (`EntryRowView.entryRowTextColumnHeight`) and only the summary
+          // yields inside it, by ellipsis truncation. The ROW itself has no
+          // `.frame(height:)`, so this stays a floor and never becomes a
+          // cap. Scoped to this `List` only; the sidebar keeps the system
+          // value.
           .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
@@ -745,13 +742,12 @@ struct EntryListView: View {
   EntryListEmptyAtRestPreview()
 }
 
-// Row matrix (issue #170): the row-height floor and the title / summary
-// split at every text size in a 320-pt content column, once at 600 pt, and
-// once at 200 pt — the platform's default column width, a shipped state
-// since the width bounds were removed (PR #186 commit K); the fixed text
-// column keeps the row height, and the title + time row is what to look at.
-// Every row must be exactly `entryRowHeight` tall. The thirteen row shapes,
-// in list order:
+// Row matrix: the row-height floor and the title / summary split at every
+// text size in a 320-pt content column, once at 600 pt, and once at 200 pt
+// — the platform's default column width, a shipped state now that the
+// column has no width bounds; the fixed text column keeps the row height,
+// and the title + time row is what to look at. Every row must be exactly
+// `entryRowHeight` tall. The thirteen row shapes, in list order:
 //   1001  one-line title, long excerpt: three summary lines, ellipsis on the
 //         third, no blank line under the title
 //   1002  two-line title, long excerpt: title keeps two lines, two summary
@@ -768,9 +764,9 @@ struct EntryListView: View {
 //   1009  unread row, and 1010 its read twin (dimmed via the
 //         `pendingReadIDs` overlay): same height, same split
 //   1011  emoji in the title: one or two summary lines under a two-line
-//         emoji title (the T2 range in `EntryRowGeometryTests` pins 1...2;
-//         2...3 under a one-line emoji title) — the line height did not grow
-//         on macOS 27, so the summary kept its lines in the measurement
+//         emoji title (T2 in `EntryRowGeometryTests` pins the range 1...2;
+//         2...3 under a one-line emoji title) — the emoji does not enlarge
+//         the line height, so the summary keeps its lines
 //   1012  long domain: middle truncation, the slot stays one line tall
 //   1013  two-line title, EMPTY-STRING domain (what `extractDomain` stores
 //         for a URL without a host): the reader maps it to nil, the domain

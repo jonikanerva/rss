@@ -63,7 +63,7 @@ struct ColumnWidthRecorderTests {
 
     // Hardening A: the leading edge moves by 100 pt, the width stays 450.
     // The debounce must not re-arm, so the still-launch-shaped 450 is NOT
-    // stored (before the fix this stored the wrong width as intent).
+    // stored.
     box.leading = 100
     hosting.layoutSubtreeIfNeeded()
     try await Task.sleep(for: .milliseconds(700))

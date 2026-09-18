@@ -26,9 +26,8 @@ extension DataWriter {
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
     // A category with ZERO entries, in the same folder as `apple`. Selecting
     // it shows the "No Articles" empty view; selecting `apple` afterwards
-    // swaps the empty view for a `List` that already has rows. That is the
-    // transition issue #169 / #170 blamed for clipped rows, so UI tests can
-    // drive it on demand (issue #170 re-land bar).
+    // swaps the empty view for a `List` that already has rows, so UI tests
+    // can drive that transition on demand.
     let gadgets = Category(
       label: "gadgets", displayName: "Gadgets",
       categoryDescription: "Empty category for local UI testing", sortOrder: 0,

@@ -6,10 +6,10 @@ import Testing
 @testable import Feeder
 
 /// Headless geometry check for the row-height floor and the title / summary
-/// split (issue #170). Hosts the same `List` shape `EntryListView` renders —
-/// inset style, hidden separators, explicit row insets,
-/// `defaultMinListRowHeight` floor — in an offscreen `NSHostingView`, then
-/// reads the backing `NSTableView` through public API. Invariants:
+/// split. Hosts the same `List` shape `EntryListView` renders — inset
+/// style, hidden separators, explicit row insets, `defaultMinListRowHeight`
+/// floor — in an offscreen `NSHostingView`, then reads the backing
+/// `NSTableView` through public API. Invariants:
 ///
 /// 1. The table's fallback row height (`NSTableView.rowHeight`) equals the
 ///    floor. This is the value the macOS 27 bridge draws in its failure mode
@@ -29,10 +29,9 @@ import Testing
 ///    no ink (the `.frame` does not clip, so overflow would land there).
 ///
 /// Runs at every `AppTextSize` and at three content-column widths: 200 pt
-/// (the platform's default column width; the column has no width bound since
-/// PR #186 commit K, so 200 is a shipped state), 320 pt and 600 pt. No
-/// screen: the window is ordered offscreen and the bitmap render needs no
-/// window.
+/// (the platform's default column width; the column has no width bound, so
+/// 200 is a shipped state), 320 pt and 600 pt. No screen: the window is
+/// ordered offscreen and the bitmap render needs no window.
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
   private static let widths: [CGFloat] = [200, 320, 600]

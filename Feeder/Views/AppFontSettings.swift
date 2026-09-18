@@ -48,8 +48,8 @@ final class AppFontSettings {
   }
 
   /// Row-height floor for the article list (`defaultMinListRowHeight` on the
-  /// `EntryListView` list; issue #170). Equals the natural height of an
-  /// `EntryRowView` — the fixed text column plus the vertical padding — at
+  /// `EntryListView` list). Equals the natural height of an `EntryRowView` —
+  /// the fixed text column plus the vertical padding — at
   /// the current text size, plus the `EntryRowMetrics.rowHeightMargin`, so
   /// every row is exactly this tall. STORED, not computed: the font-metric
   /// reads happen only when `textSize` changes (a Settings-frequency event),

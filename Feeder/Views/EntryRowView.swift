@@ -11,12 +11,12 @@ import os.signpost
 /// `pendingReadIDs` overlay dims a just-opened row before the committed
 /// `isRead` lands in a refetched DTO.
 ///
-/// Layout constants live in `EntryRowMetrics` (issue #170). The text column
-/// has a FIXED height (`AppFontSettings.entryRowTextColumnHeight`), so the
-/// row's natural height equals the list's row-height floor minus the margin
-/// for every content shape. Inside the column the title takes one or two
-/// lines, the domain keeps its reserved line, and the summary fills the rest:
-/// three lines under a one-line title, two under a two-line title. Only the
+/// Layout constants live in `EntryRowMetrics`. The text column has a FIXED
+/// height (`AppFontSettings.entryRowTextColumnHeight`), so the row's natural
+/// height equals the list's row-height floor minus the margin for every
+/// content shape. Inside the column the title takes one or two lines, the
+/// domain keeps its reserved line, and the summary fills the rest: three
+/// lines under a one-line title, two under a two-line title. Only the
 /// summary yields, by ellipsis truncation at a line end; nothing is clipped.
 struct EntryRowView: View {
   let row: EntryRowDTO
@@ -52,9 +52,8 @@ struct EntryRowView: View {
         .padding(.top, EntryRowMetrics.faviconTopPadding)
 
       // All text content aligned to the right of the icon. The column has a
-      // FIXED height (issue #170), so the row's natural height is the same
-      // for every content shape and a lost row re-measure in the AppKit
-      // bridge cannot clip anything. Layout priorities settle the split:
+      // FIXED height, so the row's natural height is the same for every
+      // content shape. Layout priorities settle the split:
       // the title row (2) is offered the column minus the other slots'
       // minimum heights and takes one or two lines; the domain (1) takes
       // its reserved line; the summary (0) receives the exact remainder and

@@ -1,15 +1,14 @@
 import XCTest
 
-/// Deterministic layout invariant for the article list (issue #170), one
-/// trial. The N=30 measurement that sized it lives on the issue.
+/// Deterministic layout invariant for the article list, one trial. The
+/// measurement that sized this trial count lives on the issue.
 ///
-/// After the empty-category -> populated-category swap (the transition that
-/// reproduced clipped rows in 26 of 30 trials before the fix), the row pitch
+/// After the empty-category -> populated-category swap, the row pitch
 /// equals the row-height floor: the floor is the row height, so a lost row
 /// re-measure in the `List` bridge has nothing left to clip.
 ///
-/// The content column has no width bound (owner decision, PR #186 commit K),
-/// so there is no width invariant to pin here.
+/// The content column has no width bound, so there is no width invariant to
+/// pin here.
 final class EntryListLayoutUITests: XCTestCase {
   /// Tolerance for point values read through the accessibility frames.
   private static let tolerance: CGFloat = 0.5
