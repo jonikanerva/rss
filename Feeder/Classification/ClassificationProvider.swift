@@ -30,7 +30,7 @@ nonisolated enum ProviderClassificationResult: Sendable, Equatable {
 
 // MARK: - Failure disposition
 
-nonisolated enum ClassificationAbortReason: Hashable, Sendable, CaseIterable {
+nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case modelRejected
   case keyRejected
   case offline
