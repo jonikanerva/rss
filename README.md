@@ -1,25 +1,26 @@
 # Feeder
 
-A chronology-first macOS RSS reader with local intelligence for categorization.
+A chronology-first macOS RSS reader with local or user-selected cloud classification.
 
-Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-first order. Local intelligence assigns each article to one of your user-defined main categories, but it never reorders the timeline.
+Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-first order. The selected classification engine assigns each article to one of your user-defined main categories, but it never reorders the timeline.
 
 ## Features
 
 - Feedbin sync (full article content via the Feedbin API)
 - Strict chronological timeline — newest first, within and across categories
 - One main category per article, from a user-defined taxonomy
-- Local intelligence for categorization, with two first-class options:
-  - **OpenAI API** — bring your own key. Currently the higher-quality choice.
-  - **Apple Foundation Models** — zero-config, fully on-device. The
-    privacy-preserving alternative.
+- Three classification providers:
+  - **Apple Foundation Models** — zero-config and fully on-device.
+  - **OpenAI API** — bring your own API key.
+  - **Vercel AI Gateway** — use Typesafe JEV with your AI Gateway key.
+    Article titles, text, and category definitions go through Vercel to Typesafe.
 - Full keyboard navigation
 - Native macOS look and feel
 
 ## Stack
 
 - SwiftUI + SwiftData
-- Apple Foundation Models / OpenAI API
+- Apple Foundation Models / OpenAI API / Vercel AI Gateway (JEV)
 - Swift 6, strict concurrency
 - macOS 26.2+
 
@@ -30,6 +31,7 @@ Requires Xcode 26 and a Feedbin account.
 ```bash
 make test-all   # lint + build + unit tests
 make build      # build only
+make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke
 ```
 
 Open `Feeder.xcodeproj` in Xcode to run.
@@ -37,7 +39,7 @@ Open `Feeder.xcodeproj` in Xcode to run.
 ### Keychain prompts during local development
 
 After every `make install`, macOS shows one native keychain dialog per stored
-credential — typically the Feedbin token and, if configured, the OpenAI API key:
+credential — typically the Feedbin token and, if configured, the selected cloud provider's API key:
 
 > *"Feeder wants to use your confidential information stored in `<key>` in your
 > keychain. Allow / Always Allow / Deny."*

@@ -23,7 +23,7 @@ struct SettingsView: View {
   @State
   private var username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
   @State
-  private var password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
+  private var password = HeadlessMode.isEnabled ? "" : (KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? "")
   @State
   private var isSaving = false
   @State

@@ -161,8 +161,8 @@ struct SyncStatusView: View {
 
   private func abortOffersSettings(_ abort: ClassificationAbortReason) -> Bool {
     switch abort {
-    case .keyRejected, .modelRejected: true
-    case .offline, .providerUnavailable: false
+    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: true
+    case .offline, .providerUnavailable, .rateLimited: false
     }
   }
 }

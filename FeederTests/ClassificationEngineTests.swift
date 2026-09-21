@@ -294,7 +294,7 @@ struct ClassificationEngineTests {
     ]
     _ = try await writer.persistEntries(extra, unreadIDs: Set([2001, 2002]))
 
-    await drain.value
+    _ = await drain.value
 
     // The provider saw every entry in one continuous drain, so the drain did not
     // stop at the seeded rows.

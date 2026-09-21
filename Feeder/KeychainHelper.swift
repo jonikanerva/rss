@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import Security
 
 /// Errors raised by KeychainHelper when the underlying Security APIs fail.
@@ -9,9 +8,7 @@ nonisolated enum KeychainError: Error, Sendable {
   case osStatus(OSStatus)
 }
 
-nonisolated private let keychainLogger = Logger(subsystem: "com.feeder.app", category: "Keychain")
-
-/// Simple Keychain wrapper for storing Feedbin credentials and the OpenAI API key.
+/// Simple Keychain wrapper for storing Feedbin credentials and cloud API keys.
 /// All methods are nonisolated since Keychain APIs are thread-safe. `save`/`delete`
 /// throw typed errors so callers can distinguish real failures from the not-found
 /// case (which is treated as success for deletes).
@@ -26,32 +23,25 @@ nonisolated enum KeychainHelper {
   /// Named `…KeychainKey` (not `APIKey`) so call sites read unambiguously as
   /// "the keychain key" rather than "the API key value".
   static let openAIAPIKeychainKey = "openai_api_key"
+  static let vercelAPIKeychainKey = "vercel_ai_gateway_api_key"
 
   static func save(key: String, value: String) throws(KeychainError) {
     guard let data = value.data(using: .utf8) else {
       throw .encodingFailed
     }
 
-    let deleteQuery: [String: Any] = [
+    let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
       kSecAttrAccount as String: key,
     ]
-    let deleteStatus = SecItemDelete(deleteQuery as CFDictionary)
-    if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
-      keychainLogger.error("Keychain delete-before-save failed: \(deleteStatus)")
-    }
-
-    let addQuery: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: service,
-      kSecAttrAccount as String: key,
-      kSecValueData as String: data,
-    ]
-    let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-    if addStatus != errSecSuccess {
-      throw .osStatus(addStatus)
-    }
+    let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+    if status == errSecSuccess { return }
+    guard status == errSecItemNotFound else { throw .osStatus(status) }
+    var item = query
+    item[kSecValueData as String] = data
+    let addStatus = SecItemAdd(item as CFDictionary, nil)
+    if addStatus != errSecSuccess { throw .osStatus(addStatus) }
   }
 
   static func load(key: String) -> String? {

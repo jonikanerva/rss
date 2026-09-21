@@ -56,9 +56,8 @@ struct HeadlessModeTests {
     #expect(await provider.isAvailable)
 
     let result = try await provider.classify(
-      title: "Anything", body: "Anything", url: "https://example.com", instructions: "")
-    #expect(result.category == uncategorizedLabel)
-    #expect(result.confidence == 0)
+      title: "Anything", body: "Anything", url: "https://example.com", categories: [])
+    #expect(result == .generative(category: uncategorizedLabel, confidence: 0))
   }
 
   // MARK: - Seam 1: the sync client can never reach the network

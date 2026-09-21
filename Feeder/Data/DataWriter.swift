@@ -505,22 +505,35 @@ actor DataWriter: ModelActor {
     let validLabels = Set(categories.map(\.label))
     let label = validLabels.contains(result.categoryLabel) ? result.categoryLabel : uncategorizedLabel
 
+    try Task.checkCancellation()
     entry.isClassified = true
     entry.primaryCategory = label
     entry.primaryFolder = categories.first { $0.label == label }?.folderLabel ?? ""
-    try modelContext.save()
+    do {
+      try modelContext.save()
+    } catch {
+      modelContext.rollback()
+      throw error
+    }
   }
 
   func resetClassification() throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>()
     let entries = try modelContext.fetch(descriptor)
+    // The reset is atomic with respect to cancellation once mutations start.
+    try Task.checkCancellation()
     for entry in entries {
       entry.isClassified = false
       entry.primaryCategory = ""
       entry.primaryFolder = ""
     }
-    try modelContext.save()
+    do {
+      try modelContext.save()
+    } catch {
+      modelContext.rollback()
+      throw error
+    }
   }
 
   // MARK: - Entry folder backfill

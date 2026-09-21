@@ -83,7 +83,7 @@ final class InMemoryFlagStore: SeededDefaultsFlagStore {
 }
 
 /// Lightweight snapshot of an Entry for test assertions without crossing actor boundaries.
-struct EntrySnapshot: Sendable {
+struct EntrySnapshot: Sendable, Equatable {
   let feedbinEntryID: Int
   let isRead: Bool
   let isClassified: Bool

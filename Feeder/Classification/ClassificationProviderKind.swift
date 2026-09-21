@@ -5,6 +5,7 @@ import Foundation
 nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   case appleFM = "apple_fm"
   case openAI = "openai"
+  case vercel = "vercel"
 
   static let userDefaultsKey = "classification_provider"
   static let `default`: Self = .appleFM
@@ -26,26 +27,35 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
     defaults.set(kind.rawValue, forKey: userDefaultsKey)
   }
 
+  var keychainKey: String? {
+    switch self {
+    case .appleFM: nil
+    case .openAI: KeychainHelper.openAIAPIKeychainKey
+    case .vercel: KeychainHelper.vercelAPIKeychainKey
+    }
+  }
+
   // MARK: - Display
 
   var displayName: String {
     switch self {
     case .appleFM: "Apple Foundation Models"
     case .openAI: "OpenAI"
+    case .vercel: "Vercel AI Gateway"
     }
   }
 
   var subtitle: String {
     switch self {
     case .appleFM: "Free \u{00B7} On-device \u{00B7} Private"
-    case .openAI: "Requires API key \u{00B7} Cloud-based"
+    case .openAI, .vercel: "Requires API key \u{00B7} Cloud-based"
     }
   }
 
   var iconName: String {
     switch self {
     case .appleFM: "apple.logo"
-    case .openAI: "cloud"
+    case .openAI, .vercel: "cloud"
     }
   }
 }

@@ -137,4 +137,17 @@ struct ClassificationProviderResolutionTests {
     let openAIProvider = provider as? OpenAIClassificationProvider
     #expect(openAIProvider?.model == "gpt-5.6-luna")
   }
+  @Test
+  func vercelUsesOnlyItsOwnKeyAndNeverFallsBack() async {
+    ClassificationProviderKind.persist(.vercel, in: defaults)
+    var requestedKeys: [String] = []
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
+      requestedKeys.append(key)
+      return nil
+    }
+    #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
+    #expect(provider is VercelClassificationProvider)
+    #expect(!(await provider.isAvailable))
+    #expect(KeychainHelper.vercelAPIKeychainKey != KeychainHelper.openAIAPIKeychainKey)
+  }
 }

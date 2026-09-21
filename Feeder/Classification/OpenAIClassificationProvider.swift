@@ -41,10 +41,11 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     title: String,
     body: String,
     url: String,
-    instructions: String
+    categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
+    let instructions = buildClassificationInstructions(from: categories)
     let truncatedBody = String(body.prefix(60_000))
-    let userMessage = "title: \(title)\nurl: \(url)\ncontent: \(truncatedBody)"
+    let userMessage = Self.articleMessage(title: title, body: truncatedBody)
 
     var request = URLRequest(url: Self.endpoint)
     request.httpMethod = "POST"
@@ -59,9 +60,11 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     do {
       (data, response) = try await URLSession.shared.data(for: request)
     } catch {
+      if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
       throw OpenAIError.networkUnavailable(underlying: error)
     }
 
+    try Task.checkCancellation()
     guard let httpResponse = response as? HTTPURLResponse else {
       throw OpenAIError.invalidResponse
     }
@@ -79,17 +82,17 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
     let classification = try JSONDecoder().decode(OpenAIClassification.self, from: Data(content.utf8))
 
-    return ProviderClassificationResult(
+    return .generative(
       category: classification.category,
       confidence: classification.confidence
     )
   }
 
-  /// Pure request-body seam, so a test can pin the encoded wire shape, and in
-  /// particular the absence of a temperature key. Some models reject any
-  /// non-default temperature with a deterministic 400, so the request sends no
-  /// sampling parameter at all and lets each model's own default apply. The
-  /// structured-output schema still constrains the response shape.
+  static func articleMessage(title: String, body: String) -> String {
+    "title: \(title)\ncontent: \(body)"
+  }
+
+  /// Omit sampling parameters: some supported models reject non-default values.
   static func encodeRequestBody(
     model: String,
     instructions: String,

@@ -198,6 +198,52 @@ final class FeederUITests: XCTestCase {
   }
 
   @MainActor
+  func testVercelSettingsKeyboardSmoke() throws {
+    let app = makeApp()
+    app.launchEnvironment["FEEDER_HEADLESS"] = "1"
+    app.launch()
+    defer { app.terminate() }
+    XCTAssertTrue(app.buttons["toolbar.sync"].waitForExistence(timeout: 10))
+    app.typeKey(",", modifierFlags: .command)
+    let tab = app.buttons["Classification"]
+    XCTAssertTrue(tab.exists || tab.waitForExistence(timeout: 5), app.debugDescription)
+    tab.click()
+    let provider = app.radioButtons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "classification.provider.vercel")).firstMatch
+    XCTAssertTrue(provider.exists || provider.waitForExistence(timeout: 5), app.debugDescription)
+    provider.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).click()
+    XCTAssertTrue(provider.isSelected)
+    XCTAssertTrue(
+      nativeText("JEV (Typesafe)", in: app).exists || nativeText("JEV (Typesafe)", in: app).waitForExistence(timeout: 5),
+      app.debugDescription)
+    let edit = app.buttons["classification.key.edit"]
+    edit.click()
+    let field = app.secureTextFields["classification.key.field"]
+    XCTAssertTrue(field.exists || field.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["classification.key.save"].isEnabled)
+    field.click()
+    field.typeText("fake-ui-key")
+    XCTAssertTrue(app.buttons["classification.key.save"].isEnabled)
+    app.typeKey(.return, modifierFlags: [])
+    XCTAssertTrue(app.buttons["Reclassify"].exists || app.buttons["Reclassify"].waitForExistence(timeout: 5), app.debugDescription)
+    app.typeKey(.escape, modifierFlags: [])
+    XCTAssertFalse(app.buttons["Reclassify"].exists)
+    XCTAssertFalse(field.exists)
+    XCTAssertTrue(nativeText("API key is saved", in: app).exists || nativeText("API key is saved", in: app).waitForExistence(timeout: 5))
+    edit.click()
+    XCTAssertTrue(field.exists || field.waitForExistence(timeout: 5))
+    app.typeKey(.escape, modifierFlags: [])
+    XCTAssertFalse(app.buttons["Reclassify"].exists)
+    XCTAssertFalse(field.exists)
+    XCTAssertTrue(nativeText("API key is saved", in: app).exists || nativeText("API key is saved", in: app).waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["Reclassify"].exists)
+  }
+
+  @MainActor
+  private func nativeText(_ text: String, in app: XCUIApplication) -> XCUIElement {
+    app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", text, text)).firstMatch
+  }
+
+  @MainActor
   private func makeApp(forceOnboarding: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["UITEST_IN_MEMORY_STORE"] = "1"
