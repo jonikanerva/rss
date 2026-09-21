@@ -43,6 +43,8 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case invalidResponse
   case rateLimited
 
+  /// Fixed banner copy: a fragment with no trailing period, like the other
+  /// status labels. A test locks the literals.
   var displayLabel: String {
     switch self {
     case .modelRejected: "Model rejected the request"
@@ -52,7 +54,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .needsKey: "Add an API key to start categorizing"
     case .invalidCategories: "JEV needs unique category labels and at most 255 categories"
     case .inputTooLarge: "Category definitions are too large for JEV"
-    case .invalidResponse: "JEV returned an invalid result. Retry to try again."
+    case .invalidResponse: "JEV returned an invalid result"
     case .rateLimited: "Categorizing paused — service limit reached"
     }
   }
