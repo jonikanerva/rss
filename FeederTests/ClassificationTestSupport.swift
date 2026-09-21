@@ -58,7 +58,6 @@ actor FakeClassificationProvider {
   /// The availability the runner's guard sees. One test flips it, to prove the
   /// early return emits an owning provider-unavailable outcome.
   private var available = true
-  private var response = FakeClassificationProvider.defaultResponse
   private var validationError: VercelClassificationError?
 
   var isAvailable: Bool { available }
@@ -84,7 +83,7 @@ actor FakeClassificationProvider {
       throw error
     }
 
-    return response
+    return Self.defaultResponse
   }
 
   func validate(categories: [CategoryDefinition]) async throws {
@@ -92,7 +91,6 @@ actor FakeClassificationProvider {
   }
 
   func configureValidation(_ error: VercelClassificationError?) { validationError = error }
-  func configureResponse(_ response: ProviderClassificationResult) { self.response = response }
 
   // MARK: - Test configuration setters
 

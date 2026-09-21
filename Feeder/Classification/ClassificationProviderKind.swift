@@ -51,11 +51,4 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
     case .openAI, .vercel: "Requires API key \u{00B7} Cloud-based"
     }
   }
-
-  var iconName: String {
-    switch self {
-    case .appleFM: "apple.logo"
-    case .openAI, .vercel: "cloud"
-    }
-  }
 }
