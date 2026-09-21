@@ -298,6 +298,8 @@ nonisolated struct ClassificationRunner: Sendable {
     let supportedLanguages = await provider.supportedLanguageCodes
     var remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? firstChunk.count
     var completed = 0
+    // An entry whose write fails stays unclassified and returns in the next
+    // chunk fetch. Skip attempted IDs so the drain ends and the next poll retries.
     var attemptedIDs = Set<Int>()
     var lastProgress = ContinuousClock.now
     await reportProgress(progressSnapshot(completed: 0, remaining: remaining, provider: provider.name))
