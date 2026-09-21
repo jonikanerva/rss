@@ -5,7 +5,7 @@ import Testing
 
 actor ClassificationTransportRecorder {
   private(set) var requests: [URLRequest] = []
-  var response: ClassificationHTTPResponse
+  private let response: ClassificationHTTPResponse
 
   init(data: Data, status: Int = 200, retryAfter: String? = nil) {
     response = ClassificationHTTPResponse(data: data, statusCode: status, retryAfter: retryAfter)
