@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated struct ClassificationHTTPResponse: Sendable {
   let data: Data
@@ -7,6 +8,7 @@ nonisolated struct ClassificationHTTPResponse: Sendable {
 }
 
 nonisolated struct VercelClassificationProvider: ClassificationProvider {
+  private static let logger = Logger(subsystem: "com.feeder.app", category: "Vercel")
   let name = "Vercel AI Gateway"
   static let model = "typesafe-ai/jev"
   static let maximumRequestBytes = 24_000
@@ -53,10 +55,13 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
         throw CancellationError()
       }
       if let failure = error as? VercelClassificationError { throw failure }
+      Self.logger.error("Vercel AI Gateway transport failure: \(String(describing: error), privacy: .private)")
       throw VercelClassificationError.network
     }
     try Task.checkCancellation()
     guard response.statusCode == 200 else {
+      let body = String(decoding: response.data, as: UTF8.self)
+      Self.logger.error("Vercel AI Gateway HTTP \(response.statusCode): \(body, privacy: .private)")
       throw VercelClassificationError.http(
         response.statusCode, retryAfter: Self.retryDelay(response.retryAfter, now: now()))
     }
@@ -122,7 +127,10 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       answer.type == "choice", labels.contains(answer.choice),
       !answer.probabilities.isEmpty, answer.probabilities[answer.choice] != nil,
       answer.probabilities.allSatisfy({ labels.contains($0.key) && $0.value.isFinite && (0...1).contains($0.value) })
-    else { throw VercelClassificationError.invalidResponse }
+    else {
+      Self.logger.error("Vercel AI Gateway response rejected: \(String(decoding: data, as: UTF8.self), privacy: .private)")
+      throw VercelClassificationError.invalidResponse
+    }
     return .choice(category: answer.choice)
   }
 

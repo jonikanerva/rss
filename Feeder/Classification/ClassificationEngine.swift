@@ -1,5 +1,6 @@
 import Foundation
 import NaturalLanguage
+import OSLog
 import SwiftData
 
 nonisolated func detectLanguage(_ text: String) -> String {
@@ -226,6 +227,7 @@ final class ClassificationEngine {
 }
 
 nonisolated struct ClassificationRunner: Sendable {
+  private static let logger = Logger(subsystem: "com.feeder.app", category: "Classification")
   let writer: DataWriter
   let providerFactory: @Sendable () -> any ClassificationProvider
   let reportProgress: @Sendable (ProgressSnapshot) async -> Void
@@ -324,6 +326,9 @@ nonisolated struct ClassificationRunner: Sendable {
                 return .cancelled
               }
               if (error as? any ClassificationFailure)?.batchAbort != nil {
+                Self.logger.error(
+                  "Classification provider '\(provider.name)' aborted the batch after \(completed) entries: \(String(describing: error), privacy: .private)"
+                )
                 return await abort(error, completed: completed)
               }
               result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel, confidence: nil)
