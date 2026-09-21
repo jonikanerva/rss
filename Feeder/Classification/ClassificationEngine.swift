@@ -356,6 +356,8 @@ nonisolated struct ClassificationRunner: Sendable {
       }
       guard !Task.isCancelled else { break }
       chunk = (try? await writer.fetchUnclassifiedInputs(cutoffDate: cutoffDate, limit: chunkSize)) ?? []
+      // Count pending entries only at a chunk boundary, never per entry: each
+      // count is a SQLite query on the writer actor (STACK.md § 4).
       remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? chunk.count
     }
     if Task.isCancelled {
