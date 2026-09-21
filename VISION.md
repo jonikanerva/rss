@@ -25,7 +25,7 @@ Help the user read their feeds calmly every day: articles arrive already sorted 
   Classification into the user-defined taxonomy is always on (no off-toggle in MVP), with an explicit fallback path when nothing matches. Multi-label assignment is out of scope.
 
 - **Local intelligence, user's choice of engine.**
-  Classification runs on Apple Foundation Models (zero-config, fully on-device) or OpenAI (user-supplied key; currently the higher-quality option). Both are first-class; the user chooses.
+  Classification runs on Apple Foundation Models (zero-config, fully on-device) or a third-party cloud API with a user-supplied key. Both local and cloud classification are first-class options. The user chooses the provider, including any API gateway that routes the request to a model provider.
 
 - **Keyboard-first, vanilla macOS.**
   Every core action is operable from the keyboard alone, with predictable focus and shortcuts discoverable in menus. The app uses native components, system colors, and system fonts — it looks and feels like Apple built it. Accessibility is product quality, not post-processing.
@@ -96,8 +96,8 @@ The product succeeds when the user feels:
 
 ## Persistence and Privacy Posture *(REQUIRED)*
 
-- **Persisted on-device:** synced articles with full content and denormalized display fields; feeds and subscriptions; user-defined folders and categories (`displayName`, `categoryDescription`, `keywords`, `sortOrder`); classification results (`primaryCategory`, `primaryFolder`); read state; sync state (last sync date, pending read IDs). Feedbin credentials and the optional OpenAI API key live in the macOS Keychain, never in files.
-- **Transmitted off-device:** Feedbin API traffic (credentials, subscriptions, entries, read-state updates); article title and content sent to the OpenAI API for classification **only** when the user has selected OpenAI as the classification provider; an OpenAI model-list request (`GET /v1/models`, carrying only the API key, never article data) **only** while the user views classification settings with OpenAI selected and a key stored. Apple Foundation Models classification stays fully on-device. Nothing else leaves the machine.
+- **Persisted on-device:** synced articles with full content and denormalized display fields; feeds and subscriptions; user-defined folders and categories (`displayName`, `categoryDescription`, `keywords`, `sortOrder`); classification results (`primaryCategory`, `primaryFolder`); read state; sync state (last sync date, pending read IDs). Feedbin credentials and optional third-party cloud API keys live in the macOS Keychain, never in files.
+- **Transmitted off-device:** Feedbin API traffic (credentials, subscriptions, entries, read-state updates). Article title, content, and category definitions may be sent to a third-party cloud API for classification **only** when the user has selected that provider. The selected service may be an API gateway that routes these requests to the selected model provider. Cloud requests carry the API key for the selected service. A model-list request may carry that key, but never article data or category definitions, **only** while the user views classification settings with that cloud provider selected and a key stored. Feedbin credentials and reading history are never sent to classification providers. Apple Foundation Models classification stays fully on-device. Nothing else leaves the machine.
 - **Never persisted:** telemetry or analytics data; reading-behavior profiles beyond read state; third-party tracking identifiers; secrets in the repo or in plain-text files.
 - **Telemetry / analytics:** none. No crash reporters, no third-party analytics.
 
