@@ -30,6 +30,8 @@ nonisolated enum ProviderClassificationResult: Sendable, Equatable {
 
 // MARK: - Failure disposition
 
+/// Payload-free on purpose: raw API text must not reach the UI through this
+/// type. The failure detail goes to a `.private` log line.
 nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case modelRejected
   case keyRejected
@@ -61,6 +63,8 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
 }
 
 /// A non-nil abort must preserve the pending entry and stop the batch.
+/// A nil abort, or an error that does not conform, persists the entry as
+/// uncategorized and continues the drain.
 nonisolated protocol ClassificationFailure: Error {
   var batchAbort: ClassificationAbortReason? { get }
   var retryDisposition: ClassificationRetry { get }

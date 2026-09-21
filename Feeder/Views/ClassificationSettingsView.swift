@@ -125,6 +125,8 @@ struct ClassificationSettingsView: View {
   private func selectModel(_ model: String) {
     guard model != modelSelection else { return }
     modelSelection = model
+    // Persist only on an explicit user pick. A programmatic write pins a user
+    // who never picked to the current default.
     if !settings.isInert { OpenAIModelSetting.persist(model) }
     configurationChanged()
     if settings.hasStoredKey { reclassifyTarget = targetName(.openAI) }
@@ -156,6 +158,8 @@ struct ClassificationSettingsView: View {
     do throws(OpenAIModelsError) {
       outcome = .success(try await OpenAIModelsClient().fetchModels(apiKey: apiKey))
     } catch { outcome = .failure(error) }
+    // A cancelled fetch surfaces as a network failure. Do not show a failure
+    // this view abandoned.
     guard !Task.isCancelled else { return }
     modelListState = resolveModelListState(outcome: outcome)
   }
@@ -242,6 +246,8 @@ private struct APIKeyEditSheet: View {
 
   private func perform(_ operation: KeyEditOperation) async {
     let hadKey = settings.hasStoredKey
+    // Report only a write the store accepted, so the parent never shows a key
+    // as saved after a failed write.
     do {
       switch operation {
       case .save(let value): try await settings.save(value, for: provider)
@@ -341,6 +347,7 @@ private struct OpenAIModelPickerRow: View {
           Text(modelID).tag(modelID)
         }
       }
+      // The loaded list passes the option-count threshold for a menu (STACK.md § 11).
       .pickerStyle(.menu)
 
       statusLine

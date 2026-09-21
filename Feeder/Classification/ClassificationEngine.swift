@@ -63,6 +63,8 @@ final class ClassificationEngine {
   private(set) var lastAbortProvider: ClassificationProviderKind?
   private(set) var batchProgressVersion = 0
 
+  /// Every entry point routes work through this slot, so one runner is active
+  /// at a time and no two runners send the same article to a provider.
   private var classificationTask: Task<ClassificationBatchOutcome, Never>?
   private var classificationTaskID: UUID?
   private var isContinuousModeActive = false
@@ -169,10 +171,13 @@ final class ClassificationEngine {
   #endif
 
   private func apply(_ snapshot: ProgressSnapshot, provider: ClassificationProviderKind?) {
+    // Capture the count before the assignments below overwrite classifiedCount.
     if isClassifying && !snapshot.isClassifying {
       lastBatchClassifiedCount = classifiedCount
     }
     if !snapshot.isClassifying, snapshot.ownsAbort {
+      // Write only on change: a same-value write re-announces the banner to
+      // VoiceOver on every poll tick.
       if lastAbort != snapshot.abort {
         lastAbort = snapshot.abort
         #if DEBUG
@@ -208,6 +213,8 @@ final class ClassificationEngine {
     self.lastAbortProvider = provider
   }
 
+  /// Read the Keychain only inside a cloud-provider case, so an Apple
+  /// Foundation Models user never triggers a Keychain read.
   nonisolated static func buildProvider(
     defaults: UserDefaults = .standard,
     keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
@@ -351,6 +358,7 @@ nonisolated struct ClassificationRunner: Sendable {
         completed += 1
         remaining = max(0, remaining - 1)
         let now = ContinuousClock.now
+        // Report at most once per 200 ms: every report hops to MainActor.
         if now - lastProgress >= .milliseconds(200) {
           await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
           lastProgress = now
