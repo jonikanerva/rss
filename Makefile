@@ -19,6 +19,7 @@ DERIVED_DATA   ?= /tmp/FeederDerivedData
 DESTINATION    ?= platform=macOS
 UNIT_RESULT    ?= artifacts/local/xcresult/unit-tests.xcresult
 UI_RESULT      ?= artifacts/local/xcresult/ui-smoke.xcresult
+UI_TEST        ?= FeederUITests
 REPORT_DIR     ?= artifacts/local/test-reports
 
 XCODEBUILD_FLAGS = \
@@ -232,18 +233,15 @@ c3-measure: build ## C3 read-starvation measurement + disposition verdict (#138 
 		-parallel-testing-enabled NO \
 		-only-testing:FeederTests/C3ReadStarvationMeasurementTests
 
-test-ui: build ## Run UI smoke tests (FeederUITests)
+test-ui: build ## Run UI tests; UI_TEST can select one suite or method
 	@echo "==> UI smoke tests"
 	@mkdir -p $(dir $(UI_RESULT))
 	@rm -rf $(UI_RESULT)
-	@# Invoked via the UI-test runner wrapper so residual Feeder.app
-	@# processes are reaped before and after the run (same class of
-	@# zombie-process bug fixed for `make perf` in Tools/PerfParser/run_trace_iterations.sh).
-	@# `test-full` composes `test test-ui` so it inherits the cleanup automatically.
-	./Tools/UITestRunner/run_ui_tests.sh test-without-building \
+	FEEDER_UI_PRODUCTS_DIR="$(DERIVED_DATA)/Build/Products/$(CONFIGURATION)" \
+		./Tools/UITestRunner/run_ui_tests.sh test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UI_RESULT) \
-		-only-testing:FeederUITests
+		"-only-testing:$(UI_TEST)"
 
 # ---------------------------------------------------------------------------
 # Full gate
