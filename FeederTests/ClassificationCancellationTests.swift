@@ -105,7 +105,7 @@ struct ClassificationCancellationTests {
   }
 
   @Test
-  func exhaustedBudgetBlocksWithoutPersistingFallback() async throws {
+  func exhaustedBudgetPausesWithoutPersistingFallback() async throws {
     let writer = try await fixture()
     let recorder = ClassificationTransportRecorder(data: Data(), status: 402)
     let provider = VercelClassificationProvider(apiKey: "fake", send: { await recorder.send($0) })
@@ -113,7 +113,7 @@ struct ClassificationCancellationTests {
     await engine.classifyUnclassified(writer: writer)
     #expect(await recorder.requests.count == 1)
     #expect(engine.lastAbort == .rateLimited)
-    #expect(VercelClassificationError.http(402, retryAfter: nil).retryDisposition == .blocked)
+    #expect(VercelClassificationError.http(402, retryAfter: nil).retryDisposition == .transient(retryAfter: nil))
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == false) }
   }
 

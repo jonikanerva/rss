@@ -206,6 +206,9 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     switch self {
     case .needsKey, .invalidCategories, .inputTooLarge: .poll
     case .network: .transient(retryAfter: nil)
+    // An exhausted budget heals when the account is topped up, with no change
+    // in the app, so it takes the backoff instead of the shared block rule.
+    case .http(402, let retryAfter): .transient(retryAfter: retryAfter)
     case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
     case .invalidResponse: .blocked
     }

@@ -245,13 +245,7 @@ nonisolated struct ClassificationRunner: Sendable {
     var outcome = initialOutcome
     while !Task.isCancelled {
       if let previous = outcome {
-        guard let delay = retryState.delay(after: previous) else {
-          // Configuration changes and manual retries cancel this wait; no polling HTTP is allowed.
-          while !Task.isCancelled {
-            do { try await sleep(.seconds(3600)) } catch { return }
-          }
-          return
-        }
+        guard let delay = retryState.delay(after: previous) else { return }
         do { try await sleep(delay) } catch { break }
       }
       guard !Task.isCancelled else { break }

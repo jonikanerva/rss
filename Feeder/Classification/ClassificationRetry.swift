@@ -40,7 +40,9 @@ nonisolated enum ClassificationBatchOutcome: Sendable {
 nonisolated struct ClassificationRetryState: Sendable {
   private var failures = 0
 
-  /// Nil means that only an explicit retry or configuration change may send again.
+  /// Nil means the caller must stop the loop. A blocked outcome waits one hour
+  /// and then sends again, so a blocking failure never stops the drain for
+  /// good. The caller may cancel any wait.
   mutating func delay(after outcome: ClassificationBatchOutcome) -> Duration? {
     switch outcome {
     case .completed:
@@ -52,7 +54,7 @@ nonisolated struct ClassificationRetryState: Sendable {
       if completed > 0 { failures = 0 }
       switch retry {
       case .poll: return .seconds(2)
-      case .blocked: return nil
+      case .blocked: return .seconds(3600)
       case .transient(let retryAfter):
         let schedule: [TimeInterval] = [30, 60, 120, 300]
         let delay = schedule[min(failures, schedule.count - 1)]

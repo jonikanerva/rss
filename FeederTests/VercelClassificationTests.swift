@@ -184,7 +184,14 @@ struct ClassificationRetryTests {
     #expect(state.delay(after: failure) == .seconds(60))
     #expect(state.delay(after: .completed(1)) == .seconds(2))
     #expect(state.delay(after: failure) == .seconds(30))
-    #expect(state.delay(after: .aborted(.blocked, completed: 0)) == nil)
+    #expect(state.delay(after: .aborted(.blocked, completed: 0)) == .seconds(3600))
+  }
+
+  @Test
+  func blockedRechecksHourlyAndOnlyCancellationStops() {
+    var state = ClassificationRetryState()
+    for _ in 0..<3 { #expect(state.delay(after: .aborted(.blocked, completed: 0)) == .seconds(3600)) }
+    #expect(state.delay(after: .cancelled) == nil)
   }
 
   @Test
