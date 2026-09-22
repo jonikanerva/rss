@@ -43,7 +43,7 @@ struct WindowRefreshIntegrationTests {
     for spec in specs {
       try await writer.applyClassification(
         entryID: spec.id,
-        result: ClassificationResult(entryID: spec.id, categoryLabel: spec.category, confidence: 0.9))
+        result: ClassificationResult(entryID: spec.id, categoryLabel: spec.category))
     }
     return (writer, reader)
   }
@@ -77,7 +77,7 @@ struct WindowRefreshIntegrationTests {
     // strictly below the loaded window's bottom edge.
     try await writer.applyClassification(
       entryID: olderID,
-      result: ClassificationResult(entryID: olderID, categoryLabel: "tech", confidence: 0.9))
+      result: ClassificationResult(entryID: olderID, categoryLabel: "tech"))
 
     let refreshed = try await fetch(reader, window: .atOrAbove(cursor))
     #expect(refreshed.sections == window.sections)
@@ -104,7 +104,7 @@ struct WindowRefreshIntegrationTests {
 
     try await writer.applyClassification(
       entryID: 3001,
-      result: ClassificationResult(entryID: 3001, categoryLabel: "tech", confidence: 0.9))
+      result: ClassificationResult(entryID: 3001, categoryLabel: "tech"))
 
     let firstPage = try await fetch(reader, window: .firstPage(limit: 10))
     #expect(firstPage.sections.flatMap(\.rows).map(\.feedbinEntryID) == [3001])

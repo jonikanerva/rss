@@ -46,9 +46,7 @@ struct DataWriterRecategorizeTests {
       _ = try await writer.persistEntries([entry], unreadIDs: Set([id]))
       try await writer.applyClassification(
         entryID: id,
-        result: ClassificationResult(
-          entryID: id, categoryLabel: categoryLabel, confidence: 0.9
-        )
+        result: ClassificationResult(entryID: id, categoryLabel: categoryLabel)
       )
       // Sanity check: applyClassification put the entry in the expected place.
       let snap = try await writer.fetchEntrySnapshot(feedbinEntryID: id)

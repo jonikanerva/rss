@@ -159,7 +159,6 @@ struct VercelClassificationTests {
     let input = ClassificationInput(entryID: 1, title: "Swift Apple", body: "Technology news", url: "")
     let fallback = try resolveClassification(.choice(category: uncategorizedLabel), input: input, categories: categories)
     #expect(fallback.categoryLabel == uncategorizedLabel)
-    #expect(fallback.confidence == nil)
     let direct = try resolveClassification(.choice(category: "tech"), input: input, categories: categories)
     #expect(direct.categoryLabel == "tech")
     let plain = ClassificationInput(entryID: 1, title: "Unrelated", body: "Unrelated", url: "")

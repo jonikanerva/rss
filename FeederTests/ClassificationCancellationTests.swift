@@ -23,12 +23,12 @@ struct ClassificationCancellationTests {
   func cancelledActorCallsCannotApplyOrResetAnyFields() async throws {
     let writer = try await fixture()
     for id in 1001...1003 {
-      try await writer.applyClassification(entryID: id, result: .init(entryID: id, categoryLabel: "tech", confidence: 0.9))
+      try await writer.applyClassification(entryID: id, result: .init(entryID: id, categoryLabel: "tech"))
     }
     var initial: [Int: EntrySnapshot] = [:]
     for id in 1001...1003 { initial[id] = try await writer.fetchEntrySnapshot(feedbinEntryID: id) }
     let apply = Task { @MainActor in
-      try await writer.applyClassification(entryID: 1001, result: .init(entryID: 1001, categoryLabel: uncategorizedLabel, confidence: nil))
+      try await writer.applyClassification(entryID: 1001, result: .init(entryID: 1001, categoryLabel: uncategorizedLabel))
     }
     apply.cancel()
     await #expect(throws: CancellationError.self) { try await apply.value }

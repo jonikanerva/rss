@@ -139,8 +139,7 @@ struct DataWriterEntryTests {
 
     let result = ClassificationResult(
       entryID: 1001,
-      categoryLabel: "apple",
-      confidence: 0.9
+      categoryLabel: "apple"
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
@@ -164,8 +163,7 @@ struct DataWriterEntryTests {
 
     let result = ClassificationResult(
       entryID: 1001,
-      categoryLabel: "science",
-      confidence: 0.8
+      categoryLabel: "science"
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
@@ -184,8 +182,7 @@ struct DataWriterEntryTests {
 
     let result = ClassificationResult(
       entryID: 1001,
-      categoryLabel: "nonexistent",
-      confidence: 0.9
+      categoryLabel: "nonexistent"
     )
     try await writer.applyClassification(entryID: 1001, result: result)
 
@@ -199,8 +196,7 @@ struct DataWriterEntryTests {
 
     let result = ClassificationResult(
       entryID: 99999,
-      categoryLabel: "technology",
-      confidence: 0.9
+      categoryLabel: "technology"
     )
     // Should not crash — guard returns early for missing entry
     try await writer.applyClassification(entryID: 99999, result: result)
@@ -235,7 +231,7 @@ struct DataWriterEntryTests {
     // Classifying one recent entry drops the pending count by one.
     try await writer.applyClassification(
       entryID: 1002,
-      result: ClassificationResult(entryID: 1002, categoryLabel: "tech", confidence: 0.9))
+      result: ClassificationResult(entryID: 1002, categoryLabel: "tech"))
     #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 1)
 
     // A distant-past cutoff pulls the older entry back into scope.
@@ -335,7 +331,7 @@ struct DataWriterEntryTests {
     // Classify entries into different categories
     for (id, cat) in [(2001, "technology"), (2002, "technology"), (2003, "world_news")] {
       let result = ClassificationResult(
-        entryID: id, categoryLabel: cat, confidence: 0.9)
+        entryID: id, categoryLabel: cat)
       try await writer.applyClassification(entryID: id, result: result)
     }
 
@@ -381,7 +377,7 @@ struct DataWriterEntryTests {
       description: "Tech news", sortOrder: 0)
     for id in [3001, readEntryID] {
       let result = ClassificationResult(
-        entryID: id, categoryLabel: "technology", confidence: 0.9)
+        entryID: id, categoryLabel: "technology")
       try await writer.applyClassification(entryID: id, result: result)
     }
 

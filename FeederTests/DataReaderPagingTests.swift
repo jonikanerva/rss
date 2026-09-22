@@ -58,7 +58,7 @@ struct DataReaderPagingTests {
     for spec in specs {
       try await writer.applyClassification(
         entryID: spec.id,
-        result: ClassificationResult(entryID: spec.id, categoryLabel: "tech", confidence: 0.9))
+        result: ClassificationResult(entryID: spec.id, categoryLabel: "tech"))
     }
     return (writer, reader)
   }
@@ -131,7 +131,7 @@ struct DataReaderPagingTests {
     for spec in inserts {
       try await writer.applyClassification(
         entryID: spec.id,
-        result: ClassificationResult(entryID: spec.id, categoryLabel: "tech", confidence: 0.9))
+        result: ClassificationResult(entryID: spec.id, categoryLabel: "tech"))
     }
 
     let belowAfter = try await fetch(reader, window: .after(seam, limit: 10))
