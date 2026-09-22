@@ -281,21 +281,23 @@ private struct APIKeyEditSheet: View {
   .frame(width: 550, height: 550)
 }
 
-private struct VercelSettingsPreview: View {
+private struct ClassificationSettingsPreview: View {
   private let engine: ClassificationEngine
+  private let provider: ClassificationProviderKind
   private let hasKey: Bool
 
-  init(reason: ClassificationAbortReason? = nil, hasKey: Bool = true) {
+  init(provider: ClassificationProviderKind = .vercel, reason: ClassificationAbortReason? = nil, hasKey: Bool = true) {
+    self.provider = provider
     self.hasKey = hasKey
     engine = ClassificationEngine(providerFactoryOverride: { HeadlessClassificationProvider() })
-    engine.applyPreviewState(lastAbort: reason, provider: .vercel)
+    engine.applyPreviewState(lastAbort: reason, provider: provider)
   }
 
   var body: some View {
     ClassificationSettingsView(
       settings: ClassificationSettingsModel(
-        provider: .vercel,
-        store: MemoryClassificationKeyStore(values: hasKey ? [.vercel: "preview"] : [:]),
+        provider: provider,
+        store: MemoryClassificationKeyStore(values: hasKey ? [provider: "preview"] : [:]),
         isInert: true)
     )
     .environment(SyncEngine()).environment(engine)
@@ -304,14 +306,18 @@ private struct VercelSettingsPreview: View {
   }
 }
 
-#Preview("Vercel — offline") { VercelSettingsPreview(reason: .offline) }
-#Preview("Vercel — invalid key") { VercelSettingsPreview(reason: .keyRejected) }
-#Preview("Vercel — service limit") { VercelSettingsPreview(reason: .rateLimited) }
-#Preview("Vercel — rejected request") { VercelSettingsPreview(reason: .modelRejected) }
-#Preview("Vercel — invalid response") { VercelSettingsPreview(reason: .invalidResponse) }
-#Preview("Vercel — invalid categories") { VercelSettingsPreview(reason: .invalidCategories).preferredColorScheme(.dark) }
-#Preview("Vercel — large categories") { VercelSettingsPreview(reason: .inputTooLarge) }
-#Preview("Vercel — unavailable") { VercelSettingsPreview(reason: .providerUnavailable) }
+#Preview("Vercel — offline") { ClassificationSettingsPreview(reason: .offline) }
+#Preview("Vercel — invalid key") { ClassificationSettingsPreview(reason: .keyRejected) }
+#Preview("Vercel — service limit") { ClassificationSettingsPreview(reason: .rateLimited) }
+#Preview("Vercel — rejected request") { ClassificationSettingsPreview(reason: .modelRejected) }
+#Preview("Vercel — invalid response") { ClassificationSettingsPreview(reason: .invalidResponse) }
+#Preview("Vercel — invalid categories") {
+  ClassificationSettingsPreview(reason: .invalidCategories).preferredColorScheme(.dark)
+}
+#Preview("Vercel — large categories") { ClassificationSettingsPreview(reason: .inputTooLarge) }
+#Preview("Vercel — unavailable") { ClassificationSettingsPreview(reason: .providerUnavailable) }
+#Preview("OpenAI — invalid key") { ClassificationSettingsPreview(provider: .openAI, reason: .keyRejected) }
+#Preview("OpenAI — service limit") { ClassificationSettingsPreview(provider: .openAI, reason: .rateLimited) }
 #Preview("Vercel — key sheet") {
   APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: { _ in })
     .environment(AppFontSettings())

@@ -72,7 +72,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     guard httpResponse.statusCode == 200 else {
       let body = String(data: data, encoding: .utf8) ?? "no body"
       Self.logger.error("OpenAI API error \(httpResponse.statusCode): \(body, privacy: .private)")
-      throw OpenAIError.apiError(statusCode: httpResponse.statusCode, message: body)
+      throw Self.makeAPIError(response: httpResponse, body: body, now: Date())
     }
 
     let apiResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
@@ -90,6 +90,40 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 
   static func articleMessage(title: String, body: String) -> String {
     "title: \(title)\ncontent: \(body)"
+  }
+
+  /// Codes and types that name one article as the cause, not the request shape
+  /// or the account.
+  private static let perArticleRejectionCodes: Set<String> = [
+    "context_length_exceeded",
+    "string_above_max_length",
+    "content_policy_violation",
+  ]
+
+  /// Turns a non-200 response into a failure. `now` is a parameter, so the
+  /// HTTP-date form of `Retry-After` is testable.
+  static func makeAPIError(response: HTTPURLResponse, body: String, now: Date) -> OpenAIError {
+    if response.statusCode == 400, let rejection = perArticleRejection(body: body) {
+      return rejection
+    }
+    // HTTP/2 lowercases field names. This lookup is case-insensitive; an
+    // `allHeaderFields` subscript is not.
+    let header = response.value(forHTTPHeaderField: "Retry-After")
+    return .apiError(
+      statusCode: response.statusCode,
+      message: body,
+      retryAfter: retryAfterDelay(header, now: now)
+    )
+  }
+
+  private static func perArticleRejection(body: String) -> OpenAIError? {
+    guard let envelope = try? JSONDecoder().decode(OpenAIErrorEnvelope.self, from: Data(body.utf8))
+    else { return nil }
+    if let code = envelope.error.code, perArticleRejectionCodes.contains(code) {
+      return .entryRejected(code: code)
+    }
+    if envelope.error.type == "invalid_prompt" { return .entryRejected(code: envelope.error.code) }
+    return nil
   }
 
   /// Omit sampling parameters: some supported models reject non-default values.
@@ -127,7 +161,8 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 /// `ClassificationFailure` disposition mapping case by case.
 nonisolated enum OpenAIError: LocalizedError {
   case invalidResponse
-  case apiError(statusCode: Int, message: String)
+  case apiError(statusCode: Int, message: String, retryAfter: TimeInterval?)
+  case entryRejected(code: String?)
   case emptyResponse
   case networkUnavailable(underlying: Error)
 
@@ -135,8 +170,10 @@ nonisolated enum OpenAIError: LocalizedError {
     switch self {
     case .invalidResponse:
       return "OpenAI returned an invalid response"
-    case .apiError(let statusCode, let message):
+    case .apiError(let statusCode, let message, _):
       return "OpenAI API error \(statusCode): \(message)"
+    case .entryRejected(let code):
+      return "OpenAI rejected this article: \(code ?? "no code")"
     case .emptyResponse:
       return "OpenAI returned an empty response"
     case .networkUnavailable(let underlying):
@@ -145,33 +182,55 @@ nonisolated enum OpenAIError: LocalizedError {
   }
 }
 
+/// The error envelope OpenAI returns with a non-200 status.
+private nonisolated struct OpenAIErrorEnvelope: Decodable {
+  struct Failure: Decodable {
+    let code: String?
+    let type: String?
+  }
+
+  let error: Failure
+}
+
 extension OpenAIError: ClassificationFailure {
-  /// Batch-level disposition, per `ClassificationFailure`. An API error or a
-  /// network failure is a provider-level failure: persisting the fallback for
-  /// it would misclassify the whole drain, so it aborts the batch with a
-  /// user-facing cause and leaves every entry retryable. An empty or invalid
-  /// response is a per-entry model-output problem, so the drain continues and
-  /// that entry takes the fallback.
+  /// Batch-level disposition, per `ClassificationFailure`. A provider-level
+  /// failure aborts the batch with a user-facing cause and leaves every entry
+  /// retryable: persisting the fallback for it would misclassify the whole
+  /// drain. A per-entry problem returns nil, so the drain continues and that
+  /// entry takes the uncategorized fallback.
   var batchAbort: ClassificationAbortReason? {
     switch self {
-    case .apiError(let statusCode, _):
+    case .apiError(let statusCode, _, _):
       switch statusCode {
       case 401:
         return .keyRejected
       case 429:
-        return .providerUnavailable
+        return .rateLimited
       case 400...499:
         return .modelRejected
-      case 500...:
+      case 500...599:
         return .providerUnavailable
       default:
-        // A non-200 status below 400 keeps the per-entry fallback.
+        // A status outside 400 to 599 keeps the per-entry fallback.
         return nil
       }
     case .networkUnavailable:
       return .offline
-    case .invalidResponse, .emptyResponse:
+    case .invalidResponse, .emptyResponse, .entryRejected:
       return nil
+    }
+  }
+
+  /// The runner reads this only when `batchAbort` is non-nil, so a per-entry
+  /// failure never reaches the retry state.
+  var retryDisposition: ClassificationRetry {
+    switch self {
+    case .apiError(let statusCode, _, let retryAfter):
+      ClassificationRetry(httpStatus: statusCode, retryAfter: retryAfter)
+    case .networkUnavailable:
+      .transient(retryAfter: nil)
+    case .invalidResponse, .emptyResponse, .entryRejected:
+      .poll
     }
   }
 }

@@ -63,7 +63,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       let body = String(decoding: response.data, as: UTF8.self)
       Self.logger.error("Vercel AI Gateway HTTP \(response.statusCode): \(body, privacy: .private)")
       throw VercelClassificationError.http(
-        response.statusCode, retryAfter: Self.retryDelay(response.retryAfter, now: now()))
+        response.statusCode, retryAfter: retryAfterDelay(response.retryAfter, now: now()))
     }
     return try Self.decode(response.data, categories: categories)
   }
@@ -132,17 +132,6 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       throw VercelClassificationError.invalidResponse
     }
     return .choice(category: answer.choice)
-  }
-
-  static func retryDelay(_ value: String?, now: Date) -> TimeInterval? {
-    guard let value else { return nil }
-    if let seconds = TimeInterval(value), seconds.isFinite, seconds >= 0 { return min(seconds, 3600) }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = TimeZone(secondsFromGMT: 0)
-    formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
-    guard let date = formatter.date(from: value) else { return nil }
-    return min(max(0, date.timeIntervalSince(now)), 3600)
   }
 
   private static func sendRequest(_ request: URLRequest) async throws -> ClassificationHTTPResponse {
@@ -217,9 +206,11 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     switch self {
     case .needsKey, .invalidCategories, .inputTooLarge: .poll
     case .network: .transient(retryAfter: nil)
-    case .http(let status, let retryAfter) where status == 429 || (500...599).contains(status):
-      .transient(retryAfter: retryAfter)
-    case .invalidResponse, .http: .blocked
+    // An exhausted budget heals when the account is topped up, with no change
+    // in the app, so it takes the backoff instead of the shared block rule.
+    case .http(402, let retryAfter): .transient(retryAfter: retryAfter)
+    case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
+    case .invalidResponse: .blocked
     }
   }
 }

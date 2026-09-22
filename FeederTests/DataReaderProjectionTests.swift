@@ -22,7 +22,7 @@ struct DataReaderProjectionTests {
       label: "tech", displayName: "Tech", description: "Tech news", sortOrder: 0)
     _ = try await writer.persistEntries([FeedbinFixtures.entry(id: 1)], unreadIDs: [1])
     try await writer.applyClassification(
-      entryID: 1, result: ClassificationResult(entryID: 1, categoryLabel: "tech", confidence: 0.9))
+      entryID: 1, result: ClassificationResult(entryID: 1, categoryLabel: "tech"))
     let result = try await reader.fetchEntrySections(
       category: "tech", folder: nil, showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10))

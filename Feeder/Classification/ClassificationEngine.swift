@@ -245,13 +245,7 @@ nonisolated struct ClassificationRunner: Sendable {
     var outcome = initialOutcome
     while !Task.isCancelled {
       if let previous = outcome {
-        guard let delay = retryState.delay(after: previous) else {
-          // Configuration changes and manual retries cancel this wait; no polling HTTP is allowed.
-          while !Task.isCancelled {
-            do { try await sleep(.seconds(3600)) } catch { return }
-          }
-          return
-        }
+        guard let delay = retryState.delay(after: previous) else { return }
         do { try await sleep(delay) } catch { break }
       }
       guard !Task.isCancelled else { break }
@@ -319,11 +313,11 @@ nonisolated struct ClassificationRunner: Sendable {
         attemptedIDs.insert(input.entryID)
         let result: ClassificationResult
         if shouldSkipClassification(title: input.title, body: input.body) {
-          result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel, confidence: nil)
+          result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
         } else {
           let language = detectLanguage("\(input.title) \(input.body.prefix(500))")
           if let supportedLanguages, !supportedLanguages.contains(language) {
-            result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel, confidence: nil)
+            result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
           } else {
             do {
               let response = try await provider.classify(title: input.title, body: input.body, url: input.url, categories: categories)
@@ -340,7 +334,7 @@ nonisolated struct ClassificationRunner: Sendable {
                 )
                 return await abort(error, completed: completed)
               }
-              result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel, confidence: nil)
+              result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
             }
           }
         }
@@ -411,13 +405,13 @@ nonisolated func resolveClassification(
     guard validLabels.contains(category) || category == uncategorizedLabel else {
       throw VercelClassificationError.invalidResponse
     }
-    return ClassificationResult(entryID: input.entryID, categoryLabel: category, confidence: nil)
+    return ClassificationResult(entryID: input.entryID, categoryLabel: category)
   case .generative(let category, let confidence):
     let label = validLabels.contains(category) ? category : uncategorizedLabel
     let gatedLabel = applyConfidenceGate(
       label: label, llmConfidence: confidence,
       keywordScores: keywordMatchConfidence(title: input.title, body: input.body, categories: categories))
-    return ClassificationResult(entryID: input.entryID, categoryLabel: gatedLabel, confidence: confidence)
+    return ClassificationResult(entryID: input.entryID, categoryLabel: gatedLabel)
   }
 }
 

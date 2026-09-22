@@ -54,7 +54,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([entry], unreadIDs: [9101])
     try await writer.applyClassification(
       entryID: 9101,
-      result: ClassificationResult(entryID: 9101, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9101, categoryLabel: "apple"))
 
     // A first snapshot registers the row in the reader's context.
     let snap1 = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
@@ -64,7 +64,7 @@ struct DataReaderConcurrencyTests {
     // The writer reclassifies that same row and commits.
     try await writer.applyClassification(
       entryID: 9101,
-      result: ClassificationResult(entryID: 9101, categoryLabel: "world_news", confidence: 0.9))
+      result: ClassificationResult(entryID: 9101, categoryLabel: "world_news"))
 
     // The re-fetch moves the count to the new category. A stale registered
     // object would leave it on the old one.
@@ -83,7 +83,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([entry], unreadIDs: [9001])
     try await writer.applyClassification(
       entryID: 9001,
-      result: ClassificationResult(entryID: 9001, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9001, categoryLabel: "apple"))
 
     // A first fetch registers the entry in the reader's context.
     let first = try await reader.fetchEntrySections(
@@ -113,7 +113,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([entry], unreadIDs: [9401])
     try await writer.applyClassification(
       entryID: 9401,
-      result: ClassificationResult(entryID: 9401, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9401, categoryLabel: "apple"))
 
     _ = try await reader.fetchEntrySections(
       category: "apple", folder: nil, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
@@ -177,7 +177,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([entry], unreadIDs: [9201])
     try await writer.applyClassification(
       entryID: 9201,
-      result: ClassificationResult(entryID: 9201, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9201, categoryLabel: "apple"))
 
     // A first unread fetch registers the row, and its snapshot is unread.
     let first = try await reader.fetchEntrySections(
@@ -237,7 +237,7 @@ struct DataReaderConcurrencyTests {
     for e in baseline {
       try await writer.applyClassification(
         entryID: e.id,
-        result: ClassificationResult(entryID: e.id, categoryLabel: "apple", confidence: 0.9))
+        result: ClassificationResult(entryID: e.id, categoryLabel: "apple"))
     }
 
     await withTaskGroup(of: Void.self) { group in
@@ -254,7 +254,7 @@ struct DataReaderConcurrencyTests {
           for id in ids {
             try? await writer.applyClassification(
               entryID: id,
-              result: ClassificationResult(entryID: id, categoryLabel: "apple", confidence: 0.9))
+              result: ClassificationResult(entryID: id, categoryLabel: "apple"))
           }
           if round.isMultiple(of: 5), let first = ids.first {
             try? await writer.markEntriesRead(feedbinEntryIDs: [first])
@@ -313,7 +313,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([entry], unreadIDs: [9601])
     try await writer.applyClassification(
       entryID: 9601,
-      result: ClassificationResult(entryID: 9601, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9601, categoryLabel: "apple"))
 
     // The reader's context mints the identifier.
     let result = try await reader.fetchEntrySections(
@@ -344,7 +344,7 @@ struct DataReaderConcurrencyTests {
     _ = try await writer.persistEntries([baseline], unreadIDs: [9201])
     try await writer.applyClassification(
       entryID: 9201,
-      result: ClassificationResult(entryID: 9201, categoryLabel: "apple", confidence: 0.9))
+      result: ClassificationResult(entryID: 9201, categoryLabel: "apple"))
 
     let started = AtomicFlag()
     let finished = AtomicFlag()

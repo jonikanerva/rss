@@ -187,6 +187,7 @@ private enum SyncStatusPreviewState {
   case syncingNoTotal
   case abortedModel
   case abortedOffline
+  case abortedRateLimited
   case abortedWhileSyncing
 
   func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
@@ -237,6 +238,11 @@ private enum SyncStatusPreviewState {
       // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .offline)
+    case .abortedRateLimited:
+      // Self-healing cause → no button; the service-limit label a rate limit
+      // from either cloud provider reaches.
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .rateLimited)
     case .abortedWhileSyncing:
       // Both banners stacked at the narrow frame, with the longest
       // classification label, must not truncate (`STACK.md § 11`).
@@ -294,6 +300,10 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Model rejected") {
   syncStatusPreview(state: .abortedModel)
+}
+
+#Preview("Aborted - Service limit") {
+  syncStatusPreview(state: .abortedRateLimited)
 }
 
 #Preview("Aborted - Offline") {
