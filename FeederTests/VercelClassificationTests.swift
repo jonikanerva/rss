@@ -190,10 +190,22 @@ struct ClassificationRetryTests {
   @Test
   func retryAfterParsesUTCAndRejectsInvalidValues() {
     let now = Date(timeIntervalSince1970: 0)
-    #expect(VercelClassificationProvider.retryDelay("Thu, 01 Jan 1970 00:02:00 GMT", now: now) == 120)
-    #expect(VercelClassificationProvider.retryDelay("999999", now: now) == 3600)
-    #expect(VercelClassificationProvider.retryDelay("-1", now: now) == nil)
-    #expect(VercelClassificationProvider.retryDelay("NaN", now: now) == nil)
-    #expect(VercelClassificationProvider.retryDelay("bad", now: now) == nil)
+    #expect(retryAfterDelay("Thu, 01 Jan 1970 00:02:00 GMT", now: now) == 120)
+    #expect(retryAfterDelay("999999", now: now) == 3600)
+    #expect(retryAfterDelay("0", now: now) == 0)
+    #expect(retryAfterDelay(nil, now: now) == nil)
+    #expect(retryAfterDelay("-1", now: now) == nil)
+    #expect(retryAfterDelay("NaN", now: now) == nil)
+    #expect(retryAfterDelay("bad", now: now) == nil)
+  }
+
+  @Test(arguments: [429, 500, 502, 503, 599])
+  func httpStatusTakesTheBoundedBackoff(status: Int) {
+    #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .transient(retryAfter: 45))
+  }
+
+  @Test(arguments: [199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 499, 600, 700])
+  func otherHTTPStatusesBlock(status: Int) {
+    #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .blocked)
   }
 }
