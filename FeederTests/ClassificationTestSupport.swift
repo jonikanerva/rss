@@ -30,7 +30,7 @@ actor FakeClassificationProvider {
   /// `nonisolated`: a static on an actor is not instance-isolated, so under
   /// default MainActor isolation it would be unreadable from the actor-isolated
   /// witness. An immutable `Sendable` value needs no isolation.
-  private nonisolated static let defaultResponse = ProviderClassificationResult(
+  private nonisolated static let defaultResponse = ProviderClassificationResult.generative(
     category: "tech",
     confidence: 1.0
   )
@@ -58,6 +58,7 @@ actor FakeClassificationProvider {
   /// The availability the runner's guard sees. One test flips it, to prove the
   /// early return emits an owning provider-unavailable outcome.
   private var available = true
+  private var validationError: VercelClassificationError?
 
   var isAvailable: Bool { available }
 
@@ -69,7 +70,7 @@ actor FakeClassificationProvider {
     title: String,
     body: String,
     url: String,
-    instructions: String
+    categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
     callCount += 1
 
@@ -84,6 +85,12 @@ actor FakeClassificationProvider {
 
     return Self.defaultResponse
   }
+
+  func validate(categories: [CategoryDefinition]) async throws {
+    if let validationError { throw validationError }
+  }
+
+  func configureValidation(_ error: VercelClassificationError?) { validationError = error }
 
   // MARK: - Test configuration setters
 

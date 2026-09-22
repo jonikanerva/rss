@@ -59,13 +59,24 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 | Networking          | `URLSession` async / await                                                     |                                                                                                |
 | Persistence         | SwiftData (`@Model`, `ModelContainer`, `@Query`) via `DataWriter` (`@ModelActor`) | See §5                                                                                      |
 | Feedbin sync        | Custom `FeedbinClient` (`actor`)                                               | The only ingest source (`VISION.md → Non-Goals`)                                               |
-| Classification      | Apple Foundation Models (on-device); OpenAI API (optional, user-supplied key)  | Both first-class; the user chooses (`VISION.md → Core Principles`)                             |
+| Classification      | Apple Foundation Models (on-device); OpenAI API and Vercel AI Gateway / JEV (user-supplied keys)  | Both first-class; the user chooses (`VISION.md → Core Principles`)                             |
 | Localization        | None — English-only UI in MVP                                                  |                                                                                                |
 | Logging             | `os.Logger` per subsystem / category; `OSSignposter` for hot paths             | No `print()` in shipped code                                                                   |
 | Telemetry           | None                                                                           | No third-party analytics, no crash reporter                                                    |
 | Testing             | Swift Testing (`@Test`, `@Suite`, `#expect`); XCTest / XCUITest for end-to-end UI |                                                                                             |
 | Formatting          | `swift-format` with repo `.swift-format`                                       | No SwiftLint                                                                                   |
 | Build               | Xcode 26+, Swift 6 language mode, complete strict concurrency                  |                                                                                                |
+
+---
+
+### Cloud classification
+
+- Vercel AI Gateway uses `typesafe-ai/jev` at `POST /v1/evaluate`. One Choice question contains the category descriptions and keywords. The state contains only article title and content. OpenAI also excludes the article URL. Each service uses its own Keychain key. Classification settings access Keychain through a background actor. The key sheet owns its save task and reports completed writes to the engine.
+- JEV returns a validated category choice directly. Only generative Apple and OpenAI results use the existing confidence and keyword gates. The request contains at most 255 distinct categories, including one `uncategorized` fallback.
+- The final JEV JSON body is at most 24,000 UTF-8 bytes. Keep all category metadata. Bound the title to 512 characters and truncate article text at character boundaries. This is a conservative byte policy, not token counting or a guarantee of the model context size.
+- Validate the key and taxonomy locally before any reclassification reset. Missing Vercel credentials never select another provider. Provider, model, and key changes cancel the owned task, wait for termination, and restart with current settings. Cancelled work cannot mutate classification fields.
+- Send one HTTP attempt per article, with 30-second request and 60-second resource timeouts. Use an ephemeral session with no cache or cookies. The first Vercel failure stops the drain. The continuous loop owns retry delays of 30, 60, 120, and 300 seconds. Valid `Retry-After` values can extend the delay to one hour. Persisted progress resets backoff. Deterministic remote failures wait for explicit Retry or a settings change. Local configuration failures can be rechecked without HTTP. All waits are cancellable.
+- Live JEV classification quality requires owner evaluation. Offline wire and state tests do not establish model accuracy.
 
 ---
 
@@ -80,6 +91,8 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests)            |
 | `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests)      |
 | `$PERF_CMD`      | `make perf` (local perf regression suite; see §4)      |
+
+For a settings-only change, run the relevant UI method with `make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke`. This launches one UI test. `make test-ui` without a selector runs all UI tests. Reuse passing results for unchanged UI paths from the same task; rerun them only after relevant changes or failures. Keep key storage, privacy, retry, and state-transition coverage in unit tests. A UI retry must target the failed method after a specific fix.
 
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
 

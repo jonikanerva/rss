@@ -3,47 +3,47 @@ import FoundationModels
 
 // MARK: - Provider protocol
 
-/// A classification backend that takes article text and returns a structured
-/// classification. Every implementation must be `Sendable`, for use in a
-/// detached task.
-///
-/// Explicitly `nonisolated`: under default MainActor isolation the protocol
-/// would be MainActor-isolated, and an `actor` cannot conform to a
-/// global-actor-isolated protocol.
 nonisolated protocol ClassificationProvider: Sendable {
-  nonisolated var name: String { get }
+  var name: String { get }
   var isAvailable: Bool { get async }
-
-  /// Language codes this provider supports, or nil if it supports all languages.
+  /// Nil means that the provider supports all languages.
   var supportedLanguageCodes: Set<String>? { get async }
 
+  /// Validate local configuration only. This must not send a network request.
+  func validate(categories: [CategoryDefinition]) async throws
   func classify(
     title: String,
     body: String,
     url: String,
-    instructions: String
+    categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult
 }
 
-/// Raw output from a provider before confidence gating.
-nonisolated struct ProviderClassificationResult: Sendable {
-  let category: String
-  let confidence: Double
+extension ClassificationProvider {
+  nonisolated func validate(categories: [CategoryDefinition]) async throws {}
+}
+
+nonisolated enum ProviderClassificationResult: Sendable, Equatable {
+  case generative(category: String, confidence: Double)
+  case choice(category: String)
 }
 
 // MARK: - Failure disposition
 
-/// The user-facing cause of a classification batch abort. Payload-free by
-/// design, so raw API text cannot reach the UI through this type; the detail
-/// stays in the runner's `.private` log line, and the literals below are the
-/// whole user-visible surface.
+/// Payload-free on purpose: raw API text must not reach the UI through this
+/// type. The failure detail goes to a `.private` log line.
 nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case modelRejected
   case keyRejected
   case offline
   case providerUnavailable
+  case needsKey
+  case invalidCategories
+  case inputTooLarge
+  case invalidResponse
+  case rateLimited
 
-  /// Fixed banner copy, as a fragment with no trailing period, like the other
+  /// Fixed banner copy: a fragment with no trailing period, like the other
   /// status labels. A test locks the literals.
   var displayLabel: String {
     switch self {
@@ -51,30 +51,29 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .keyRejected: "API key was rejected"
     case .offline: "Categorizing paused — offline"
     case .providerUnavailable: "Categorizing paused — provider unavailable"
+    case .needsKey: "Add an API key to start categorizing"
+    case .invalidCategories: "JEV needs unique category labels and at most 255 categories"
+    case .inputTooLarge: "Category definitions are too large for JEV"
+    case .invalidResponse: "JEV returned an invalid result"
+    case .rateLimited: "Categorizing paused — service limit reached"
     }
   }
 
   var symbolName: String {
-    switch self {
-    case .offline: "wifi.slash"
-    case .modelRejected, .keyRejected, .providerUnavailable: "exclamationmark.triangle"
-    }
+    self == .offline ? "wifi.slash" : "exclamationmark.triangle"
   }
 }
 
-/// Contract for a provider error that carries a batch-level disposition.
-///
-/// With a non-nil `batchAbort` the runner persists nothing for the failing
-/// entry, ends the drain, and reports a terminal snapshot owning the outcome,
-/// so the entry and the remainder stay unclassified for the next poll. This is
-/// what keeps a user-chosen model safe: a deterministic provider failure must
-/// never mass-persist the fallback category, and a full reclassify must stay
-/// recoverable.
-///
-/// A nil `batchAbort`, and any error that does not conform, keeps the per-entry
-/// fallback: the entry persists as uncategorized and the drain continues.
+/// A non-nil abort must preserve the pending entry and stop the batch.
+/// A nil abort, or an error that does not conform, persists the entry as
+/// uncategorized and continues the drain.
 nonisolated protocol ClassificationFailure: Error {
   var batchAbort: ClassificationAbortReason? { get }
+  var retryDisposition: ClassificationRetry { get }
+}
+
+extension ClassificationFailure {
+  nonisolated var retryDisposition: ClassificationRetry { .poll }
 }
 
 // MARK: - Apple Foundation Models provider
@@ -107,8 +106,9 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     title: String,
     body: String,
     url: String,
-    instructions: String
+    categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
+    let instructions = buildClassificationInstructions(from: categories)
     let model = SystemLanguageModel.default
     let session = LanguageModelSession(model: model, instructions: instructions)
 
@@ -137,7 +137,7 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     )
     let classification = response.content
 
-    return ProviderClassificationResult(
+    return .generative(
       category: classification.category,
       confidence: classification.confidence
     )

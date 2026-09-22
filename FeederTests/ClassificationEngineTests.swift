@@ -294,7 +294,7 @@ struct ClassificationEngineTests {
     ]
     _ = try await writer.persistEntries(extra, unreadIDs: Set([2001, 2002]))
 
-    await drain.value
+    _ = await drain.value
 
     // The provider saw every entry in one continuous drain, so the drain did not
     // stop at the seeded rows.
@@ -691,6 +691,13 @@ struct ClassificationAbortReasonCopyTests {
     #expect(
       ClassificationAbortReason.providerUnavailable.displayLabel
         == "Categorizing paused — provider unavailable")
+    #expect(ClassificationAbortReason.needsKey.displayLabel == "Add an API key to start categorizing")
+    #expect(
+      ClassificationAbortReason.invalidCategories.displayLabel
+        == "JEV needs unique category labels and at most 255 categories")
+    #expect(ClassificationAbortReason.inputTooLarge.displayLabel == "Category definitions are too large for JEV")
+    #expect(ClassificationAbortReason.invalidResponse.displayLabel == "JEV returned an invalid result")
+    #expect(ClassificationAbortReason.rateLimited.displayLabel == "Categorizing paused — service limit reached")
   }
 
   @Test

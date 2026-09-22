@@ -1,7 +1,6 @@
 import SwiftData
 import SwiftUI
 
-/// Classification provider selection and OpenAI API key management.
 struct ClassificationSettingsView: View {
   @Environment(ClassificationEngine.self)
   private var classificationEngine
@@ -9,179 +8,326 @@ struct ClassificationSettingsView: View {
   private var syncEngine
   @Environment(AppFontSettings.self)
   private var fontSettings
-
   @State
-  private var selectedProvider: ClassificationProviderKind = ClassificationProviderKind.current
+  private var settings: ClassificationSettingsModel
   @State
-  private var hasStoredKey: Bool = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey) != nil
+  private var keyEditor: ClassificationProviderKind?
   @State
-  private var showReclassifyAlert = false
+  private var pendingReclassification: ClassificationProviderKind?
   @State
-  private var showAPIKeyEditor = false
+  private var pendingProviderSelection: ClassificationProviderKind?
   @State
-  private var hadKeyBeforeEdit = false
+  private var reclassifyTarget: String?
   @State
   private var modelSelection: String = OpenAIModelSetting.current()
   @State
   private var modelListState: ModelListState = .needsKey
-  @State
-  private var reclassifyTrigger: ReclassifyTrigger = .provider
+
+  init(settings: ClassificationSettingsModel = ClassificationSettingsModel()) {
+    _settings = State(initialValue: settings)
+  }
 
   var body: some View {
     Form {
       Section("Classification Provider") {
-        Picker("Provider", selection: $selectedProvider) {
+        Picker("Provider", selection: Binding(get: { settings.provider }, set: selectProvider)) {
           ForEach(ClassificationProviderKind.allCases, id: \.self) { kind in
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(kind.displayName)
-                Text(kind.subtitle)
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            } icon: {
-              Image(systemName: kind.iconName)
-            }
-            .tag(kind)
+            Text(kind.displayName)
+              .accessibilityIdentifier("classification.provider.\(kind.rawValue)")
+              .tag(kind)
           }
         }
         .pickerStyle(.radioGroup)
         .labelsHidden()
+        Text(settings.provider.subtitle).font(fontSettings.caption).foregroundStyle(.secondary)
       }
-
-      if selectedProvider == .openAI {
-        Section("OpenAI") {
+      if settings.provider != .appleFM {
+        Section(settings.provider.displayName) {
           HStack {
-            if hasStoredKey {
-              Label("API key is saved", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(Color(nsColor: .systemGreen))
-            } else {
-              Label("No API key configured", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color(nsColor: .systemOrange))
-            }
-
+            Label(
+              settings.isLoadingKey ? "Checking API key…" : (settings.hasStoredKey ? "API key is saved" : "No API key configured"),
+              systemImage: settings.hasStoredKey ? "checkmark.circle" : "key")
             Spacer()
-
-            Button(hasStoredKey ? "Edit" : "Add Key") {
-              showAPIKeyEditor = true
-            }
-            .controlSize(.small)
+            Button(settings.hasStoredKey ? "Edit" : "Add Key") { keyEditor = settings.provider }
+              .controlSize(.small)
+              .accessibilityIdentifier("classification.key.edit")
+              .disabled(settings.isLoadingKey)
           }
-
-          OpenAIModelPickerRow(selection: $modelSelection, state: modelListState)
-
-          // The outcome of the most recent batch attempt. The poll refreshes or
-          // clears it within seconds of a settings change, and that poll is the
-          // save-time verification, so nothing clears it eagerly.
-          if let abort = classificationEngine.lastAbort {
-            Label(abort.displayLabel, systemImage: abort.symbolName)
+          if settings.provider == .openAI {
+            OpenAIModelPickerRow(selection: Binding(get: { modelSelection }, set: selectModel), state: modelListState)
+          } else {
+            LabeledContent("Model", value: "JEV (Typesafe)")
+            Text("Article titles, text, and category definitions are sent to Vercel AI Gateway and Typesafe for classification.")
               .font(fontSettings.caption)
               .foregroundStyle(.secondary)
+          }
+          if let abort = classificationEngine.lastAbort, classificationEngine.lastAbortProvider == settings.provider {
+            HStack {
+              Label(abort.displayLabel, systemImage: abort.symbolName)
+                .font(fontSettings.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Retry") {
+                Task {
+                  if let writer = syncEngine.writer { await classificationEngine.classifyUnclassified(writer: writer) }
+                }
+              }
+              .disabled(classificationEngine.isClassifying || !settings.hasStoredKey)
+              .accessibilityIdentifier("classification.retry")
+            }
           }
         }
       }
     }
     .formStyle(.grouped)
-    .sheet(isPresented: $showAPIKeyEditor) {
-      APIKeyEditSheet(hasStoredKey: $hasStoredKey)
-    }
-    .task(id: modelFetchKey) {
-      await refreshModelList()
-    }
-    .onChange(of: selectedProvider) { _, newValue in
-      // `onChange` fires only on an actual change, so no diff guard is needed.
-      ClassificationProviderKind.persist(newValue)
-      // Prompt for a reclassify only when the new provider is ready to use.
-      if newValue == .appleFM || hasStoredKey {
-        reclassifyTrigger = .provider
-        showReclassifyAlert = true
-      }
-    }
-    .onChange(of: modelSelection) { _, newValue in
-      // The only call site that persists the model: the key is written on an
-      // explicit user pick alone, so a user who never picked keeps tracking the
-      // app default. Nothing may write the selection programmatically — that
-      // fires this handler and pins every user to the current value.
-      OpenAIModelSetting.persist(newValue)
-      // The same readiness gate as the provider switch: a keyless model change
-      // must not offer a reclassify that would run on the other provider.
-      if hasStoredKey {
-        reclassifyTrigger = .model
-        showReclassifyAlert = true
-      }
-    }
-    .onChange(of: showAPIKeyEditor) { _, isPresented in
-      if isPresented {
-        hadKeyBeforeEdit = hasStoredKey
-      } else if hasStoredKey, !hadKeyBeforeEdit, selectedProvider == .openAI {
-        // Prompt only when a key was added, never when one was removed.
-        reclassifyTrigger = .provider
-        showReclassifyAlert = true
-      }
-    }
-    .alert("Reclassify Articles?", isPresented: $showReclassifyAlert) {
-      Button("Reclassify") {
-        Task {
-          if let writer = syncEngine.writer {
-            await classificationEngine.reclassifyAll(writer: writer)
-          }
+    .sheet(
+      item: $keyEditor,
+      onDismiss: {
+        if let provider = pendingReclassification {
+          pendingReclassification = nil
+          reclassifyTarget = targetName(provider)
         }
       }
-      Button("Later", role: .cancel) {}
-    } message: {
-      switch reclassifyTrigger {
-      case .provider:
-        Text("Would you like to reclassify all articles with the new provider?")
-      case .model:
-        Text("Would you like to reclassify all articles with the new model?")
+    ) { provider in
+      APIKeyEditSheet(settings: settings, provider: provider) { firstKeyAdded in
+        configurationChanged()
+        if firstKeyAdded { pendingReclassification = provider }
       }
+    }
+    .task(id: "\(settings.provider.rawValue)|\(settings.keyRevision)") {
+      await settings.refreshKey()
+      guard !Task.isCancelled else { return }
+      if pendingProviderSelection == settings.provider {
+        pendingProviderSelection = nil
+        if settings.provider == .appleFM || settings.hasStoredKey { reclassifyTarget = targetName(settings.provider) }
+      }
+    }
+    .task(id: modelFetchKey) { await refreshModelList() }
+    .alert("Reclassify Articles?", isPresented: Binding(get: { reclassifyTarget != nil }, set: { if !$0 { reclassifyTarget = nil } })) {
+      Button("Reclassify", role: .destructive) {
+        Task {
+          if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
+        }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("Reclassify existing articles with \(reclassifyTarget ?? "the selected provider")? This replaces their category assignments.")
     }
   }
 
-  /// Drives the fetch task: it re-fires when the provider or the stored-key
-  /// state changes. This view exists only while Settings is open, so the fetch
-  /// never runs at launch or from background sync.
-  private var modelFetchKey: String {
-    "\(selectedProvider.rawValue)|\(hasStoredKey)"
+  private func selectProvider(_ provider: ClassificationProviderKind) {
+    guard provider != settings.provider else { return }
+    pendingProviderSelection = provider
+    settings.select(provider)
+    configurationChanged()
   }
 
+  private func selectModel(_ model: String) {
+    guard model != modelSelection else { return }
+    modelSelection = model
+    // Persist only on an explicit user pick. A programmatic write pins a user
+    // who never picked to the current default.
+    if !settings.isInert { OpenAIModelSetting.persist(model) }
+    configurationChanged()
+    if settings.hasStoredKey { reclassifyTarget = targetName(.openAI) }
+  }
+
+  private func configurationChanged() {
+    guard !settings.isInert, let writer = syncEngine.writer else { return }
+    classificationEngine.configurationChanged(writer: writer)
+  }
+
+  private func targetName(_ provider: ClassificationProviderKind) -> String {
+    switch provider {
+    case .appleFM: provider.displayName
+    case .openAI: "OpenAI (\(modelSelection))"
+    case .vercel: "JEV through Vercel AI Gateway"
+    }
+  }
+
+  private var modelFetchKey: String { "\(settings.provider.rawValue)|\(settings.keyRevision)|\(settings.hasStoredKey)" }
+
   private func refreshModelList() async {
-    guard selectedProvider == .openAI else { return }
-    guard hasStoredKey,
-      let apiKey = KeychainHelper.load(key: KeychainHelper.openAIAPIKeychainKey),
-      !apiKey.isEmpty
-    else {
+    guard settings.provider == .openAI else { return }
+    guard let apiKey = await settings.keyForModelList() else {
       modelListState = .needsKey
       return
     }
-
     modelListState = .loading
     let outcome: Result<[OpenAIModel], OpenAIModelsError>
     do throws(OpenAIModelsError) {
       outcome = .success(try await OpenAIModelsClient().fetchModels(apiKey: apiKey))
-    } catch {
-      outcome = .failure(error)
-    }
-    // The task owns cancellation, and a cancelled fetch surfaces as a network
-    // failure. Do not flash a failure the view itself abandoned.
+    } catch { outcome = .failure(error) }
+    // A cancelled fetch surfaces as a network failure. Do not show a failure
+    // this view abandoned.
     guard !Task.isCancelled else { return }
     modelListState = resolveModelListState(outcome: outcome)
   }
 }
 
-/// Which settings change is offering the reclassify prompt, which selects the
-/// single alert's message copy.
-private enum ReclassifyTrigger {
-  case provider
-  case model
+extension ClassificationProviderKind: Identifiable {
+  var id: String { rawValue }
+}
+
+private struct APIKeyEditSheet: View {
+  let settings: ClassificationSettingsModel
+  let provider: ClassificationProviderKind
+  let onCommit: (Bool) -> Void
+  @Environment(\.dismiss)
+  private var dismiss
+  @Environment(AppFontSettings.self)
+  private var fontSettings
+  @State
+  private var editKey = ""
+  @State
+  private var errorMessage: String?
+  @FocusState
+  private var isKeyFocused: Bool
+  @State
+  private var operation: KeyEditOperation?
+
+  private enum KeyEditOperation: Equatable {
+    case save(String)
+    case remove
+  }
+
+  init(
+    settings: ClassificationSettingsModel, provider: ClassificationProviderKind,
+    errorMessage: String? = nil, onCommit: @escaping (Bool) -> Void
+  ) {
+    self.settings = settings
+    self.provider = provider
+    self.onCommit = onCommit
+    _errorMessage = State(initialValue: errorMessage)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("\(provider.displayName) API Key").font(fontSettings.headline)
+      SecureField("Enter API key", text: $editKey)
+        .textFieldStyle(.roundedBorder)
+        .accessibilityLabel("\(provider.displayName) API key")
+        .accessibilityIdentifier("classification.key.field")
+        .focused($isKeyFocused)
+      if settings.hasStoredKey {
+        Label("A key is currently saved", systemImage: "checkmark.circle")
+          .font(fontSettings.caption)
+      }
+      if let operation {
+        ProgressView(operation == .remove ? "Removing API key…" : "Saving API key…")
+          .controlSize(.small)
+      }
+      if let errorMessage {
+        Label(errorMessage, systemImage: "exclamationmark.triangle")
+          .font(fontSettings.caption)
+      }
+      HStack {
+        if settings.hasStoredKey {
+          Button("Remove Key", role: .destructive) { operation = .remove }
+            .accessibilityIdentifier("classification.key.remove")
+        }
+        Spacer()
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Save") { operation = .save(editKey.trimmingCharacters(in: .whitespacesAndNewlines)) }
+          .keyboardShortcut(.defaultAction)
+          .disabled(editKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .accessibilityIdentifier("classification.key.save")
+      }
+    }
+    .disabled(operation != nil)
+    .padding()
+    .frame(width: 400)
+    .interactiveDismissDisabled(operation != nil)
+    .task(id: operation) {
+      if let operation { await perform(operation) }
+    }
+    .onAppear { isKeyFocused = true }
+  }
+
+  private func perform(_ operation: KeyEditOperation) async {
+    let hadKey = settings.hasStoredKey
+    // Report only a write the store accepted, so the parent never shows a key
+    // as saved after a failed write.
+    do {
+      switch operation {
+      case .save(let value): try await settings.save(value, for: provider)
+      case .remove: try await settings.removeKey(for: provider)
+      }
+      // A completed Security write must reach the engine even if dismissal cancels the view task.
+      onCommit(operation != .remove && !hadKey)
+      dismiss()
+    } catch {
+      guard !Task.isCancelled else { return }
+      errorMessage =
+        operation == .remove
+        ? "Could not remove the API key from Keychain. Try again." : "Could not save the API key to Keychain. Try again."
+      self.operation = nil
+    }
+  }
+}
+
+#Preview("Vercel — needs key") {
+  ClassificationSettingsView(settings: ClassificationSettingsModel(provider: .vercel, isInert: true))
+    .environment(SyncEngine()).environment(ClassificationEngine()).environment(AppFontSettings())
+    .frame(width: 420, height: 450)
+}
+
+#Preview("Vercel — saved key") {
+  ClassificationSettingsView(
+    settings: ClassificationSettingsModel(
+      provider: .vercel, store: MemoryClassificationKeyStore(values: [.vercel: "preview"]), isInert: true)
+  )
+  .environment(SyncEngine()).environment(ClassificationEngine()).environment(AppFontSettings())
+  .frame(width: 550, height: 550)
+}
+
+private struct VercelSettingsPreview: View {
+  private let engine: ClassificationEngine
+  private let hasKey: Bool
+
+  init(reason: ClassificationAbortReason? = nil, hasKey: Bool = true) {
+    self.hasKey = hasKey
+    engine = ClassificationEngine(providerFactoryOverride: { HeadlessClassificationProvider() })
+    engine.applyPreviewState(lastAbort: reason, provider: .vercel)
+  }
+
+  var body: some View {
+    ClassificationSettingsView(
+      settings: ClassificationSettingsModel(
+        provider: .vercel,
+        store: MemoryClassificationKeyStore(values: hasKey ? [.vercel: "preview"] : [:]),
+        isInert: true)
+    )
+    .environment(SyncEngine()).environment(engine)
+    .environment(AppFontSettings(textSize: .xxLarge))
+    .frame(width: 420, height: 550)
+  }
+}
+
+#Preview("Vercel — offline") { VercelSettingsPreview(reason: .offline) }
+#Preview("Vercel — invalid key") { VercelSettingsPreview(reason: .keyRejected) }
+#Preview("Vercel — service limit") { VercelSettingsPreview(reason: .rateLimited) }
+#Preview("Vercel — rejected request") { VercelSettingsPreview(reason: .modelRejected) }
+#Preview("Vercel — invalid response") { VercelSettingsPreview(reason: .invalidResponse) }
+#Preview("Vercel — invalid categories") { VercelSettingsPreview(reason: .invalidCategories).preferredColorScheme(.dark) }
+#Preview("Vercel — large categories") { VercelSettingsPreview(reason: .inputTooLarge) }
+#Preview("Vercel — unavailable") { VercelSettingsPreview(reason: .providerUnavailable) }
+#Preview("Vercel — key sheet") {
+  APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: { _ in })
+    .environment(AppFontSettings())
+}
+#Preview("Vercel — Keychain denied") {
+  APIKeyEditSheet(
+    settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel,
+    errorMessage: "Could not save the API key to Keychain. Try again.", onCommit: { _ in }
+  )
+  .environment(AppFontSettings(textSize: .xxLarge))
+  .preferredColorScheme(.dark)
 }
 
 // MARK: - OpenAI model picker row
 
-/// The model picker and its quiet status line, extracted so the preview matrix
-/// exercises every list state. The picker stays enabled with at least the floor
-/// options, so the surface never dead-ends, and uses the menu style because the
-/// loaded list passes the option-count threshold (`STACK.md § 11`).
+/// Keep the menu usable with fallback options when model discovery fails.
 private struct OpenAIModelPickerRow: View {
   @Binding
   var selection: String
@@ -201,6 +347,7 @@ private struct OpenAIModelPickerRow: View {
           Text(modelID).tag(modelID)
         }
       }
+      // The loaded list passes the option-count threshold for a menu (STACK.md § 11).
       .pickerStyle(.menu)
 
       statusLine
@@ -234,126 +381,6 @@ private struct OpenAIModelPickerRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
   }
-}
-
-// MARK: - API Key Edit Sheet
-
-private struct APIKeyEditSheet: View {
-  @Binding
-  var hasStoredKey: Bool
-
-  @Environment(\.dismiss)
-  private var dismiss
-  @Environment(AppFontSettings.self)
-  private var fontSettings
-  @State
-  private var editKey: String = ""
-  @State
-  private var errorMessage: String?
-
-  var body: some View {
-    VStack(spacing: 0) {
-      HStack {
-        Text("OpenAI API Key")
-          .font(fontSettings.headline)
-        Spacer()
-      }
-      .padding()
-      Divider()
-
-      VStack(alignment: .leading, spacing: 12) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("API Key")
-            .font(fontSettings.caption)
-            .foregroundStyle(.secondary)
-          SecureField(hasStoredKey ? "Enter new key to replace" : "sk-...", text: $editKey)
-            .textFieldStyle(.roundedBorder)
-        }
-
-        if hasStoredKey {
-          Label("A key is currently saved", systemImage: "checkmark.circle.fill")
-            .font(fontSettings.caption)
-            .foregroundStyle(Color(nsColor: .systemGreen))
-        }
-
-        if let errorMessage {
-          Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-            .font(fontSettings.caption)
-            .foregroundStyle(Color(nsColor: .systemRed))
-        }
-      }
-      .padding()
-
-      Divider()
-      HStack {
-        if hasStoredKey {
-          Button("Remove Key", role: .destructive) {
-            performRemove()
-          }
-        }
-
-        Spacer()
-
-        Button("Cancel") {
-          dismiss()
-        }
-        .keyboardShortcut(.cancelAction)
-
-        Button("Save") {
-          performSave()
-        }
-        .keyboardShortcut(.defaultAction)
-        .disabled(editKey.isEmpty)
-      }
-      .padding()
-    }
-    .frame(width: 400)
-  }
-
-  // Commit only what the keychain accepted. An error keeps the sheet open with
-  // an inline message, so the parent never claims a key is saved after a failed
-  // write.
-  private func performSave() {
-    do {
-      try KeychainHelper.save(key: KeychainHelper.openAIAPIKeychainKey, value: editKey)
-      hasStoredKey = true
-      dismiss()
-    } catch {
-      errorMessage = "Couldn't save API key to Keychain: \(String(describing: error))"
-    }
-  }
-
-  private func performRemove() {
-    do {
-      try KeychainHelper.delete(key: KeychainHelper.openAIAPIKeychainKey)
-      hasStoredKey = false
-      dismiss()
-    } catch {
-      errorMessage = "Couldn't remove API key from Keychain: \(String(describing: error))"
-    }
-  }
-}
-
-// MARK: - Preview
-
-#Preview("Classification Settings - Success") {
-  ClassificationSettingsView()
-    .environment(SyncEngine())
-    .environment(ClassificationEngine())
-    .environment(AppFontSettings())
-    .modelContainer(PreviewSupport.makeContainer())
-    .frame(width: 480, height: 320)
-}
-
-#Preview("Classification Settings - Batch aborted") {
-  let engine = ClassificationEngine()
-  engine.applyPreviewState(lastAbort: .modelRejected)
-  return ClassificationSettingsView()
-    .environment(SyncEngine())
-    .environment(engine)
-    .environment(AppFontSettings())
-    .modelContainer(PreviewSupport.makeContainer())
-    .frame(width: 480, height: 360)
 }
 
 // Model-picker state matrix. The large case sits above the option-count

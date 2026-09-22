@@ -18,7 +18,7 @@ struct OpenAIRequestShapeTests {
     let body = try OpenAIClassificationProvider.encodeRequestBody(
       model: "gpt-5.6-luna",
       instructions: "Classify the article.",
-      userMessage: "title: Example\nurl: https://example.com\ncontent: body"
+      userMessage: "title: Example\ncontent: body"
     )
 
     let object = try #require(
