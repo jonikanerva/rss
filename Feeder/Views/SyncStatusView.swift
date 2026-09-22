@@ -239,7 +239,8 @@ private enum SyncStatusPreviewState {
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .offline)
     case .abortedRateLimited:
-      // Self-healing cause → no button; the branch an OpenAI 429 now takes.
+      // Self-healing cause → no button; the service-limit label a rate limit
+      // from either cloud provider reaches.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .rateLimited)
     case .abortedWhileSyncing:
