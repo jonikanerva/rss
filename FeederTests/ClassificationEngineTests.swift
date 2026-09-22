@@ -648,20 +648,35 @@ struct ClassificationEngineTests {
 struct OpenAIErrorBatchAbortMappingTests {
   @Test
   func unauthorizedMapsToKeyRejected() {
-    #expect(OpenAIError.apiError(statusCode: 401, message: "x").batchAbort == .keyRejected)
+    #expect(
+      OpenAIError.apiError(statusCode: 401, message: "x", retryAfter: nil).batchAbort
+        == .keyRejected)
   }
 
-  @Test(arguments: [400, 403, 404, 422])
+  @Test(arguments: [400, 402, 403, 404, 422])
   func otherClientErrorsMapToModelRejected(statusCode: Int) {
     #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x").batchAbort == .modelRejected)
+      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort
+        == .modelRejected)
   }
 
-  @Test(arguments: [429, 500, 503])
-  func rateLimitAndServerErrorsMapToProviderUnavailable(statusCode: Int) {
+  @Test
+  func rateLimitMapsToRateLimited() {
     #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x").batchAbort
+      OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil).batchAbort
+        == .rateLimited)
+  }
+
+  @Test(arguments: [500, 502, 503, 599])
+  func serverErrorsMapToProviderUnavailable(statusCode: Int) {
+    #expect(
+      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort
         == .providerUnavailable)
+  }
+
+  @Test(arguments: [600, 700])
+  func outOfRangeStatusesTakeThePerEntryFallback(statusCode: Int) {
+    #expect(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort == nil)
   }
 
   @Test
@@ -674,6 +689,144 @@ struct OpenAIErrorBatchAbortMappingTests {
   func perEntryOutputDefectsDoNotAbort() {
     #expect(OpenAIError.emptyResponse.batchAbort == nil)
     #expect(OpenAIError.invalidResponse.batchAbort == nil)
+  }
+
+  @Test(
+    arguments: [
+      #"{"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}"#,
+      #"{"error":{"message":"too long","type":"invalid_request_error","code":"string_above_max_length"}}"#,
+      #"{"error":{"message":"refused","type":"invalid_request_error","code":"content_policy_violation"}}"#,
+      #"{"error":{"message":"refused","type":"invalid_prompt"}}"#,
+    ])
+  func perArticleRejectionsNeverAbortTheBatch(body: String) throws {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      response: try openAIResponse(status: 400), body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.batchAbort == nil)
+    #expect(error.retryDisposition == .poll)
+  }
+
+  @Test(
+    arguments: [
+      #"{"error":{"message":"bad model","type":"invalid_request_error","code":"model_not_found"}}"#,
+      "",
+      "not json at all",
+    ])
+  func unrecognizedBadRequestsStillAbortTheBatch(body: String) throws {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      response: try openAIResponse(status: 400), body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.batchAbort == .modelRejected)
+    #expect(error.retryDisposition == .blocked)
+  }
+}
+
+// MARK: - OpenAIError → ClassificationRetry mapping
+
+/// Pins the retry disposition: an OpenAI failure must wait as long as the same
+/// failure from Vercel does. A `.poll` here would send one request every two
+/// seconds for as long as the failure lasts.
+@Suite("OpenAIError retry disposition")
+struct OpenAIErrorRetryDispositionTests {
+  @Test(arguments: [429, 500, 502, 503, 599])
+  func rateLimitAndServerErrorsUseTheBoundedBackoff(statusCode: Int) {
+    #expect(
+      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
+        == .transient(retryAfter: nil))
+  }
+
+  @Test(arguments: [400, 401, 402, 403, 404, 422])
+  func deterministicClientErrorsBlock(statusCode: Int) {
+    #expect(
+      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
+        == .blocked)
+  }
+
+  /// The header name is lower case on purpose: HTTP/2 lowercases field names,
+  /// and the provider must look it up case-insensitively.
+  @Test
+  func retryAfterHeaderReachesTheDisposition() throws {
+    let now = Date(timeIntervalSince1970: 0)
+    let bounded = OpenAIClassificationProvider.makeAPIError(
+      response: try openAIResponse(status: 429, headers: ["retry-after": "120"]), body: "x", now: now)
+    #expect(bounded.retryDisposition == .transient(retryAfter: 120))
+    let clamped = OpenAIClassificationProvider.makeAPIError(
+      response: try openAIResponse(status: 429, headers: ["retry-after": "7200"]), body: "x", now: now)
+    #expect(clamped.retryDisposition == .transient(retryAfter: 3600))
+  }
+
+  @Test
+  func transportFailureUsesBoundedBackoff() {
+    let error = OpenAIError.networkUnavailable(underlying: URLError(.timedOut))
+    #expect(error.retryDisposition == .transient(retryAfter: nil))
+  }
+
+  @Test
+  func perEntryDefectsNeverReachTheRetryState() {
+    for error in [OpenAIError.invalidResponse, .emptyResponse, .entryRejected(code: "x")] {
+      #expect(error.batchAbort == nil)
+      #expect(error.retryDisposition == .poll)
+    }
+  }
+}
+
+private func openAIResponse(status: Int, headers: [String: String] = [:]) throws -> HTTPURLResponse {
+  let url = try #require(URL(string: "https://api.openai.com/v1/chat/completions"))
+  return try #require(
+    HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers))
+}
+
+// MARK: - Shared disposition and abort-reason pairing
+
+/// The banner contract in `STACK.md → Cloud classification`: a blocked
+/// disposition must name a cause the Settings screen can fix, and a transient
+/// disposition must name a self-healing cause. A mismatch either shows a dead
+/// "Open Settings" button or hides the only recovery path the user has.
+@Suite("Cloud failure disposition pairing")
+struct CloudFailureDispositionPairingTests {
+  private static let settingsFixable: [ClassificationAbortReason] = [
+    .keyRejected, .modelRejected, .invalidResponse, .needsKey, .invalidCategories, .inputTooLarge,
+  ]
+  private static let selfHealing: [ClassificationAbortReason] = [
+    .offline, .providerUnavailable, .rateLimited,
+  ]
+
+  private func expectPairing(_ failure: any ClassificationFailure) {
+    guard let abort = failure.batchAbort else { return }
+    switch failure.retryDisposition {
+    case .blocked:
+      #expect(Self.settingsFixable.contains(abort), "\(failure) blocks with \(abort)")
+    case .transient:
+      #expect(Self.selfHealing.contains(abort), "\(failure) backs off with \(abort)")
+    case .poll:
+      // A local re-check or a per-entry defect; no pairing obligation.
+      break
+    }
+  }
+
+  @Test(arguments: [
+    199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 429, 499, 500, 502, 503, 599, 600, 700,
+  ])
+  func openAIHTTPFailuresPair(statusCode: Int) {
+    expectPairing(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil))
+  }
+
+  @Test(arguments: [
+    199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 429, 499, 500, 502, 503, 599, 600, 700,
+  ])
+  func vercelHTTPFailuresPair(statusCode: Int) {
+    expectPairing(VercelClassificationError.http(statusCode, retryAfter: nil))
+  }
+
+  @Test
+  func nonHTTPFailuresPair() {
+    let openAI: [OpenAIError] = [
+      .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
+      .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
+    ]
+    for failure in openAI { expectPairing(failure) }
+    let vercel: [VercelClassificationError] = [
+      .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network,
+    ]
+    for failure in vercel { expectPairing(failure) }
   }
 }
 

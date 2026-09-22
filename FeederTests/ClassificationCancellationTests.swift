@@ -137,6 +137,56 @@ struct ClassificationCancellationTests {
   }
 
   @Test
+  func openAIKeyRejectionWaitsForManualRetry() async throws {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(
+      OpenAIError.apiError(statusCode: 401, message: "x", retryAfter: nil), count: 1, afterSuccesses: 1)
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(await provider.callCount == 2)
+    #expect(engine.lastAbort == .keyRejected)
+    #expect(engine.lastBatchClassifiedCount == 1)
+    var classified = 0
+    for id in 1001...1003 where try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true {
+      classified += 1
+    }
+    #expect(classified == 1)
+    await engine.classifyUnclassified(writer: writer)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true) }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
+  func perArticleRejectionKeepsTheDrainMoving() async throws {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(
+      OpenAIError.entryRejected(code: "context_length_exceeded"), count: 1, afterSuccesses: 1)
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("drain finished") { await clock.delays.count == 1 }
+    #expect(await provider.callCount == 3)
+    #expect(await clock.delays == [.seconds(2)])
+    #expect(engine.lastAbort == nil)
+    var uncategorized = 0
+    var tech = 0
+    for id in 1001...1003 {
+      let entry = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: id))
+      #expect(entry.isClassified == true)
+      if entry.primaryCategory == uncategorizedLabel { uncategorized += 1 }
+      if entry.primaryCategory == "tech" { tech += 1 }
+    }
+    #expect(uncategorized == 1)
+    #expect(tech == 2)
+    engine.stopContinuousClassification()
+  }
+
+  @Test
   func continuousLoopKeepsBackoffAcrossFailedBatches() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
