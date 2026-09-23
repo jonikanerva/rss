@@ -48,6 +48,7 @@ nonisolated enum OpenAIModelsError: Error, Equatable {
 nonisolated struct OpenAIModelsClient: Sendable {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "OpenAI")
 
+  private static let requestTimeout: TimeInterval = 15
   private static let endpoint: URL = {
     guard let url = URL(string: "https://api.openai.com/v1/models") else {
       fatalError("Invalid OpenAI models endpoint URL")
@@ -55,36 +56,40 @@ nonisolated struct OpenAIModelsClient: Sendable {
     return url
   }()
 
+  private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
+
+  init(
+    send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse =
+      CloudSession(requestTimeout: Self.requestTimeout).send
+  ) {
+    self.send = send
+  }
+
   func fetchModels(apiKey: String) async throws(OpenAIModelsError) -> [OpenAIModel] {
-    var request = URLRequest(url: Self.endpoint)
+    var request = URLRequest(url: Self.endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.requestTimeout)
     request.httpMethod = "GET"
-    request.timeoutInterval = 15
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-    let data: Data
-    let response: URLResponse
+    let response: ClassificationHTTPResponse
     do {
-      (data, response) = try await URLSession.shared.data(for: request)
+      response = try await send(request)
     } catch {
       Self.logger.error("Model list fetch failed: \(String(describing: error), privacy: .private)")
       throw .network
     }
 
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw .network
-    }
-    guard httpResponse.statusCode == 200 else {
-      let body = String(data: data, encoding: .utf8) ?? "no body"
+    guard response.statusCode == 200 else {
+      let body = String(data: response.data, encoding: .utf8) ?? "no body"
       Self.logger.error(
-        "OpenAI models API error \(httpResponse.statusCode): \(body, privacy: .private)"
+        "OpenAI models API error \(response.statusCode): \(body, privacy: .private)"
       )
-      if httpResponse.statusCode == 401 {
+      if response.statusCode == 401 {
         throw .unauthorized
       }
-      throw .httpStatus(httpResponse.statusCode)
+      throw .httpStatus(response.statusCode)
     }
 
-    return try Self.decodeModelList(data)
+    return try Self.decodeModelList(response.data)
   }
 
   /// Pure decode seam so tests can drive the wire shape without a network.
