@@ -185,11 +185,11 @@ struct ClassificationRetryTests {
   func exponentialDelaySurvivesBatchesAndProgressResetsIt() {
     var state = ClassificationRetryState()
     let failure = ClassificationBatchOutcome.aborted(.transient(retryAfter: nil), completed: 0)
-    for expected in [30, 60, 120, 300, 300] { #expect(state.delay(after: failure) == .seconds(expected)) }
+    for expected in [10, 20, 40, 80, 160, 300, 300] { #expect(state.delay(after: failure) == .seconds(expected)) }
     #expect(state.delay(after: .aborted(.transient(retryAfter: 600), completed: 1)) == .seconds(600))
-    #expect(state.delay(after: failure) == .seconds(60))
+    #expect(state.delay(after: failure) == .seconds(20))
     #expect(state.delay(after: .completed(1)) == .seconds(2))
-    #expect(state.delay(after: failure) == .seconds(30))
+    #expect(state.delay(after: failure) == .seconds(10))
     #expect(state.delay(after: .aborted(.blocked, completed: 0)) == .seconds(3600))
   }
 

@@ -56,7 +56,7 @@ nonisolated struct ClassificationRetryState: Sendable {
       case .poll: return .seconds(2)
       case .blocked: return .seconds(3600)
       case .transient(let retryAfter):
-        let schedule: [TimeInterval] = [30, 60, 120, 300]
+        let schedule: [TimeInterval] = [10, 20, 40, 80, 160, 300]
         let delay = schedule[min(failures, schedule.count - 1)]
         failures = min(failures + 1, schedule.count - 1)
         let serverDelay = retryAfter.flatMap { $0.isFinite && $0 >= 0 ? min($0, 3600) : nil } ?? 0

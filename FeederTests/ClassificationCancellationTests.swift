@@ -190,13 +190,16 @@ struct ClassificationCancellationTests {
   func continuousLoopKeepsBackoffAcrossFailedBatches() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
-    await provider.configureErrors(VercelClassificationError.network, count: 5)
-    let clock = ClassificationSleepRecorder(immediateDelays: 5)
+    await provider.configureErrors(VercelClassificationError.network, count: 7)
+    let clock = ClassificationSleepRecorder(immediateDelays: 7)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("all retry delays recorded") { await clock.delays.count == 6 }
-    #expect(await clock.delays == [.seconds(30), .seconds(60), .seconds(120), .seconds(300), .seconds(300), .seconds(2)])
-    #expect(await provider.callCount == 8)
+    try await waitUntil("all retry delays recorded") { await clock.delays.count == 8 }
+    let expected: [Duration] = [
+      .seconds(10), .seconds(20), .seconds(40), .seconds(80), .seconds(160), .seconds(300), .seconds(300), .seconds(2),
+    ]
+    #expect(await clock.delays == expected)
+    #expect(await provider.callCount == 10)
     #expect(engine.lastAbort == nil)
     engine.stopContinuousClassification()
   }
@@ -210,7 +213,7 @@ struct ClassificationCancellationTests {
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("backoff reached") { await clock.delays.count == 1 }
-    #expect(await clock.delays == [.seconds(30)])
+    #expect(await clock.delays == [.seconds(10)])
     #expect(await provider.callCount == 1)
     engine.configurationChanged(writer: writer)
     try await waitUntil("replacement completes") {
