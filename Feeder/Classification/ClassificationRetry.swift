@@ -12,6 +12,7 @@ nonisolated enum ClassificationRetry: Sendable, Equatable {
     self = Self.isTransient(httpStatus: httpStatus) ? .transient(retryAfter: retryAfter) : .blocked
   }
 
+  /// `CloudRequestRetry` retries the same statuses.
   static func isTransient(httpStatus: Int) -> Bool {
     httpStatus == 408 || httpStatus == 429 || (500...599).contains(httpStatus)
   }
@@ -38,6 +39,9 @@ nonisolated enum ClassificationBatchOutcome: Sendable {
 }
 
 nonisolated struct ClassificationRetryState: Sendable {
+  /// `CloudRequestRetry.longestRetryAfter` equals this wait.
+  static let firstTransientDelay: TimeInterval = 10
+  private static let transientSchedule: [TimeInterval] = [firstTransientDelay, 20, 40, 80, 160, 300]
   private var failures = 0
 
   /// Nil means the caller must stop the loop. A blocked outcome waits one hour
@@ -56,12 +60,47 @@ nonisolated struct ClassificationRetryState: Sendable {
       case .poll: return .seconds(2)
       case .blocked: return .seconds(3600)
       case .transient(let retryAfter):
-        let schedule: [TimeInterval] = [10, 20, 40, 80, 160, 300]
+        let schedule = Self.transientSchedule
         let delay = schedule[min(failures, schedule.count - 1)]
         failures = min(failures + 1, schedule.count - 1)
         let serverDelay = retryAfter.flatMap { $0.isFinite && $0 >= 0 ? min($0, 3600) : nil } ?? 0
         return .seconds(max(delay, serverDelay))
       }
+    }
+  }
+}
+
+nonisolated enum CloudRequestFailure: Sendable, Equatable {
+  /// `retryAfter` comes from `retryAfterDelay(_:now:)`.
+  case http(status: Int, retryAfter: TimeInterval?)
+  case transport(URLError.Code)
+}
+
+nonisolated enum CloudRequestRetry {
+  private static let plannedDelays: [TimeInterval] = [2, 4]
+  /// Each timed-out attempt holds the drain for a full request timeout.
+  private static let timeoutRetries = 1
+  /// A longer valid `Retry-After` stops the drain at once, and the loop honours
+  /// the value. Up to the first loop wait, stopping the drain would not send
+  /// the request sooner.
+  static let longestRetryAfter = ClassificationRetryState.firstTransientDelay
+
+  /// `attempt` counts sent requests, from 1. Nil means: send no more requests
+  /// and throw the failure.
+  static func delay(afterAttempt attempt: Int, failure: CloudRequestFailure) -> Duration? {
+    guard plannedDelays.indices.contains(attempt - 1) else { return nil }
+    let planned = plannedDelays[attempt - 1]
+    switch failure {
+    case .http(let status, let retryAfter):
+      guard ClassificationRetry.isTransient(httpStatus: status) else { return nil }
+      guard let retryAfter, retryAfter.isFinite, retryAfter >= 0 else { return .seconds(planned) }
+      return retryAfter <= longestRetryAfter ? .seconds(max(planned, retryAfter)) : nil
+    case .transport(.timedOut):
+      return attempt <= timeoutRetries ? .seconds(planned) : nil
+    case .transport(.networkConnectionLost):
+      return .seconds(planned)
+    case .transport:
+      return nil
     }
   }
 }
