@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import Feeder
@@ -635,6 +636,34 @@ struct ClassificationEngineTests {
     #expect(last?.isClassifying == false)
     #expect(last?.ownsAbort == true)
     #expect(last?.abort == .providerUnavailable)
+  }
+
+  // MARK: - 9. One provider per drain
+
+  /// A chunk boundary must not build a new provider: the provider owns the
+  /// cloud session of its drain.
+  @Test
+  func oneProviderServesTheWholeDrain() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = DataWriter(modelContainer: container)
+    try await seedCategories(writer)
+    try await seedEntries(writer, count: 3)
+
+    let provider = FakeClassificationProvider()
+    let factoryCalls = Mutex(0)
+    let runner = ClassificationRunner(
+      writer: writer,
+      providerFactory: {
+        factoryCalls.withLock { $0 += 1 }
+        return provider
+      },
+      reportProgress: { _ in }
+    )
+    let outcome = await runner.runOneBatch(cutoffDate: .distantPast, chunkSize: 2)
+
+    #expect(outcome.completedCount == 3)
+    #expect(factoryCalls.withLock { $0 } == 1)
+    #expect(await provider.callCount == 3)
   }
 }
 

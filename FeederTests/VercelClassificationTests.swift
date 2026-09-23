@@ -182,14 +182,17 @@ struct VercelClassificationTests {
   }
 
   @Test
-  func transportRejectionIsNotRetried() async {
+  func nonHTTPResponseIsAnInvalidResponse() async {
+    let recorder = ClassificationTransportRecorder(failure: CloudSession.NonHTTPResponse())
     let clock = ClassificationSleepRecorder(immediateDelays: .max)
     let provider = VercelClassificationProvider(
-      apiKey: "fake", send: { _ in throw VercelClassificationError.invalidResponse }, sleep: { try await clock.sleep($0) })
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
     let error = await #expect(throws: VercelClassificationError.self) {
       try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
     }
     #expect(error?.batchAbort == .invalidResponse)
+    #expect(error?.retryDisposition == .blocked)
+    #expect(await recorder.requests.count == 1)
     #expect(await clock.delays.isEmpty)
   }
 

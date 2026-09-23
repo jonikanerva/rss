@@ -125,7 +125,7 @@ extension FakeClassificationProvider: ClassificationProvider {}
 
 actor ClassificationTransportRecorder {
   private(set) var requests: [URLRequest] = []
-  private let script: [Result<ClassificationHTTPResponse, URLError>]
+  private let script: [Result<ClassificationHTTPResponse, any Error>]
 
   init(data: Data, status: Int = 200, retryAfter: String? = nil) {
     self.init(script: [.success(.status(status, retryAfter: retryAfter, data: data))])
@@ -134,7 +134,12 @@ actor ClassificationTransportRecorder {
   /// Answers each request with the next script entry. The last entry repeats.
   init(script: [Result<ClassificationHTTPResponse, URLError>]) {
     precondition(!script.isEmpty, "A transport script needs at least one entry")
-    self.script = script
+    self.script = script.map { $0.mapError { $0 } }
+  }
+
+  /// Throws `failure` for every request.
+  init(failure: any Error) {
+    script = [.failure(failure)]
   }
 
   func send(_ request: URLRequest) throws -> ClassificationHTTPResponse {
