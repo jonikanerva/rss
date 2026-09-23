@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 110;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -63,24 +63,18 @@
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D62F5A0001000FEED1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3DE2F5A0001000FEED1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3E62F5A0001000FEED1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -118,14 +112,10 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				A1B2C3DA2F5A0001000FEED1 /* Feeder */,
 			);
 			name = Feeder;
-			packageProductDependencies = (
-			);
 			productName = Feeder;
 			productReference = A1B2C3D82F5A0001000FEED1 /* Feeder.app */;
 			productType = "com.apple.product-type.application";
@@ -147,8 +137,6 @@
 				A1B2C3E22F5A0001000FEED1 /* FeederTests */,
 			);
 			name = FeederTests;
-			packageProductDependencies = (
-			);
 			productName = FeederTests;
 			productReference = A1B2C3E02F5A0001000FEED1 /* FeederTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -170,8 +158,6 @@
 				A1B2C3EA2F5A0001000FEED1 /* FeederUITests */,
 			);
 			name = FeederUITests;
-			packageProductDependencies = (
-			);
 			productName = FeederUITests;
 			productReference = A1B2C3E82F5A0001000FEED1 /* FeederUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -208,7 +194,7 @@
 			);
 			mainGroup = A1B2C3CF2F5A0001000FEED1;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 110;
 			productRefGroup = A1B2C3D92F5A0001000FEED1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -223,48 +209,36 @@
 /* Begin PBXResourcesBuildPhase section */
 		A1B2C3D12F5A0001000FEED1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3DD2F5A0001000FEED1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3E52F5A0001000FEED1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A1B2C3D32F5A0001000FEED1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3DC2F5A0001000FEED1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1B2C3E42F5A0001000FEED1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -282,7 +256,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		A1B2C3EB2F5A0001000FEED1 /* Debug */ = {
+		A1B2C3EB2F5A0001000FEED1 /* Debug configuration for PBXProject "Feeder" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -348,7 +322,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3EC2F5A0001000FEED1 /* Release */ = {
+		A1B2C3EC2F5A0001000FEED1 /* Release configuration for PBXProject "Feeder" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -406,7 +380,7 @@
 			};
 			name = Release;
 		};
-		A1B2C3ED2F5A0001000FEED1 /* Debug */ = {
+		A1B2C3ED2F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "Feeder" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -442,7 +416,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3EE2F5A0001000FEED1 /* Release */ = {
+		A1B2C3EE2F5A0001000FEED1 /* Release configuration for PBXNativeTarget "Feeder" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -478,7 +452,7 @@
 			};
 			name = Release;
 		};
-		A1B2C3EF2F5A0001000FEED1 /* Debug */ = {
+		A1B2C3EF2F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "FeederTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -501,7 +475,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3F12F5A0001000FEED1 /* Release */ = {
+		A1B2C3F12F5A0001000FEED1 /* Release configuration for PBXNativeTarget "FeederTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -524,7 +498,7 @@
 			};
 			name = Release;
 		};
-		A1B2C3F42F5A0001000FEED1 /* Debug */ = {
+		A1B2C3F42F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "FeederUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -545,7 +519,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3F52F5A0001000FEED1 /* Release */ = {
+		A1B2C3F52F5A0001000FEED1 /* Release configuration for PBXNativeTarget "FeederUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -572,40 +546,37 @@
 		A1B2C3D22F5A0001000FEED1 /* Build configuration list for PBXProject "Feeder" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3EB2F5A0001000FEED1 /* Debug */,
-				A1B2C3EC2F5A0001000FEED1 /* Release */,
+				A1B2C3EB2F5A0001000FEED1 /* Debug configuration for PBXProject "Feeder" */,
+				A1B2C3EC2F5A0001000FEED1 /* Release configuration for PBXProject "Feeder" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		A1B2C3F02F5A0001000FEED1 /* Build configuration list for PBXNativeTarget "Feeder" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3ED2F5A0001000FEED1 /* Debug */,
-				A1B2C3EE2F5A0001000FEED1 /* Release */,
+				A1B2C3ED2F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "Feeder" */,
+				A1B2C3EE2F5A0001000FEED1 /* Release configuration for PBXNativeTarget "Feeder" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		A1B2C3F32F5A0001000FEED1 /* Build configuration list for PBXNativeTarget "FeederTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3EF2F5A0001000FEED1 /* Debug */,
-				A1B2C3F12F5A0001000FEED1 /* Release */,
+				A1B2C3EF2F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "FeederTests" */,
+				A1B2C3F12F5A0001000FEED1 /* Release configuration for PBXNativeTarget "FeederTests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		A1B2C3F62F5A0001000FEED1 /* Build configuration list for PBXNativeTarget "FeederUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3F42F5A0001000FEED1 /* Debug */,
-				A1B2C3F52F5A0001000FEED1 /* Release */,
+				A1B2C3F42F5A0001000FEED1 /* Debug configuration for PBXNativeTarget "FeederUITests" */,
+				A1B2C3F52F5A0001000FEED1 /* Release configuration for PBXNativeTarget "FeederUITests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
 	rootObject = A1B2C3D02F5A0001000FEED1 /* Project object */;
+	validationLevel = 1;
 }
