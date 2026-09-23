@@ -25,6 +25,7 @@ struct VercelClassificationTests {
     #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fake-vercel-key")
     #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
     #expect(request.timeoutInterval == 30)
+    #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
     let data = try #require(request.httpBody)
     let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     #expect(Set(root.keys) == ["model", "state", "questions"])

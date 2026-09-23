@@ -12,6 +12,8 @@ struct CloudSessionTests {
     #expect(configuration.timeoutIntervalForResource == 60)
     #expect(configuration.urlCache == nil)
     #expect(configuration.httpCookieStorage == nil)
+    #expect(configuration.urlCredentialStorage != nil)
+    #expect(configuration.urlCredentialStorage !== URLCredentialStorage.shared)
     #expect(configuration.httpShouldSetCookies == false)
     #expect(configuration.httpAdditionalHeaders == nil)
     #expect(configuration.waitsForConnectivity == false)
