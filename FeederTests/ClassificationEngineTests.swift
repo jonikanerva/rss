@@ -734,9 +734,9 @@ struct OpenAIErrorBatchAbortMappingTests {
       #"{"error":{"message":"refused","type":"invalid_request_error","code":"content_policy_violation"}}"#,
       #"{"error":{"message":"refused","type":"invalid_prompt"}}"#,
     ])
-  func perArticleRejectionsNeverAbortTheBatch(body: String) throws {
+  func perArticleRejectionsNeverAbortTheBatch(body: String) {
     let error = OpenAIClassificationProvider.makeAPIError(
-      response: try openAIResponse(status: 400), body: body, now: Date(timeIntervalSince1970: 0))
+      statusCode: 400, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
     #expect(error.batchAbort == nil)
     #expect(error.retryDisposition == .poll)
   }
@@ -747,9 +747,9 @@ struct OpenAIErrorBatchAbortMappingTests {
       "",
       "not json at all",
     ])
-  func unrecognizedBadRequestsStillAbortTheBatch(body: String) throws {
+  func unrecognizedBadRequestsStillAbortTheBatch(body: String) {
     let error = OpenAIClassificationProvider.makeAPIError(
-      response: try openAIResponse(status: 400), body: body, now: Date(timeIntervalSince1970: 0))
+      statusCode: 400, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
     #expect(error.batchAbort == .modelRejected)
     #expect(error.retryDisposition == .blocked)
   }
@@ -776,16 +776,12 @@ struct OpenAIErrorRetryDispositionTests {
         == .blocked)
   }
 
-  /// The header name is lower case on purpose: HTTP/2 lowercases field names,
-  /// and the provider must look it up case-insensitively.
   @Test
-  func retryAfterHeaderReachesTheDisposition() throws {
+  func retryAfterHeaderReachesTheDisposition() {
     let now = Date(timeIntervalSince1970: 0)
-    let bounded = OpenAIClassificationProvider.makeAPIError(
-      response: try openAIResponse(status: 429, headers: ["retry-after": "120"]), body: "x", now: now)
+    let bounded = OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "120", body: "x", now: now)
     #expect(bounded.retryDisposition == .transient(retryAfter: 120))
-    let clamped = OpenAIClassificationProvider.makeAPIError(
-      response: try openAIResponse(status: 429, headers: ["retry-after": "7200"]), body: "x", now: now)
+    let clamped = OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "7200", body: "x", now: now)
     #expect(clamped.retryDisposition == .transient(retryAfter: 3600))
   }
 
@@ -802,12 +798,6 @@ struct OpenAIErrorRetryDispositionTests {
       #expect(error.retryDisposition == .poll)
     }
   }
-}
-
-private func openAIResponse(status: Int, headers: [String: String] = [:]) throws -> HTTPURLResponse {
-  let url = try #require(URL(string: "https://api.openai.com/v1/chat/completions"))
-  return try #require(
-    HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers))
 }
 
 // MARK: - Shared disposition and abort-reason pairing

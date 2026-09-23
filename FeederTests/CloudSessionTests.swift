@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Cloud session")
 struct CloudSessionTests {
-  @Test(arguments: [30] as [TimeInterval])
+  @Test(arguments: [30, 60] as [TimeInterval])
   func sessionUsesTheCloudPolicy(requestTimeout: TimeInterval) {
     let configuration = CloudSession(requestTimeout: requestTimeout).configuration
     #expect(configuration.timeoutIntervalForRequest == requestTimeout)
