@@ -3,32 +3,6 @@ import Testing
 
 @testable import Feeder
 
-actor ClassificationTransportRecorder {
-  private(set) var requests: [URLRequest] = []
-  private let script: [Result<ClassificationHTTPResponse, URLError>]
-
-  init(data: Data, status: Int = 200, retryAfter: String? = nil) {
-    self.init(script: [.success(.status(status, retryAfter: retryAfter, data: data))])
-  }
-
-  /// Answers each request with the next script entry. The last entry repeats.
-  init(script: [Result<ClassificationHTTPResponse, URLError>]) {
-    precondition(!script.isEmpty, "A transport script needs at least one entry")
-    self.script = script
-  }
-
-  func send(_ request: URLRequest) throws -> ClassificationHTTPResponse {
-    requests.append(request)
-    return try script[min(requests.count, script.count) - 1].get()
-  }
-}
-
-extension ClassificationHTTPResponse {
-  static func status(_ code: Int, retryAfter: String? = nil, data: Data = Data()) -> ClassificationHTTPResponse {
-    ClassificationHTTPResponse(data: data, statusCode: code, retryAfter: retryAfter)
-  }
-}
-
 @Suite("Vercel JEV wire and limits")
 struct VercelClassificationTests {
   private let categories = [
