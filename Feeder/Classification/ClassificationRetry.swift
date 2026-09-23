@@ -7,12 +7,13 @@ nonisolated enum ClassificationRetry: Sendable, Equatable {
 
   /// The HTTP retry rule both cloud providers share (`STACK.md → Cloud
   /// classification`): a request timeout, a rate limit, and a server error
-  /// take the bounded backoff, and every other status blocks.
+  /// take the loop backoff, and every other status blocks.
   init(httpStatus: Int, retryAfter: TimeInterval?) {
     self = Self.isTransient(httpStatus: httpStatus) ? .transient(retryAfter: retryAfter) : .blocked
   }
 
-  /// `CloudRequestRetry` retries the same statuses.
+  /// `CloudRequestRetry` reads this predicate too: a change here also changes
+  /// the request retry.
   static func isTransient(httpStatus: Int) -> Bool {
     httpStatus == 408 || httpStatus == 429 || (500...599).contains(httpStatus)
   }
@@ -78,11 +79,9 @@ nonisolated enum CloudRequestFailure: Sendable, Equatable {
 
 nonisolated enum CloudRequestRetry {
   private static let plannedDelays: [TimeInterval] = [2, 4]
-  /// Each timed-out attempt holds the drain for a full request timeout.
   private static let timeoutRetries = 1
   /// A longer valid `Retry-After` stops the drain at once, and the loop honours
-  /// the value. Up to the first loop wait, stopping the drain would not send
-  /// the request sooner.
+  /// the value.
   static let longestRetryAfter = ClassificationRetryState.firstTransientDelay
 
   /// `attempt` counts sent requests, from 1. Nil means: send no more requests
