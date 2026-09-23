@@ -155,6 +155,13 @@ struct VercelClassificationTests {
   }
 
   @Test
+  func requestTimeoutIsAProviderOutage() {
+    let error = VercelClassificationError.http(408, retryAfter: nil)
+    #expect(error.batchAbort == .providerUnavailable)
+    #expect(error.retryDisposition == .transient(retryAfter: nil))
+  }
+
+  @Test
   func choiceBypassesGenerativeHeuristics() throws {
     let input = ClassificationInput(entryID: 1, title: "Swift Apple", body: "Technology news", url: "")
     let fallback = try resolveClassification(.choice(category: uncategorizedLabel), input: input, categories: categories)
@@ -205,12 +212,12 @@ struct ClassificationRetryTests {
     #expect(retryAfterDelay("bad", now: now) == nil)
   }
 
-  @Test(arguments: [429, 500, 502, 503, 599])
+  @Test(arguments: [408, 429, 500, 502, 503, 599])
   func httpStatusTakesTheBoundedBackoff(status: Int) {
     #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .transient(retryAfter: 45))
   }
 
-  @Test(arguments: [199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 499, 600, 700])
+  @Test(arguments: [199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 409, 422, 499, 600, 700])
   func otherHTTPStatusesBlock(status: Int) {
     #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .blocked)
   }

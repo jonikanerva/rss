@@ -6,14 +6,14 @@ nonisolated enum ClassificationRetry: Sendable, Equatable {
   case blocked
 
   /// The HTTP retry rule both cloud providers share (`STACK.md → Cloud
-  /// classification`): a rate limit and a server error take the bounded
-  /// backoff, and every other status blocks.
+  /// classification`): a request timeout, a rate limit, and a server error
+  /// take the bounded backoff, and every other status blocks.
   init(httpStatus: Int, retryAfter: TimeInterval?) {
-    if httpStatus == 429 || (500...599).contains(httpStatus) {
-      self = .transient(retryAfter: retryAfter)
-    } else {
-      self = .blocked
-    }
+    self = Self.isTransient(httpStatus: httpStatus) ? .transient(retryAfter: retryAfter) : .blocked
+  }
+
+  static func isTransient(httpStatus: Int) -> Bool {
+    httpStatus == 408 || httpStatus == 429 || (500...599).contains(httpStatus)
   }
 }
 

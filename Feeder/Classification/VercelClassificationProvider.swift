@@ -196,7 +196,7 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
       switch status {
       case 401, 403: .keyRejected
       case 402, 429: .rateLimited
-      case 500...599: .providerUnavailable
+      case 408, 500...599: .providerUnavailable
       default: .modelRejected
       }
     }

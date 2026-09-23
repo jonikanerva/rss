@@ -206,10 +206,10 @@ extension OpenAIError: ClassificationFailure {
         return .keyRejected
       case 429:
         return .rateLimited
+      case 408, 500...599:
+        return .providerUnavailable
       case 400...499:
         return .modelRejected
-      case 500...599:
-        return .providerUnavailable
       default:
         // A status outside 400 to 599 keeps the per-entry fallback.
         return nil

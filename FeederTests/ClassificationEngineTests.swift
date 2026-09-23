@@ -667,6 +667,13 @@ struct OpenAIErrorBatchAbortMappingTests {
         == .rateLimited)
   }
 
+  @Test
+  func requestTimeoutMapsToProviderUnavailable() {
+    #expect(
+      OpenAIError.apiError(statusCode: 408, message: "x", retryAfter: nil).batchAbort
+        == .providerUnavailable)
+  }
+
   @Test(arguments: [500, 502, 503, 599])
   func serverErrorsMapToProviderUnavailable(statusCode: Int) {
     #expect(
@@ -726,14 +733,14 @@ struct OpenAIErrorBatchAbortMappingTests {
 /// seconds for as long as the failure lasts.
 @Suite("OpenAIError retry disposition")
 struct OpenAIErrorRetryDispositionTests {
-  @Test(arguments: [429, 500, 502, 503, 599])
-  func rateLimitAndServerErrorsUseTheBoundedBackoff(statusCode: Int) {
+  @Test(arguments: [408, 429, 500, 502, 503, 599])
+  func transientStatusesUseTheBoundedBackoff(statusCode: Int) {
     #expect(
       OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
         == .transient(retryAfter: nil))
   }
 
-  @Test(arguments: [400, 401, 402, 403, 404, 422])
+  @Test(arguments: [400, 401, 402, 403, 404, 407, 409, 422])
   func deterministicClientErrorsBlock(statusCode: Int) {
     #expect(
       OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
@@ -803,14 +810,14 @@ struct CloudFailureDispositionPairingTests {
   }
 
   @Test(arguments: [
-    199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 429, 499, 500, 502, 503, 599, 600, 700,
+    199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 408, 409, 422, 429, 499, 500, 502, 503, 599, 600, 700,
   ])
   func openAIHTTPFailuresPair(statusCode: Int) {
     expectPairing(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil))
   }
 
   @Test(arguments: [
-    199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 429, 499, 500, 502, 503, 599, 600, 700,
+    199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 408, 409, 422, 429, 499, 500, 502, 503, 599, 600, 700,
   ])
   func vercelHTTPFailuresPair(statusCode: Int) {
     expectPairing(VercelClassificationError.http(statusCode, retryAfter: nil))
