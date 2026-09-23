@@ -14,15 +14,18 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
   static let maximumRequestBytes = 24_000
   private let apiKey: String
   private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
+  private let sleep: @Sendable (Duration) async throws -> Void
   private let now: @Sendable () -> Date
 
   init(
     apiKey: String,
     send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse = Self.sendRequest,
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.apiKey = apiKey
     self.send = send
+    self.sleep = sleep
     self.now = now
   }
 
@@ -47,25 +50,49 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = try Self.requestBody(title: title, body: body, categories: categories)
-    let response: ClassificationHTTPResponse
-    do {
-      response = try await send(request)
-    } catch {
-      if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-        throw CancellationError()
-      }
-      if let failure = error as? VercelClassificationError { throw failure }
-      Self.logger.error("Vercel AI Gateway transport failure: \(String(describing: error), privacy: .private)")
-      throw VercelClassificationError.network
-    }
-    try Task.checkCancellation()
-    guard response.statusCode == 200 else {
-      let body = String(decoding: response.data, as: UTF8.self)
-      Self.logger.error("Vercel AI Gateway HTTP \(response.statusCode): \(body, privacy: .private)")
-      throw VercelClassificationError.http(
-        response.statusCode, retryAfter: retryAfterDelay(response.retryAfter, now: now()))
-    }
+    let response = try await sendWithRetry(request)
     return try Self.decode(response.data, categories: categories)
+  }
+
+  /// Returns the first HTTP 200 response. Cancellation throws
+  /// `CancellationError`, also during a retry wait.
+  private func sendWithRetry(_ request: URLRequest) async throws -> ClassificationHTTPResponse {
+    var attempt = 1
+    while true {
+      try Task.checkCancellation()
+      let failure: VercelClassificationError
+      let retryInput: CloudRequestFailure?
+      do {
+        let response = try await send(request)
+        try Task.checkCancellation()
+        if response.statusCode == 200 { return response }
+        let retryAfter = retryAfterDelay(response.retryAfter, now: now())
+        let retryAfterText = retryAfter.map { "\($0) s" } ?? "none"
+        let body = String(decoding: response.data, as: UTF8.self)
+        Self.logger.error(
+          "Vercel AI Gateway HTTP \(response.statusCode, privacy: .public) on attempt \(attempt, privacy: .public), Retry-After \(retryAfterText, privacy: .public): \(body, privacy: .private)"
+        )
+        failure = .http(response.statusCode, retryAfter: retryAfter)
+        retryInput = .http(status: response.statusCode, retryAfter: retryAfter)
+      } catch {
+        if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+          throw CancellationError()
+        }
+        if let known = error as? VercelClassificationError { throw known }
+        let code = (error as? URLError)?.code
+        let codeText = code.map { String($0.rawValue) } ?? "none"
+        Self.logger.error(
+          "Vercel AI Gateway transport failure on attempt \(attempt, privacy: .public), URLError code \(codeText, privacy: .public): \(String(describing: error), privacy: .private)"
+        )
+        failure = .network
+        retryInput = code.map { .transport($0) }
+      }
+      guard let retryInput, let wait = CloudRequestRetry.delay(afterAttempt: attempt, failure: retryInput) else {
+        throw failure
+      }
+      try await sleep(wait)
+      attempt += 1
+    }
   }
 
   static func requestBody(title: String, body: String, categories: [CategoryDefinition]) throws -> Data {
@@ -196,7 +223,7 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
       switch status {
       case 401, 403: .keyRejected
       case 402, 429: .rateLimited
-      case 500...599: .providerUnavailable
+      case 408, 500...599: .providerUnavailable
       default: .modelRejected
       }
     }

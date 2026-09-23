@@ -5,15 +5,27 @@ import Testing
 
 actor ClassificationTransportRecorder {
   private(set) var requests: [URLRequest] = []
-  private let response: ClassificationHTTPResponse
+  private let script: [Result<ClassificationHTTPResponse, URLError>]
 
   init(data: Data, status: Int = 200, retryAfter: String? = nil) {
-    response = ClassificationHTTPResponse(data: data, statusCode: status, retryAfter: retryAfter)
+    self.init(script: [.success(.status(status, retryAfter: retryAfter, data: data))])
   }
 
-  func send(_ request: URLRequest) -> ClassificationHTTPResponse {
+  /// Answers each request with the next script entry. The last entry repeats.
+  init(script: [Result<ClassificationHTTPResponse, URLError>]) {
+    precondition(!script.isEmpty, "A transport script needs at least one entry")
+    self.script = script
+  }
+
+  func send(_ request: URLRequest) throws -> ClassificationHTTPResponse {
     requests.append(request)
-    return response
+    return try script[min(requests.count, script.count) - 1].get()
+  }
+}
+
+extension ClassificationHTTPResponse {
+  static func status(_ code: Int, retryAfter: String? = nil, data: Data = Data()) -> ClassificationHTTPResponse {
+    ClassificationHTTPResponse(data: data, statusCode: code, retryAfter: retryAfter)
   }
 }
 
@@ -29,7 +41,7 @@ struct VercelClassificationTests {
   @Test
   func exactWireUsesOwnKeyAndOnlyAllowedData() async throws {
     let recorder = ClassificationTransportRecorder(data: success)
-    let provider = VercelClassificationProvider(apiKey: "fake-vercel-key", send: { await recorder.send($0) })
+    let provider = VercelClassificationProvider(apiKey: "fake-vercel-key", send: { try await recorder.send($0) })
     let result = try await provider.classify(
       title: "Title", body: "Article text", url: "https://private.invalid/read-history", categories: categories)
     #expect(result == .choice(category: "tech"))
@@ -125,7 +137,7 @@ struct VercelClassificationTests {
   @Test
   func missingKeySendsNothing() async {
     let recorder = ClassificationTransportRecorder(data: success)
-    let provider = VercelClassificationProvider(apiKey: " \n", send: { await recorder.send($0) })
+    let provider = VercelClassificationProvider(apiKey: " \n", send: { try await recorder.send($0) })
     await #expect(throws: VercelClassificationError.self) {
       try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
     }
@@ -143,7 +155,9 @@ struct VercelClassificationTests {
   @Test
   func rateLimitCarriesBoundedRetryAfter() async {
     let recorder = ClassificationTransportRecorder(data: Data(), status: 429, retryAfter: "7200")
-    let provider = VercelClassificationProvider(apiKey: "fake", send: { await recorder.send($0) })
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
     do {
       _ = try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
       Issue.record("Expected a rate limit")
@@ -152,6 +166,69 @@ struct VercelClassificationTests {
       #expect(error.retryDisposition == .transient(retryAfter: 3600))
     } catch { Issue.record("Unexpected error: \(error)") }
     #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
+  }
+
+  @Test
+  func requestTimeoutIsAProviderOutage() {
+    let error = VercelClassificationError.http(408, retryAfter: nil)
+    #expect(error.batchAbort == .providerUnavailable)
+    #expect(error.retryDisposition == .transient(retryAfter: nil))
+  }
+
+  @Test
+  func shortRetryAfterExtendsTheRequestRetryWait() async throws {
+    let recorder = ClassificationTransportRecorder(script: [
+      .success(.status(503, retryAfter: "3")), .success(.status(429, retryAfter: "7")), .success(.status(200, data: success)),
+    ])
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
+    let result = try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    #expect(result == .choice(category: "tech"))
+    #expect(await recorder.requests.count == 3)
+    #expect(await clock.delays == [.seconds(3), .seconds(7)])
+  }
+
+  @Test
+  func lastAttemptPassesRetryAfterToTheLoop() async {
+    let recorder = ClassificationTransportRecorder(script: [
+      .success(.status(503)), .success(.status(503)), .success(.status(503, retryAfter: "5")),
+    ])
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
+    let error = await #expect(throws: VercelClassificationError.self) {
+      try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    }
+    #expect(error?.batchAbort == .providerUnavailable)
+    #expect(error?.retryDisposition == .transient(retryAfter: 5))
+    #expect(await recorder.requests.count == 3)
+    #expect(await clock.delays == [.seconds(2), .seconds(4)])
+  }
+
+  @Test
+  func transportRejectionIsNotRetried() async {
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { _ in throw VercelClassificationError.invalidResponse }, sleep: { try await clock.sleep($0) })
+    let error = await #expect(throws: VercelClassificationError.self) {
+      try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    }
+    #expect(error?.batchAbort == .invalidResponse)
+    #expect(await clock.delays.isEmpty)
+  }
+
+  @Test
+  func transportFailureWithoutAURLErrorIsNotRetried() async {
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { _ in throw FakeProviderError() }, sleep: { try await clock.sleep($0) })
+    let error = await #expect(throws: VercelClassificationError.self) {
+      try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    }
+    #expect(error?.batchAbort == .offline)
+    #expect(await clock.delays.isEmpty)
   }
 
   @Test
@@ -178,11 +255,11 @@ struct ClassificationRetryTests {
   func exponentialDelaySurvivesBatchesAndProgressResetsIt() {
     var state = ClassificationRetryState()
     let failure = ClassificationBatchOutcome.aborted(.transient(retryAfter: nil), completed: 0)
-    for expected in [30, 60, 120, 300, 300] { #expect(state.delay(after: failure) == .seconds(expected)) }
+    for expected in [10, 20, 40, 80, 160, 300, 300] { #expect(state.delay(after: failure) == .seconds(expected)) }
     #expect(state.delay(after: .aborted(.transient(retryAfter: 600), completed: 1)) == .seconds(600))
-    #expect(state.delay(after: failure) == .seconds(60))
+    #expect(state.delay(after: failure) == .seconds(20))
     #expect(state.delay(after: .completed(1)) == .seconds(2))
-    #expect(state.delay(after: failure) == .seconds(30))
+    #expect(state.delay(after: failure) == .seconds(10))
     #expect(state.delay(after: .aborted(.blocked, completed: 0)) == .seconds(3600))
   }
 
@@ -205,13 +282,80 @@ struct ClassificationRetryTests {
     #expect(retryAfterDelay("bad", now: now) == nil)
   }
 
-  @Test(arguments: [429, 500, 502, 503, 599])
+  @Test(arguments: [408, 429, 500, 502, 503, 599])
   func httpStatusTakesTheBoundedBackoff(status: Int) {
     #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .transient(retryAfter: 45))
   }
 
-  @Test(arguments: [199, 200, 300, 399, 400, 401, 402, 403, 404, 422, 499, 600, 700])
+  @Test(arguments: [199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 409, 422, 499, 600, 700])
   func otherHTTPStatusesBlock(status: Int) {
     #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .blocked)
+  }
+}
+
+@Suite("Cloud request retry")
+struct CloudRequestRetryTests {
+  @Test(arguments: [
+    CloudRequestFailure.http(status: 408, retryAfter: nil), .http(status: 429, retryAfter: nil), .http(status: 500, retryAfter: nil),
+    .http(status: 503, retryAfter: nil), .http(status: 599, retryAfter: nil), .transport(.networkConnectionLost),
+  ])
+  func healableFailureWaitsTwiceThenStops(_ failure: CloudRequestFailure) {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: failure) == .seconds(2))
+    #expect(CloudRequestRetry.delay(afterAttempt: 2, failure: failure) == .seconds(4))
+    #expect(CloudRequestRetry.delay(afterAttempt: 3, failure: failure) == nil)
+  }
+
+  @Test
+  func timeoutRetriesOnce() {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .transport(.timedOut)) == .seconds(2))
+    #expect(CloudRequestRetry.delay(afterAttempt: 2, failure: .transport(.timedOut)) == nil)
+  }
+
+  @Test(arguments: [300, 399, 400, 401, 402, 403, 404, 407, 409, 422, 499, 600])
+  func otherHTTPStatusStopsAtOnce(status: Int) {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: status, retryAfter: nil)) == nil)
+  }
+
+  @Test(arguments: [
+    URLError.Code.notConnectedToInternet, .cannotFindHost, .dnsLookupFailed, .cannotConnectToHost, .secureConnectionFailed, .cancelled,
+  ])
+  func otherTransportFailureStopsAtOnce(_ code: URLError.Code) {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .transport(code)) == nil)
+  }
+
+  @Test
+  func shortRetryAfterExtendsThePlannedWait() {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 429, retryAfter: 3)) == .seconds(3))
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 503, retryAfter: 10)) == .seconds(10))
+    #expect(CloudRequestRetry.delay(afterAttempt: 2, failure: .http(status: 503, retryAfter: 10)) == .seconds(10))
+  }
+
+  @Test
+  func plannedWaitWinsOverAShorterRetryAfter() {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 503, retryAfter: 0)) == .seconds(2))
+    #expect(CloudRequestRetry.delay(afterAttempt: 2, failure: .http(status: 503, retryAfter: 3)) == .seconds(4))
+  }
+
+  @Test
+  func longRetryAfterStopsAtOnce() {
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 429, retryAfter: 11)) == nil)
+    #expect(CloudRequestRetry.delay(afterAttempt: 2, failure: .http(status: 503, retryAfter: 11)) == nil)
+    #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 503, retryAfter: 3600)) == nil)
+  }
+
+  @Test
+  func invalidRetryAfterCountsAsAbsent() {
+    let invalidValues: [TimeInterval] = [-1, .nan, .infinity]
+    for value in invalidValues {
+      #expect(CloudRequestRetry.delay(afterAttempt: 1, failure: .http(status: 503, retryAfter: value)) == .seconds(2))
+    }
+  }
+
+  @Test
+  func retryAfterLimitIsTheFirstLoopWait() {
+    var state = ClassificationRetryState()
+    let firstLoopWait = state.delay(after: .aborted(.transient(retryAfter: nil), completed: 0))
+    #expect(firstLoopWait == .seconds(CloudRequestRetry.longestRetryAfter))
+    #expect(CloudRequestRetry.longestRetryAfter == 10)
   }
 }
