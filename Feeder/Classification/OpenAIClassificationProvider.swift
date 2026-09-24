@@ -45,12 +45,17 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     get async { nil }
   }
 
+  func validate(categories: [CategoryDefinition]) async throws {
+    guard await isAvailable else { throw OpenAIError.needsKey }
+  }
+
   func classify(
     title: String,
     body: String,
     url: String,
     categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
+    try await validate(categories: categories)
     let instructions = buildClassificationInstructions(from: categories)
     let truncatedBody = String(body.prefix(60_000))
     let userMessage = Self.articleMessage(title: title, body: truncatedBody)
@@ -162,6 +167,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
 /// Internal (not private) so in-module tests can assert the
 /// `ClassificationFailure` disposition mapping case by case.
 nonisolated enum OpenAIError: LocalizedError {
+  case needsKey
   case invalidResponse
   case apiError(statusCode: Int, message: String, retryAfter: TimeInterval?)
   case entryRejected(code: String?)
@@ -170,6 +176,8 @@ nonisolated enum OpenAIError: LocalizedError {
 
   var errorDescription: String? {
     switch self {
+    case .needsKey:
+      return "OpenAI API key is missing"
     case .invalidResponse:
       return "OpenAI returned an invalid response"
     case .apiError(let statusCode, let message, _):
@@ -202,6 +210,8 @@ extension OpenAIError: ClassificationFailure {
   /// entry takes the uncategorized fallback.
   var batchAbort: ClassificationAbortReason? {
     switch self {
+    case .needsKey:
+      return .needsKey
     case .apiError(let statusCode, _, _):
       switch statusCode {
       case 401:
@@ -227,6 +237,8 @@ extension OpenAIError: ClassificationFailure {
   /// failure never reaches the retry state.
   var retryDisposition: ClassificationRetry {
     switch self {
+    case .needsKey:
+      .poll
     case .apiError(let statusCode, _, let retryAfter):
       ClassificationRetry(httpStatus: statusCode, retryAfter: retryAfter)
     case .networkUnavailable:

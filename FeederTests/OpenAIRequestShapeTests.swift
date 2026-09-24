@@ -73,6 +73,22 @@ struct OpenAIClassificationTransportTests {
   }
 
   @Test
+  func missingKeySendsNothing() async {
+    let recorder = ClassificationTransportRecorder(data: success)
+    let provider = OpenAIClassificationProvider(apiKey: "", model: "gpt-test", send: { try await recorder.send($0) })
+    let error = await #expect(throws: OpenAIError.self) {
+      try await provider.classify(title: "Title", body: "Article text", url: "", categories: categories)
+    }
+    switch error {
+    case .needsKey?: break
+    default: Issue.record("Expected OpenAIError.needsKey, got \(String(describing: error))")
+    }
+    #expect(error?.batchAbort == .needsKey)
+    #expect(error?.retryDisposition == .poll)
+    #expect(await recorder.requests.isEmpty)
+  }
+
+  @Test
   func rejectedKeyBlocks() async {
     let recorder = ClassificationTransportRecorder(data: Data(), status: 401)
     let error = await failure(through: recorder)

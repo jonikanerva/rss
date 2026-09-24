@@ -33,7 +33,7 @@ struct ClassificationCancellationTests {
   }
 
   private func runOneBatch(
-    _ writer: DataWriter, provider: VercelClassificationProvider
+    _ writer: DataWriter, provider: some ClassificationProvider
   ) async -> (ClassificationBatchOutcome, [ProgressSnapshot]) {
     let recorder = SnapshotRecorder()
     let runner = ClassificationRunner(writer: writer, providerFactory: { provider }, reportProgress: { await recorder.record($0) })
@@ -82,6 +82,30 @@ struct ClassificationCancellationTests {
       for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
     }
     #expect(await provider.callCount == 3)
+  }
+
+  @Test(arguments: [false, true])
+  func missingOpenAIKeyAbortsWithoutRequestsOrWrites(reclassifyAll: Bool) async throws {
+    let writer = try await fixture()
+    try await writer.applyClassification(entryID: 1001, result: .init(entryID: 1001, categoryLabel: "tech"))
+    let transport = ClassificationTransportRecorder(data: Data())
+    // Keep the real provider: this test pins the abort from its `validate(categories:)`.
+    let provider = OpenAIClassificationProvider(apiKey: "", model: "gpt-test", send: { try await transport.send($0) })
+    if reclassifyAll {
+      let engine = ClassificationEngine(providerFactoryOverride: { provider })
+      await engine.reclassifyAll(writer: writer)
+      #expect(engine.lastAbort == .needsKey)
+    } else {
+      let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
+      switch outcome {
+      case .aborted(.poll, completed: 0): break
+      default: Issue.record("Expected a poll abort with no completed entries, got \(outcome)")
+      }
+      #expect(snapshots.filter(\.ownsAbort).map(\.abort) == [.needsKey])
+    }
+    #expect(await transport.requests.isEmpty)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.primaryCategory == "tech")
+    for id in 1002...1003 { try await expectPending(writer, id: id) }
   }
 
   @Test
