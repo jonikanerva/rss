@@ -696,6 +696,29 @@ struct OpenAIErrorBatchAbortMappingTests {
         == .rateLimited)
   }
 
+  @Test(arguments: OpenAIErrorBodies.billing)
+  func billingFailureMapsToQuotaExhausted(body: String) {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      statusCode: 429, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.batchAbort == .quotaExhausted)
+  }
+
+  @Test(arguments: OpenAIErrorBodies.rateLimit)
+  func otherRateLimitBodiesMapToRateLimited(body: String) {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      statusCode: 429, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.batchAbort == .rateLimited)
+  }
+
+  @Test(arguments: OpenAIErrorBodies.billing)
+  func billingBodyKeepsTheStatusMappingOutsideHTTP429(body: String) {
+    let now = Date(timeIntervalSince1970: 0)
+    let badRequest = OpenAIClassificationProvider.makeAPIError(statusCode: 400, retryAfter: nil, body: body, now: now)
+    #expect(badRequest.batchAbort == .modelRejected)
+    let serverError = OpenAIClassificationProvider.makeAPIError(statusCode: 503, retryAfter: nil, body: body, now: now)
+    #expect(serverError.batchAbort == .providerUnavailable)
+  }
+
   @Test
   func requestTimeoutMapsToProviderUnavailable() {
     #expect(
@@ -785,6 +808,25 @@ struct OpenAIErrorRetryDispositionTests {
     #expect(clamped.retryDisposition == .transient(retryAfter: 3600))
   }
 
+  @Test(arguments: OpenAIErrorBodies.billing)
+  func billingFailureBlocksDespiteRetryAfter(body: String) {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      statusCode: 429, retryAfter: "120", body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.retryDisposition == .blocked)
+  }
+
+  @Test(arguments: OpenAIErrorBodies.rateLimit)
+  func rateLimitBodiesKeepTheRetryAfter(body: String) {
+    let error = OpenAIClassificationProvider.makeAPIError(
+      statusCode: 429, retryAfter: "30", body: body, now: Date(timeIntervalSince1970: 0))
+    #expect(error.retryDisposition == .transient(retryAfter: 30))
+  }
+
+  @Test
+  func quotaExhaustedBlocks() {
+    #expect(OpenAIError.quotaExhausted(code: nil).retryDisposition == .blocked)
+  }
+
   @Test
   func transportFailureUsesBoundedBackoff() {
     let error = OpenAIError.networkUnavailable(underlying: URLError(.timedOut))
@@ -808,20 +850,13 @@ struct OpenAIErrorRetryDispositionTests {
 /// "Open Settings" button or hides the only recovery path the user has.
 @Suite("Cloud failure disposition pairing")
 struct CloudFailureDispositionPairingTests {
-  private static let settingsFixable: [ClassificationAbortReason] = [
-    .keyRejected, .modelRejected, .invalidResponse, .needsKey, .invalidCategories, .inputTooLarge,
-  ]
-  private static let selfHealing: [ClassificationAbortReason] = [
-    .offline, .providerUnavailable, .rateLimited,
-  ]
-
   private func expectPairing(_ failure: any ClassificationFailure) {
     guard let abort = failure.batchAbort else { return }
     switch failure.retryDisposition {
     case .blocked:
-      #expect(Self.settingsFixable.contains(abort), "\(failure) blocks with \(abort)")
+      #expect(abort.offersSettings, "\(failure) blocks with \(abort)")
     case .transient:
-      #expect(Self.selfHealing.contains(abort), "\(failure) backs off with \(abort)")
+      #expect(!abort.offersSettings, "\(failure) backs off with \(abort)")
     case .poll:
       // A local re-check or a per-entry defect; no pairing obligation.
       break
@@ -835,6 +870,12 @@ struct CloudFailureDispositionPairingTests {
     expectPairing(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil))
   }
 
+  @Test(arguments: OpenAIErrorBodies.billing)
+  func openAIBillingFailuresPair(body: String) {
+    expectPairing(
+      OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "120", body: body, now: Date(timeIntervalSince1970: 0)))
+  }
+
   @Test(arguments: [
     199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 408, 409, 422, 429, 499, 500, 502, 503, 599, 600, 700,
   ])
@@ -846,7 +887,7 @@ struct CloudFailureDispositionPairingTests {
   func nonHTTPFailuresPair() {
     let openAI: [OpenAIError] = [
       .needsKey, .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
-      .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
+      .quotaExhausted(code: "credit_balance_exhausted"), .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
     ]
     for failure in openAI { expectPairing(failure) }
     let vercel: [VercelClassificationError] = [
@@ -858,8 +899,9 @@ struct CloudFailureDispositionPairingTests {
 
 // MARK: - Abort reason copy lock
 
-/// Locks the banner literals and symbols. The abort reason is payload-free, so
-/// these fixed strings are the entire user-visible surface of a batch abort.
+/// Locks the banner literals, symbols, and Settings affordance. The abort reason
+/// is payload-free, so these fixed values are the entire user-visible surface
+/// of a batch abort.
 @Suite("ClassificationAbortReason copy")
 struct ClassificationAbortReasonCopyTests {
   @Test
@@ -877,6 +919,7 @@ struct ClassificationAbortReasonCopyTests {
     #expect(ClassificationAbortReason.inputTooLarge.displayLabel == "Category definitions are too large for JEV")
     #expect(ClassificationAbortReason.invalidResponse.displayLabel == "JEV returned an invalid result")
     #expect(ClassificationAbortReason.rateLimited.displayLabel == "Categorizing paused — service limit reached")
+    #expect(ClassificationAbortReason.quotaExhausted.displayLabel == "OpenAI quota used up — check billing at OpenAI")
   }
 
   @Test
@@ -886,5 +929,16 @@ struct ClassificationAbortReasonCopyTests {
     #expect(ClassificationAbortReason.keyRejected.symbolName == "exclamationmark.triangle")
     #expect(
       ClassificationAbortReason.providerUnavailable.symbolName == "exclamationmark.triangle")
+    #expect(ClassificationAbortReason.quotaExhausted.symbolName == "exclamationmark.triangle")
+  }
+
+  @Test
+  func settingsAffordanceMatchesApprovedMapping() {
+    let offersSettings: [ClassificationAbortReason] = [
+      .modelRejected, .keyRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted,
+    ]
+    let selfHealing: [ClassificationAbortReason] = [.offline, .providerUnavailable, .rateLimited]
+    for reason in offersSettings { #expect(reason.offersSettings, "\(reason) must offer Settings") }
+    for reason in selfHealing { #expect(!reason.offersSettings, "\(reason) must not offer Settings") }
   }
 }

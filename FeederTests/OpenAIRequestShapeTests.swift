@@ -97,12 +97,22 @@ struct OpenAIClassificationTransportTests {
     #expect(await recorder.requests.count == 1)
   }
 
-  @Test
-  func rateLimitCarriesRetryAfter() async {
-    let recorder = ClassificationTransportRecorder(data: Data(), status: 429, retryAfter: "120")
+  @Test(arguments: OpenAIErrorBodies.rateLimit)
+  func rateLimitCarriesRetryAfter(body: String) async {
+    let recorder = ClassificationTransportRecorder(data: Data(body.utf8), status: 429, retryAfter: "20")
     let error = await failure(through: recorder)
     #expect(error?.batchAbort == .rateLimited)
-    #expect(error?.retryDisposition == .transient(retryAfter: 120))
+    #expect(error?.retryDisposition == .transient(retryAfter: 20))
+    #expect(await recorder.requests.count == 1)
+  }
+
+  /// A billing failure gets no request retry (`STACK.md → Cloud classification`).
+  @Test(arguments: OpenAIErrorBodies.billing)
+  func billingFailureBlocks(body: String) async {
+    let recorder = ClassificationTransportRecorder(data: Data(body.utf8), status: 429, retryAfter: "120")
+    let error = await failure(through: recorder)
+    #expect(error?.batchAbort == .quotaExhausted)
+    #expect(error?.retryDisposition == .blocked)
     #expect(await recorder.requests.count == 1)
   }
 
