@@ -204,7 +204,7 @@ actor FeedbinClient {
 - **PII redaction:** use `os.Logger` `.private` interpolation for any value derived from user data (article URLs, feed URLs, API keys, classification prompts).
 - **Crash reporter:** none. No Sentry / Crashlytics / equivalent.
 - **Privacy declaration:** keep `PrivacyInfo.xcprivacy` accurate. Every required-reason API call is declared.
-- **Secrets:** never in the repo. Configuration via the macOS Keychain or `.env` (gitignored). Agents never read `.env` files (enforced by a settings hook).
+- **Secrets:** never in the repo. Configuration via the macOS Keychain or `.env` (gitignored). Agents never read `.env` files (enforced by a settings hook). A request that carries a credential uses an ephemeral session, never `URLSession.shared` or a `.default` configuration.
 
 ---
 
