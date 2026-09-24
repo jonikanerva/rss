@@ -260,7 +260,7 @@ final class SyncEngine {
   func startPeriodicSync(interval: TimeInterval = 300) {
     stopPeriodicSync()
     periodicSyncTask = Task {
-      await CredentialResidue.removeFromSharedStores()
+      await CredentialResidue.removeFromSharedCache()
       if Task.isCancelled { return }
       await sync()
       while !Task.isCancelled {

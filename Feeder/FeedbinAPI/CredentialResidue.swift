@@ -30,7 +30,7 @@ nonisolated enum CredentialResidue {
   // (`STACK.md § 1`), a plain `nonisolated async` function runs on the caller's
   // actor, and this one does synchronous disk I/O.
   @concurrent
-  static func removeFromSharedStores() async {
+  static func removeFromSharedCache() async {
     guard remove(from: .shared) else { return }
     logger.notice("Removed cached responses whose requests carried credentials")
   }
