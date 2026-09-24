@@ -6,9 +6,6 @@ import Testing
 @MainActor
 @Suite("Classification cancellation and retry timelines")
 struct ClassificationCancellationTests {
-  private static let jevSuccess = Data(
-    #"{"answers":{"category":{"type":"choice","choice":"tech","probabilities":{"tech":0.9,"uncategorized":0.1}}}}"#.utf8)
-
   private func fixture(entryCount: Int = 3) async throws -> DataWriter {
     let writer = try await DataWriterTestSupport.makeWriter()
     try await writer.addCategory(label: "tech", displayName: "Tech", description: "Technology", sortOrder: 0)
@@ -23,17 +20,22 @@ struct ClassificationCancellationTests {
     return writer
   }
 
-  private func vercel(
-    _ script: [Result<ClassificationHTTPResponse, URLError>], retryClock: ClassificationSleepRecorder
-  ) -> (VercelClassificationProvider, ClassificationTransportRecorder) {
+  private func cloudProvider(
+    _ cloud: CloudProviderFixture, _ script: [Result<ClassificationHTTPResponse, URLError>], retryClock: ClassificationSleepRecorder
+  ) -> (any ClassificationProvider, ClassificationTransportRecorder) {
     let transport = ClassificationTransportRecorder(script: script)
-    let provider = VercelClassificationProvider(
-      apiKey: "fake", send: { try await transport.send($0) }, sleep: { try await retryClock.sleep($0) })
+    let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse = { try await transport.send($0) }
+    let retrySleep: @Sendable (Duration) async throws -> Void = { try await retryClock.sleep($0) }
+    let provider: any ClassificationProvider =
+      switch cloud {
+      case .vercel: VercelClassificationProvider(apiKey: "fake", send: send, sleep: retrySleep)
+      case .openAI: OpenAIClassificationProvider(apiKey: "fake-openai-key", model: "gpt-test", send: send, sleep: retrySleep)
+      }
     return (provider, transport)
   }
 
   private func runOneBatch(
-    _ writer: DataWriter, provider: some ClassificationProvider
+    _ writer: DataWriter, provider: any ClassificationProvider
   ) async -> (ClassificationBatchOutcome, [ProgressSnapshot]) {
     let recorder = SnapshotRecorder()
     let runner = ClassificationRunner(writer: writer, providerFactory: { provider }, reportProgress: { await recorder.record($0) })
@@ -284,12 +286,14 @@ struct ClassificationCancellationTests {
     .failure(URLError(.timedOut)), .failure(URLError(.networkConnectionLost)),
   ]
 
-  @Test(arguments: ClassificationCancellationTests.healableFailures)
-  func healedRequestFailureClassifiesWithoutABanner(_ failure: Result<ClassificationHTTPResponse, URLError>) async throws {
+  @Test(arguments: CloudProviderFixture.allCases, ClassificationCancellationTests.healableFailures)
+  func healedRequestFailureClassifiesWithoutABanner(
+    _ cloud: CloudProviderFixture, _ failure: Result<ClassificationHTTPResponse, URLError>
+  ) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
     let loopClock = ClassificationSleepRecorder()
-    let (provider, transport) = vercel([failure, .success(.status(200, data: Self.jevSuccess))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [failure, .success(cloud.success)], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     await engine.classifyUnclassified(writer: writer)
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.primaryCategory == "tech")
@@ -306,7 +310,7 @@ struct ClassificationCancellationTests {
   func requestRetryReportsNoSnapshotBetweenAttempts(_ failure: Result<ClassificationHTTPResponse, URLError>) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, _) = vercel([failure, .success(.status(200, data: Self.jevSuccess))], retryClock: retryClock)
+    let (provider, _) = cloudProvider(.vercel, [failure, .success(CloudProviderFixture.vercel.success)], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.completedCount == 1)
     #expect(snapshots.filter(\.ownsAbort).map(\.abort) == [nil])
@@ -314,11 +318,11 @@ struct ClassificationCancellationTests {
     #expect(stopsOnlyAtTheEnd)
   }
 
-  @Test
-  func persistentServerErrorAbortsAfterThreeRequests() async throws {
+  @Test(arguments: CloudProviderFixture.allCases)
+  func persistentServerErrorAbortsAfterThreeRequests(_ cloud: CloudProviderFixture) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel([.success(.status(503))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.success(.status(503))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
     #expect(snapshots.last?.ownsAbort == true)
@@ -328,11 +332,11 @@ struct ClassificationCancellationTests {
     try await expectPending(writer)
   }
 
-  @Test
-  func lostConnectionOnEveryAttemptKeepsTheEntryPending() async throws {
+  @Test(arguments: CloudProviderFixture.allCases)
+  func lostConnectionOnEveryAttemptKeepsTheEntryPending(_ cloud: CloudProviderFixture) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel([.failure(URLError(.networkConnectionLost))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.failure(URLError(.networkConnectionLost))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
     #expect(snapshots.last?.abort == .offline)
@@ -341,11 +345,11 @@ struct ClassificationCancellationTests {
     try await expectPending(writer)
   }
 
-  @Test
-  func repeatedTimeoutStopsAfterTwoRequests() async throws {
+  @Test(arguments: CloudProviderFixture.allCases)
+  func repeatedTimeoutStopsAfterTwoRequests(_ cloud: CloudProviderFixture) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel([.failure(URLError(.timedOut))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.failure(URLError(.timedOut))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
     #expect(snapshots.last?.abort == .offline)
@@ -354,12 +358,17 @@ struct ClassificationCancellationTests {
     try await expectPending(writer)
   }
 
-  @Test(arguments: zip([429, 503], [120, 30]))
-  func longRetryAfterStopsTheDrainAndSetsTheLoopWait(status: Int, retryAfter: Int) async throws {
+  nonisolated private static let longRetryAfters: [(CloudProviderFixture, Int, Int)] = [
+    (.vercel, 429, 120), (.vercel, 503, 30), (.openAI, 429, 120), (.openAI, 503, 30),
+  ]
+
+  @Test(arguments: ClassificationCancellationTests.longRetryAfters)
+  func longRetryAfterStopsTheDrainAndSetsTheLoopWait(_ cloud: CloudProviderFixture, status: Int, retryAfter: Int) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
     let loopClock = ClassificationSleepRecorder()
-    let (provider, transport) = vercel([.success(.status(status, retryAfter: String(retryAfter)))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(
+      cloud, [.success(.status(status, retryAfter: String(retryAfter)))], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("loop wait reached") { await loopClock.delays.count == 1 }
@@ -376,8 +385,8 @@ struct ClassificationCancellationTests {
   func serverErrorThenMalformedResultStopsWithoutAnotherRequest() async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel(
-      [.success(.status(503)), .success(.status(200, data: Data("{}".utf8)))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(
+      .vercel, [.success(.status(503)), .success(.status(200, data: Data("{}".utf8)))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .blocked)
     #expect(snapshots.last?.abort == .invalidResponse)
@@ -386,12 +395,11 @@ struct ClassificationCancellationTests {
     try await expectPending(writer)
   }
 
-  @Test
-  func cancelledRetryWaitEndsTheBatchAsCancelled() async throws {
+  @Test(arguments: CloudProviderFixture.allCases)
+  func cancelledRetryWaitEndsTheBatchAsCancelled(_ cloud: CloudProviderFixture) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder()
-    let (provider, transport) = vercel(
-      [.success(.status(503)), .success(.status(200, data: Self.jevSuccess))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.success(.status(503)), .success(cloud.success)], retryClock: retryClock)
     let recorder = SnapshotRecorder()
     let runner = ClassificationRunner(writer: writer, providerFactory: { provider }, reportProgress: { await recorder.record($0) })
     let batch = Task { await runner.runOneBatch(cutoffDate: .distantPast) }
@@ -411,8 +419,8 @@ struct ClassificationCancellationTests {
     let writer = try await fixture()
     let retryClock = ClassificationSleepRecorder()
     let loopClock = ClassificationSleepRecorder()
-    let (provider, transport) = vercel(
-      [.success(.status(503)), .success(.status(200, data: Self.jevSuccess))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(
+      .vercel, [.success(.status(503)), .success(CloudProviderFixture.vercel.success)], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("retry wait starts") { await retryClock.delays.count == 1 }
@@ -428,13 +436,25 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
-  @Test(arguments: zip([401, 402, 403, 400], [ClassificationAbortReason.keyRejected, .rateLimited, .keyRejected, .modelRejected]))
-  func nonHealableStatusSendsOneRequest(status: Int, abort: ClassificationAbortReason) async throws {
+  nonisolated private static let nonHealableStatuses: [(CloudProviderFixture, Int, ClassificationAbortReason, ClassificationRetry)] = [
+    (.vercel, 401, .keyRejected, .blocked),
+    (.vercel, 402, .rateLimited, .transient(retryAfter: nil)),
+    (.vercel, 403, .keyRejected, .blocked),
+    (.vercel, 400, .modelRejected, .blocked),
+    (.openAI, 401, .keyRejected, .blocked),
+    (.openAI, 402, .modelRejected, .blocked),
+    (.openAI, 403, .modelRejected, .blocked),
+    (.openAI, 400, .modelRejected, .blocked),
+  ]
+
+  @Test(arguments: ClassificationCancellationTests.nonHealableStatuses)
+  func nonHealableStatusSendsOneRequest(
+    _ cloud: CloudProviderFixture, status: Int, abort: ClassificationAbortReason, disposition: ClassificationRetry
+  ) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel([.success(.status(status))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.success(.status(status))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
-    let disposition: ClassificationRetry = status == 402 ? .transient(retryAfter: nil) : .blocked
     #expect(outcome.abortDisposition == disposition)
     #expect(snapshots.last?.abort == abort)
     #expect(await transport.requests.count == 1)
@@ -442,17 +462,31 @@ struct ClassificationCancellationTests {
     try await expectPending(writer)
   }
 
-  @Test
-  func offlineTransportFailureSendsOneRequest() async throws {
+  @Test(arguments: CloudProviderFixture.allCases)
+  func offlineTransportFailureSendsOneRequest(_ cloud: CloudProviderFixture) async throws {
     let writer = try await fixture(entryCount: 1)
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let (provider, transport) = vercel([.failure(URLError(.notConnectedToInternet))], retryClock: retryClock)
+    let (provider, transport) = cloudProvider(cloud, [.failure(URLError(.notConnectedToInternet))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
     #expect(snapshots.last?.abort == .offline)
     #expect(await transport.requests.count == 1)
     #expect(await retryClock.delays.isEmpty)
     try await expectPending(writer)
+  }
+}
+
+enum CloudProviderFixture: CaseIterable, Sendable {
+  case vercel
+  case openAI
+
+  var success: ClassificationHTTPResponse {
+    let body =
+      switch self {
+      case .vercel: #"{"answers":{"category":{"type":"choice","choice":"tech","probabilities":{"tech":0.9,"uncategorized":0.1}}}}"#
+      case .openAI: #"{"choices":[{"message":{"content":"{\"category\":\"tech\",\"confidence\":0.9}"}}]}"#
+      }
+    return .status(200, data: Data(body.utf8))
   }
 }
 
