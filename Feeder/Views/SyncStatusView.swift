@@ -186,6 +186,7 @@ private enum SyncStatusPreviewState {
   case largeNumbers
   case syncingNoTotal
   case abortedModel
+  case abortedNeedsKey
   case abortedOffline
   case abortedRateLimited
   case abortedWhileSyncing
@@ -234,6 +235,9 @@ private enum SyncStatusPreviewState {
       // Classification banner with the "Open Settings" recovery button.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .modelRejected)
+    case .abortedNeedsKey:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .needsKey, provider: .openAI)
     case .abortedOffline:
       // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
@@ -300,6 +304,10 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Model rejected") {
   syncStatusPreview(state: .abortedModel)
+}
+
+#Preview("Aborted - Needs key") {
+  syncStatusPreview(state: .abortedNeedsKey)
 }
 
 #Preview("Aborted - Service limit") {

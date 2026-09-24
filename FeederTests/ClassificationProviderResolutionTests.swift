@@ -3,17 +3,10 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - ClassificationEngine.buildProvider — keychain prompt avoidance
+// MARK: - ClassificationEngine.buildProvider
 
-/// With OpenAI selected in Settings but no key saved, provider resolution must
-/// fall back to the on-device provider instead of constructing an empty-key
-/// OpenAI provider, which fires a system-modal keychain prompt during the first
-/// background batch.
-///
 /// The injected keychain-load closure keeps the test off the real keychain, so
-/// no run pollutes the Security session or raises a prompt. The provider-kind
-/// state lives in a per-test isolated `UserDefaults` suite, so parallel cases
-/// cannot clobber each other through the standard domain.
+/// no run pollutes the Security session or raises a prompt.
 @Suite("ClassificationEngine.buildProvider")
 struct ClassificationProviderResolutionTests {
   // MARK: - Per-test isolation
@@ -25,6 +18,7 @@ struct ClassificationProviderResolutionTests {
   /// the persist and the `buildProvider` call. Pattern matches
   /// `SyncEngineTests.init`.
   private let defaults: UserDefaults
+  private let categories = [CategoryDefinition(label: "tech", description: "Technology news")]
 
   init() {
     let id = "FeederTests.ClassificationProviderResolution.\(UUID().uuidString)"
@@ -40,11 +34,8 @@ struct ClassificationProviderResolutionTests {
 
   // MARK: - Apple FM path
 
-  /// `.appleFM` is the default kind. The on-device provider is constructed
-  /// without ever invoking the keychain — the closure must remain untouched.
-  /// Counter-evidence: if a future refactor moves the keychain read up out
-  /// of the `.openAI` branch, `loadCallCount` will tick and this test
-  /// fails, surfacing the regression before it ships.
+  /// `.appleFM` is the default kind. Resolving it must never call the
+  /// keychain-load closure.
   @Test
   func appleFMKindSkipsKeychainEntirely() {
     ClassificationProviderKind.persist(.appleFM, in: defaults)
@@ -59,43 +50,43 @@ struct ClassificationProviderResolutionTests {
     #expect(provider.name == "Apple FM")
   }
 
-  // MARK: - OpenAI path with empty/missing keys
+  // MARK: - Cloud providers without a stored key
 
-  /// `.openAI` selected but the keychain returns `nil` (no item stored yet).
-  /// Must fall back to Apple FM instead of constructing an OpenAI provider
-  /// with an empty key — that would have produced an unauthenticated 401 at
-  /// classify-time and, on the path that triggered the bug, an unwanted
-  /// system-modal keychain access prompt at the *write* site.
-  @Test
-  func openAIKindWithMissingKeyFallsBackToAppleFM() {
-    ClassificationProviderKind.persist(.openAI, in: defaults)
+  @Test(arguments: [ClassificationProviderKind.openAI, .vercel], [nil, ""] as [String?])
+  func cloudKindWithoutKeyKeepsItsProviderAndNeedsKey(kind: ClassificationProviderKind, storedKey: String?) async {
+    ClassificationProviderKind.persist(kind, in: defaults)
+    var requestedKeys: [String] = []
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
+      requestedKeys.append(key)
+      return storedKey
+    }
 
-    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in nil }
-
-    #expect(provider.name == "Apple FM")
-  }
-
-  /// `.openAI` selected but the keychain returns an empty string (which can
-  /// legitimately happen if the user saved a blank value and then deleted
-  /// the characters without dismissing Settings). Empty strings must be
-  /// treated identically to "no key stored": fall back to Apple FM.
-  @Test
-  func openAIKindWithEmptyKeyFallsBackToAppleFM() {
-    ClassificationProviderKind.persist(.openAI, in: defaults)
-
-    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "" }
-
-    #expect(provider.name == "Apple FM")
+    // Compare with the constants, not `kind.keychainKey`: this test checks that mapping.
+    switch kind {
+    case .openAI:
+      #expect(requestedKeys == [KeychainHelper.openAIAPIKeychainKey])
+      #expect(provider is OpenAIClassificationProvider)
+    case .vercel:
+      #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
+      #expect(provider is VercelClassificationProvider)
+    case .appleFM:
+      Issue.record("Apple Foundation Models has no key to miss")
+    }
+    #expect(KeychainHelper.vercelAPIKeychainKey != KeychainHelper.openAIAPIKeychainKey)
+    #expect(!(provider is AppleFMClassificationProvider))
+    #expect(!(await provider.isAvailable))
+    let error = await #expect(throws: (any Error).self) {
+      try await provider.validate(categories: categories)
+    }
+    let failure = error as? any ClassificationFailure
+    #expect(failure?.batchAbort == .needsKey)
+    #expect(failure?.retryDisposition == .poll)
   }
 
   // MARK: - OpenAI path with key
 
-  /// Sanity check that the production path is still wired correctly: a
-  /// non-empty stored key resolves to the OpenAI provider. Without this
-  /// case the empty-key fallback could shadow a real bug if someone
-  /// flipped the early-return condition inadvertently.
   @Test
-  func openAIKindWithStoredKeyResolvesToOpenAIProvider() {
+  func openAIKindWithStoredKeyResolvesToOpenAIProvider() async {
     ClassificationProviderKind.persist(.openAI, in: defaults)
 
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
@@ -105,6 +96,7 @@ struct ClassificationProviderResolutionTests {
     }
 
     #expect(provider.name == "OpenAI")
+    #expect(await provider.isAvailable)
   }
 
   // MARK: - OpenAI model resolution
@@ -136,18 +128,5 @@ struct ClassificationProviderResolutionTests {
 
     let openAIProvider = provider as? OpenAIClassificationProvider
     #expect(openAIProvider?.model == "gpt-5.6-luna")
-  }
-  @Test
-  func vercelUsesOnlyItsOwnKeyAndNeverFallsBack() async {
-    ClassificationProviderKind.persist(.vercel, in: defaults)
-    var requestedKeys: [String] = []
-    let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
-      requestedKeys.append(key)
-      return nil
-    }
-    #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
-    #expect(provider is VercelClassificationProvider)
-    #expect(!(await provider.isAvailable))
-    #expect(KeychainHelper.vercelAPIKeychainKey != KeychainHelper.openAIAPIKeychainKey)
   }
 }

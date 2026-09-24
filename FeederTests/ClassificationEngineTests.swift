@@ -845,7 +845,7 @@ struct CloudFailureDispositionPairingTests {
   @Test
   func nonHTTPFailuresPair() {
     let openAI: [OpenAIError] = [
-      .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
+      .needsKey, .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
       .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
     ]
     for failure in openAI { expectPairing(failure) }

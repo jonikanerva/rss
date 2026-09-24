@@ -213,20 +213,19 @@ final class ClassificationEngine {
     self.lastAbortProvider = provider
   }
 
-  /// Read the Keychain only inside a cloud-provider case, so an Apple
-  /// Foundation Models user never triggers a Keychain read.
+  /// Only a cloud provider kind reads the Keychain. An Apple Foundation Models
+  /// user never triggers a Keychain read.
   nonisolated static func buildProvider(
     defaults: UserDefaults = .standard,
     keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
   ) -> any ClassificationProvider {
-    switch ClassificationProviderKind.current(in: defaults) {
+    let kind = ClassificationProviderKind.current(in: defaults)
+    let apiKey = kind.keychainKey.flatMap(keychainLoad) ?? ""
+    switch kind {
     case .openAI:
-      guard let key = keychainLoad(KeychainHelper.openAIAPIKeychainKey), !key.isEmpty else {
-        return AppleFMClassificationProvider()
-      }
-      return OpenAIClassificationProvider(apiKey: key, model: OpenAIModelSetting.current(in: defaults))
+      return OpenAIClassificationProvider(apiKey: apiKey, model: OpenAIModelSetting.current(in: defaults))
     case .vercel:
-      return VercelClassificationProvider(apiKey: keychainLoad(KeychainHelper.vercelAPIKeychainKey) ?? "")
+      return VercelClassificationProvider(apiKey: apiKey)
     case .appleFM:
       return AppleFMClassificationProvider()
     }
