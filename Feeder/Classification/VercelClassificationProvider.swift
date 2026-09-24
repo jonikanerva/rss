@@ -46,49 +46,13 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = try Self.requestBody(title: title, body: body, categories: categories)
-    let response = try await sendWithRetry(request)
+    let response = try await CloudSession.sendWithRetry(
+      request, provider: name, logger: Self.logger, send: send, sleep: sleep, now: now,
+      httpFailure: { VercelClassificationError.http($0.statusCode, retryAfter: retryAfterDelay($0.retryAfter, now: $1)) },
+      transportFailure: {
+        $0 is CloudSession.NonHTTPResponse ? VercelClassificationError.invalidResponse : VercelClassificationError.network
+      })
     return try Self.decode(response.data, categories: categories)
-  }
-
-  /// Returns the first HTTP 200 response. Cancellation throws
-  /// `CancellationError`, also during a retry wait.
-  private func sendWithRetry(_ request: URLRequest) async throws -> ClassificationHTTPResponse {
-    var attempt = 1
-    while true {
-      try Task.checkCancellation()
-      let failure: VercelClassificationError
-      let retryInput: CloudRequestFailure?
-      do {
-        let response = try await send(request)
-        try Task.checkCancellation()
-        if response.statusCode == 200 { return response }
-        let retryAfter = retryAfterDelay(response.retryAfter, now: now())
-        let retryAfterText = retryAfter.map { "\($0) s" } ?? "none"
-        let body = String(decoding: response.data, as: UTF8.self)
-        Self.logger.error(
-          "Vercel AI Gateway HTTP \(response.statusCode, privacy: .public) on attempt \(attempt, privacy: .public), Retry-After \(retryAfterText, privacy: .public): \(body, privacy: .private)"
-        )
-        failure = .http(response.statusCode, retryAfter: retryAfter)
-        retryInput = .http(status: response.statusCode, retryAfter: retryAfter)
-      } catch {
-        if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-          throw CancellationError()
-        }
-        if error is CloudSession.NonHTTPResponse { throw VercelClassificationError.invalidResponse }
-        let code = (error as? URLError)?.code
-        let codeText = code.map { String($0.rawValue) } ?? "none"
-        Self.logger.error(
-          "Vercel AI Gateway transport failure on attempt \(attempt, privacy: .public), URLError code \(codeText, privacy: .public): \(String(describing: error), privacy: .private)"
-        )
-        failure = .network
-        retryInput = code.map { .transport($0) }
-      }
-      guard let retryInput, let wait = CloudRequestRetry.delay(afterAttempt: attempt, failure: retryInput) else {
-        throw failure
-      }
-      try await sleep(wait)
-      attempt += 1
-    }
   }
 
   static func requestBody(title: String, body: String, categories: [CategoryDefinition]) throws -> Data {

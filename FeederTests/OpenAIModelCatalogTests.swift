@@ -91,12 +91,14 @@ struct OpenAIModelListTransportTests {
   func serverErrorKeepsItsStatus() async {
     let recorder = ClassificationTransportRecorder(data: Data(), status: 503)
     await #expect(throws: OpenAIModelsError.httpStatus(503)) { try await fetch(through: recorder) }
+    #expect(await recorder.requests.count == 1)
   }
 
   @Test
   func timeoutIsANetworkFailure() async {
     let recorder = ClassificationTransportRecorder(script: [.failure(URLError(.timedOut))])
     await #expect(throws: OpenAIModelsError.network) { try await fetch(through: recorder) }
+    #expect(await recorder.requests.count == 1)
   }
 
   @Test

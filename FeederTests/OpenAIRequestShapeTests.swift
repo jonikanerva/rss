@@ -43,20 +43,26 @@ struct OpenAIClassificationTransportTests {
   ]
   private let success = Data(#"{"choices":[{"message":{"content":"{\"category\":\"tech\",\"confidence\":0.9}"}}]}"#.utf8)
 
-  private func classify(through recorder: ClassificationTransportRecorder) async throws -> ProviderClassificationResult {
-    let provider = OpenAIClassificationProvider(apiKey: "fake-openai-key", model: "gpt-test", send: { try await recorder.send($0) })
+  private func classify(
+    through recorder: ClassificationTransportRecorder, retryClock: ClassificationSleepRecorder
+  ) async throws -> ProviderClassificationResult {
+    let provider = OpenAIClassificationProvider(
+      apiKey: "fake-openai-key", model: "gpt-test", send: { try await recorder.send($0) }, sleep: { try await retryClock.sleep($0) })
     return try await provider.classify(
       title: "Title", body: "Article text", url: "https://private.invalid/read-history", categories: categories)
   }
 
-  private func failure(through recorder: ClassificationTransportRecorder) async -> OpenAIError? {
-    await #expect(throws: OpenAIError.self) { try await classify(through: recorder) }
+  private func failure(
+    through recorder: ClassificationTransportRecorder, retryClock: ClassificationSleepRecorder
+  ) async -> OpenAIError? {
+    await #expect(throws: OpenAIError.self) { try await classify(through: recorder, retryClock: retryClock) }
   }
 
   @Test
   func requestUsesTheCloudRequestPolicy() async throws {
     let recorder = ClassificationTransportRecorder(data: success)
-    #expect(try await classify(through: recorder) == .generative(category: "tech", confidence: 0.9))
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    #expect(try await classify(through: recorder, retryClock: clock) == .generative(category: "tech", confidence: 0.9))
     let requests = await recorder.requests
     #expect(requests.count == 1)
     let request = try #require(requests.first)
@@ -91,71 +97,89 @@ struct OpenAIClassificationTransportTests {
   @Test
   func rejectedKeyBlocks() async {
     let recorder = ClassificationTransportRecorder(data: Data(), status: 401)
-    let error = await failure(through: recorder)
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
     #expect(error?.batchAbort == .keyRejected)
     #expect(error?.retryDisposition == .blocked)
     #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
   }
 
   @Test(arguments: OpenAIErrorBodies.rateLimit)
   func rateLimitCarriesRetryAfter(body: String) async {
     let recorder = ClassificationTransportRecorder(data: Data(body.utf8), status: 429, retryAfter: "20")
-    let error = await failure(through: recorder)
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
     #expect(error?.batchAbort == .rateLimited)
     #expect(error?.retryDisposition == .transient(retryAfter: 20))
     #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
+  }
+
+  @Test
+  func retryAfterAtTheLimitIsWaitedInsideTheRequestRetry() async throws {
+    let recorder = ClassificationTransportRecorder(script: [
+      .success(.status(429, retryAfter: "10")), .success(.status(200, data: success)),
+    ])
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    #expect(try await classify(through: recorder, retryClock: clock) == .generative(category: "tech", confidence: 0.9))
+    #expect(await recorder.requests.count == 2)
+    #expect(await clock.delays == [.seconds(10)])
   }
 
   /// A billing failure gets no request retry (`STACK.md → Cloud classification`).
   @Test(arguments: OpenAIErrorBodies.billing)
   func billingFailureBlocks(body: String) async {
     let recorder = ClassificationTransportRecorder(data: Data(body.utf8), status: 429, retryAfter: "120")
-    let error = await failure(through: recorder)
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
     #expect(error?.batchAbort == .quotaExhausted)
     #expect(error?.retryDisposition == .blocked)
     #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
   }
 
   @Test
-  func serverErrorIsTransient() async {
-    let recorder = ClassificationTransportRecorder(data: Data(), status: 503)
-    let error = await failure(through: recorder)
-    #expect(error?.batchAbort == .providerUnavailable)
-    #expect(error?.retryDisposition == .transient(retryAfter: nil))
-    #expect(await recorder.requests.count == 1)
+  func quotaAfterServerErrorSendsTwoRequests() async throws {
+    let billing = try #require(OpenAIErrorBodies.billing.first)
+    let recorder = ClassificationTransportRecorder(script: [
+      .success(.status(503)), .success(.status(429, data: Data(billing.utf8))),
+    ])
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
+    #expect(error?.batchAbort == .quotaExhausted)
+    #expect(error?.retryDisposition == .blocked)
+    #expect(await recorder.requests.count == 2)
+    #expect(await clock.delays == [.seconds(2)])
   }
 
   @Test
   func perArticleRejectionKeepsThePerEntryFallback() async {
     let rejection = Data(#"{"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}"#.utf8)
     let recorder = ClassificationTransportRecorder(data: rejection, status: 400)
-    let error = await failure(through: recorder)
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
     #expect(error?.batchAbort == nil)
     #expect(error?.retryDisposition == .poll)
     #expect(await recorder.requests.count == 1)
-  }
-
-  @Test
-  func lostConnectionIsOffline() async {
-    let recorder = ClassificationTransportRecorder(script: [.failure(URLError(.networkConnectionLost))])
-    let error = await failure(through: recorder)
-    #expect(error?.batchAbort == .offline)
-    #expect(error?.retryDisposition == .transient(retryAfter: nil))
-    #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
   }
 
   @Test
   func cancellationIsNotANetworkFailure() async {
     let recorder = ClassificationTransportRecorder(script: [.failure(URLError(.cancelled))])
-    await #expect(throws: CancellationError.self) { try await classify(through: recorder) }
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    await #expect(throws: CancellationError.self) { try await classify(through: recorder, retryClock: clock) }
   }
 
   @Test
   func nonHTTPResponseKeepsThePerEntryFallback() async {
     let recorder = ClassificationTransportRecorder(failure: CloudSession.NonHTTPResponse())
-    let error = await failure(through: recorder)
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let error = await failure(through: recorder, retryClock: clock)
     #expect(error?.batchAbort == nil)
     #expect(error?.retryDisposition == .poll)
     #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
   }
 }

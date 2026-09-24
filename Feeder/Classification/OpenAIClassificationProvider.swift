@@ -16,6 +16,8 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   /// `ClassificationEngine.buildProvider` resolved.
   let model: String
   private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
+  private let sleep: @Sendable (Duration) async throws -> Void
+  private let now: @Sendable () -> Date
   private static let requestTimeout: TimeInterval = 60
   private static let endpoint: URL = {
     guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
@@ -28,11 +30,15 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     apiKey: String,
     model: String,
     send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse =
-      CloudSession(requestTimeout: Self.requestTimeout).send
+      CloudSession(requestTimeout: Self.requestTimeout).send,
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+    now: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.apiKey = apiKey
     self.model = model
     self.send = send
+    self.sleep = sleep
+    self.now = now
   }
 
   var isAvailable: Bool {
@@ -68,21 +74,16 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
       model: model, instructions: instructions, userMessage: userMessage
     )
 
-    let response: ClassificationHTTPResponse
-    do {
-      response = try await send(request)
-    } catch {
-      if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
-      if error is CloudSession.NonHTTPResponse { throw OpenAIError.invalidResponse }
-      throw OpenAIError.networkUnavailable(underlying: error)
-    }
-
-    try Task.checkCancellation()
-    guard response.statusCode == 200 else {
-      let body = String(data: response.data, encoding: .utf8) ?? "no body"
-      Self.logger.error("OpenAI API error \(response.statusCode): \(body, privacy: .private)")
-      throw Self.makeAPIError(statusCode: response.statusCode, retryAfter: response.retryAfter, body: body, now: Date())
-    }
+    let response = try await CloudSession.sendWithRetry(
+      request, provider: name, logger: Self.logger, send: send, sleep: sleep, now: now,
+      httpFailure: { response, instant in
+        Self.makeAPIError(
+          statusCode: response.statusCode, retryAfter: response.retryAfter,
+          body: String(data: response.data, encoding: .utf8) ?? "no body", now: instant)
+      },
+      transportFailure: {
+        $0 is CloudSession.NonHTTPResponse ? OpenAIError.invalidResponse : OpenAIError.networkUnavailable(underlying: $0)
+      })
 
     let apiResponse = try JSONDecoder().decode(OpenAIResponse.self, from: response.data)
     guard let content = apiResponse.choices.first?.message.content else {
