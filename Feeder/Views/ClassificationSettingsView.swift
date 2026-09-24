@@ -318,6 +318,7 @@ private struct ClassificationSettingsPreview: View {
 #Preview("Vercel — unavailable") { ClassificationSettingsPreview(reason: .providerUnavailable) }
 #Preview("OpenAI — invalid key") { ClassificationSettingsPreview(provider: .openAI, reason: .keyRejected) }
 #Preview("OpenAI — service limit") { ClassificationSettingsPreview(provider: .openAI, reason: .rateLimited) }
+#Preview("OpenAI — needs key") { ClassificationSettingsPreview(provider: .openAI, reason: .needsKey, hasKey: false) }
 #Preview("Vercel — key sheet") {
   APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: { _ in })
     .environment(AppFontSettings())
