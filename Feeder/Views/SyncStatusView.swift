@@ -182,6 +182,7 @@ private enum SyncStatusPreviewState {
   case abortedNeedsKey
   case abortedOffline
   case abortedRateLimited
+  case abortedQuotaExhausted
   case abortedWhileSyncing
 
   func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
@@ -240,9 +241,15 @@ private enum SyncStatusPreviewState {
       // from either cloud provider reaches.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .rateLimited)
+    case .abortedQuotaExhausted:
+      // Settings-fixable cause → "Open Settings". Threshold check: its preview
+      // runs at the largest text size in the narrow frame, and the label and
+      // the button must not truncate (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .openAI)
     case .abortedWhileSyncing:
-      // Both banners stacked at the narrow frame, with the longest
-      // classification label, must not truncate (`STACK.md § 11`).
+      // Both banners stacked at the narrow frame must not truncate
+      // (`STACK.md § 11`).
       sync.applyPreviewState(
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .network("The Internet connection appears to be offline."))
@@ -307,6 +314,10 @@ private enum SyncStatusPreviewState {
   syncStatusPreview(state: .abortedRateLimited)
 }
 
+#Preview("Aborted - Quota") {
+  syncStatusPreview(state: .abortedQuotaExhausted, textSize: .xxLarge)
+}
+
 #Preview("Aborted - Offline") {
   syncStatusPreview(state: .abortedOffline)
 }
@@ -316,7 +327,7 @@ private enum SyncStatusPreviewState {
 }
 
 @MainActor
-private func syncStatusPreview(state: SyncStatusPreviewState) -> some View {
+private func syncStatusPreview(state: SyncStatusPreviewState, textSize: AppTextSize? = nil) -> some View {
   let container = PreviewSupport.makeContainer()
   let syncEngine = SyncEngine()
   let classificationEngine = ClassificationEngine()
@@ -325,7 +336,7 @@ private func syncStatusPreview(state: SyncStatusPreviewState) -> some View {
   return SyncStatusView()
     .environment(syncEngine)
     .environment(classificationEngine)
-    .environment(AppFontSettings())
+    .environment(textSize.map { AppFontSettings(textSize: $0) } ?? AppFontSettings())
     .modelContainer(container)
     .frame(width: 220)
     .padding()
