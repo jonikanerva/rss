@@ -57,18 +57,26 @@ actor FeedbinClient {
   private let session: URLSession
   private let decoder: JSONDecoder
 
+  nonisolated var sessionConfiguration: URLSessionConfiguration { session.configuration }
+
   init(username: String, password: String) {
     guard let credentialData = "\(username):\(password)".data(using: .utf8) else {
       fatalError("Failed to encode credentials as UTF-8")
     }
 
-    let config = URLSessionConfiguration.default
+    // Every request carries the Feedbin credentials, so the session must write
+    // nothing to disk. Keep it ephemeral.
+    let config = URLSessionConfiguration.ephemeral
     config.httpAdditionalHeaders = [
       "Authorization": "Basic \(credentialData.base64EncodedString())"
     ]
     self.session = URLSession(configuration: config)
 
     self.decoder = makeFeedbinDecoder()
+  }
+
+  deinit {
+    session.finishTasksAndInvalidate()
   }
 
   // MARK: - Authentication
