@@ -80,6 +80,8 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
 /// uncategorized and continues the drain.
 nonisolated protocol ClassificationFailure: Error {
   var batchAbort: ClassificationAbortReason? { get }
+  /// `CloudSession.sendWithRetry` reads this too: only a `.transient` failure
+  /// gets a request retry.
   var retryDisposition: ClassificationRetry { get }
 }
 
