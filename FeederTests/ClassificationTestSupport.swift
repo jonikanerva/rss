@@ -154,6 +154,29 @@ extension ClassificationHTTPResponse {
   }
 }
 
+// MARK: - OpenAI error bodies
+
+enum OpenAIErrorBodies {
+  static let billing = [
+    #"{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","param":null,"code":"insufficient_quota"}}"#,
+    #"{"error":{"message":"Your organization has no prepaid credits remaining.","type":"insufficient_quota","param":null,"code":"credit_balance_exhausted"}}"#,
+    #"{"error":{"code":"insufficient_quota"}}"#,
+    #"{"error":{"code":"credit_balance_exhausted"}}"#,
+    #"{"error":{"code":"organization_spend_limit_exceeded"}}"#,
+    #"{"error":{"code":"project_spend_limit_exceeded"}}"#,
+    #"{"error":{"code":"organization_usage_limit_exceeded"}}"#,
+    #"{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","param":null,"code":null}}"#,
+  ]
+
+  static let rateLimit = [
+    #"{"error":{"message":"Rate limit reached for requests.","type":"requests","param":null,"code":"rate_limit_exceeded"}}"#,
+    #"{"error":{"message":"Your request rate increased too quickly.","type":"rate_limit_error","param":null,"code":"slow_down"}}"#,
+    "",
+    "not json at all",
+    #"{"error":{"code":429}}"#,
+  ]
+}
+
 // MARK: - Snapshot recorder
 
 /// Records the snapshot timeline the runner reports. Driving the runner

@@ -42,6 +42,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case inputTooLarge
   case invalidResponse
   case rateLimited
+  case quotaExhausted
 
   /// Fixed banner copy: a fragment with no trailing period, like the other
   /// status labels. A test locks the literals.
@@ -56,6 +57,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .inputTooLarge: "Category definitions are too large for JEV"
     case .invalidResponse: "JEV returned an invalid result"
     case .rateLimited: "Categorizing paused — service limit reached"
+    case .quotaExhausted: "OpenAI quota used up — check billing at OpenAI"
     }
   }
 
@@ -67,7 +69,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   /// failure a reason that does not (`STACK.md → Cloud classification`).
   var offersSettings: Bool {
     switch self {
-    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: true
+    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted: true
     case .offline, .providerUnavailable, .rateLimited: false
     }
   }

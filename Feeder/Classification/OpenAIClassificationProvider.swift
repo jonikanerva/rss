@@ -109,12 +109,27 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     "content_policy_violation",
   ]
 
+  /// With HTTP 429, these codes and the type `insufficient_quota` mark a
+  /// billing failure. Every other HTTP 429, and a body that does not decode,
+  /// stays a rate limit.
+  private static let quotaFailureCodes: Set<String> = [
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded",
+    "organization_usage_limit_exceeded",
+  ]
+
   /// Turns a non-200 response into a failure. `retryAfter` is the raw
   /// `Retry-After` header value; `now` is the reference instant for its
   /// HTTP-date form.
   static func makeAPIError(statusCode: Int, retryAfter: String?, body: String, now: Date) -> OpenAIError {
-    if statusCode == 400, let rejection = perArticleRejection(body: body) {
+    let failure = try? JSONDecoder().decode(OpenAIErrorEnvelope.self, from: Data(body.utf8)).error
+    if statusCode == 400, let failure, let rejection = perArticleRejection(failure) {
       return rejection
+    }
+    if statusCode == 429, let failure, let quota = quotaFailure(failure) {
+      return quota
     }
     return .apiError(
       statusCode: statusCode,
@@ -123,13 +138,19 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     )
   }
 
-  private static func perArticleRejection(body: String) -> OpenAIError? {
-    guard let envelope = try? JSONDecoder().decode(OpenAIErrorEnvelope.self, from: Data(body.utf8))
-    else { return nil }
-    if let code = envelope.error.code, perArticleRejectionCodes.contains(code) {
+  private static func perArticleRejection(_ failure: OpenAIErrorEnvelope.Failure) -> OpenAIError? {
+    if let code = failure.code, perArticleRejectionCodes.contains(code) {
       return .entryRejected(code: code)
     }
-    if envelope.error.type == "invalid_prompt" { return .entryRejected(code: envelope.error.code) }
+    if failure.type == "invalid_prompt" { return .entryRejected(code: failure.code) }
+    return nil
+  }
+
+  private static func quotaFailure(_ failure: OpenAIErrorEnvelope.Failure) -> OpenAIError? {
+    if let code = failure.code, quotaFailureCodes.contains(code) {
+      return .quotaExhausted(code: code)
+    }
+    if failure.type == "insufficient_quota" { return .quotaExhausted(code: failure.code) }
     return nil
   }
 
@@ -171,6 +192,7 @@ nonisolated enum OpenAIError: LocalizedError {
   case invalidResponse
   case apiError(statusCode: Int, message: String, retryAfter: TimeInterval?)
   case entryRejected(code: String?)
+  case quotaExhausted(code: String?)
   case emptyResponse
   case networkUnavailable(underlying: Error)
 
@@ -184,6 +206,8 @@ nonisolated enum OpenAIError: LocalizedError {
       return "OpenAI API error \(statusCode): \(message)"
     case .entryRejected(let code):
       return "OpenAI rejected this article: \(code ?? "no code")"
+    case .quotaExhausted(let code):
+      return "OpenAI reported a billing failure: \(code ?? "no code")"
     case .emptyResponse:
       return "OpenAI returned an empty response"
     case .networkUnavailable(let underlying):
@@ -226,6 +250,8 @@ extension OpenAIError: ClassificationFailure {
         // A status outside 400 to 599 keeps the per-entry fallback.
         return nil
       }
+    case .quotaExhausted:
+      return .quotaExhausted
     case .networkUnavailable:
       return .offline
     case .invalidResponse, .emptyResponse, .entryRejected:
@@ -241,6 +267,8 @@ extension OpenAIError: ClassificationFailure {
       .poll
     case .apiError(let statusCode, _, let retryAfter):
       ClassificationRetry(httpStatus: statusCode, retryAfter: retryAfter)
+    case .quotaExhausted:
+      .blocked
     case .networkUnavailable:
       .transient(retryAfter: nil)
     case .invalidResponse, .emptyResponse, .entryRejected:
