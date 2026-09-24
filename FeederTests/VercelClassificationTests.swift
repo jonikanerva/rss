@@ -3,32 +3,6 @@ import Testing
 
 @testable import Feeder
 
-actor ClassificationTransportRecorder {
-  private(set) var requests: [URLRequest] = []
-  private let script: [Result<ClassificationHTTPResponse, URLError>]
-
-  init(data: Data, status: Int = 200, retryAfter: String? = nil) {
-    self.init(script: [.success(.status(status, retryAfter: retryAfter, data: data))])
-  }
-
-  /// Answers each request with the next script entry. The last entry repeats.
-  init(script: [Result<ClassificationHTTPResponse, URLError>]) {
-    precondition(!script.isEmpty, "A transport script needs at least one entry")
-    self.script = script
-  }
-
-  func send(_ request: URLRequest) throws -> ClassificationHTTPResponse {
-    requests.append(request)
-    return try script[min(requests.count, script.count) - 1].get()
-  }
-}
-
-extension ClassificationHTTPResponse {
-  static func status(_ code: Int, retryAfter: String? = nil, data: Data = Data()) -> ClassificationHTTPResponse {
-    ClassificationHTTPResponse(data: data, statusCode: code, retryAfter: retryAfter)
-  }
-}
-
 @Suite("Vercel JEV wire and limits")
 struct VercelClassificationTests {
   private let categories = [
@@ -51,6 +25,7 @@ struct VercelClassificationTests {
     #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fake-vercel-key")
     #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
     #expect(request.timeoutInterval == 30)
+    #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
     let data = try #require(request.httpBody)
     let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     #expect(Set(root.keys) == ["model", "state", "questions"])
@@ -208,14 +183,17 @@ struct VercelClassificationTests {
   }
 
   @Test
-  func transportRejectionIsNotRetried() async {
+  func nonHTTPResponseIsAnInvalidResponse() async {
+    let recorder = ClassificationTransportRecorder(failure: CloudSession.NonHTTPResponse())
     let clock = ClassificationSleepRecorder(immediateDelays: .max)
     let provider = VercelClassificationProvider(
-      apiKey: "fake", send: { _ in throw VercelClassificationError.invalidResponse }, sleep: { try await clock.sleep($0) })
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
     let error = await #expect(throws: VercelClassificationError.self) {
       try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
     }
     #expect(error?.batchAbort == .invalidResponse)
+    #expect(error?.retryDisposition == .blocked)
+    #expect(await recorder.requests.count == 1)
     #expect(await clock.delays.isEmpty)
   }
 

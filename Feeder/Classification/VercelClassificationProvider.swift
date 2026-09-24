@@ -1,17 +1,12 @@
 import Foundation
 import OSLog
 
-nonisolated struct ClassificationHTTPResponse: Sendable {
-  let data: Data
-  let statusCode: Int
-  let retryAfter: String?
-}
-
 nonisolated struct VercelClassificationProvider: ClassificationProvider {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "Vercel")
   let name = "Vercel AI Gateway"
   static let model = "typesafe-ai/jev"
   static let maximumRequestBytes = 24_000
+  private static let requestTimeout: TimeInterval = 30
   private let apiKey: String
   private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
   private let sleep: @Sendable (Duration) async throws -> Void
@@ -19,7 +14,8 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
 
   init(
     apiKey: String,
-    send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse = Self.sendRequest,
+    send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse =
+      CloudSession(requestTimeout: Self.requestTimeout).send,
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
@@ -45,7 +41,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     guard let endpoint = URL(string: "https://ai-gateway.vercel.sh/v1/evaluate") else {
       throw VercelClassificationError.invalidResponse
     }
-    var request = URLRequest(url: endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+    var request = URLRequest(url: endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.requestTimeout)
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -78,7 +74,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
         if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
           throw CancellationError()
         }
-        if let known = error as? VercelClassificationError { throw known }
+        if error is CloudSession.NonHTTPResponse { throw VercelClassificationError.invalidResponse }
         let code = (error as? URLError)?.code
         let codeText = code.map { String($0.rawValue) } ?? "none"
         Self.logger.error(
@@ -159,21 +155,6 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       throw VercelClassificationError.invalidResponse
     }
     return .choice(category: answer.choice)
-  }
-
-  private static func sendRequest(_ request: URLRequest) async throws -> ClassificationHTTPResponse {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.timeoutIntervalForRequest = 30
-    configuration.timeoutIntervalForResource = 60
-    configuration.urlCache = nil
-    configuration.httpCookieStorage = nil
-    configuration.httpShouldSetCookies = false
-    let session = URLSession(configuration: configuration)
-    defer { session.finishTasksAndInvalidate() }
-    let (data, response) = try await session.data(for: request)
-    guard let response = response as? HTTPURLResponse else { throw VercelClassificationError.invalidResponse }
-    return ClassificationHTTPResponse(
-      data: data, statusCode: response.statusCode, retryAfter: response.value(forHTTPHeaderField: "Retry-After"))
   }
 
   private struct Request: Encodable {

@@ -15,6 +15,8 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
   /// Internal (not private) so in-module tests can assert which model
   /// `ClassificationEngine.buildProvider` resolved.
   let model: String
+  private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
+  private static let requestTimeout: TimeInterval = 60
   private static let endpoint: URL = {
     guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
       fatalError("Invalid OpenAI endpoint URL")
@@ -22,9 +24,15 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     return url
   }()
 
-  init(apiKey: String, model: String) {
+  init(
+    apiKey: String,
+    model: String,
+    send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse =
+      CloudSession(requestTimeout: Self.requestTimeout).send
+  ) {
     self.apiKey = apiKey
     self.model = model
+    self.send = send
   }
 
   var isAvailable: Bool {
@@ -47,7 +55,7 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     let truncatedBody = String(body.prefix(60_000))
     let userMessage = Self.articleMessage(title: title, body: truncatedBody)
 
-    var request = URLRequest(url: Self.endpoint)
+    var request = URLRequest(url: Self.endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.requestTimeout)
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -55,27 +63,23 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
       model: model, instructions: instructions, userMessage: userMessage
     )
 
-    let data: Data
-    let response: URLResponse
+    let response: ClassificationHTTPResponse
     do {
-      (data, response) = try await URLSession.shared.data(for: request)
+      response = try await send(request)
     } catch {
       if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
+      if error is CloudSession.NonHTTPResponse { throw OpenAIError.invalidResponse }
       throw OpenAIError.networkUnavailable(underlying: error)
     }
 
     try Task.checkCancellation()
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw OpenAIError.invalidResponse
+    guard response.statusCode == 200 else {
+      let body = String(data: response.data, encoding: .utf8) ?? "no body"
+      Self.logger.error("OpenAI API error \(response.statusCode): \(body, privacy: .private)")
+      throw Self.makeAPIError(statusCode: response.statusCode, retryAfter: response.retryAfter, body: body, now: Date())
     }
 
-    guard httpResponse.statusCode == 200 else {
-      let body = String(data: data, encoding: .utf8) ?? "no body"
-      Self.logger.error("OpenAI API error \(httpResponse.statusCode): \(body, privacy: .private)")
-      throw Self.makeAPIError(response: httpResponse, body: body, now: Date())
-    }
-
-    let apiResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
+    let apiResponse = try JSONDecoder().decode(OpenAIResponse.self, from: response.data)
     guard let content = apiResponse.choices.first?.message.content else {
       throw OpenAIError.emptyResponse
     }
@@ -100,19 +104,17 @@ nonisolated struct OpenAIClassificationProvider: ClassificationProvider {
     "content_policy_violation",
   ]
 
-  /// Turns a non-200 response into a failure. `now` is a parameter, so the
-  /// HTTP-date form of `Retry-After` is testable.
-  static func makeAPIError(response: HTTPURLResponse, body: String, now: Date) -> OpenAIError {
-    if response.statusCode == 400, let rejection = perArticleRejection(body: body) {
+  /// Turns a non-200 response into a failure. `retryAfter` is the raw
+  /// `Retry-After` header value; `now` is the reference instant for its
+  /// HTTP-date form.
+  static func makeAPIError(statusCode: Int, retryAfter: String?, body: String, now: Date) -> OpenAIError {
+    if statusCode == 400, let rejection = perArticleRejection(body: body) {
       return rejection
     }
-    // HTTP/2 lowercases field names. This lookup is case-insensitive; an
-    // `allHeaderFields` subscript is not.
-    let header = response.value(forHTTPHeaderField: "Retry-After")
     return .apiError(
-      statusCode: response.statusCode,
+      statusCode: statusCode,
       message: body,
-      retryAfter: retryAfterDelay(header, now: now)
+      retryAfter: retryAfterDelay(retryAfter, now: now)
     )
   }
 

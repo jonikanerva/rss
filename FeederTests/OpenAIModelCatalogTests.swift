@@ -56,6 +56,62 @@ struct OpenAIModelListDecodingTests {
   }
 }
 
+// MARK: - Model list transport
+
+@Suite("OpenAIModelsClient.fetchModels")
+struct OpenAIModelListTransportTests {
+  private let wireList = Data(#"{"object": "list", "data": [{"id": "gpt-5.6-luna", "object": "model", "created": 1750000000}]}"#.utf8)
+
+  private func fetch(through recorder: ClassificationTransportRecorder) async throws(OpenAIModelsError) -> [OpenAIModel] {
+    try await OpenAIModelsClient(send: { try await recorder.send($0) }).fetchModels(apiKey: "fake-openai-key")
+  }
+
+  @Test
+  func requestUsesTheCloudRequestPolicy() async throws {
+    let recorder = ClassificationTransportRecorder(data: wireList)
+    #expect(try await fetch(through: recorder).map(\.id) == ["gpt-5.6-luna"])
+    let requests = await recorder.requests
+    #expect(requests.count == 1)
+    let request = try #require(requests.first)
+    #expect(request.url?.absoluteString == "https://api.openai.com/v1/models")
+    #expect(request.httpMethod == "GET")
+    #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fake-openai-key")
+    #expect(request.timeoutInterval == 15)
+    #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+    #expect(request.httpBody == nil)
+  }
+
+  @Test
+  func rejectedKeyIsUnauthorized() async {
+    let recorder = ClassificationTransportRecorder(data: Data(), status: 401)
+    await #expect(throws: OpenAIModelsError.unauthorized) { try await fetch(through: recorder) }
+  }
+
+  @Test
+  func serverErrorKeepsItsStatus() async {
+    let recorder = ClassificationTransportRecorder(data: Data(), status: 503)
+    await #expect(throws: OpenAIModelsError.httpStatus(503)) { try await fetch(through: recorder) }
+  }
+
+  @Test
+  func timeoutIsANetworkFailure() async {
+    let recorder = ClassificationTransportRecorder(script: [.failure(URLError(.timedOut))])
+    await #expect(throws: OpenAIModelsError.network) { try await fetch(through: recorder) }
+  }
+
+  @Test
+  func nonHTTPResponseIsANetworkFailure() async {
+    let recorder = ClassificationTransportRecorder(failure: CloudSession.NonHTTPResponse())
+    await #expect(throws: OpenAIModelsError.network) { try await fetch(through: recorder) }
+  }
+
+  @Test
+  func malformedListFailsDecoding() async {
+    let recorder = ClassificationTransportRecorder(data: Data("not json at all".utf8))
+    await #expect(throws: OpenAIModelsError.decodingFailed) { try await fetch(through: recorder) }
+  }
+}
+
 // MARK: - Catalog filter (fail-open proof)
 
 /// The denylist is cosmetic UX hygiene: known non-chat families are hidden,
