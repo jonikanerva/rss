@@ -146,7 +146,7 @@ struct SyncStatusView: View {
         .foregroundStyle(Color.orange)
       Text(abort.displayLabel)
         .foregroundStyle(.secondary)
-      if abortOffersSettings(abort) {
+      if abort.offersSettings {
         Button("Open Settings") {
           openSettings()
         }
@@ -157,13 +157,6 @@ struct SyncStatusView: View {
     .font(fontSettings.status)
     .textCase(nil)
     .accessibilityIdentifier("sidebar.classificationError")
-  }
-
-  private func abortOffersSettings(_ abort: ClassificationAbortReason) -> Bool {
-    switch abort {
-    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: true
-    case .offline, .providerUnavailable, .rateLimited: false
-    }
   }
 }
 

@@ -62,6 +62,15 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   var symbolName: String {
     self == .offline ? "wifi.slash" : "exclamationmark.triangle"
   }
+
+  /// A blocked failure must use a reason that offers Settings, and a transient
+  /// failure a reason that does not (`STACK.md → Cloud classification`).
+  var offersSettings: Bool {
+    switch self {
+    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: true
+    case .offline, .providerUnavailable, .rateLimited: false
+    }
+  }
 }
 
 /// A non-nil abort must preserve the pending entry and stop the batch.

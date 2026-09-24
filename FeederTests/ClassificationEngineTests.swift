@@ -808,20 +808,13 @@ struct OpenAIErrorRetryDispositionTests {
 /// "Open Settings" button or hides the only recovery path the user has.
 @Suite("Cloud failure disposition pairing")
 struct CloudFailureDispositionPairingTests {
-  private static let settingsFixable: [ClassificationAbortReason] = [
-    .keyRejected, .modelRejected, .invalidResponse, .needsKey, .invalidCategories, .inputTooLarge,
-  ]
-  private static let selfHealing: [ClassificationAbortReason] = [
-    .offline, .providerUnavailable, .rateLimited,
-  ]
-
   private func expectPairing(_ failure: any ClassificationFailure) {
     guard let abort = failure.batchAbort else { return }
     switch failure.retryDisposition {
     case .blocked:
-      #expect(Self.settingsFixable.contains(abort), "\(failure) blocks with \(abort)")
+      #expect(abort.offersSettings, "\(failure) blocks with \(abort)")
     case .transient:
-      #expect(Self.selfHealing.contains(abort), "\(failure) backs off with \(abort)")
+      #expect(!abort.offersSettings, "\(failure) backs off with \(abort)")
     case .poll:
       // A local re-check or a per-entry defect; no pairing obligation.
       break
@@ -858,8 +851,9 @@ struct CloudFailureDispositionPairingTests {
 
 // MARK: - Abort reason copy lock
 
-/// Locks the banner literals and symbols. The abort reason is payload-free, so
-/// these fixed strings are the entire user-visible surface of a batch abort.
+/// Locks the banner literals, symbols, and Settings affordance. The abort reason
+/// is payload-free, so these fixed values are the entire user-visible surface
+/// of a batch abort.
 @Suite("ClassificationAbortReason copy")
 struct ClassificationAbortReasonCopyTests {
   @Test
@@ -886,5 +880,15 @@ struct ClassificationAbortReasonCopyTests {
     #expect(ClassificationAbortReason.keyRejected.symbolName == "exclamationmark.triangle")
     #expect(
       ClassificationAbortReason.providerUnavailable.symbolName == "exclamationmark.triangle")
+  }
+
+  @Test
+  func settingsAffordanceMatchesApprovedMapping() {
+    let offersSettings: [ClassificationAbortReason] = [
+      .modelRejected, .keyRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse,
+    ]
+    let selfHealing: [ClassificationAbortReason] = [.offline, .providerUnavailable, .rateLimited]
+    for reason in offersSettings { #expect(reason.offersSettings, "\(reason) must offer Settings") }
+    for reason in selfHealing { #expect(!reason.offersSettings, "\(reason) must not offer Settings") }
   }
 }
