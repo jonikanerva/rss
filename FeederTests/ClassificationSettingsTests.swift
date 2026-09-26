@@ -138,6 +138,52 @@ struct ClassificationSettingsTests {
     #expect(settings.hasStoredKey)
     #expect(try await settings.keyForModelList() == nil)
   }
+
+  // MARK: - Delete-then-add save
+
+  @Test
+  func everySaveDeletesTheOldItemBeforeItAdds() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(false))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    try await settings.save("first", for: .vercel)
+    try await settings.save("second", for: .vercel)
+    #expect(await store.calls == [.remove(.vercel), .add(.vercel), .remove(.vercel), .add(.vercel)])
+    #expect(settings.hasStoredKey)
+  }
+
+  @Test
+  func failedAddAfterACompletedDeleteLeavesNoKeySaved() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    await store.configureAddFailure(.osStatus(errSecInteractionNotAllowed))
+    let revision = settings.keyRevision
+    await #expect(throws: KeychainError.osStatus(errSecInteractionNotAllowed)) { try await settings.save("new", for: .vercel) }
+    #expect(!settings.hasStoredKey)
+    #expect(settings.keyRevision > revision)
+    #expect(await store.calls == [.exists(.vercel), .remove(.vercel), .add(.vercel)])
+  }
+
+  @Test
+  func failedDeleteAddsNothingAndKeepsTheSavedKey() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    await store.configureRemoveFailure(.osStatus(errSecInvalidOwnerEdit))
+    let revision = settings.keyRevision
+    await #expect(throws: KeychainError.osStatus(errSecInvalidOwnerEdit)) { try await settings.save("new", for: .vercel) }
+    #expect(settings.hasStoredKey)
+    #expect(settings.keyRevision == revision)
+    #expect(await store.calls == [.exists(.vercel), .remove(.vercel)])
+  }
+
+  @Test
+  func memoryStoreRejectsAnAddOverAnExistingKey() async throws {
+    let store = MemoryClassificationKeyStore(values: [.vercel: "old"])
+    await #expect(throws: KeychainError.osStatus(errSecDuplicateItem)) { try await store.add("new", provider: .vercel) }
+    #expect(try await store.load(provider: .vercel) == "old")
+  }
 }
 
 actor DelayedClassificationKeyStore {
@@ -155,7 +201,7 @@ actor DelayedClassificationKeyStore {
 
   func release() { continuation.finish() }
   func load(provider: ClassificationProviderKind) -> String? { "fake-key" }
-  func save(_ value: String, provider: ClassificationProviderKind) throws { throw KeychainError.osStatus(-1) }
+  func add(_ value: String, provider: ClassificationProviderKind) throws { throw KeychainError.osStatus(-1) }
   func remove(provider: ClassificationProviderKind) throws { throw KeychainError.osStatus(-1) }
 }
 
@@ -167,18 +213,23 @@ actor RecordingClassificationKeyStore {
   enum Call: Equatable {
     case load(ClassificationProviderKind)
     case exists(ClassificationProviderKind)
-    case save(ClassificationProviderKind)
+    case add(ClassificationProviderKind)
     case remove(ClassificationProviderKind)
   }
 
   private(set) var calls: [Call] = []
   private let probe: Result<Bool, KeychainError>
   private let read: Result<String?, KeychainError>
+  private var addFailure: KeychainError?
+  private var removeFailure: KeychainError?
 
   init(probe: Result<Bool, KeychainError>, read: Result<String?, KeychainError> = .success(nil)) {
     self.probe = probe
     self.read = read
   }
+
+  func configureAddFailure(_ failure: KeychainError?) { addFailure = failure }
+  func configureRemoveFailure(_ failure: KeychainError?) { removeFailure = failure }
 
   func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
     calls.append(.load(provider))
@@ -190,12 +241,14 @@ actor RecordingClassificationKeyStore {
     return try probe.get()
   }
 
-  func save(_ value: String, provider: ClassificationProviderKind) {
-    calls.append(.save(provider))
+  func add(_ value: String, provider: ClassificationProviderKind) throws {
+    calls.append(.add(provider))
+    if let addFailure { throw addFailure }
   }
 
-  func remove(provider: ClassificationProviderKind) {
+  func remove(provider: ClassificationProviderKind) throws {
     calls.append(.remove(provider))
+    if let removeFailure { throw removeFailure }
   }
 }
 

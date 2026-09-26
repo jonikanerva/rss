@@ -264,6 +264,8 @@ private struct APIKeyEditSheet: View {
       onCommit(operation != .remove && !hadKey)
       dismiss()
     } catch {
+      // A save that fails after its delete completed removed the old key: the engine must learn of it.
+      if hadKey, !settings.hasStoredKey { onCommit(false) }
       guard !Task.isCancelled else { return }
       errorMessage =
         operation == .remove

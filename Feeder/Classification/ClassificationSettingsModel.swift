@@ -1,11 +1,13 @@
 import Foundation
+import Security
 
 nonisolated protocol ClassificationKeyStore: Sendable {
   /// Follows the contract of `KeychainHelper.read(key:)`.
   func load(provider: ClassificationProviderKind) async throws(KeychainError) -> String?
   /// Follows the contract of `KeychainHelper.exists(key:)`.
   func exists(provider: ClassificationProviderKind) async throws(KeychainError) -> Bool
-  func save(_ value: String, provider: ClassificationProviderKind) async throws
+  /// Must not stop for cancellation: a save calls it after its delete completes.
+  func add(_ value: String, provider: ClassificationProviderKind) async throws
   func remove(provider: ClassificationProviderKind) async throws
 }
 
@@ -20,11 +22,10 @@ actor KeychainClassificationKeyStore {
     return try KeychainHelper.exists(key: key)
   }
 
-  func save(_ value: String, provider: ClassificationProviderKind) throws {
-    try Task.checkCancellation()
+  func add(_ value: String, provider: ClassificationProviderKind) throws {
     guard let key = provider.keychainKey else { return }
     // Security calls block and cannot be cancelled after entry; keep them on this actor.
-    try KeychainHelper.save(key: key, value: value)
+    try KeychainHelper.add(key: key, value: value)
   }
 
   func remove(provider: ClassificationProviderKind) throws {
@@ -44,7 +45,7 @@ actor MemoryClassificationKeyStore {
 
   init(values: [ClassificationProviderKind: String] = [:]) { self.values = values }
 
-  /// Applies to `save` and `remove`.
+  /// Applies to `add` and `remove`.
   func configureFailure(_ failure: KeychainError?) { self.failure = failure }
   func configureReadFailure(_ failure: KeychainError?) { readFailure = failure }
   /// Nil answers from the stored values.
@@ -60,9 +61,9 @@ actor MemoryClassificationKeyStore {
     return try probe.get()
   }
 
-  func save(_ value: String, provider: ClassificationProviderKind) throws {
-    try Task.checkCancellation()
+  func add(_ value: String, provider: ClassificationProviderKind) throws {
     if let failure { throw failure }
+    guard values[provider] == nil else { throw KeychainError.osStatus(errSecDuplicateItem) }
     values[provider] = value
   }
 
@@ -120,16 +121,22 @@ final class ClassificationSettingsModel {
     keyState = exists ? .saved : .missing
   }
 
+  /// Must delete before the add: an update keeps the access list of the old
+  /// item. When the delete completes and the add fails, no key is saved.
   func save(_ key: String, for provider: ClassificationProviderKind) async throws {
-    try await store.save(key, provider: provider)
-    if self.provider == provider { keyState = .saved }
-    keyRevision &+= 1
+    try await store.remove(provider: provider)
+    do {
+      try await store.add(key, provider: provider)
+    } catch {
+      commitKeyChange(.missing, for: provider)
+      throw error
+    }
+    commitKeyChange(.saved, for: provider)
   }
 
   func removeKey(for provider: ClassificationProviderKind) async throws {
     try await store.remove(provider: provider)
-    if self.provider == provider { keyState = .missing }
-    keyRevision &+= 1
+    commitKeyChange(.missing, for: provider)
   }
 
   /// A throw is a failed read: the caller must not show it as a missing key.
@@ -137,5 +144,10 @@ final class ClassificationSettingsModel {
     guard !isInert, provider == .openAI, hasStoredKey else { return nil }
     guard let key = try await store.load(provider: .openAI), !key.isEmpty else { return nil }
     return key
+  }
+
+  private func commitKeyChange(_ state: KeyState, for provider: ClassificationProviderKind) {
+    if self.provider == provider { keyState = state }
+    keyRevision &+= 1
   }
 }
