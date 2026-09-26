@@ -738,7 +738,7 @@ private struct EntryListRowMatrixPreview: View {
       }
     }
     .environment(\.pendingReadIDs, [1010])
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings(textSize: textSize))
     .environment(FaviconStore())
     .modelContainer(container)
@@ -760,7 +760,7 @@ private struct EntryListOfflinePreview: View {
   private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine: SyncEngine = {
-    let engine = SyncEngine()
+    let engine = SyncEngine.preview()
     engine.applyPreviewState(
       lastError: .network("The Internet connection appears to be offline."))
     return engine
@@ -806,7 +806,7 @@ private struct EntryListAuthFailedPreview: View {
   private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
   private let syncEngine: SyncEngine = {
-    let engine = SyncEngine()
+    let engine = SyncEngine.preview()
     engine.applyPreviewState(
       lastError: .authFailed("Invalid Feedbin credentials"))
     return engine
@@ -874,7 +874,7 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
     try? context.save()
     return container
   }()
-  private let syncEngine = SyncEngine()
+  private let syncEngine = SyncEngine.preview()
   private let classificationEngine: ClassificationEngine = {
     let engine = ClassificationEngine()
     engine.applyPreviewState(
@@ -926,7 +926,7 @@ private struct EntryListEmptyAtRestPreview: View {
   @State
   private var selectedEntryID: PersistentIdentifier?
   private let container: ModelContainer = PreviewSupport.makeContainer()
-  private let syncEngine = SyncEngine()
+  private let syncEngine = SyncEngine.preview()
 
   var body: some View {
     Group {

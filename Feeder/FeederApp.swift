@@ -10,7 +10,7 @@ struct FeederApp: App {
   let modelContainer: ModelContainer
 
   @State
-  private var syncEngine = SyncEngine()
+  private var syncEngine = FeederApp.makeSyncEngine(environment: ProcessInfo.processInfo.environment)
   /// Built by `makeClassificationEngine()`, so a headless launch carries the
   /// no-op provider and never reaches `buildProvider()` or its Keychain read.
   @State
@@ -33,15 +33,7 @@ struct FeederApp: App {
     // `STACK.md § 14` records the reliance on the undocumented key name.
     SplitViewAutosaveReset.removeStaleFrames()
 
-    let processEnvironment = ProcessInfo.processInfo.environment
-    // A headless launch boots with an empty in-memory store, so it never opens
-    // the real reading database. This gate and the credential skip in
-    // `ContentView.checkCredentials` read the same `HeadlessMode.isEnabled`, so
-    // an on-disk store can never pair with a credential skip.
-    let useInMemoryStore =
-      HeadlessMode.isEnabled
-      || processEnvironment["UITEST_IN_MEMORY_STORE"] == "1"
-      || processEnvironment["UITEST_DEMO_MODE"] == "1"
+    let useInMemoryStore = Self.usesInMemoryStores(in: ProcessInfo.processInfo.environment)
 
     // `FeederMigrationPlan` carries a V1 store forward with a lightweight
     // stage, so it migrates up on the first launch.
@@ -85,6 +77,34 @@ struct FeederApp: App {
       ? { @Sendable () -> any ClassificationProvider in HeadlessClassificationProvider() }
       : nil
     return ClassificationEngine(providerFactoryOverride: headlessOverride)
+  }
+
+  // MARK: - Launch gates
+
+  /// The only gate for both the in-memory data store and the memory credential
+  /// store. Never choose either store elsewhere: a launch with an empty data
+  /// store must never read the owner's Keychain item.
+  nonisolated static func usesInMemoryStores(in environment: [String: String]) -> Bool {
+    HeadlessMode.isEnabled(in: environment)
+      || environment["UITEST_IN_MEMORY_STORE"] == "1"
+      || environment["UITEST_DEMO_MODE"] == "1"
+  }
+
+  /// False for exactly the launches that `ContentView.bootLaunchMode()` boots.
+  nonisolated static func usesFeedbinAccount(in environment: [String: String]) -> Bool {
+    !HeadlessMode.isEnabled(in: environment)
+      && environment["UITEST_DEMO_MODE"] != "1"
+      && environment["FEEDER_PERF_MODE"] != "1"
+      && environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1"
+  }
+
+  static func makeSyncEngine(environment: [String: String]) -> SyncEngine {
+    let store: any FeedbinCredentialStore =
+      usesInMemoryStores(in: environment) ? MemoryFeedbinCredentialStore() : KeychainFeedbinCredentialStore()
+    guard usesFeedbinAccount(in: environment) else {
+      return SyncEngine(credentialStore: store, account: .unused) { _ in InertFeedbinClient() }
+    }
+    return SyncEngine(credentialStore: store)
   }
 
   var body: some Scene {

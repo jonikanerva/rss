@@ -18,7 +18,10 @@ struct OnboardingView: View {
   /// curve.
   @ScaledMetric(relativeTo: .largeTitle)
   private var iconSize: CGFloat = 50
-  let onComplete: () -> Void
+
+  init(errorMessage: String? = nil) {
+    _errorMessage = State(initialValue: errorMessage)
+  }
 
   var body: some View {
     // The scroll view keeps the layout reachable at every Dynamic Type size: at
@@ -83,17 +86,18 @@ struct OnboardingView: View {
     .frame(minHeight: 380)
   }
 
+  /// A successful save closes the sheet through the account phase.
   private func login() async {
     isVerifying = true
     errorMessage = nil
 
     do {
-      let saved = try await saveFeedbinCredentials(username: username, password: password)
-      if saved {
-        onComplete()
-      } else {
+      let saved = try await syncEngine.saveAccount(username: username, password: password)
+      if !saved {
         errorMessage = "Invalid credentials. Please try again."
       }
+    } catch is KeychainError {
+      errorMessage = feedbinKeychainSaveFailureMessage
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -105,15 +109,21 @@ struct OnboardingView: View {
 // MARK: - Preview
 
 #Preview("Onboarding - Default") {
-  OnboardingView(onComplete: {})
-    .environment(SyncEngine())
+  OnboardingView()
+    .environment(SyncEngine.preview(account: .noAccount))
     .environment(AppFontSettings())
 }
 
 #Preview("Onboarding — Huge Text") {
   // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
   // the preview injects the font settings the shipped code uses.
-  OnboardingView(onComplete: {})
-    .environment(SyncEngine())
+  OnboardingView()
+    .environment(SyncEngine.preview(account: .noAccount))
+    .environment(AppFontSettings(textSize: .xxLarge))
+}
+
+#Preview("Onboarding - Keychain Error") {
+  OnboardingView(errorMessage: feedbinKeychainSaveFailureMessage)
+    .environment(SyncEngine.preview(account: .noAccount))
     .environment(AppFontSettings(textSize: .xxLarge))
 }

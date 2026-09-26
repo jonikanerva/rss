@@ -469,7 +469,7 @@ private func categoryEditExistingPreview() -> some View {
   try? context.save()
 
   return CategoryEditSheet(category: apple, folders: [techFolder])
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
 }
@@ -479,7 +479,7 @@ private func categoryEditNewPreview() -> some View {
   let container = PreviewSupport.makeContainer()
 
   return CategoryEditSheet(category: nil, folders: [])
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
 }
@@ -507,7 +507,7 @@ private func categoryEditReassignEmptyPreview() -> some View {
         .foregroundStyle(.secondary)
         .padding(6)
     }
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
 }

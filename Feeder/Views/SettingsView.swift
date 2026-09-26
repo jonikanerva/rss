@@ -21,14 +21,6 @@ struct SettingsView: View {
   @State
   private var entryCount: Int = 0
   @State
-  private var username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
-  @State
-  private var password = HeadlessMode.isEnabled ? "" : (KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? "")
-  @State
-  private var isSaving = false
-  @State
-  private var statusMessage: String?
-  @State
   private var showAccountEditor = false
   @State
   private var syncInterval: Double = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
@@ -79,17 +71,19 @@ struct SettingsView: View {
   private var accountTab: some View {
     Form {
       Section("Feedbin Account") {
+        let rows = FeedbinAccountRows(phase: syncEngine.account)
         LabeledContent("Email") {
-          Text(username.isEmpty ? "Not configured" : username)
-            .foregroundStyle(username.isEmpty ? .tertiary : .secondary)
+          Text(rows.email)
+            .foregroundStyle(rows.isPlaceholder ? .tertiary : .secondary)
         }
         LabeledContent("Password") {
-          Text(password.isEmpty ? "Not set" : "•••••")
-            .foregroundStyle(password.isEmpty ? .tertiary : .secondary)
+          Text(rows.password)
+            .foregroundStyle(rows.isPlaceholder ? .tertiary : .secondary)
         }
         Button("Edit") {
           showAccountEditor = true
         }
+        .disabled(!rows.isEditEnabled)
         .accessibilityIdentifier("settings.account.edit")
       }
 
@@ -106,11 +100,7 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .sheet(isPresented: $showAccountEditor) {
-      AccountEditSheet(
-        username: $username, password: $password,
-        isSaving: $isSaving, statusMessage: $statusMessage,
-        onSave: { Task { await save() } }
-      )
+      AccountEditSheet(initialEmail: syncEngine.account.signedInUsername ?? "")
     }
   }
 
@@ -222,45 +212,66 @@ struct SettingsView: View {
       .environment(classificationEngine)
       .environment(syncEngine)
   }
+}
 
-  // MARK: - Helpers
+// MARK: - Account rows
 
-  private func save() async {
-    isSaving = true
-    statusMessage = nil
+nonisolated struct FeedbinAccountRows: Equatable {
+  let email: String
+  let password: String
+  let isPlaceholder: Bool
+  let isEditEnabled: Bool
 
-    do {
-      let saved = try await saveFeedbinCredentials(username: username, password: password)
-      statusMessage = saved ? "Saved" : "Error: Invalid credentials"
-    } catch {
-      statusMessage = "Error: \(error.localizedDescription)"
+  init(phase: FeedbinAccountPhase) {
+    switch phase {
+    case .checking:
+      self.init(email: "Checking…", password: "Checking…", isPlaceholder: true, isEditEnabled: false)
+    case .noAccount, .unused:
+      self.init(email: "Not configured", password: "Not set", isPlaceholder: true, isEditEnabled: phase == .noAccount)
+    case .signedIn(let username):
+      self.init(email: username, password: "•••••", isPlaceholder: false, isEditEnabled: true)
+    case .unreadable:
+      self.init(
+        email: "Could not read from Keychain", password: "Could not read from Keychain", isPlaceholder: false,
+        isEditEnabled: true)
     }
+  }
 
-    isSaving = false
+  private init(email: String, password: String, isPlaceholder: Bool, isEditEnabled: Bool) {
+    self.email = email
+    self.password = password
+    self.isPlaceholder = isPlaceholder
+    self.isEditEnabled = isEditEnabled
   }
 }
 
 // MARK: - Account Edit Sheet
 
-private struct AccountEditSheet: View {
-  @Binding
-  var username: String
-  @Binding
-  var password: String
-  @Binding
-  var isSaving: Bool
-  @Binding
-  var statusMessage: String?
-  let onSave: () -> Void
+private enum AccountSaveStatus: Equatable {
+  case saving
+  case saved
+  case failed(String)
+}
 
+private struct AccountEditSheet: View {
+  @Environment(SyncEngine.self)
+  private var syncEngine
   @Environment(\.dismiss)
   private var dismiss
   @Environment(AppFontSettings.self)
   private var fontSettings
   @State
-  private var editUsername: String = ""
+  private var editUsername: String
+  /// Starts empty on purpose: Settings never reads the stored password.
   @State
-  private var editPassword: String = ""
+  private var editPassword = ""
+  @State
+  private var status: AccountSaveStatus?
+
+  init(initialEmail: String, status: AccountSaveStatus? = nil) {
+    _editUsername = State(initialValue: initialEmail)
+    _status = State(initialValue: status)
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -290,14 +301,17 @@ private struct AccountEditSheet: View {
             .textContentType(.password)
         }
 
-        if let status = statusMessage {
-          Text(status)
-            .foregroundStyle(
-              status.contains("Error")
-                ? Color(nsColor: .systemRed)
-                : Color(nsColor: .systemGreen)
-            )
+        switch status {
+        case .saved:
+          Text("Saved")
+            .foregroundStyle(Color(nsColor: .systemGreen))
             .font(fontSettings.caption)
+        case .failed(let message):
+          Text(message)
+            .foregroundStyle(Color(nsColor: .systemRed))
+            .font(fontSettings.caption)
+        case .saving, nil:
+          EmptyView()
         }
       }
       .padding()
@@ -310,14 +324,14 @@ private struct AccountEditSheet: View {
         }
         .keyboardShortcut(.cancelAction)
         Button("Save") {
-          username = editUsername
-          password = editPassword
-          onSave()
+          // Not a view task: the save and the sync after it must outlive the
+          // sheet, which closes as soon as the save succeeds.
+          Task { await save() }
         }
         .keyboardShortcut(.defaultAction)
-        .disabled(editUsername.isEmpty || editPassword.isEmpty || isSaving)
+        .disabled(editUsername.isEmpty || editPassword.isEmpty || status == .saving)
 
-        if isSaving {
+        if status == .saving {
           ProgressView()
             .scaleEffect(0.7)
         }
@@ -325,14 +339,26 @@ private struct AccountEditSheet: View {
       .padding()
     }
     .frame(width: 400)
-    .onAppear {
-      editUsername = username
-      editPassword = password
-    }
-    .onChange(of: statusMessage) { _, newValue in
-      if let msg = newValue, msg == "Saved" {
+    .onChange(of: status) { _, newValue in
+      if newValue == .saved {
         dismiss()
       }
+    }
+  }
+
+  private func save() async {
+    status = .saving
+    do {
+      guard try await syncEngine.saveAccount(username: editUsername, password: editPassword) else {
+        status = .failed("Error: Invalid credentials")
+        return
+      }
+      status = .saved
+      await syncEngine.sync()
+    } catch is KeychainError {
+      status = .failed(feedbinKeychainSaveFailureMessage)
+    } catch {
+      status = .failed("Error: \(error.localizedDescription)")
     }
   }
 }
@@ -358,19 +384,44 @@ extension Double {
   settingsSeededPreview()
 }
 
+#Preview("Account - Checking") {
+  settingsSeededPreview(account: .checking)
+}
+
+#Preview("Account - No Account") {
+  settingsSeededPreview(account: .noAccount)
+}
+
+#Preview("Account - Unreadable") {
+  settingsSeededPreview(account: .unreadable)
+}
+
+#Preview("Account - Unused") {
+  settingsSeededPreview(account: .unused)
+}
+
 #Preview("Account Edit Sheet") {
-  AccountEditSheet(
-    username: .constant("user@example.com"),
-    password: .constant("secret123"),
-    isSaving: .constant(false),
-    statusMessage: .constant(nil),
-    onSave: {}
-  )
-  .environment(AppFontSettings())
+  AccountEditSheet(initialEmail: "user@example.com")
+    .environment(SyncEngine.preview(account: .signedIn(username: "user@example.com")))
+    .environment(AppFontSettings())
+}
+
+#Preview("Account Edit Sheet - No Email") {
+  AccountEditSheet(initialEmail: "")
+    .environment(SyncEngine.preview(account: .unreadable))
+    .environment(AppFontSettings())
+}
+
+#Preview("Account Edit Sheet - Keychain Error") {
+  AccountEditSheet(initialEmail: "user@example.com", status: .failed(feedbinKeychainSaveFailureMessage))
+    .environment(SyncEngine.preview(account: .signedIn(username: "user@example.com")))
+    .environment(AppFontSettings(textSize: .xxLarge))
 }
 
 @MainActor
-private func settingsSeededPreview() -> some View {
+private func settingsSeededPreview(
+  account: FeedbinAccountPhase = .signedIn(username: "user@example.com")
+) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -410,7 +461,7 @@ private func settingsSeededPreview() -> some View {
   try? context.save()
 
   return SettingsView()
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview(account: account))
     .environment(ClassificationEngine())
     .environment(AppFontSettings())
     .modelContainer(container)

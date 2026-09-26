@@ -381,7 +381,7 @@ private func categoryManagementPreview() -> some View {
 
   return CategoryManagementView()
     .environment(ClassificationEngine())
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 480, height: 500)
@@ -393,7 +393,7 @@ private func categoryManagementEmptyPreview() -> some View {
 
   return CategoryManagementView()
     .environment(ClassificationEngine())
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 480, height: 500)
@@ -429,7 +429,7 @@ private func categoryManagementMultipleFoldersPreview() -> some View {
 
   return CategoryManagementView()
     .environment(ClassificationEngine())
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
     .frame(width: 480, height: 500)

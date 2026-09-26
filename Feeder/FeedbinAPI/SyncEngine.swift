@@ -91,6 +91,28 @@ nonisolated func categorizeSyncError(_ error: Error) -> SyncError {
   return .other(error.localizedDescription)
 }
 
+// MARK: - FeedbinAccountPhase
+
+/// `unused` belongs to a launch that never reads or saves credentials:
+/// headless, demo, perf, and previews.
+nonisolated enum FeedbinAccountPhase: Equatable, Sendable {
+  case checking
+  case noAccount
+  case signedIn(username: String)
+  case unreadable
+  case unused
+
+  var isSignedIn: Bool {
+    if case .signedIn = self { return true }
+    return false
+  }
+
+  var signedInUsername: String? {
+    if case .signedIn(let username) = self { return username }
+    return nil
+  }
+}
+
 /// Fetch extracted content for a batch of entries with a concurrency limit of 8.
 nonisolated func fetchExtractedContentBatch(
   requests: [(entryID: Int, url: String)],
@@ -128,11 +150,15 @@ nonisolated func fetchExtractedContentBatch(
 }
 
 /// Orchestrates Feedbin sync. Every SwiftData write is delegated to
-/// `DataWriter`; this type is `@MainActor @Observable` for progress display
-/// only, and processes no data on MainActor.
+/// `DataWriter`; this type is `@MainActor @Observable` for progress and account
+/// display only, and processes no data on MainActor.
 @MainActor
 @Observable
 final class SyncEngine {
+  /// `ContentView.body` must never read it: a phase change must not re-render
+  /// the split view.
+  private(set) var account: FeedbinAccountPhase
+
   /// Keeps `sync()` and `refetchHistory()` from overlapping: either acquires
   /// the flag at the start and releases it before returning.
   private(set) var isSyncing = false
@@ -173,6 +199,13 @@ final class SyncEngine {
   /// passes an isolated suite, or parallel suites race on the shared keys.
   private let defaults: UserDefaults
 
+  /// Call it only through the account methods, so the phase matches the store.
+  let credentialStore: any FeedbinCredentialStore
+  private let makeClient: @MainActor (FeedbinCredentials) -> any FeedbinClientProtocol
+  // Engine-owned and never cancelled: an account read or save must finish and
+  // set the phase even when the view that started it goes away.
+  private var accountRead: Task<Void, Never>?
+  private var accountSave: Task<Bool, any Error>?
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
   /// Read-only companion to `writer`. Vended to the article list and sidebar,
@@ -195,17 +228,25 @@ final class SyncEngine {
     }
   }
 
-  /// The default argument keeps every production call site at `SyncEngine()`.
-  /// A test passes an isolated suite to stay off the standard domain.
-  init(defaults: UserDefaults = .standard) {
+  /// A test passes an isolated `defaults` suite: the standard domain holds the
+  /// owner's real sync state.
+  init(
+    defaults: UserDefaults = .standard,
+    credentialStore: any FeedbinCredentialStore,
+    account: FeedbinAccountPhase = .checking,
+    makeClient: @escaping @MainActor (FeedbinCredentials) -> any FeedbinClientProtocol = {
+      FeedbinClient(username: $0.username, password: $0.password)
+    }
+  ) {
     self.defaults = defaults
+    self.credentialStore = credentialStore
+    self.account = account
+    self.makeClient = makeClient
   }
 
-  /// Configure the engine with credentials. The caller must attach a
-  /// `DataWriter` through `attachWriter(_:)` before calling `sync()`.
-  func configure(username: String, password: String) {
-    self.client = FeedbinClient(username: username, password: password)
-    logger.info("Configured sync engine. Last sync: \(self.lastSyncDate?.description ?? "never", privacy: .private).")
+  /// Never reads the Keychain and never contacts Feedbin.
+  static func preview(account: FeedbinAccountPhase = .unused) -> SyncEngine {
+    SyncEngine(credentialStore: MemoryFeedbinCredentialStore(), account: account) { _ in InertFeedbinClient() }
   }
 
   /// Inject the pre-built `DataWriter` this engine delegates writes to. The
@@ -221,12 +262,101 @@ final class SyncEngine {
     self.reader = reader
   }
 
-  /// Inject a pre-built `FeedbinClientProtocol`. Production builds its client
-  /// in `configure(username:password:)`; a test installs a fake here and never
-  /// touches the network.
+  /// Bypasses the account phase: attach only an inert or fake client.
   func attachClient(_ client: any FeedbinClientProtocol) {
     self.client = client
   }
+
+  // MARK: - Feedbin account
+
+  /// Reads only in the `.checking` phase. A call during a read waits for it.
+  func loadAccountAtLaunch() async {
+    await readAccount(onlyFrom: .checking)
+  }
+
+  /// Reads only in the `.unreadable` phase. A call during a read waits for it.
+  func retryAccount() async {
+    await readAccount(onlyFrom: .unreadable)
+  }
+
+  /// Verifies the credentials with Feedbin before any Keychain write, and
+  /// returns false when Feedbin rejects them. A network or Keychain failure
+  /// throws. A call during a read or another save waits for it first.
+  func saveAccount(username: String, password: String) async throws -> Bool {
+    guard account != .unused else { return false }
+    while true {
+      if let accountRead {
+        await accountRead.value
+      } else if let accountSave {
+        _ = try? await accountSave.value
+      } else {
+        break
+      }
+    }
+    let credentials = FeedbinCredentials(username: username, password: password)
+    let save = Task { () async throws -> Bool in
+      defer { accountSave = nil }
+      return try await replaceAccount(with: credentials)
+    }
+    accountSave = save
+    return try await save.value
+  }
+
+  private func readAccount(onlyFrom phase: FeedbinAccountPhase) async {
+    if let accountRead {
+      await accountRead.value
+      return
+    }
+    guard account == phase, accountSave == nil else { return }
+    let read = Task {
+      await resolveAccount()
+      accountRead = nil
+    }
+    accountRead = read
+    await read.value
+  }
+
+  private func resolveAccount() async {
+    setAccount(.checking)
+    do {
+      guard let credentials = try await credentialStore.load(), credentials.isComplete else {
+        setAccount(.noAccount)
+        return
+      }
+      client = makeClient(credentials)
+      setAccount(.signedIn(username: credentials.username))
+    } catch {
+      setAccount(.unreadable)
+    }
+  }
+
+  /// Must remove before the add: an update would keep the access list of the
+  /// old Keychain item.
+  private func replaceAccount(with credentials: FeedbinCredentials) async throws -> Bool {
+    let candidate = makeClient(credentials)
+    guard try await candidate.verifyCredentials() else { return false }
+    try await credentialStore.remove()
+    do {
+      try await credentialStore.add(credentials)
+    } catch {
+      // The remove completed, so no account is stored.
+      stopPeriodicSync()
+      client = nil
+      setAccount(.noAccount)
+      throw error
+    }
+    client = candidate
+    setAccount(.signedIn(username: credentials.username))
+    return true
+  }
+
+  /// Assign `account` only here: observers must see only real phase changes.
+  private func setAccount(_ phase: FeedbinAccountPhase) {
+    guard account != phase else { return }
+    account = phase
+  }
+
+  // MARK: - Sync
 
   /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
   func queueReadIDs(_ ids: Set<Int>) {
@@ -283,8 +413,11 @@ final class SyncEngine {
 
   /// Pull subscriptions and icons, then fetch entries since the last
   /// successful sync. On the first run `since` falls back to the keep-days
-  /// cutoff, so the first call already covers the full window.
+  /// cutoff, so the first call already covers the full window. In the
+  /// `.unreadable` phase the call first reads the Keychain again, which can
+  /// show the access dialog.
   func sync() async {
+    if account == .unreadable { await retryAccount() }
     guard let client, let writer, !isSyncing else { return }
 
     isSyncing = true
@@ -483,5 +616,11 @@ final class SyncEngine {
     self.lastError = lastError
     self.fetchedCount = fetchedCount
     self.totalToFetch = totalToFetch
+  }
+
+  /// True while the engine holds a periodic sync, backfill, or content-fetch
+  /// task. For tests only: production code must not branch on it.
+  var hasScheduledSyncWork: Bool {
+    periodicSyncTask != nil || backfillTask != nil || extractedContentTask != nil
   }
 }

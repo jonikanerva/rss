@@ -73,8 +73,6 @@ struct ContentView: View {
   @State
   private var articleViewMode: ArticleViewMode = .web
   @State
-  private var needsSetup = false
-  @State
   private var pendingReadIDs: Set<Int> = []
   /// Rendered-entries payload bubbled up from `EntryListView`: the visible ids
   /// plus the rendered-unread ids, which are one side of the two-sided
@@ -127,7 +125,6 @@ struct ContentView: View {
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
-  private var isUITestForceOnboarding: Bool { processEnvironment["UITEST_FORCE_ONBOARDING"] == "1" }
   private var isPerfScenarioMode: Bool { PerfScenarioRunner.isEnabled }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
@@ -212,7 +209,7 @@ struct ContentView: View {
       // is logged exactly once.
       ColumnWidthDiagnostics.logRestoredIdeal(sidebarIdealWidth, for: .sidebar)
       ColumnWidthDiagnostics.logRestoredIdeal(contentColumnIdealWidth, for: .content)
-      checkCredentials()
+      bootLaunchMode()
       revalidateSelection()
       panelFocus = .sidebar
     }
@@ -227,13 +224,7 @@ struct ContentView: View {
       // call `warmIfNeeded()` directly, so this gate keeps their coverage.
       if !HeadlessMode.isEnabled { WebKitPreheat.warmIfNeeded() }
     }
-    .sheet(isPresented: $needsSetup) {
-      OnboardingView {
-        needsSetup = false
-        startSync()
-      }
-      .environment(syncEngine)
-    }
+    .modifier(FeedbinAccountLifecycle(startSync: startSync))
     .onChange(of: selectedEntryID) { _, newID in
       // The single writer for `selectedEntry`: resolve the one live model per
       // selection commit here, at the interface↔store boundary. Every other
@@ -549,8 +540,8 @@ struct ContentView: View {
         selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead
       )
     } else {
-      // First launch, before `SyncEngine.configure` completes. The call
-      // site's modifiers still apply to this branch.
+      // Until the launch path attaches the reader. The call site's modifiers
+      // still apply to this branch.
       ProgressView()
         .controlSize(.regular)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -866,7 +857,10 @@ struct ContentView: View {
 
   // MARK: - Helpers
 
-  private func checkCredentials() {
+  /// Must branch on exactly the launches for which
+  /// `FeederApp.usesFeedbinAccount(in:)` is false: each one gets the `.unused`
+  /// account phase, so `FeedbinAccountLifecycle` never boots it.
+  private func bootLaunchMode() {
     if isPerfScenarioMode {
       runPerfScenario()
       return
@@ -876,8 +870,8 @@ struct ContentView: View {
       return
     }
     if isPreviewMode {
-      // Preview canvases seed their container directly and never run
-      // `configure`, so attach a writer here or `EntryListView` spins on
+      // Preview canvases seed their container directly and never run the
+      // bootstrap, so attach a writer here or `EntryListView` spins on
       // `ProgressView` forever.
       let container = modelContext.container
       Task {
@@ -888,10 +882,6 @@ struct ContentView: View {
       }
       return
     }
-    if isUITestForceOnboarding {
-      needsSetup = true
-      return
-    }
     if isUITestDemoMode {
       seedUITestDataIfNeeded()
       if selection == nil {
@@ -899,25 +889,10 @@ struct ContentView: View {
           selection = .folder(firstFolder.label)
         }
       }
-      return
-    }
-
-    let username = UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
-    let password = KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
-    if username.isEmpty || password.isEmpty {
-      needsSetup = true
-    } else {
-      // Pass the loaded password through so `startSync` does not trigger a
-      // second keychain consent prompt for the same item.
-      startSync(username: username, password: password)
     }
   }
 
-  /// Boot the self-contained headless reading state. Returns from
-  /// `checkCredentials` before any `KeychainHelper.load`, `needsSetup`, or
-  /// `startSync`, so an automated launch never prompts for Keychain access,
-  /// shows onboarding, or contacts Feedbin. The store is already in-memory, so
-  /// this state never touches the user's on-disk data.
+  /// Seeds the data store: call it only on a launch with the in-memory store.
   private func bootHeadless() {
     let container = modelContext.container
     // Defence in depth: an inert client means no sync path can reach Feedbin.
@@ -985,19 +960,7 @@ struct ContentView: View {
     }
   }
 
-  /// Start (or resume) periodic Feedbin sync. `checkCredentials()` passes the
-  /// already-loaded credentials through to avoid a second Keychain read, and
-  /// therefore a second consent prompt, on the first launch after install. The
-  /// onboarding call site keeps the no-argument form.
-  private func startSync(username preloadedUsername: String? = nil, password preloadedPassword: String? = nil) {
-    let username = preloadedUsername ?? UserDefaults.standard.string(forKey: feedbinUsernameUserDefaultsKey) ?? ""
-    let password = preloadedPassword ?? KeychainHelper.load(key: KeychainHelper.feedbinPasswordKey) ?? ""
-    guard !username.isEmpty, !password.isEmpty else { return }
-
-    // `FeederApp.runBootstrap()` attaches the production writer before this
-    // view renders, so only the credentials are configured here.
-    syncEngine.configure(username: username, password: password)
-
+  private func startSync() {
     Task {
       // The reads already filter on `publishedAt >= cutoffDate`, so this purge
       // only stops the store growing without bound. Passing the ceiling
@@ -1067,7 +1030,7 @@ private func timelineSeededDemoPreview() -> some View {
   try? context.save()
 
   return ContentView()
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(ClassificationEngine())
     .environment(AppFontSettings())
     .modelContainer(container)
