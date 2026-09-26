@@ -246,9 +246,10 @@ final class FeederUITests: XCTestCase {
   @MainActor
   private func makeApp(forceOnboarding: Bool = false) -> XCUIApplication {
     let app = XCUIApplication()
+    // Without demo mode the in-memory launch finds no stored account and shows
+    // onboarding.
     app.launchEnvironment["UITEST_IN_MEMORY_STORE"] = "1"
     app.launchEnvironment["UITEST_DEMO_MODE"] = forceOnboarding ? "0" : "1"
-    app.launchEnvironment["UITEST_FORCE_ONBOARDING"] = forceOnboarding ? "1" : "0"
     return app
   }
 }
