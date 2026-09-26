@@ -5,16 +5,16 @@ import Testing
 
 @testable import Feeder
 
-// MARK: - Pure read rule
+// MARK: - Pure legacy read rule
 
 /// No test here may call a `SecItem…` function or read `UserDefaults.standard`:
 /// the test host runs in the owner's real app container.
-@Suite("Feedbin credential read rule")
-struct FeedbinCredentialReadRuleTests {
+@Suite("Feedbin legacy read rule")
+struct FeedbinLegacyReadRuleTests {
   @Test(arguments: [nil, ""] as [String?])
   func noUsernameMeansNoAccountWithoutAPasswordRead(username: String?) throws {
     var passwordReads = 0
-    let credentials = try KeychainFeedbinCredentialStore.credentials(username: username) {
+    let credentials = try KeychainFeedbinCredentialStore.legacyCredentials(username: username) {
       () throws(KeychainError) -> String? in
       passwordReads += 1
       return "secret"
@@ -26,7 +26,7 @@ struct FeedbinCredentialReadRuleTests {
   @Test(arguments: [KeychainError.osStatus(errSecAuthFailed), .osStatus(errSecUserCanceled), .encodingFailed])
   func failedPasswordReadRethrows(failure: KeychainError) {
     #expect(throws: failure) {
-      try KeychainFeedbinCredentialStore.credentials(username: "reader@example.com") {
+      try KeychainFeedbinCredentialStore.legacyCredentials(username: "reader@example.com") {
         () throws(KeychainError) -> String? in
         throw failure
       }
@@ -35,12 +35,12 @@ struct FeedbinCredentialReadRuleTests {
 
   @Test
   func missingPasswordMeansNoAccount() throws {
-    #expect(try KeychainFeedbinCredentialStore.credentials(username: "reader@example.com") { nil } == nil)
+    #expect(try KeychainFeedbinCredentialStore.legacyCredentials(username: "reader@example.com") { nil } == nil)
   }
 
   @Test
   func storedPairComesBackUnchanged() throws {
-    let credentials = try KeychainFeedbinCredentialStore.credentials(username: "reader@example.com") { "" }
+    let credentials = try KeychainFeedbinCredentialStore.legacyCredentials(username: "reader@example.com") { "" }
     #expect(credentials == FeedbinCredentials(username: "reader@example.com", password: ""))
     #expect(credentials?.isComplete == false)
   }
@@ -54,6 +54,22 @@ struct FeedbinCredentialReadRuleTests {
     }
     #expect(try await store.load() == stored)
   }
+
+  @Test
+  func memoryStoreReadsItsLegacyValuesWithTheSameRule() async throws {
+    let store = MemoryFeedbinCredentialStore(legacyUsername: "", legacyPassword: "old-secret")
+    await store.configureLegacyPasswordReadFailure(.osStatus(errSecUserCanceled))
+    #expect(try await store.loadLegacy() == nil)
+
+    let complete = MemoryFeedbinCredentialStore(legacyUsername: "old@example.com", legacyPassword: "old-secret")
+    #expect(try await complete.loadLegacy() == FeedbinCredentials(username: "old@example.com", password: "old-secret"))
+    #expect(try await complete.load() == nil)
+    await complete.configureLegacyPasswordReadFailure(.osStatus(errSecUserCanceled))
+    await #expect(throws: KeychainError.osStatus(errSecUserCanceled)) { try await complete.loadLegacy() }
+
+    await complete.removeLegacy()
+    #expect(try await complete.loadLegacy() == nil)
+  }
 }
 
 // MARK: - Account phase and save
@@ -63,6 +79,7 @@ struct FeedbinCredentialReadRuleTests {
 struct FeedbinAccountTests {
   nonisolated private static let stored = FeedbinCredentials(username: "reader@example.com", password: "stored-secret")
   nonisolated private static let replacement = FeedbinCredentials(username: "new@example.com", password: "new-secret")
+  nonisolated private static let legacy = FeedbinCredentials(username: "old@example.com", password: "old-secret")
 
   /// Per-test `UserDefaults`, so the engine's sync keys never reach the
   /// standard domain, which is the owner's real one in the test host.
@@ -279,7 +296,7 @@ struct FeedbinAccountTests {
   // MARK: Save
 
   @Test
-  func saveVerifiesThenRemovesThenAdds() async throws {
+  func saveVerifiesRemovesAddsThenRemovesTheLegacyValues() async throws {
     let client = FakeFeedbinClient()
     let store = RecordingFeedbinCredentialStore()
     let factory = RecordingClientFactory { _ in client }
@@ -288,7 +305,7 @@ struct FeedbinAccountTests {
     #expect(try await save(Self.replacement, with: engine))
 
     #expect(await client.verifyCallCount == 1)
-    #expect(await store.calls == [.remove, .add(Self.replacement)])
+    #expect(await store.calls == [.remove, .add(Self.replacement), .removeLegacy])
     #expect(factory.builtFor == [Self.replacement])
     #expect(engine.account == .signedIn(username: Self.replacement.username))
   }
@@ -402,7 +419,7 @@ struct FeedbinAccountTests {
     gate.open()
     await read.value
     #expect(try await saving.value)
-    #expect(await store.calls == [.load, .remove, .add(Self.replacement)])
+    #expect(await store.calls == [.load, .loadLegacy, .remove, .add(Self.replacement), .removeLegacy])
     #expect(engine.account == .signedIn(username: Self.replacement.username))
   }
 
@@ -422,7 +439,7 @@ struct FeedbinAccountTests {
 
     gate.open()
     #expect(try await saving.value)
-    #expect(await store.calls == [.remove, .add(Self.replacement)])
+    #expect(await store.calls == [.remove, .add(Self.replacement), .removeLegacy])
     #expect(engine.account == .signedIn(username: Self.replacement.username))
   }
 
@@ -450,8 +467,168 @@ struct FeedbinAccountTests {
     #expect(try await firstSave.value)
     #expect(try await secondSave.value)
     #expect(
-      await store.calls == [.remove, .add(Self.stored), .remove, .add(Self.replacement)])
+      await store.calls == [
+        .remove, .add(Self.stored), .removeLegacy, .remove, .add(Self.replacement), .removeLegacy,
+      ])
     #expect(engine.account == .signedIn(username: Self.replacement.username))
+  }
+
+  // MARK: Migration
+
+  private func makeLegacyStore(password: String? = Self.legacy.password) -> MemoryFeedbinCredentialStore {
+    MemoryFeedbinCredentialStore(legacyUsername: Self.legacy.username, legacyPassword: password)
+  }
+
+  @Test
+  func existingItemIsTheOnlyRead() async {
+    let store = RecordingFeedbinCredentialStore(loadResult: .success(Self.stored), legacyResult: .success(Self.legacy))
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(await store.calls == [.load])
+    #expect(engine.account == .signedIn(username: Self.stored.username))
+  }
+
+  @Test
+  func incompleteItemFindsNoAccountWithoutALegacyRead() async {
+    let incomplete = FeedbinCredentials(username: Self.stored.username, password: "")
+    let store = RecordingFeedbinCredentialStore(loadResult: .success(incomplete), legacyResult: .success(Self.legacy))
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(await store.calls == [.load])
+    #expect(engine.account == .noAccount)
+  }
+
+  @Test
+  func unreadableItemIsUnreadableWithoutALegacyRead() async {
+    let store = RecordingFeedbinCredentialStore(
+      loadResult: .failure(.osStatus(errSecUserCanceled)), legacyResult: .success(Self.legacy))
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(await store.calls == [.load])
+    #expect(engine.account == .unreadable)
+  }
+
+  @Test
+  func completeLegacyPairMovesIntoTheItemWithoutContactingFeedbin() async {
+    let client = FakeFeedbinClient()
+    let factory = RecordingClientFactory { _ in client }
+    let store = RecordingFeedbinCredentialStore(legacyResult: .success(Self.legacy))
+    let engine = makeEngine(store: store, factory: factory)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(await store.calls == [.load, .loadLegacy, .add(Self.legacy), .removeLegacy])
+    #expect(engine.account == .signedIn(username: Self.legacy.username))
+    #expect(factory.builtFor == [Self.legacy])
+    #expect(await client.verifyCallCount == 0)
+  }
+
+  @Test
+  func migrationLeavesOnlyTheItem() async throws {
+    let store = makeLegacyStore()
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .signedIn(username: Self.legacy.username))
+    #expect(try await store.load() == Self.legacy)
+    #expect(try await store.loadLegacy() == nil)
+  }
+
+  @Test
+  func failedMigrationAddSignsInFromTheLegacyPairAndTheNextLaunchMovesIt() async {
+    let client = FakeFeedbinClient()
+    let factory = RecordingClientFactory { _ in client }
+    let store = RecordingFeedbinCredentialStore(legacyResult: .success(Self.legacy))
+    await store.configureAddFailure(.osStatus(errSecInteractionNotAllowed))
+    let engine = makeEngine(store: store, factory: factory)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .signedIn(username: Self.legacy.username))
+    #expect(await store.calls == [.load, .loadLegacy, .add(Self.legacy)])
+    #expect(factory.builtFor == [Self.legacy])
+    #expect(await client.verifyCallCount == 0)
+
+    await store.configureAddFailure(nil)
+    let nextLaunch = makeEngine(store: store)
+    await nextLaunch.loadAccountAtLaunch()
+
+    #expect(nextLaunch.account == .signedIn(username: Self.legacy.username))
+    #expect(
+      await store.calls == [
+        .load, .loadLegacy, .add(Self.legacy), .load, .loadLegacy, .add(Self.legacy), .removeLegacy,
+      ])
+  }
+
+  @Test
+  func deniedLegacyReadIsUnreadableAndKeepsTheLegacyValues() async throws {
+    let store = makeLegacyStore()
+    await store.configureLegacyPasswordReadFailure(.osStatus(errSecUserCanceled))
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .unreadable)
+    #expect(try await store.load() == nil)
+    await store.configureLegacyPasswordReadFailure(nil)
+    #expect(try await store.loadLegacy() == Self.legacy)
+
+    await engine.retryAccount()
+
+    #expect(engine.account == .signedIn(username: Self.legacy.username))
+    #expect(try await store.load() == Self.legacy)
+    #expect(try await store.loadLegacy() == nil)
+  }
+
+  @Test(arguments: [nil, ""] as [String?])
+  func legacyUsernameWithoutAPasswordFindsNoAccount(password: String?) async throws {
+    let factory = RecordingClientFactory()
+    let store = makeLegacyStore(password: password)
+    let engine = makeEngine(store: store, factory: factory)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .noAccount)
+    #expect(try await store.load() == nil)
+    #expect(factory.builtFor.isEmpty)
+  }
+
+  /// A password read would throw and make the phase unreadable.
+  @Test(arguments: [nil, ""] as [String?])
+  func missingLegacyUsernameNeverReadsThePassword(username: String?) async {
+    let store = MemoryFeedbinCredentialStore(legacyUsername: username, legacyPassword: Self.legacy.password)
+    await store.configureLegacyPasswordReadFailure(.osStatus(errSecUserCanceled))
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .noAccount)
+  }
+
+  /// An older build writes only the legacy values, so after a return from it
+  /// both storages hold an account.
+  @Test
+  func itemWinsAfterARollbackAndTheNextSaveRemovesTheLegacyValues() async throws {
+    let store = MemoryFeedbinCredentialStore(
+      credentials: Self.stored, legacyUsername: Self.legacy.username, legacyPassword: Self.legacy.password)
+    let engine = makeEngine(store: store)
+
+    await engine.loadAccountAtLaunch()
+
+    #expect(engine.account == .signedIn(username: Self.stored.username))
+    #expect(try await store.loadLegacy() == Self.legacy)
+
+    #expect(try await save(Self.replacement, with: engine))
+
+    #expect(try await store.load() == Self.replacement)
+    #expect(try await store.loadLegacy() == nil)
   }
 
   // MARK: Settings rows

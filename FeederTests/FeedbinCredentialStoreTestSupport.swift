@@ -33,17 +33,25 @@ actor RecordingFeedbinCredentialStore {
     case load
     case add(FeedbinCredentials)
     case remove
+    case loadLegacy
+    case removeLegacy
   }
 
   private(set) var calls: [Call] = []
   private var loadResult: Result<FeedbinCredentials?, KeychainError>
+  private let legacyResult: Result<FeedbinCredentials?, KeychainError>
   private let loadGate: AsyncGate?
   private var addFailure: KeychainError?
   private var removeFailure: KeychainError?
 
   /// With a gate, each `load()` records its call and then waits for the gate.
-  init(loadResult: Result<FeedbinCredentials?, KeychainError> = .success(nil), loadGate: AsyncGate? = nil) {
+  init(
+    loadResult: Result<FeedbinCredentials?, KeychainError> = .success(nil),
+    legacyResult: Result<FeedbinCredentials?, KeychainError> = .success(nil),
+    loadGate: AsyncGate? = nil
+  ) {
     self.loadResult = loadResult
+    self.legacyResult = legacyResult
     self.loadGate = loadGate
   }
 
@@ -65,6 +73,15 @@ actor RecordingFeedbinCredentialStore {
   func remove() throws(KeychainError) {
     calls.append(.remove)
     if let removeFailure { throw removeFailure }
+  }
+
+  func loadLegacy() throws(KeychainError) -> FeedbinCredentials? {
+    calls.append(.loadLegacy)
+    return try legacyResult.get()
+  }
+
+  func removeLegacy() {
+    calls.append(.removeLegacy)
   }
 }
 

@@ -18,7 +18,9 @@ nonisolated enum KeychainHelper {
 
   // MARK: - Account keys
 
-  /// Keychain account key under which the Feedbin password is stored.
+  /// Keychain account key of the item that holds the Feedbin username and password.
+  static let feedbinAccountKey = "feedbin_account"
+  /// Keychain account key of the Feedbin password item that an older build wrote.
   static let feedbinPasswordKey = "feedbin_password"
   /// Keychain account key under which the OpenAI API key value is stored.
   /// Named `…KeychainKey` (not `APIKey`) so call sites read unambiguously as
