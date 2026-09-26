@@ -13,9 +13,7 @@ struct FeedbinClientSessionTests {
     #expect(configuration.httpCookieStorage !== HTTPCookieStorage.shared)
     #expect(configuration.urlCredentialStorage != nil)
     #expect(configuration.urlCredentialStorage !== URLCredentialStorage.shared)
-    #expect(
-      configuration.httpAdditionalHeaders?["Authorization"] as? String
-        == "Basic dXNlckBleGFtcGxlLmNvbTpmYWtlLXBhc3N3b3Jk")
+    #expect(configuration.httpAdditionalHeaders == nil)
     #expect(configuration.timeoutIntervalForRequest == 60)
     #expect(configuration.timeoutIntervalForResource == 604_800)
     #expect(configuration.identifier == nil)

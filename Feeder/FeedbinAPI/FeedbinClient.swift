@@ -51,27 +51,25 @@ nonisolated func mapHTTPStatus(_ statusCode: Int) -> FeedbinError? {
 /// Feedbin API v2 client using HTTP Basic auth and async/await.
 /// Reference: https://github.com/feedbin/feedbin-api
 actor FeedbinClient {
+  typealias Send = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
   private static let logger = Logger(subsystem: "com.feeder.app", category: "FeedbinClient")
   // swift-format-ignore: NeverForceUnwrap
   private let baseURL = URL(string: "https://api.feedbin.com/v2/")!
   private let session: URLSession
+  private let send: Send
+  private let authorization: String
   private let decoder: JSONDecoder
 
   nonisolated var sessionConfiguration: URLSessionConfiguration { session.configuration }
 
-  init(username: String, password: String) {
-    guard let credentialData = "\(username):\(password)".data(using: .utf8) else {
-      fatalError("Failed to encode credentials as UTF-8")
-    }
-
-    // Every request carries the Feedbin credentials, so the session must write
-    // nothing to disk. Keep it ephemeral.
-    let config = URLSessionConfiguration.ephemeral
-    config.httpAdditionalHeaders = [
-      "Authorization": "Basic \(credentialData.base64EncodedString())"
-    ]
-    self.session = URLSession(configuration: config)
-
+  init(username: String, password: String, send: Send? = nil) {
+    // Responses to authenticated requests must stay off disk. Keep the session
+    // ephemeral.
+    let session = URLSession(configuration: .ephemeral)
+    self.session = session
+    self.send = send ?? { try await session.data(for: $0) }
+    self.authorization = "Basic \(Data("\(username):\(password)".utf8).base64EncodedString())"
     self.decoder = makeFeedbinDecoder()
   }
 
@@ -83,8 +81,7 @@ actor FeedbinClient {
 
   /// Verify credentials. Returns true if valid.
   func verifyCredentials() async throws -> Bool {
-    let url = baseURL.appending(path: "authentication.json")
-    let (_, response) = try await session.data(from: url)
+    let (_, response) = try await send(apiRequest(path: "authentication.json"))
     guard let http = response as? HTTPURLResponse else { return false }
     return http.statusCode == 200
   }
@@ -93,8 +90,7 @@ actor FeedbinClient {
 
   /// Fetch all subscriptions (feeds the user is subscribed to).
   func fetchSubscriptions() async throws -> [FeedbinSubscription] {
-    let url = baseURL.appending(path: "subscriptions.json")
-    let (data, response) = try await session.data(from: url)
+    let (data, response) = try await send(apiRequest(path: "subscriptions.json"))
     try checkResponse(response)
     return try decoder.decode([FeedbinSubscription].self, from: data)
   }
@@ -104,8 +100,7 @@ actor FeedbinClient {
   /// Fetch all unread entry IDs. Returns a lightweight array of Ints.
   /// GET /v2/unread_entries.json
   func fetchUnreadEntryIDs() async throws -> [Int] {
-    let url = baseURL.appending(path: "unread_entries.json")
-    let (data, response) = try await session.data(from: url)
+    let (data, response) = try await send(apiRequest(path: "unread_entries.json"))
     try checkResponse(response)
     let ids = try decoder.decode([Int].self, from: data)
     FeedbinClient.logger.info("Fetched \(ids.count) unread entry IDs")
@@ -116,16 +111,15 @@ actor FeedbinClient {
   /// DELETE /v2/unread_entries.json — max 1000 IDs per request.
   func deleteUnreadEntries(_ ids: [Int]) async throws {
     guard !ids.isEmpty else { return }
-    let url = baseURL.appending(path: "unread_entries.json")
+    var request = try apiRequest(path: "unread_entries.json")
+    request.httpMethod = "DELETE"
+    request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
     let batches = stride(from: 0, to: ids.count, by: 1000).map {
       Array(ids[$0..<min($0 + 1000, ids.count)])
     }
     for batch in batches {
-      var request = URLRequest(url: url)
-      request.httpMethod = "DELETE"
-      request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
       request.httpBody = try JSONSerialization.data(withJSONObject: ["unread_entries": batch])
-      let (_, response) = try await session.data(for: request)
+      let (_, response) = try await send(request)
       try checkResponse(response)
     }
     FeedbinClient.logger.info("Pushed \(ids.count) read entries to Feedbin")
@@ -140,9 +134,6 @@ actor FeedbinClient {
     // buffers away.
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.netFetchPage)
     defer { perfSignposter.endInterval(PerformanceSignpostName.netFetchPage, signpost) }
-    guard var components = URLComponents(url: baseURL.appending(path: "entries.json"), resolvingAgainstBaseURL: false) else {
-      throw FeedbinError.invalidResponse
-    }
     var queryItems = [
       URLQueryItem(name: "page", value: "\(page)"),
       URLQueryItem(name: "per_page", value: "\(perPage)"),
@@ -150,10 +141,8 @@ actor FeedbinClient {
     if let since {
       queryItems.append(URLQueryItem(name: "since", value: formatDate(since)))
     }
-    components.queryItems = queryItems
-    guard let url = components.url else { throw FeedbinError.invalidResponse }
 
-    let (data, response) = try await session.data(from: url)
+    let (data, response) = try await send(apiRequest(path: "entries.json", queryItems: queryItems))
     try checkResponse(response)
     let entries = try decoder.decode([FeedbinEntry].self, from: data)
 
@@ -191,8 +180,7 @@ actor FeedbinClient {
   /// Fetch all favicon icons for the user's subscriptions.
   /// GET /v2/icons.json
   func fetchIcons() async throws -> [FeedbinIcon] {
-    let url = baseURL.appending(path: "icons.json")
-    let (data, response) = try await session.data(from: url)
+    let (data, response) = try await send(apiRequest(path: "icons.json"))
     try checkResponse(response)
     return try decoder.decode([FeedbinIcon].self, from: data)
   }
@@ -203,7 +191,7 @@ actor FeedbinClient {
   /// The `extractedContentURL` comes from the entry's `extracted_content_url` field.
   func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? {
     guard let url = URL(string: extractedContentURL) else { return nil }
-    let (data, response) = try await session.data(from: url)
+    let (data, response) = try await send(URLRequest(url: url))
     guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
       return nil
     }
@@ -211,6 +199,18 @@ actor FeedbinClient {
   }
 
   // MARK: - Helpers
+
+  /// Only this builder adds the Feedbin credentials. The builder takes a path
+  /// relative to `baseURL`, never a URL, so no request to another host can carry
+  /// the credentials.
+  private func apiRequest(path: String, queryItems: [URLQueryItem]? = nil) throws(FeedbinError) -> URLRequest {
+    var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
+    components?.queryItems = queryItems
+    guard let url = components?.url else { throw .invalidResponse }
+    var request = URLRequest(url: url)
+    request.setValue(authorization, forHTTPHeaderField: "Authorization")
+    return request
+  }
 
   private func checkResponse(_ response: URLResponse) throws {
     guard let http = response as? HTTPURLResponse else {
