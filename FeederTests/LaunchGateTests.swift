@@ -78,9 +78,11 @@ struct LaunchGateTests {
   }
 
   @Test
-  func inMemoryOnboardingLaunchFindsNoAccount() async {
+  func inMemoryOnboardingLaunchFindsNoAccount() async throws {
     let engine = FeederApp.makeSyncEngine(environment: ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "0"])
-    #expect(engine.credentialStore is MemoryFeedbinCredentialStore)
+    // Must stop here when the gate regresses: the read below would then reach
+    // the owner's real Keychain item.
+    try #require(engine.credentialStore is MemoryFeedbinCredentialStore)
     #expect(engine.account == .checking)
 
     await engine.loadAccountAtLaunch()
