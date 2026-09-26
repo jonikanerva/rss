@@ -895,6 +895,15 @@ struct CloudFailureDispositionPairingTests {
     ]
     for failure in vercel { expectPairing(failure) }
   }
+
+  @Test
+  func appleFMFailuresPair() {
+    let appleFM: [AppleFMClassificationError] = [
+      .modelUnavailable, .rateLimited(retryAfter: nil), .rateLimited(retryAfter: 30), .contextSizeExceeded, .guardrailViolation,
+      .refusal, .unsupportedLanguage, .unexpected(detail: "x"),
+    ]
+    for failure in appleFM { expectPairing(failure) }
+  }
 }
 
 // MARK: - Abort reason copy lock

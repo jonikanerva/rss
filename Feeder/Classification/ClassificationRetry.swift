@@ -30,7 +30,12 @@ nonisolated func retryAfterDelay(_ value: String?, now: Date) -> TimeInterval? {
   formatter.timeZone = TimeZone(secondsFromGMT: 0)
   formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
   guard let date = formatter.date(from: value) else { return nil }
-  return min(max(0, date.timeIntervalSince(now)), 3600)
+  return retryAfterDelay(until: date, now: now)
+}
+
+/// Bounded to zero through one hour (`STACK.md → Cloud classification`).
+nonisolated func retryAfterDelay(until date: Date, now: Date) -> TimeInterval {
+  min(max(0, date.timeIntervalSince(now)), 3600)
 }
 
 nonisolated enum ClassificationBatchOutcome: Sendable {

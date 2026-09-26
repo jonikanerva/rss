@@ -83,10 +83,13 @@ nonisolated protocol ClassificationFailure: Error {
   /// `CloudSession.sendWithRetry` reads this too: only a `.transient` failure
   /// gets a request retry.
   var retryDisposition: ClassificationRetry { get }
+  /// Must hold no user data: the runner logs it with public privacy.
+  var publicLogLabel: String { get }
 }
 
 extension ClassificationFailure {
   nonisolated var retryDisposition: ClassificationRetry { .poll }
+  nonisolated var publicLogLabel: String { String(describing: Self.self) }
 }
 
 // MARK: - Apple Foundation Models provider
@@ -116,6 +119,20 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
   }
 
   func classify(
+    title: String,
+    body: String,
+    url: String,
+    categories: [CategoryDefinition]
+  ) async throws -> ProviderClassificationResult {
+    do {
+      return try await generate(title: title, body: body, url: url, categories: categories)
+    } catch {
+      guard let failure = AppleFMClassificationError(error, isModelAvailable: await isAvailable, now: Date()) else { throw error }
+      throw failure
+    }
+  }
+
+  private func generate(
     title: String,
     body: String,
     url: String,
@@ -154,6 +171,105 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
       category: classification.category,
       confidence: classification.confidence
     )
+  }
+}
+
+// MARK: - Apple Foundation Models failures
+
+nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equatable {
+  case modelUnavailable
+  case rateLimited(retryAfter: TimeInterval?)
+  case contextSizeExceeded
+  case guardrailViolation
+  case refusal
+  case unsupportedLanguage
+  /// The detail can hold model output: log it only with private privacy.
+  case unexpected(detail: String)
+
+  /// Nil means a cancellation: the caller must rethrow `error` unchanged. When
+  /// `isModelAvailable` is false, every other error maps to `.modelUnavailable`.
+  init?(_ error: any Error, isModelAvailable: Bool, now: Date) {
+    if error is CancellationError { return nil }
+    if !isModelAvailable {
+      self = .modelUnavailable
+    } else if #available(macOS 27.0, *), let failure = Self.macOS27Failure(error, now: now) {
+      self = failure
+    } else if let error = error as? LanguageModelSession.GenerationError {
+      self = Self.failure(error)
+    } else {
+      self = .unexpected(detail: String(describing: error))
+    }
+  }
+
+  var batchAbort: ClassificationAbortReason? {
+    switch self {
+    case .modelUnavailable, .unexpected: .providerUnavailable
+    case .rateLimited: .rateLimited
+    case .contextSizeExceeded, .guardrailViolation, .refusal, .unsupportedLanguage: nil
+    }
+  }
+
+  var retryDisposition: ClassificationRetry {
+    switch self {
+    case .rateLimited(let retryAfter): .transient(retryAfter: retryAfter)
+    case .unexpected: .transient(retryAfter: nil)
+    case .modelUnavailable, .contextSizeExceeded, .guardrailViolation, .refusal, .unsupportedLanguage: .poll
+    }
+  }
+
+  var publicLogLabel: String {
+    switch self {
+    case .modelUnavailable: "modelUnavailable"
+    case .rateLimited: "rateLimited"
+    case .contextSizeExceeded: "contextSizeExceeded"
+    case .guardrailViolation: "guardrailViolation"
+    case .refusal: "refusal"
+    case .unsupportedLanguage: "unsupportedLanguage"
+    case .unexpected: "unexpected"
+    }
+  }
+
+  // Each Foundation Models switch in this type lists every case and ends with
+  // `@unknown default`, so a new SDK case gives a build warning.
+  @available(macOS 27.0, *)
+  private static func macOS27Failure(_ error: any Error, now: Date) -> Self? {
+    let unexpected = Self.unexpected(detail: String(describing: error))
+    if let error = error as? LanguageModelError {
+      switch error {
+      case .contextSizeExceeded: return .contextSizeExceeded
+      case .rateLimited(let limit): return .rateLimited(retryAfter: limit.resetDate.map { retryAfterDelay(until: $0, now: now) })
+      case .guardrailViolation: return .guardrailViolation
+      case .refusal: return .refusal
+      case .unsupportedLanguageOrLocale: return .unsupportedLanguage
+      case .unsupportedCapability, .unsupportedTranscriptContent, .unsupportedGenerationGuide, .timeout: return unexpected
+      @unknown default: return unexpected
+      }
+    }
+    if let error = error as? SystemLanguageModel.Error {
+      switch error {
+      case .assetsUnavailable: return unexpected
+      @unknown default: return unexpected
+      }
+    }
+    if let error = error as? LanguageModelSession.Error {
+      switch error {
+      case .concurrentRequests, .transcriptMutationWhileResponding: return unexpected
+      @unknown default: return unexpected
+      }
+    }
+    return error is GeneratedContent.ParsingError ? unexpected : nil
+  }
+
+  private static func failure(_ error: LanguageModelSession.GenerationError) -> Self {
+    switch error {
+    case .exceededContextWindowSize: .contextSizeExceeded
+    case .guardrailViolation: .guardrailViolation
+    case .refusal: .refusal
+    case .unsupportedLanguageOrLocale: .unsupportedLanguage
+    case .rateLimited: .rateLimited(retryAfter: nil)
+    case .assetsUnavailable, .decodingFailure, .concurrentRequests, .unsupportedGuide: .unexpected(detail: String(describing: error))
+    @unknown default: .unexpected(detail: String(describing: error))
+    }
   }
 }
 
