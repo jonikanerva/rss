@@ -269,6 +269,75 @@ struct ClassificationRetryTests {
   func otherHTTPStatusesBlock(status: Int) {
     #expect(ClassificationRetry(httpStatus: status, retryAfter: 45) == .blocked)
   }
+
+  @Test
+  func onlyATransientFailureWithoutRetryAfterOrServiceLimitIsSkippable() {
+    let skippable: [any ClassificationFailure] = [
+      VercelClassificationError.network, VercelClassificationError.http(503, retryAfter: nil),
+      VercelClassificationError.http(408, retryAfter: nil), OpenAIError.networkUnavailable(underlying: URLError(.timedOut)),
+      OpenAIError.apiError(statusCode: 500, message: "x", retryAfter: nil),
+    ]
+    for failure in skippable { #expect(failure.isSkippable, "\(failure) must be skippable") }
+    let stopping: [any ClassificationFailure] = [
+      VercelClassificationError.http(503, retryAfter: 5), VercelClassificationError.http(503, retryAfter: 0),
+      VercelClassificationError.http(429, retryAfter: nil), VercelClassificationError.http(402, retryAfter: nil),
+      VercelClassificationError.http(401, retryAfter: nil), VercelClassificationError.invalidResponse,
+      OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
+      OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey,
+      FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
+    ]
+    for failure in stopping { #expect(!failure.isSkippable, "\(failure) must not be skippable") }
+  }
+
+  @Test
+  func unknownArticleIsNeitherSentLastNorFallback() {
+    let failures = TransientEntryFailures()
+    #expect(!failures.sendsLast(1))
+    #expect(!failures.requiresFallback(1))
+    #expect(failures.strikes(for: 1) == 0)
+  }
+
+  @Test
+  func drainWithoutASuccessMarksButGivesNoStrike() {
+    var failures = TransientEntryFailures()
+    for _ in 0..<10 { failures.record(failedIDs: [1, 2], anotherEntrySucceeded: false) }
+    #expect(failures.sendsLast(1))
+    #expect(failures.sendsLast(2))
+    #expect(failures.strikes(for: 1) == 0)
+    #expect(!failures.requiresFallback(1))
+    #expect(failures != TransientEntryFailures())
+  }
+
+  @Test
+  func thirdCountedDrainRequiresTheFallback() {
+    var failures = TransientEntryFailures()
+    for strike in 1..<TransientEntryFailures.fallbackDrainCount {
+      failures.record(failedIDs: [1], anotherEntrySucceeded: true)
+      #expect(failures.strikes(for: 1) == strike)
+      #expect(failures.sendsLast(1))
+      #expect(!failures.requiresFallback(1))
+    }
+    failures.record(failedIDs: [1], anotherEntrySucceeded: false)
+    #expect(!failures.requiresFallback(1))
+    failures.record(failedIDs: [1], anotherEntrySucceeded: true)
+    #expect(TransientEntryFailures.fallbackDrainCount == 3)
+    #expect(failures.strikes(for: 1) == 3)
+    #expect(failures.requiresFallback(1))
+    #expect(!failures.sendsLast(1))
+  }
+
+  @Test
+  func recordChangesOnlyTheFailedArticles() {
+    var failures = TransientEntryFailures()
+    failures.record(failedIDs: [1], anotherEntrySucceeded: true)
+    failures.record(failedIDs: [], anotherEntrySucceeded: true)
+    #expect(failures.strikes(for: 1) == 1)
+    #expect(failures.strikes(for: 2) == 0)
+    #expect(!failures.sendsLast(2))
+    var unchanged = TransientEntryFailures()
+    unchanged.record(failedIDs: [], anotherEntrySucceeded: true)
+    #expect(unchanged == TransientEntryFailures())
+  }
 }
 
 @Suite("Cloud request retry")

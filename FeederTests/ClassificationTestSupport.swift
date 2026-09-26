@@ -5,9 +5,9 @@ import Foundation
 // MARK: - Fake classification provider
 
 /// In-memory `ClassificationProvider` for the engine tests. The engine runs end
-/// to end against a fixed response, an optional error count, and an optional
-/// per-call delay, without touching `UserDefaults`, the Keychain, or a real
-/// backend.
+/// to end against a fixed response, an optional error count, optional per-title
+/// failures, and an optional per-call delay, without touching `UserDefaults`,
+/// the Keychain, or a real backend.
 ///
 /// An `actor`, so the fake stays `Sendable` as the protocol requires and a
 /// mutator called from a test cannot race the detached runner.
@@ -48,10 +48,14 @@ actor FakeClassificationProvider {
 
   /// Delay before each call returns, which keeps the runner suspended long
   /// enough for a cancellation or a manual trigger to land between iterations.
+  /// A call with a per-title failure throws before this delay.
   private var perCallDelay: Duration = .zero
 
-  /// Call count: the one piece of observable state the tests assert on.
+  private var failuresByTitle: [String: any Error] = [:]
+
+  /// Call count and requested titles: the observable state the tests assert on.
   private(set) var callCount: Int = 0
+  private(set) var requestedTitles: [String] = []
 
   // MARK: - ClassificationProvider conformance
 
@@ -73,6 +77,9 @@ actor FakeClassificationProvider {
     categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
     callCount += 1
+    requestedTitles.append(title)
+
+    if let failure = failuresByTitle[title] { throw failure }
 
     if perCallDelay > .zero {
       try? await Task.sleep(for: perCallDelay)
@@ -103,6 +110,11 @@ actor FakeClassificationProvider {
     successesBeforeError = afterSuccesses
   }
 
+  /// Throw `error` on every call for an article with this title.
+  func configureFailure(_ error: any Error, forTitle title: String) {
+    failuresByTitle[title] = error
+  }
+
   /// Insert `value` before each call returns, which keeps the runner's batch
   /// loop suspended long enough for a control event to land.
   func configureDelay(_ value: Duration) {
@@ -125,7 +137,8 @@ extension FakeClassificationProvider: ClassificationProvider {}
 
 actor ClassificationTransportRecorder {
   private(set) var requests: [URLRequest] = []
-  private let script: [Result<ClassificationHTTPResponse, any Error>]
+  /// Receives the request and the count of sent requests, including this one.
+  private let respond: @Sendable (URLRequest, Int) -> Result<ClassificationHTTPResponse, any Error>
 
   init(data: Data, status: Int = 200, retryAfter: String? = nil) {
     self.init(script: [.success(.status(status, retryAfter: retryAfter, data: data))])
@@ -134,17 +147,22 @@ actor ClassificationTransportRecorder {
   /// Answers each request with the next script entry. The last entry repeats.
   init(script: [Result<ClassificationHTTPResponse, URLError>]) {
     precondition(!script.isEmpty, "A transport script needs at least one entry")
-    self.script = script.map { $0.mapError { $0 } }
+    respond = { _, count in script[min(count, script.count) - 1].mapError { $0 } }
   }
 
   /// Throws `failure` for every request.
   init(failure: any Error) {
-    script = [.failure(failure)]
+    respond = { _, _ in .failure(failure) }
+  }
+
+  /// Answers each request from its body text.
+  init(route: @escaping @Sendable (String) -> Result<ClassificationHTTPResponse, URLError>) {
+    respond = { request, _ in route(String(decoding: request.httpBody ?? Data(), as: UTF8.self)).mapError { $0 } }
   }
 
   func send(_ request: URLRequest) throws -> ClassificationHTTPResponse {
     requests.append(request)
-    return try script[min(requests.count, script.count) - 1].get()
+    return try respond(request, requests.count).get()
   }
 }
 

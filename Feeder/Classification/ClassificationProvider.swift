@@ -75,9 +75,9 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   }
 }
 
-/// A non-nil abort must preserve the pending entry and stop the batch.
-/// A nil abort, or an error that does not conform, persists the entry as
-/// uncategorized and continues the drain.
+/// A non-nil abort must preserve the pending entry. It stops the batch unless
+/// `isSkippable` is true. A nil abort, or an error that does not conform,
+/// persists the entry as uncategorized and continues the drain.
 nonisolated protocol ClassificationFailure: Error {
   var batchAbort: ClassificationAbortReason? { get }
   /// `CloudSession.sendWithRetry` reads this too: only a `.transient` failure

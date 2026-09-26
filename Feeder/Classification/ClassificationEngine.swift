@@ -68,6 +68,10 @@ final class ClassificationEngine {
   private var classificationTask: Task<ClassificationBatchOutcome, Never>?
   private var classificationTaskID: UUID?
   private var isContinuousModeActive = false
+  /// Every reset must also replace the task: the task-ID guard in the reporter
+  /// is what drops a late report from a replaced runner.
+  @ObservationIgnored
+  private var entryFailures = TransientEntryFailures()
   private let providerFactoryOverride: (@Sendable () -> any ClassificationProvider)?
   private let sleep: @Sendable (Duration) async throws -> Void
 
@@ -96,6 +100,7 @@ final class ClassificationEngine {
     classificationTask?.cancel()
     lastAbort = nil
     lastAbortProvider = nil
+    entryFailures = TransientEntryFailures()
     apply(.terminal, provider: nil)
     startContinuousClassification(writer: writer)
   }
@@ -109,6 +114,7 @@ final class ClassificationEngine {
   }
 
   private func runOneShot(writer: DataWriter, reset: Bool) async {
+    if reset { entryFailures = TransientEntryFailures() }
     let (id, task) = replaceTask(writer: writer, operation: .once(reset: reset))
     let outcome = await withTaskCancellationHandler {
       await task.value
@@ -141,11 +147,19 @@ final class ClassificationEngine {
         self.apply(snapshot, provider: providerKind)
       }
     }
+    let failureReporter: @Sendable (TransientEntryFailures) async -> Void = { failures in
+      await MainActor.run {
+        guard self.classificationTaskID == id else { return }
+        self.entryFailures = failures
+      }
+    }
     let runner = ClassificationRunner(
       writer: writer,
       providerFactory: providerFactoryOverride ?? { Self.buildProvider() },
       reportProgress: reporter,
-      sleep: sleep)
+      sleep: sleep,
+      entryFailures: entryFailures,
+      reportEntryFailures: failureReporter)
     // The engine owns this off-main task and waits for its predecessor before any work.
     let task = Task.detached(priority: .utility) {
       _ = await previous?.value
@@ -167,6 +181,7 @@ final class ClassificationEngine {
   #if DEBUG
     var isContinuousLoopActive: Bool { isContinuousModeActive }
     var currentClassificationTaskID: UUID? { classificationTaskID }
+    var currentEntryFailures: TransientEntryFailures { entryFailures }
     private(set) var lastAbortWriteCount = 0
   #endif
 
@@ -238,17 +253,22 @@ nonisolated struct ClassificationRunner: Sendable {
   let providerFactory: @Sendable () -> any ClassificationProvider
   let reportProgress: @Sendable (ProgressSnapshot) async -> Void
   var sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+  var entryFailures = TransientEntryFailures()
+  var reportEntryFailures: @Sendable (TransientEntryFailures) async -> Void = { _ in }
 
   func runContinuousLoop(initialOutcome: ClassificationBatchOutcome? = nil) async {
     var retryState = ClassificationRetryState()
     var outcome = initialOutcome
+    var failures = entryFailures
     while !Task.isCancelled {
       if let previous = outcome {
         guard let delay = retryState.delay(after: previous) else { return }
         do { try await sleep(delay) } catch { break }
       }
       guard !Task.isCancelled else { break }
-      outcome = await runOneBatch(cutoffDate: articleCutoffDate())
+      let previousFailures = failures
+      outcome = await runOneBatch(cutoffDate: articleCutoffDate(), failures: &failures)
+      if failures != previousFailures { await reportEntryFailures(failures) }
     }
     await reportProgress(.terminal)
   }
@@ -276,6 +296,17 @@ nonisolated struct ClassificationRunner: Sendable {
   func runOneBatch(
     cutoffDate: Date, chunkSize: Int = 50, providerOverride: (any ClassificationProvider)? = nil
   ) async -> ClassificationBatchOutcome {
+    var failures = entryFailures
+    let outcome = await runOneBatch(
+      cutoffDate: cutoffDate, chunkSize: chunkSize, providerOverride: providerOverride, failures: &failures)
+    if failures != entryFailures { await reportEntryFailures(failures) }
+    return outcome
+  }
+
+  func runOneBatch(
+    cutoffDate: Date, chunkSize: Int = 50, providerOverride: (any ClassificationProvider)? = nil,
+    failures: inout TransientEntryFailures
+  ) async -> ClassificationBatchOutcome {
     guard !Task.isCancelled else { return .cancelled }
     guard let categories = try? await writer.fetchCategoryDefinitions(), !categories.isEmpty else {
       return .completed(0)
@@ -301,17 +332,31 @@ nonisolated struct ClassificationRunner: Sendable {
     // An entry whose write fails stays unclassified and returns in the next
     // chunk fetch. Skip attempted IDs so the drain ends and the next poll retries.
     var attemptedIDs = Set<Int>()
+    var failedIDs: [Int] = []
+    var hasProviderSuccess = false
+    var skippedFailure: (any Error)?
+    // A cancelled drain must leave `failures` unchanged.
+    defer {
+      if !Task.isCancelled { failures.record(failedIDs: failedIDs, anotherEntrySucceeded: hasProviderSuccess) }
+    }
     var lastProgress = ContinuousClock.now
     await reportProgress(progressSnapshot(completed: 0, remaining: remaining, provider: provider.name))
     var chunk = firstChunk
     while !chunk.isEmpty, !Task.isCancelled {
       let pending = chunk.filter { !attemptedIDs.contains($0.entryID) }
       if pending.isEmpty { break }
-      for input in pending {
+      let ordered = pending.filter { !failures.sendsLast($0.entryID) } + pending.filter { failures.sendsLast($0.entryID) }
+      for input in ordered {
         if Task.isCancelled { break }
         attemptedIDs.insert(input.entryID)
         let result: ClassificationResult
-        if shouldSkipClassification(title: input.title, body: input.body) {
+        if failures.requiresFallback(input.entryID) {
+          let strikes = failures.strikes(for: input.entryID)
+          Self.logger.notice(
+            "Entry \(input.entryID, privacy: .private) takes the uncategorized fallback after \(strikes, privacy: .public) counted drains with a transient failure from provider '\(provider.name, privacy: .public)'"
+          )
+          result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
+        } else if shouldSkipClassification(title: input.title, body: input.body) {
           result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
         } else {
           let language = detectLanguage("\(input.title) \(input.body.prefix(500))")
@@ -322,15 +367,25 @@ nonisolated struct ClassificationRunner: Sendable {
               let response = try await provider.classify(title: input.title, body: input.body, url: input.url, categories: categories)
               try Task.checkCancellation()
               result = try resolveClassification(response, input: input, categories: categories)
+              hasProviderSuccess = true
+              skippedFailure = nil
             } catch {
               if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
                 await reportProgress(.terminal)
                 return .cancelled
               }
-              if (error as? any ClassificationFailure)?.batchAbort != nil {
-                Self.logger.error(
-                  "Classification provider '\(provider.name)' aborted the batch after \(completed) entries: \(String(describing: error), privacy: .private)"
-                )
+              if let failure = error as? any ClassificationFailure, failure.batchAbort != nil {
+                if failure.isSkippable {
+                  failedIDs.append(input.entryID)
+                  if skippedFailure == nil {
+                    skippedFailure = error
+                    Self.logger.error(
+                      "Classification provider '\(provider.name, privacy: .public)' skipped entry \(input.entryID, privacy: .private): \(String(describing: error), privacy: .private)"
+                    )
+                    continue
+                  }
+                }
+                logBatchAbort(error, provider: provider.name, completed: completed)
                 return await abort(error, completed: completed)
               }
               result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
@@ -367,6 +422,10 @@ nonisolated struct ClassificationRunner: Sendable {
       await reportProgress(.terminal)
       return .cancelled
     }
+    if let skippedFailure, !hasProviderSuccess {
+      logBatchAbort(skippedFailure, provider: provider.name, completed: completed)
+      return await abort(skippedFailure, completed: completed)
+    }
     await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
     await reportProgress(.outcome(nil))
     return .completed(completed)
@@ -376,6 +435,12 @@ nonisolated struct ClassificationRunner: Sendable {
     ProgressSnapshot(
       isClassifying: true, progress: "Categorizing \(completed)/\(completed + remaining) (\(provider))", classifiedCount: completed,
       totalToClassify: completed + remaining)
+  }
+
+  private func logBatchAbort(_ error: any Error, provider: String, completed: Int) {
+    Self.logger.error(
+      "Classification provider '\(provider)' aborted the batch after \(completed) entries: \(String(describing: error), privacy: .private)"
+    )
   }
 
   private func abort(_ error: any Error, completed: Int) async -> ClassificationBatchOutcome {
