@@ -135,7 +135,7 @@ private func folderEditNewPreview() -> some View {
   let container = PreviewSupport.makeContainer()
 
   return FolderEditSheet(folder: nil)
-    .environment(SyncEngine())
+    .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
 }

@@ -10,10 +10,8 @@ nonisolated enum KeychainError: Error, Equatable, Sendable {
   case osStatus(OSStatus)
 }
 
-/// Simple Keychain wrapper for storing Feedbin credentials and cloud API keys.
-/// All methods are nonisolated since Keychain APIs are thread-safe. `save`/`delete`
-/// throw typed errors so callers can distinguish real failures from the not-found
-/// case (which is treated as success for deletes).
+/// Every call can wait for the Keychain access dialog: never call it on the
+/// main actor. `delete` treats a missing item as success.
 nonisolated enum KeychainHelper {
   private static let service = "com.feeder.app"
   private static let logger = Logger(subsystem: "com.feeder.app", category: "Keychain")
@@ -29,15 +27,6 @@ nonisolated enum KeychainHelper {
   static let vercelAPIKeychainKey = "vercel_ai_gateway_api_key"
 
   // MARK: - Writes
-
-  /// An update keeps the access list of the existing item.
-  static func save(key: String, value: String) throws(KeychainError) {
-    let update = [kSecValueData as String: Data(value.utf8)]
-    let status = SecItemUpdate(baseQuery(key) as CFDictionary, update as CFDictionary)
-    if status == errSecSuccess { return }
-    guard status == errSecItemNotFound else { throw .osStatus(status) }
-    try add(key: key, value: value)
-  }
 
   /// Fails with `errSecDuplicateItem` when the item exists. A new item gets a
   /// default access list that trusts the current build.
@@ -68,11 +57,6 @@ nonisolated enum KeychainHelper {
       logFailure("read", key: key, error: error)
       throw error
     }
-  }
-
-  /// Treats every failed read as a missing item. New code calls `read(key:)`.
-  static func load(key: String) -> String? {
-    try? read(key: key)
   }
 
   /// Must request attributes only: a request for the secret data can show the

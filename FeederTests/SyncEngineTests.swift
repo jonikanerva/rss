@@ -45,7 +45,8 @@ struct SyncEngineTests {
     let container = try DataWriterTestSupport.makeInMemoryContainer()
     let writer = DataWriter(modelContainer: container)
 
-    let engine = SyncEngine(defaults: defaults)
+    // The attached fake bypasses the account phase, as in a headless launch.
+    let engine = SyncEngine(defaults: defaults, credentialStore: MemoryFeedbinCredentialStore(), account: .unused)
     engine.attachWriter(writer)
     engine.attachClient(client)
     return (engine, writer)

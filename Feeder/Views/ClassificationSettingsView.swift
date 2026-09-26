@@ -277,7 +277,7 @@ private struct APIKeyEditSheet: View {
 
 #Preview("Vercel — needs key") {
   ClassificationSettingsView(settings: ClassificationSettingsModel(provider: .vercel, isInert: true))
-    .environment(SyncEngine()).environment(ClassificationEngine()).environment(AppFontSettings())
+    .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings())
     .frame(width: 420, height: 450)
 }
 
@@ -286,7 +286,7 @@ private struct APIKeyEditSheet: View {
     settings: ClassificationSettingsModel(
       provider: .vercel, store: MemoryClassificationKeyStore(values: [.vercel: "preview"]), isInert: true)
   )
-  .environment(SyncEngine()).environment(ClassificationEngine()).environment(AppFontSettings())
+  .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings())
   .frame(width: 550, height: 550)
 }
 
@@ -309,7 +309,7 @@ private struct ClassificationSettingsPreview: View {
         store: MemoryClassificationKeyStore(values: hasKey ? [provider: "preview"] : [:]),
         isInert: true)
     )
-    .environment(SyncEngine()).environment(engine)
+    .environment(SyncEngine.preview()).environment(engine)
     .environment(AppFontSettings(textSize: .xxLarge))
     .frame(width: 420, height: 550)
   }

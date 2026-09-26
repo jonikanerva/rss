@@ -16,6 +16,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var subscriptionsResponse: [FeedbinSubscription] = []
   var unreadIDsResponse: [Int] = []
   var entryPagesResponse: [FeedbinEntriesPage] = []
+  var verifyResult: Result<Bool, any Error> = .success(true)
 
   // MARK: Configurable errors (non-nil → thrown instead of returning)
 
@@ -34,6 +35,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// while the sync is still running.
   var entryPagesInterPageDelay: Duration = .zero
 
+  /// While set, `verifyCredentials()` waits until the gate opens.
+  private var verifyGate: AsyncGate?
+
   // MARK: Call logs
 
   /// Each entry is the ID batch passed to one `deleteUnreadEntries` call.
@@ -43,6 +47,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// How many times the page stream was entered. Bumped synchronously at the
   /// start of the stream's body, so a race-guard test gates on it.
   var fetchEntryPagesCallCount: Int = 0
+  /// Bumped when `verifyCredentials()` is entered, before any gate wait.
+  var verifyCallCount: Int = 0
 
   // MARK: - FeedbinClientProtocol
 
@@ -66,8 +72,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   func verifyCredentials() async throws -> Bool {
-    // No test exercises this. Return `true`, mirroring the production contract.
-    true
+    verifyCallCount += 1
+    if let verifyGate { await verifyGate.wait() }
+    return try verifyResult.get()
   }
 
   func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? {
@@ -108,6 +115,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
   func setEntryPagesInitialDelay(_ value: Duration) { entryPagesInitialDelay = value }
   func setEntryPagesInterPageDelay(_ value: Duration) { entryPagesInterPageDelay = value }
+  func setVerifyResult(_ value: Result<Bool, any Error>) { verifyResult = value }
+  func holdVerification(until gate: AsyncGate) { verifyGate = gate }
 
   // MARK: - Internal
 

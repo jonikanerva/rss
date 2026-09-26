@@ -64,6 +64,9 @@ struct SyncStatusView: View {
           .textCase(nil)
           .contentTransition(.numericText())
       }
+      if syncEngine.account == .unreadable {
+        accountUnreadableBanner
+      }
       if let error = syncEngine.lastError {
         errorBanner(error: error)
       }
@@ -72,6 +75,25 @@ struct SyncStatusView: View {
       }
     }
     .padding(.bottom, 4)
+  }
+
+  // MARK: - Account banner
+
+  private var accountUnreadableBanner: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "exclamationmark.triangle")
+        .foregroundStyle(Color.orange)
+      Text("Could not read the Feedbin password from Keychain")
+        .foregroundStyle(.secondary)
+      Button("Retry") {
+        Task { await syncEngine.retryAccount() }
+      }
+      .buttonStyle(.link)
+      .accessibilityIdentifier("sidebar.accountUnreadable.retry")
+    }
+    .font(fontSettings.status)
+    .textCase(nil)
+    .accessibilityIdentifier("sidebar.accountUnreadable")
   }
 
   // MARK: - Error banner
@@ -186,6 +208,15 @@ private enum SyncStatusPreviewState {
   case abortedQuotaExhausted
   case abortedQuotaExhaustedVercel
   case abortedWhileSyncing
+  case accountUnreadable
+  case accountAndKeyUnreadable
+
+  var account: FeedbinAccountPhase {
+    switch self {
+    case .accountUnreadable, .accountAndKeyUnreadable: .unreadable
+    default: .signedIn(username: "reader@example.com")
+    }
+  }
 
   func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
     switch self {
@@ -264,6 +295,15 @@ private enum SyncStatusPreviewState {
         lastSyncDate: .now.addingTimeInterval(-3600),
         lastError: .network("The Internet connection appears to be offline."))
       classification.applyPreviewState(lastAbort: .providerUnavailable)
+    case .accountUnreadable:
+      // Threshold check for the Feedbin Keychain read copy at the largest text
+      // size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now.addingTimeInterval(-3600))
+    case .accountAndKeyUnreadable:
+      // Both Keychain banners stacked at the narrow frame must not truncate
+      // (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now.addingTimeInterval(-3600))
+      classification.applyPreviewState(lastAbort: .keyUnreadable, provider: .vercel)
     }
   }
 }
@@ -344,10 +384,18 @@ private enum SyncStatusPreviewState {
   syncStatusPreview(state: .abortedWhileSyncing)
 }
 
+#Preview("Account - Unreadable") {
+  syncStatusPreview(state: .accountUnreadable, textSize: .xxLarge)
+}
+
+#Preview("Account + Key unreadable") {
+  syncStatusPreview(state: .accountAndKeyUnreadable, textSize: .xxLarge)
+}
+
 @MainActor
 private func syncStatusPreview(state: SyncStatusPreviewState, textSize: AppTextSize? = nil) -> some View {
   let container = PreviewSupport.makeContainer()
-  let syncEngine = SyncEngine()
+  let syncEngine = SyncEngine.preview(account: state.account)
   let classificationEngine = ClassificationEngine()
   state.apply(toSync: syncEngine, classification: classificationEngine)
 

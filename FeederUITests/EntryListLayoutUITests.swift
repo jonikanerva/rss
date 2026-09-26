@@ -41,7 +41,6 @@ final class EntryListLayoutUITests: XCTestCase {
     let app = XCUIApplication()
     app.launchEnvironment["UITEST_IN_MEMORY_STORE"] = "1"
     app.launchEnvironment["UITEST_DEMO_MODE"] = "1"
-    app.launchEnvironment["UITEST_FORCE_ONBOARDING"] = "0"
     // `NSArgumentDomain`: pins the persisted text size to medium for this
     // launch only, so the pitch expectation does not depend on the host's
     // stored preference.

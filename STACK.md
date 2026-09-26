@@ -14,7 +14,7 @@
 
 Feeder maps the doctrine's interface / domain / infrastructure layers onto a two-layer runtime shape:
 
-- **Interface** (MainActor, read-only) — SwiftUI views in `Feeder/Views/` read via `@Query` with SQLite-level predicates (never filter results in Swift). `SyncEngine` and `ClassificationEngine` are `@Observable` for progress display only: zero `ModelContext`, all writes delegated to `DataWriter`.
+- **Interface** (MainActor, read-only) — SwiftUI views in `Feeder/Views/` read via `@Query` with SQLite-level predicates (never filter results in Swift). `SyncEngine` and `ClassificationEngine` are `@Observable` for progress and account display only: zero `ModelContext`, all writes delegated to `DataWriter`.
 - **Domain** (pure, `nonisolated`) — stateless helpers in `Feeder/Helpers/` (`stripHTMLToPlainText`, `formatEntryDate`, `detectLanguage`, `EntryFormatting`, `HTMLToBlocks`). Zero side effects; same input, same output; reusable from migration closures and tests.
 - **Infrastructure** (background actors) — `DataWriter` (`@ModelActor`; owns a read-write `ModelContext`; ALL persistence writes; pre-computes display fields at write time), `DataReader` (`@ModelActor`; a SECOND **read-only** `ModelContext` on the SAME app container; `autosaveEnabled = false`, zero writes; owns the article-list + sidebar-count reads so they run on their own actor and are never queued behind the writer's backlog — §5, §14), and `FeedbinClient` (`actor`; all HTTP requests). Never on MainActor.
 

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import Testing
 
@@ -27,21 +28,26 @@ struct HeadlessModeTests {
     #expect(!HeadlessMode.isEnabled(in: ["XCTestConfigurationFilePath": "/x"]))
   }
 
-  // MARK: - Store gate fires together with the credential-skip
+  // MARK: - The test host boots headless
 
-  /// Under `FEEDER_HEADLESS=1` the store gate MUST yield an in-memory container —
-  /// the load-bearing invariant that the headless credential-skip can never run
-  /// against the real on-disk store. `FeederApp.init` and the credential-skip in
-  /// `ContentView.checkCredentials` read the SAME `HeadlessMode.isEnabled`
-  /// (grep-enforced in review), so they fire together. `make test-all` sets the
-  /// flag, so this runs there; a bare Cmd-U without the scheme flag skips it (the
-  /// pure-core test above still covers the gate logic).
+  /// `make test-all` sets `FEEDER_HEADLESS=1` on the host, so these run there;
+  /// a bare Cmd-U without the flag skips them, and `LaunchGateTests` still
+  /// cover the gates.
   @Test(
     "Under FEEDER_HEADLESS the store gate yields an in-memory container",
     .enabled(if: HeadlessMode.isEnabled))
   func headlessForcesInMemoryStore() {
     let app = FeederApp()
     #expect(app.modelContainer.configurations.first?.isStoredInMemoryOnly == true)
+  }
+
+  @Test(
+    "Under FEEDER_HEADLESS the host engine never reads the Keychain",
+    .enabled(if: HeadlessMode.isEnabled))
+  func headlessHostEngineIsUnused() {
+    let engine = FeederApp.makeSyncEngine(environment: ProcessInfo.processInfo.environment)
+    #expect(engine.credentialStore is MemoryFeedbinCredentialStore)
+    #expect(engine.account == .unused)
   }
 
   // MARK: - Seam 2: classification never reaches a real backend
