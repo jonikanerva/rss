@@ -326,6 +326,8 @@ private struct ClassificationSettingsPreview: View {
 }
 #Preview("Vercel — large categories") { ClassificationSettingsPreview(reason: .inputTooLarge) }
 #Preview("Vercel — unavailable") { ClassificationSettingsPreview(reason: .providerUnavailable) }
+#Preview("Vercel — key unreadable") { ClassificationSettingsPreview(reason: .keyUnreadable) }
+#Preview("OpenAI — key unreadable") { ClassificationSettingsPreview(provider: .openAI, reason: .keyUnreadable) }
 #Preview("OpenAI — invalid key") { ClassificationSettingsPreview(provider: .openAI, reason: .keyRejected) }
 #Preview("OpenAI — service limit") { ClassificationSettingsPreview(provider: .openAI, reason: .rateLimited) }
 #Preview("OpenAI — quota") { ClassificationSettingsPreview(provider: .openAI, reason: .quotaExhausted) }
@@ -468,6 +470,19 @@ private struct OpenAIModelPickerRow: View {
   Form {
     Section("OpenAI") {
       OpenAIModelPickerRow(selection: $selection, state: .failed(reason: "API key was rejected."))
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Key Unreadable") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .keyUnreadable)
     }
   }
   .formStyle(.grouped)
