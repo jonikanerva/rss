@@ -232,10 +232,19 @@ final class ClassificationEngine {
   /// user never triggers a Keychain read.
   nonisolated static func buildProvider(
     defaults: UserDefaults = .standard,
-    keychainLoad: (String) -> String? = { KeychainHelper.load(key: $0) }
+    keychainRead: (String) throws(KeychainError) -> String? = KeychainHelper.read(key:)
   ) -> any ClassificationProvider {
     let kind = ClassificationProviderKind.current(in: defaults)
-    let apiKey = kind.keychainKey.flatMap(keychainLoad) ?? ""
+    let apiKey: String
+    if let account = kind.keychainKey {
+      do throws(KeychainError) {
+        apiKey = try keychainRead(account) ?? ""
+      } catch {
+        return UnreadableKeyClassificationProvider(name: kind.displayName)
+      }
+    } else {
+      apiKey = ""
+    }
     switch kind {
     case .openAI:
       return OpenAIClassificationProvider(apiKey: apiKey, model: OpenAIModelSetting.current(in: defaults))

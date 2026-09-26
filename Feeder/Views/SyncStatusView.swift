@@ -180,6 +180,7 @@ private enum SyncStatusPreviewState {
   case syncingNoTotal
   case abortedModel
   case abortedNeedsKey
+  case abortedKeyUnreadable
   case abortedOffline
   case abortedRateLimited
   case abortedQuotaExhausted
@@ -233,6 +234,10 @@ private enum SyncStatusPreviewState {
     case .abortedNeedsKey:
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .needsKey, provider: .openAI)
+    case .abortedKeyUnreadable:
+      // Threshold check for the Keychain read copy at the largest text size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .keyUnreadable, provider: .vercel)
     case .abortedOffline:
       // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
@@ -313,6 +318,10 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Needs key") {
   syncStatusPreview(state: .abortedNeedsKey)
+}
+
+#Preview("Aborted - Key unreadable") {
+  syncStatusPreview(state: .abortedKeyUnreadable, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Service limit") {

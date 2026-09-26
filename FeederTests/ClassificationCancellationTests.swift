@@ -100,14 +100,100 @@ struct ClassificationCancellationTests {
     } else {
       let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
       switch outcome {
-      case .aborted(.poll, completed: 0): break
-      default: Issue.record("Expected a poll abort with no completed entries, got \(outcome)")
+      case .aborted(.blocked, completed: 0): break
+      default: Issue.record("Expected a blocked abort with no completed entries, got \(outcome)")
       }
       #expect(snapshots.filter(\.ownsAbort).map(\.abort) == [.needsKey])
     }
     #expect(await transport.requests.isEmpty)
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.primaryCategory == "tech")
     for id in 1002...1003 { try await expectPending(writer, id: id) }
+  }
+
+  // MARK: - Missing keys
+
+  @Test(arguments: CloudProviderFixture.allCases)
+  func missingKeyWaitsForTheHourlyRecheckWithoutRequests(_ cloud: CloudProviderFixture) async throws {
+    let writer = try await fixture()
+    let transport = ClassificationTransportRecorder(data: Data())
+    let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse = { try await transport.send($0) }
+    let provider: any ClassificationProvider =
+      switch cloud {
+      case .vercel: VercelClassificationProvider(apiKey: "", send: send)
+      case .openAI: OpenAIClassificationProvider(apiKey: "", model: "gpt-test", send: send)
+      }
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == .needsKey)
+    #expect(await transport.requests.isEmpty)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
+  func configurationChangeEndsTheMissingKeyWait() async throws {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureValidation(.needsKey)
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == .needsKey)
+    #expect(await provider.callCount == 0)
+    await provider.configureValidation(nil)
+    engine.configurationChanged(writer: writer)
+    try await waitUntil("replacement drain completes") { await clock.delays.count == 2 }
+    #expect(await clock.delays == [.seconds(3600), .seconds(2)])
+    #expect(engine.lastAbort == nil)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+    engine.stopContinuousClassification()
+  }
+
+  // MARK: - Unreadable keys
+
+  @Test
+  func unreadableKeyBlocksTheBatchBeforeAnyProgress() async throws {
+    let writer = try await fixture()
+    let (outcome, snapshots) = await runOneBatch(writer, provider: UnreadableKeyClassificationProvider(name: "Vercel AI Gateway"))
+    switch outcome {
+    case .aborted(.blocked, completed: 0): break
+    default: Issue.record("Expected a blocked abort with no completed entries, got \(outcome)")
+    }
+    #expect(snapshots.filter(\.ownsAbort).map(\.abort) == [.keyUnreadable])
+    let reportedProgress = snapshots.contains(where: \.isClassifying)
+    #expect(!reportedProgress)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+  }
+
+  @Test
+  func unreadableKeyWaitsForTheHourlyRecheck() async throws {
+    let writer = try await fixture()
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(
+      providerFactoryOverride: { UnreadableKeyClassificationProvider(name: "OpenAI") }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == .keyUnreadable)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
+  func unreadableKeyKeepsExistingAssignmentsOnReclassify() async throws {
+    let writer = try await fixture()
+    for id in 1001...1003 {
+      try await writer.applyClassification(entryID: id, result: .init(entryID: id, categoryLabel: "tech"))
+    }
+    let engine = ClassificationEngine(providerFactoryOverride: { UnreadableKeyClassificationProvider(name: "OpenAI") })
+    await engine.reclassifyAll(writer: writer)
+    #expect(engine.lastAbort == .keyUnreadable)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
   }
 
   @Test

@@ -113,9 +113,11 @@ struct VercelClassificationTests {
   func missingKeySendsNothing() async {
     let recorder = ClassificationTransportRecorder(data: success)
     let provider = VercelClassificationProvider(apiKey: " \n", send: { try await recorder.send($0) })
-    await #expect(throws: VercelClassificationError.self) {
+    let error = await #expect(throws: VercelClassificationError.self) {
       try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
     }
+    #expect(error?.batchAbort == .needsKey)
+    #expect(error?.retryDisposition == .blocked)
     #expect(await recorder.requests.isEmpty)
   }
 
@@ -300,8 +302,8 @@ struct ClassificationRetryTests {
       VercelClassificationError.http(402, retryAfter: 120), VercelClassificationError.http(401, retryAfter: nil),
       VercelClassificationError.invalidResponse,
       OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
-      OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey,
-      FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
+      OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey, VercelClassificationError.needsKey,
+      UnreadableKeyFailure(), FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
     ]
     for failure in stopping { #expect(!failure.isSkippable, "\(failure) must not be skippable") }
   }

@@ -2,16 +2,18 @@ import Foundation
 
 // MARK: - Model picker state machine
 
-/// Phases of the Settings model-picker surface, as a tagged union (never
-/// parallel booleans — `CLAUDE.md → Architecture`). `needsKey` and `loading`
-/// are set by the view (no fetch outcome exists yet); the rest come from
-/// `resolveModelListState`.
+/// Phases of the Settings model-picker surface. The view sets `needsKey`,
+/// `loading`, and `keyUnreadable` before a fetch; `resolveModelListState` maps
+/// every fetch outcome.
 nonisolated enum ModelListState: Equatable, Sendable {
   case needsKey
   case loading
   case loaded([String])
   case empty
   case failed(reason: String)
+
+  /// The copy must not claim that no key is saved.
+  static let keyUnreadable = ModelListState.failed(reason: "Models load when the API key can be read.")
 }
 
 /// Reduce a fetch outcome to a picker state. Pure: filtering (cosmetic

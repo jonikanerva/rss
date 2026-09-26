@@ -240,6 +240,8 @@ struct TransientEntrySkipTests {
     VercelClassificationError.http(402, retryAfter: nil),
     OpenAIError.apiError(statusCode: 503, message: "x", retryAfter: 5),
     AppleFMClassificationError.modelUnavailable,
+    OpenAIError.needsKey,
+    UnreadableKeyFailure(),
   ]
 
   @Test(arguments: TransientEntrySkipTests.stoppingFailures)

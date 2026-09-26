@@ -264,12 +264,10 @@ extension OpenAIError: ClassificationFailure {
   /// failure never reaches the retry state.
   var retryDisposition: ClassificationRetry {
     switch self {
-    case .needsKey:
-      .poll
+    case .needsKey, .quotaExhausted:
+      .blocked
     case .apiError(let statusCode, _, let retryAfter):
       ClassificationRetry(httpStatus: statusCode, retryAfter: retryAfter)
-    case .quotaExhausted:
-      .blocked
     case .networkUnavailable:
       .transient(retryAfter: nil)
     case .invalidResponse, .emptyResponse, .entryRejected:

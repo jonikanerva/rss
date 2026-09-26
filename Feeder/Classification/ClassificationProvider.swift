@@ -38,6 +38,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case offline
   case providerUnavailable
   case needsKey
+  case keyUnreadable
   case invalidCategories
   case inputTooLarge
   case invalidResponse
@@ -53,6 +54,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .offline: "Categorizing paused — offline"
     case .providerUnavailable: "Categorizing paused — provider unavailable"
     case .needsKey: "Add an API key to start categorizing"
+    case .keyUnreadable: "Could not read the API key from Keychain"
     case .invalidCategories: "JEV needs unique category labels and at most 255 categories"
     case .inputTooLarge: "Category definitions are too large for JEV"
     case .invalidResponse: "JEV returned an invalid result"
@@ -74,7 +76,8 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   /// failure a reason that does not (`STACK.md → Cloud classification`).
   var offersSettings: Bool {
     switch self {
-    case .keyRejected, .modelRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted: true
+    case .keyRejected, .modelRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted:
+      true
     case .offline, .providerUnavailable, .rateLimited: false
     }
   }

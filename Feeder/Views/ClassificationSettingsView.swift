@@ -149,7 +149,14 @@ struct ClassificationSettingsView: View {
 
   private func refreshModelList() async {
     guard settings.provider == .openAI else { return }
-    guard let apiKey = await settings.keyForModelList() else {
+    let storedKey: String?
+    do throws(KeychainError) {
+      storedKey = try await settings.keyForModelList()
+    } catch {
+      modelListState = .keyUnreadable
+      return
+    }
+    guard let apiKey = storedKey else {
       modelListState = .needsKey
       return
     }
@@ -257,6 +264,8 @@ private struct APIKeyEditSheet: View {
       onCommit(operation != .remove && !hadKey)
       dismiss()
     } catch {
+      // A save that fails after its delete completed removed the old key: the engine must learn of it.
+      if hadKey, !settings.hasStoredKey { onCommit(false) }
       guard !Task.isCancelled else { return }
       errorMessage =
         operation == .remove
@@ -317,6 +326,8 @@ private struct ClassificationSettingsPreview: View {
 }
 #Preview("Vercel — large categories") { ClassificationSettingsPreview(reason: .inputTooLarge) }
 #Preview("Vercel — unavailable") { ClassificationSettingsPreview(reason: .providerUnavailable) }
+#Preview("Vercel — key unreadable") { ClassificationSettingsPreview(reason: .keyUnreadable) }
+#Preview("OpenAI — key unreadable") { ClassificationSettingsPreview(provider: .openAI, reason: .keyUnreadable) }
 #Preview("OpenAI — invalid key") { ClassificationSettingsPreview(provider: .openAI, reason: .keyRejected) }
 #Preview("OpenAI — service limit") { ClassificationSettingsPreview(provider: .openAI, reason: .rateLimited) }
 #Preview("OpenAI — quota") { ClassificationSettingsPreview(provider: .openAI, reason: .quotaExhausted) }
@@ -459,6 +470,19 @@ private struct OpenAIModelPickerRow: View {
   Form {
     Section("OpenAI") {
       OpenAIModelPickerRow(selection: $selection, state: .failed(reason: "API key was rejected."))
+    }
+  }
+  .formStyle(.grouped)
+  .frame(width: 480, height: 200)
+}
+
+#Preview("Model Picker - Key Unreadable") {
+  @Previewable
+  @State
+  var selection = OpenAIModelSetting.defaultModel
+  Form {
+    Section("OpenAI") {
+      OpenAIModelPickerRow(selection: $selection, state: .keyUnreadable)
     }
   }
   .formStyle(.grouped)

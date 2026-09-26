@@ -894,6 +894,7 @@ struct CloudFailureDispositionPairingTests {
       .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network,
     ]
     for failure in vercel { expectPairing(failure) }
+    expectPairing(UnreadableKeyFailure())
   }
 
   @Test
@@ -919,6 +920,7 @@ struct ClassificationAbortReasonCopyTests {
     (.offline, "Categorizing paused — offline"),
     (.providerUnavailable, "Categorizing paused — provider unavailable"),
     (.needsKey, "Add an API key to start categorizing"),
+    (.keyUnreadable, "Could not read the API key from Keychain"),
     (.invalidCategories, "JEV needs unique category labels and at most 255 categories"),
     (.inputTooLarge, "Category definitions are too large for JEV"),
     (.invalidResponse, "JEV returned an invalid result"),
@@ -949,12 +951,13 @@ struct ClassificationAbortReasonCopyTests {
     #expect(
       ClassificationAbortReason.providerUnavailable.symbolName == "exclamationmark.triangle")
     #expect(ClassificationAbortReason.quotaExhausted.symbolName == "exclamationmark.triangle")
+    #expect(ClassificationAbortReason.keyUnreadable.symbolName == "exclamationmark.triangle")
   }
 
   @Test
   func settingsAffordanceMatchesApprovedMapping() {
     let offersSettings: [ClassificationAbortReason] = [
-      .modelRejected, .keyRejected, .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted,
+      .modelRejected, .keyRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted,
     ]
     let selfHealing: [ClassificationAbortReason] = [.offline, .providerUnavailable, .rateLimited]
     for reason in offersSettings { #expect(reason.offersSettings, "\(reason) must offer Settings") }

@@ -243,6 +243,7 @@ struct PickerOptionsTests {
       .loading,
       .empty,
       .failed(reason: "API key was rejected."),
+      .keyUnreadable,
       .loaded(["gpt-a", "gpt-b"]),
       .loaded([]),
       .loaded(["custom-pick"]),

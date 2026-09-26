@@ -1,11 +1,12 @@
 import Foundation
+import Security
 import Testing
 
 @testable import Feeder
 
 // MARK: - ClassificationEngine.buildProvider
 
-/// The injected keychain-load closure keeps the test off the real keychain, so
+/// The injected keychain-read closure keeps the test off the real keychain, so
 /// no run pollutes the Security session or raises a prompt.
 @Suite("ClassificationEngine.buildProvider")
 struct ClassificationProviderResolutionTests {
@@ -35,18 +36,18 @@ struct ClassificationProviderResolutionTests {
   // MARK: - Apple FM path
 
   /// `.appleFM` is the default kind. Resolving it must never call the
-  /// keychain-load closure.
+  /// keychain-read closure.
   @Test
   func appleFMKindSkipsKeychainEntirely() {
     ClassificationProviderKind.persist(.appleFM, in: defaults)
 
-    var loadCallCount = 0
+    var readCallCount = 0
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in
-      loadCallCount += 1
+      readCallCount += 1
       return "should-not-be-read"
     }
 
-    #expect(loadCallCount == 0)
+    #expect(readCallCount == 0)
     #expect(provider.name == "Apple FM")
   }
 
@@ -80,7 +81,43 @@ struct ClassificationProviderResolutionTests {
     }
     let failure = error as? any ClassificationFailure
     #expect(failure?.batchAbort == .needsKey)
-    #expect(failure?.retryDisposition == .poll)
+    #expect(failure?.retryDisposition == .blocked)
+  }
+
+  // MARK: - Cloud providers with an unreadable key
+
+  private static let failedReads: [KeychainError] = [
+    .osStatus(errSecAuthFailed), .osStatus(errSecUserCanceled), .osStatus(errSecInteractionNotAllowed), .osStatus(-1),
+    .encodingFailed,
+  ]
+
+  @Test(arguments: [ClassificationProviderKind.openAI, .vercel], ClassificationProviderResolutionTests.failedReads)
+  func cloudKindWithUnreadableKeyKeepsItsProviderAndBlocks(kind: ClassificationProviderKind, failure: KeychainError) async {
+    ClassificationProviderKind.persist(kind, in: defaults)
+    var requestedKeys: [String] = []
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { (key: String) throws(KeychainError) -> String? in
+      requestedKeys.append(key)
+      throw failure
+    }
+
+    let account = kind == .openAI ? KeychainHelper.openAIAPIKeychainKey : KeychainHelper.vercelAPIKeychainKey
+    #expect(requestedKeys == [account])
+    #expect(provider is UnreadableKeyClassificationProvider)
+    let realProvider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
+    #expect(provider.name == kind.displayName)
+    #expect(provider.name == realProvider.name)
+    #expect(!(await provider.isAvailable))
+    let validateError = await #expect(throws: UnreadableKeyFailure.self) {
+      try await provider.validate(categories: categories)
+    }
+    let classifyError = await #expect(throws: UnreadableKeyFailure.self) {
+      _ = try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    }
+    for error in [validateError, classifyError] {
+      #expect(error?.batchAbort == .keyUnreadable)
+      #expect(error?.retryDisposition == .blocked)
+      #expect(error?.isSkippable == false)
+    }
   }
 
   // MARK: - OpenAI path with key
