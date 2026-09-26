@@ -913,22 +913,32 @@ struct CloudFailureDispositionPairingTests {
 /// of a batch abort.
 @Suite("ClassificationAbortReason copy")
 struct ClassificationAbortReasonCopyTests {
+  private static let providerIndependentLabels: [(ClassificationAbortReason, String)] = [
+    (.modelRejected, "Model rejected the request"),
+    (.keyRejected, "API key was rejected"),
+    (.offline, "Categorizing paused — offline"),
+    (.providerUnavailable, "Categorizing paused — provider unavailable"),
+    (.needsKey, "Add an API key to start categorizing"),
+    (.invalidCategories, "JEV needs unique category labels and at most 255 categories"),
+    (.inputTooLarge, "Category definitions are too large for JEV"),
+    (.invalidResponse, "JEV returned an invalid result"),
+    (.rateLimited, "Categorizing paused — service limit reached"),
+  ]
+
+  @Test(arguments: ClassificationAbortReasonCopyTests.providerIndependentLabels)
+  func displayLabelsMatchApprovedLiterals(reason: ClassificationAbortReason, label: String) {
+    let providers: [ClassificationProviderKind?] = ClassificationProviderKind.allCases + [nil]
+    for provider in providers {
+      #expect(reason.displayLabel(reportedBy: provider) == label, "\(reason) reported by \(String(describing: provider))")
+    }
+  }
+
   @Test
-  func displayLabelsMatchApprovedLiterals() {
-    #expect(ClassificationAbortReason.modelRejected.displayLabel == "Model rejected the request")
-    #expect(ClassificationAbortReason.keyRejected.displayLabel == "API key was rejected")
-    #expect(ClassificationAbortReason.offline.displayLabel == "Categorizing paused — offline")
+  func quotaLabelNamesTheReportingProvider() {
     #expect(
-      ClassificationAbortReason.providerUnavailable.displayLabel
-        == "Categorizing paused — provider unavailable")
-    #expect(ClassificationAbortReason.needsKey.displayLabel == "Add an API key to start categorizing")
+      ClassificationAbortReason.quotaExhausted.displayLabel(reportedBy: .openAI) == "OpenAI quota used up — check billing at OpenAI")
     #expect(
-      ClassificationAbortReason.invalidCategories.displayLabel
-        == "JEV needs unique category labels and at most 255 categories")
-    #expect(ClassificationAbortReason.inputTooLarge.displayLabel == "Category definitions are too large for JEV")
-    #expect(ClassificationAbortReason.invalidResponse.displayLabel == "JEV returned an invalid result")
-    #expect(ClassificationAbortReason.rateLimited.displayLabel == "Categorizing paused — service limit reached")
-    #expect(ClassificationAbortReason.quotaExhausted.displayLabel == "OpenAI quota used up — check billing at OpenAI")
+      ClassificationAbortReason.quotaExhausted.displayLabel(reportedBy: .vercel) == "Vercel quota used up — check billing at Vercel")
   }
 
   @Test

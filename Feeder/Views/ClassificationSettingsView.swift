@@ -63,7 +63,7 @@ struct ClassificationSettingsView: View {
           }
           if let abort = classificationEngine.lastAbort, classificationEngine.lastAbortProvider == settings.provider {
             HStack {
-              Label(abort.displayLabel, systemImage: abort.symbolName)
+              Label(abort.displayLabel(reportedBy: classificationEngine.lastAbortProvider), systemImage: abort.symbolName)
                 .font(fontSettings.caption)
                 .foregroundStyle(.secondary)
               Spacer()

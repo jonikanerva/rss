@@ -144,7 +144,7 @@ struct SyncStatusView: View {
     HStack(spacing: 6) {
       Image(systemName: abort.symbolName)
         .foregroundStyle(Color.orange)
-      Text(abort.displayLabel)
+      Text(abort.displayLabel(reportedBy: classificationEngine.lastAbortProvider))
         .foregroundStyle(.secondary)
       if abort.offersSettings {
         Button("Open Settings") {
