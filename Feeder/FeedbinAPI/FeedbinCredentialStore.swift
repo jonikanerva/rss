@@ -1,7 +1,9 @@
 import Foundation
 import Security
 
-nonisolated struct FeedbinCredentials: Sendable, Equatable {
+/// The property names are the JSON keys of the stored Keychain item: a rename
+/// makes every stored account unreadable.
+nonisolated struct FeedbinCredentials: Sendable, Equatable, Codable {
   let username: String
   let password: String
 
@@ -37,6 +39,26 @@ actor KeychainFeedbinCredentialStore {
   func remove() throws(KeychainError) {
     try KeychainHelper.delete(key: KeychainHelper.feedbinPasswordKey)
     UserDefaults.standard.removeObject(forKey: Self.usernameDefaultsKey)
+  }
+
+  // MARK: - Pure rules
+
+  nonisolated static func encodeItem(_ credentials: FeedbinCredentials) throws(KeychainError) -> String {
+    do {
+      return try String(decoding: JSONEncoder().encode(credentials), as: UTF8.self)
+    } catch {
+      throw .encodingFailed
+    }
+  }
+
+  /// Data that does not decode, including empty data, is a failed read, never
+  /// a missing account.
+  nonisolated static func decodeItem(_ item: String) throws(KeychainError) -> FeedbinCredentials {
+    do {
+      return try JSONDecoder().decode(FeedbinCredentials.self, from: Data(item.utf8))
+    } catch {
+      throw .encodingFailed
+    }
   }
 
   /// Reads the password only for a non-empty username: without a username
