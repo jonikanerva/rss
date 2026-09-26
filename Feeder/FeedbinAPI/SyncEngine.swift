@@ -317,16 +317,16 @@ final class SyncEngine {
   }
 
   private func resolveAccount() async {
-    setAccount(.checking)
+    account = .checking
     do {
       guard let credentials = try await credentialStore.load(), credentials.isComplete else {
-        setAccount(.noAccount)
+        account = .noAccount
         return
       }
       client = makeClient(credentials)
-      setAccount(.signedIn(username: credentials.username))
+      account = .signedIn(username: credentials.username)
     } catch {
-      setAccount(.unreadable)
+      account = .unreadable
     }
   }
 
@@ -342,18 +342,12 @@ final class SyncEngine {
       // The remove completed, so no account is stored.
       stopPeriodicSync()
       client = nil
-      setAccount(.noAccount)
+      account = .noAccount
       throw error
     }
     client = candidate
-    setAccount(.signedIn(username: credentials.username))
+    account = .signedIn(username: credentials.username)
     return true
-  }
-
-  /// Assign `account` only here: observers must see only real phase changes.
-  private func setAccount(_ phase: FeedbinAccountPhase) {
-    guard account != phase else { return }
-    account = phase
   }
 
   // MARK: - Sync
