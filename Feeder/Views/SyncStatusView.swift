@@ -237,8 +237,8 @@ private enum SyncStatusPreviewState {
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .offline)
     case .abortedRateLimited:
-      // Self-healing cause → no button; the service-limit label a rate limit
-      // from either cloud provider reaches.
+      // Self-healing cause → no button; a rate limit from any provider shows
+      // this service-limit label.
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .rateLimited)
     case .abortedQuotaExhausted:

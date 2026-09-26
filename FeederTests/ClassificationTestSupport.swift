@@ -59,8 +59,6 @@ actor FakeClassificationProvider {
 
   // MARK: - ClassificationProvider conformance
 
-  /// The availability the runner's guard sees. One test flips it, to prove the
-  /// early return emits an owning provider-unavailable outcome.
   private var available = true
   private var validationError: VercelClassificationError?
 

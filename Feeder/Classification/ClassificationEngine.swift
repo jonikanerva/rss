@@ -388,6 +388,10 @@ nonisolated struct ClassificationRunner: Sendable {
                 logBatchAbort(error, provider: provider.name, completed: completed)
                 return await abort(error, completed: completed)
               }
+              let label = (error as? any ClassificationFailure)?.publicLogLabel ?? String(describing: type(of: error))
+              Self.logger.notice(
+                "Entry \(input.entryID, privacy: .private) takes the uncategorized fallback after a per-entry failure from provider '\(provider.name, privacy: .public)': \(label, privacy: .public)"
+              )
               result = ClassificationResult(entryID: input.entryID, categoryLabel: uncategorizedLabel)
             }
           }

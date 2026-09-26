@@ -238,6 +238,7 @@ struct TransientEntrySkipTests {
     FakeClassificationFailure(batchAbort: .providerUnavailable),
     VercelClassificationError.http(429, retryAfter: nil),
     OpenAIError.apiError(statusCode: 503, message: "x", retryAfter: 5),
+    AppleFMClassificationError.modelUnavailable,
   ]
 
   @Test(arguments: TransientEntrySkipTests.stoppingFailures)
@@ -262,6 +263,7 @@ struct TransientEntrySkipTests {
     VercelClassificationError.http(429, retryAfter: nil),
     VercelClassificationError.http(402, retryAfter: nil),
     OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil),
+    AppleFMClassificationError.rateLimited(retryAfter: nil),
   ]
 
   @Test(arguments: TransientEntrySkipTests.serviceLimits)
@@ -279,6 +281,78 @@ struct TransientEntrySkipTests {
     #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.rateLimited])
     #expect(failures == TransientEntryFailures())
     for id in ids { try await expectPending(writer, id: id) }
+  }
+
+  // MARK: - Apple Foundation Models failures
+
+  @Test
+  func unavailableModelStopsTheDrainUntilTheModelReturns() async throws {
+    let writer = try await makeWriter()
+    let ids = try await persist(writer, ["First", "Second", "Third", "Fourth", "Fifth"], firstID: 1001)
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(AppleFMClassificationError.modelUnavailable, count: 1, afterSuccesses: 2)
+    let recorder = SnapshotRecorder()
+    let runner = makeRunner(writer, provider: provider, recorder: recorder)
+    var failures = TransientEntryFailures()
+    let outcome = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures)
+    switch outcome {
+    case .aborted(.poll, completed: 2): break
+    default: Issue.record("Expected a poll abort after two completed entries, got \(outcome)")
+    }
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.providerUnavailable])
+    #expect(await provider.callCount == 3)
+    for id in ids[2...] { try await expectPending(writer, id: id) }
+    #expect(failures == TransientEntryFailures())
+
+    await provider.configureAvailability(false)
+    _ = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures)
+    #expect(await provider.callCount == 3)
+
+    await provider.configureAvailability(true)
+    let recovered = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures)
+    #expect(recovered.completedCount == 3)
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.providerUnavailable, .providerUnavailable, nil])
+    for id in ids { try await expectCategory(writer, id: id, "tech") }
+    #expect(failures == TransientEntryFailures())
+  }
+
+  @Test
+  func contentFailureTakesTheFallbackAndTheDrainContinues() async throws {
+    let writer = try await makeWriter()
+    let ids = try await persist(writer, ["First", "Poison", "Third"], firstID: 1001)
+    let provider = FakeClassificationProvider()
+    await provider.configureFailure(AppleFMClassificationError.guardrailViolation, forTitle: "Poison")
+    let recorder = SnapshotRecorder()
+    var failures = TransientEntryFailures()
+    let outcome = await makeRunner(writer, provider: provider, recorder: recorder)
+      .runOneBatch(cutoffDate: .distantPast, failures: &failures)
+    #expect(outcome.completedCount == 3)
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [nil])
+    try await expectCategory(writer, id: ids[0], "tech")
+    try await expectCategory(writer, id: ids[1], uncategorizedLabel)
+    try await expectCategory(writer, id: ids[2], "tech")
+    #expect(failures == TransientEntryFailures())
+  }
+
+  @Test
+  func rateLimitStopsTheDrainWithTheResetWait() async throws {
+    let writer = try await makeWriter()
+    let ids = try await persist(writer, ["First", "Second", "Third"], firstID: 1001)
+    let provider = FakeClassificationProvider()
+    await provider.configureErrors(AppleFMClassificationError.rateLimited(retryAfter: 30), count: .max, afterSuccesses: 1)
+    let recorder = SnapshotRecorder()
+    var failures = TransientEntryFailures()
+    let outcome = await makeRunner(writer, provider: provider, recorder: recorder)
+      .runOneBatch(cutoffDate: .distantPast, failures: &failures)
+    switch outcome {
+    case .aborted(.transient(retryAfter: 30), completed: 1): break
+    default: Issue.record("Expected a transient abort with a 30-second wait after one completed entry, got \(outcome)")
+    }
+    #expect(await provider.callCount == 2)
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.rateLimited])
+    try await expectCategory(writer, id: ids[0], "tech")
+    for id in ids[1...] { try await expectPending(writer, id: id) }
+    #expect(failures == TransientEntryFailures())
   }
 
   // MARK: - Engine
