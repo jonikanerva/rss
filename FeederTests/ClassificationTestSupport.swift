@@ -193,6 +193,13 @@ enum OpenAIErrorBodies {
   ]
 }
 
+// MARK: - Vercel error bodies
+
+enum VercelErrorBodies {
+  static let budgetExceeded =
+    #"{"error":{"message":"Project budget exceeded. Current spend: $200.00, limit: $200.00. Please contact your administrator to increase the budget.","type":"quota_for_entity_exceeded"}}"#
+}
+
 // MARK: - Snapshot recorder
 
 /// Records the snapshot timeline the runner reports. Driving the runner

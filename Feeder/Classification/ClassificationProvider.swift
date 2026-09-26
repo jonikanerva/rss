@@ -46,7 +46,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
 
   /// Fixed banner copy: a fragment with no trailing period, like the other
   /// status labels. A test locks the literals.
-  var displayLabel: String {
+  func displayLabel(reportedBy provider: ClassificationProviderKind?) -> String {
     switch self {
     case .modelRejected: "Model rejected the request"
     case .keyRejected: "API key was rejected"
@@ -57,7 +57,12 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .inputTooLarge: "Category definitions are too large for JEV"
     case .invalidResponse: "JEV returned an invalid result"
     case .rateLimited: "Categorizing paused — service limit reached"
-    case .quotaExhausted: "OpenAI quota used up — check billing at OpenAI"
+    case .quotaExhausted:
+      // No `default:`: a new provider kind must choose its own billing copy.
+      switch provider {
+      case .vercel: "Vercel quota used up — check billing at Vercel"
+      case .openAI, .appleFM, nil: "OpenAI quota used up — check billing at OpenAI"
+      }
     }
   }
 

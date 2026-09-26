@@ -144,7 +144,7 @@ struct SyncStatusView: View {
     HStack(spacing: 6) {
       Image(systemName: abort.symbolName)
         .foregroundStyle(Color.orange)
-      Text(abort.displayLabel)
+      Text(abort.displayLabel(reportedBy: classificationEngine.lastAbortProvider))
         .foregroundStyle(.secondary)
       if abort.offersSettings {
         Button("Open Settings") {
@@ -183,6 +183,7 @@ private enum SyncStatusPreviewState {
   case abortedOffline
   case abortedRateLimited
   case abortedQuotaExhausted
+  case abortedQuotaExhaustedVercel
   case abortedWhileSyncing
 
   func apply(toSync sync: SyncEngine, classification: ClassificationEngine) {
@@ -247,6 +248,10 @@ private enum SyncStatusPreviewState {
       // the button must not truncate (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .openAI)
+    case .abortedQuotaExhaustedVercel:
+      // Threshold check for the Vercel quota copy at the largest text size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .vercel)
     case .abortedWhileSyncing:
       // Both banners stacked at the narrow frame must not truncate
       // (`STACK.md § 11`).
@@ -316,6 +321,10 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Quota") {
   syncStatusPreview(state: .abortedQuotaExhausted, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Quota (Vercel)") {
+  syncStatusPreview(state: .abortedQuotaExhaustedVercel, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Offline") {

@@ -166,8 +166,9 @@ struct ClassificationCancellationTests {
     let engine = ClassificationEngine(providerFactoryOverride: { provider })
     await engine.classifyUnclassified(writer: writer)
     #expect(await recorder.requests.count == 1)
-    #expect(engine.lastAbort == .rateLimited)
-    #expect(VercelClassificationError.http(402, retryAfter: nil).retryDisposition == .transient(retryAfter: nil))
+    #expect(engine.lastAbort == .quotaExhausted)
+    #expect(engine.lastAbortProvider != nil)
+    #expect(VercelClassificationError.http(402, retryAfter: nil).retryDisposition == .blocked)
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == false) }
   }
 
@@ -382,6 +383,34 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
+  nonisolated private static let billingFailures: [(CloudProviderFixture, ClassificationHTTPResponse)] = [
+    (.vercel, .status(402, retryAfter: "120", data: Data(VercelErrorBodies.budgetExceeded.utf8))),
+    (.openAI, .status(429, retryAfter: "120", data: Data(OpenAIErrorBodies.billing[0].utf8))),
+  ]
+
+  @Test(arguments: ClassificationCancellationTests.billingFailures)
+  func billingFailureWaitsForRetryOrTheHourlyRecheck(_ cloud: CloudProviderFixture, _ failure: ClassificationHTTPResponse) async throws {
+    let writer = try await fixture(entryCount: 1)
+    let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
+    let loopClock = ClassificationSleepRecorder()
+    let (provider, transport) = cloudProvider(cloud, [.success(failure), .success(cloud.success)], retryClock: retryClock)
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("loop wait reached") { await loopClock.delays.count == 1 }
+    #expect(await loopClock.delays == [.seconds(3600)])
+    #expect(await transport.requests.count == 1)
+    #expect(await retryClock.delays.isEmpty)
+    #expect(engine.lastAbort == .quotaExhausted)
+    #expect(engine.lastAbortProvider != nil)
+    try await expectPending(writer)
+    await engine.classifyUnclassified(writer: writer)
+    #expect(await transport.requests.count == 2)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.primaryCategory == "tech")
+    #expect(engine.lastAbort == nil)
+    #expect(engine.lastAbortProvider == nil)
+    engine.stopContinuousClassification()
+  }
+
   @Test
   func serverErrorThenMalformedResultStopsWithoutAnotherRequest() async throws {
     let writer = try await fixture(entryCount: 1)
@@ -439,7 +468,7 @@ struct ClassificationCancellationTests {
 
   nonisolated private static let nonHealableStatuses: [(CloudProviderFixture, Int, ClassificationAbortReason, ClassificationRetry)] = [
     (.vercel, 401, .keyRejected, .blocked),
-    (.vercel, 402, .rateLimited, .transient(retryAfter: nil)),
+    (.vercel, 402, .quotaExhausted, .blocked),
     (.vercel, 403, .keyRejected, .blocked),
     (.vercel, 400, .modelRejected, .blocked),
     (.openAI, 401, .keyRejected, .blocked),
