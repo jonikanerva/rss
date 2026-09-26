@@ -154,6 +154,48 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
+  // MARK: - Unreadable keys
+
+  @Test
+  func unreadableKeyBlocksTheBatchBeforeAnyProgress() async throws {
+    let writer = try await fixture()
+    let (outcome, snapshots) = await runOneBatch(writer, provider: UnreadableKeyClassificationProvider(name: "Vercel AI Gateway"))
+    switch outcome {
+    case .aborted(.blocked, completed: 0): break
+    default: Issue.record("Expected a blocked abort with no completed entries, got \(outcome)")
+    }
+    #expect(snapshots.filter(\.ownsAbort).map(\.abort) == [.keyUnreadable])
+    let reportedProgress = snapshots.contains(where: \.isClassifying)
+    #expect(!reportedProgress)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+  }
+
+  @Test
+  func unreadableKeyWaitsForTheHourlyRecheck() async throws {
+    let writer = try await fixture()
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(
+      providerFactoryOverride: { UnreadableKeyClassificationProvider(name: "OpenAI") }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == .keyUnreadable)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
+  func unreadableKeyKeepsExistingAssignmentsOnReclassify() async throws {
+    let writer = try await fixture()
+    for id in 1001...1003 {
+      try await writer.applyClassification(entryID: id, result: .init(entryID: id, categoryLabel: "tech"))
+    }
+    let engine = ClassificationEngine(providerFactoryOverride: { UnreadableKeyClassificationProvider(name: "OpenAI") })
+    await engine.reclassifyAll(writer: writer)
+    #expect(engine.lastAbort == .keyUnreadable)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+  }
+
   @Test
   func cancelledProviderResultNeverPersists() async throws {
     let writer = try await fixture()

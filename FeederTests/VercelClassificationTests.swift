@@ -303,7 +303,7 @@ struct ClassificationRetryTests {
       VercelClassificationError.invalidResponse,
       OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
       OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey, VercelClassificationError.needsKey,
-      FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
+      UnreadableKeyFailure(), FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
     ]
     for failure in stopping { #expect(!failure.isSkippable, "\(failure) must not be skippable") }
   }
