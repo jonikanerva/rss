@@ -20,14 +20,14 @@ struct ClassificationSettingsTests {
     let firstRevision = settings.keyRevision
     try await settings.save("replacement", for: .vercel)
     #expect(settings.keyRevision > firstRevision)
-    #expect(try await store.load(provider: .openAI) == "openai-test")
-    #expect(try await store.load(provider: .vercel) == "replacement")
+    #expect(await store.load(provider: .openAI) == "openai-test")
+    #expect(await store.load(provider: .vercel) == "replacement")
     try await settings.removeKey(for: .vercel)
     #expect(!settings.hasStoredKey)
     settings.select(.openAI)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
-    #expect(try await store.load(provider: .openAI) == "openai-test")
+    #expect(await store.load(provider: .openAI) == "openai-test")
     #expect(try await settings.keyForModelList() == nil)
   }
 
@@ -66,8 +66,8 @@ struct ClassificationSettingsTests {
     await settings.refreshKey()
     #expect(settings.provider == .openAI)
     #expect(settings.hasStoredKey)
-    #expect(try await store.load(provider: .openAI) == "openai-test")
-    #expect(try await store.load(provider: .vercel) == "vercel-test")
+    #expect(await store.load(provider: .openAI) == "openai-test")
+    #expect(await store.load(provider: .vercel) == "vercel-test")
   }
   @Test
   func rapidProviderSwitchesDiscardTheEarlierKeyLoad() async throws {
@@ -182,7 +182,7 @@ struct ClassificationSettingsTests {
   func memoryStoreRejectsAnAddOverAnExistingKey() async throws {
     let store = MemoryClassificationKeyStore(values: [.vercel: "old"])
     await #expect(throws: KeychainError.osStatus(errSecDuplicateItem)) { try await store.add("new", provider: .vercel) }
-    #expect(try await store.load(provider: .vercel) == "old")
+    #expect(await store.load(provider: .vercel) == "old")
   }
 }
 

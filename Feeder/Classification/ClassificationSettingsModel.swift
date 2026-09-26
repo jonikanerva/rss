@@ -40,21 +40,16 @@ extension KeychainClassificationKeyStore: ClassificationKeyStore {}
 actor MemoryClassificationKeyStore {
   private var values: [ClassificationProviderKind: String]
   private var failure: KeychainError?
-  private var readFailure: KeychainError?
   private var probe: Result<Bool, KeychainError>?
 
   init(values: [ClassificationProviderKind: String] = [:]) { self.values = values }
 
   /// Applies to `add` and `remove`.
   func configureFailure(_ failure: KeychainError?) { self.failure = failure }
-  func configureReadFailure(_ failure: KeychainError?) { readFailure = failure }
   /// Nil answers from the stored values.
   func configureProbe(_ result: Result<Bool, KeychainError>?) { probe = result }
 
-  func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
-    if let readFailure { throw readFailure }
-    return values[provider]
-  }
+  func load(provider: ClassificationProviderKind) -> String? { values[provider] }
 
   func exists(provider: ClassificationProviderKind) throws(KeychainError) -> Bool {
     guard let probe else { return values[provider] != nil }
