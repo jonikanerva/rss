@@ -309,6 +309,7 @@ private struct ClassificationSettingsPreview: View {
 #Preview("Vercel — offline") { ClassificationSettingsPreview(reason: .offline) }
 #Preview("Vercel — invalid key") { ClassificationSettingsPreview(reason: .keyRejected) }
 #Preview("Vercel — service limit") { ClassificationSettingsPreview(reason: .rateLimited) }
+#Preview("Vercel — quota") { ClassificationSettingsPreview(reason: .quotaExhausted) }
 #Preview("Vercel — rejected request") { ClassificationSettingsPreview(reason: .modelRejected) }
 #Preview("Vercel — invalid response") { ClassificationSettingsPreview(reason: .invalidResponse) }
 #Preview("Vercel — invalid categories") {
