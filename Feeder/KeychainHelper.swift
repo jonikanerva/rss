@@ -2,9 +2,9 @@ import Foundation
 import OSLog
 import Security
 
-/// Errors raised by KeychainHelper when the underlying Security APIs fail.
-/// `encodingFailed` covers stored data that is missing or not valid UTF-8;
-/// `osStatus` wraps a `SecItem…` return code.
+/// `osStatus` wraps a `SecItem…` return code. `encodingFailed` covers item
+/// data that does not convert to or from the format that its store writes,
+/// such as data that is missing or not valid UTF-8, or JSON that does not decode.
 nonisolated enum KeychainError: Error, Equatable, Sendable {
   case encodingFailed
   case osStatus(OSStatus)
@@ -73,7 +73,8 @@ nonisolated enum KeychainHelper {
     }
   }
 
-  /// Empty data stays an empty string: callers treat an empty key as a missing key.
+  /// Empty data stays an empty string, never nil: nil means that no item
+  /// exists, and each caller decides what an empty value means.
   static func decodeReadResult(status: OSStatus, data: Data?) throws(KeychainError) -> String? {
     switch status {
     case errSecSuccess:
