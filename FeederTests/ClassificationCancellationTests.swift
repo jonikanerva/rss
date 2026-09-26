@@ -244,7 +244,8 @@ struct ClassificationCancellationTests {
   func continuousLoopKeepsBackoffAcrossFailedBatches() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
-    await provider.configureErrors(VercelClassificationError.network, count: 7)
+    // Each failed batch skips one article and stops at the second failure.
+    await provider.configureErrors(VercelClassificationError.network, count: 14)
     let clock = ClassificationSleepRecorder(immediateDelays: 7)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
@@ -253,7 +254,7 @@ struct ClassificationCancellationTests {
       .seconds(10), .seconds(20), .seconds(40), .seconds(80), .seconds(160), .seconds(300), .seconds(300), .seconds(2),
     ]
     #expect(await clock.delays == expected)
-    #expect(await provider.callCount == 10)
+    #expect(await provider.callCount == 17)
     #expect(engine.lastAbort == nil)
     engine.stopContinuousClassification()
   }
@@ -262,18 +263,18 @@ struct ClassificationCancellationTests {
   func configurationChangeInterruptsBackoff() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
-    await provider.configureErrors(VercelClassificationError.network, count: 1)
+    await provider.configureErrors(VercelClassificationError.network, count: 2)
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("backoff reached") { await clock.delays.count == 1 }
     #expect(await clock.delays == [.seconds(10)])
-    #expect(await provider.callCount == 1)
+    #expect(await provider.callCount == 2)
     engine.configurationChanged(writer: writer)
     try await waitUntil("replacement completes") {
       let count = await provider.callCount
       let active = await engine.isClassifying
-      return count == 4 && !active
+      return count == 5 && !active
     }
     #expect(engine.lastAbort == nil)
     engine.stopContinuousClassification()

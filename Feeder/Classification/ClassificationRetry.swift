@@ -71,6 +71,44 @@ nonisolated struct ClassificationRetryState: Sendable {
   }
 }
 
+extension ClassificationFailure {
+  /// True only for a failure after which the drain skips the article and sends
+  /// the next one (`STACK.md → Cloud classification`).
+  nonisolated var isSkippable: Bool {
+    guard let batchAbort, batchAbort != .rateLimited else { return false }
+    return retryDisposition == .transient(retryAfter: nil)
+  }
+}
+
+/// Per-article strikes for the skip rule in `STACK.md → Cloud classification`.
+nonisolated struct TransientEntryFailures: Sendable, Equatable {
+  static let fallbackDrainCount = 3
+  /// A key means that an earlier drain skipped the article.
+  private var counts: [Int: Int] = [:]
+
+  func sendsLast(_ entryID: Int) -> Bool {
+    guard let count = counts[entryID] else { return false }
+    return count < Self.fallbackDrainCount
+  }
+
+  /// True means: assign the uncategorized fallback and send no request.
+  func requiresFallback(_ entryID: Int) -> Bool {
+    strikes(for: entryID) >= Self.fallbackDrainCount
+  }
+
+  func strikes(for entryID: Int) -> Int {
+    counts[entryID] ?? 0
+  }
+
+  /// Marks each failed article. Each one gets a strike only when another
+  /// article succeeded in the same drain.
+  mutating func record(failedIDs: [Int], anotherEntrySucceeded: Bool) {
+    for entryID in failedIDs {
+      counts[entryID, default: 0] += anotherEntrySucceeded ? 1 : 0
+    }
+  }
+}
+
 nonisolated enum CloudRequestFailure: Sendable, Equatable {
   /// `retryAfter` comes from `retryAfterDelay(_:now:)`.
   case http(status: Int, retryAfter: TimeInterval?)
