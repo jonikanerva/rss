@@ -375,17 +375,6 @@ final class SyncEngine {
     }
   }
 
-  /// Verify that the configured credentials are valid.
-  func verifyCredentials() async -> Bool {
-    guard let client else { return false }
-    do {
-      return try await client.verifyCredentials()
-    } catch {
-      lastError = categorizeSyncError(error)
-      return false
-    }
-  }
-
   /// Start periodic background sync using structured concurrency.
   func startPeriodicSync(interval: TimeInterval = 300) {
     stopPeriodicSync()
