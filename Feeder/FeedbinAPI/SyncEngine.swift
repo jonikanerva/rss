@@ -319,7 +319,7 @@ final class SyncEngine {
   private func resolveAccount() async {
     account = .checking
     do {
-      guard let credentials = try await credentialStore.load(), credentials.isComplete else {
+      guard let credentials = try await loadOrMigrateCredentials(), credentials.isComplete else {
         account = .noAccount
         return
       }
@@ -328,6 +328,22 @@ final class SyncEngine {
     } catch {
       account = .unreadable
     }
+  }
+
+  /// Calls `loadLegacy()` only when `load()` returns nil, and never calls
+  /// `remove()`. Never contacts Feedbin, so an offline launch signs in.
+  /// Calls `removeLegacy()` only after the add succeeds: a failed add signs
+  /// in from the legacy values and keeps them for the next launch.
+  private func loadOrMigrateCredentials() async throws(KeychainError) -> FeedbinCredentials? {
+    if let stored = try await credentialStore.load() { return stored }
+    guard let legacy = try await credentialStore.loadLegacy(), legacy.isComplete else { return nil }
+    do {
+      try await credentialStore.add(legacy)
+    } catch {
+      return legacy
+    }
+    await credentialStore.removeLegacy()
+    return legacy
   }
 
   /// Must remove before the add: an update would keep the access list of the
@@ -345,6 +361,7 @@ final class SyncEngine {
       account = .noAccount
       throw error
     }
+    await credentialStore.removeLegacy()
     client = candidate
     account = .signedIn(username: credentials.username)
     return true

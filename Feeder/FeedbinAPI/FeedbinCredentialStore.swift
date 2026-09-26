@@ -1,7 +1,9 @@
 import Foundation
 import Security
 
-nonisolated struct FeedbinCredentials: Sendable, Equatable {
+/// The property names are the JSON keys of the stored Keychain item: a rename
+/// makes every stored account unreadable.
+nonisolated struct FeedbinCredentials: Sendable, Equatable, Codable {
   let username: String
   let password: String
 
@@ -17,31 +19,65 @@ nonisolated protocol FeedbinCredentialStore: Sendable {
   func add(_ credentials: FeedbinCredentials) async throws(KeychainError)
   /// Removing a missing account succeeds.
   func remove() async throws(KeychainError)
+  /// Reads the storage that an older build wrote. Nil and a throw mean what
+  /// they mean for `load()`.
+  func loadLegacy() async throws(KeychainError) -> FeedbinCredentials?
+  /// Afterwards `loadLegacy()` returns nil, even when a Keychain delete fails.
+  func removeLegacy() async
 }
 
 actor KeychainFeedbinCredentialStore {
-  private static let usernameDefaultsKey = "feedbin_username"
+  private static let legacyUsernameDefaultsKey = "feedbin_username"
 
   func load() throws(KeychainError) -> FeedbinCredentials? {
-    try Self.credentials(username: UserDefaults.standard.string(forKey: Self.usernameDefaultsKey)) {
+    guard let item = try KeychainHelper.read(key: KeychainHelper.feedbinAccountKey) else { return nil }
+    return try Self.decodeItem(item)
+  }
+
+  /// The username stays in the item data, never in an attribute (`STACK.md § 8`).
+  func add(_ credentials: FeedbinCredentials) throws(KeychainError) {
+    try KeychainHelper.add(key: KeychainHelper.feedbinAccountKey, value: Self.encodeItem(credentials))
+  }
+
+  func remove() throws(KeychainError) {
+    try KeychainHelper.delete(key: KeychainHelper.feedbinAccountKey)
+  }
+
+  func loadLegacy() throws(KeychainError) -> FeedbinCredentials? {
+    try Self.legacyCredentials(username: UserDefaults.standard.string(forKey: Self.legacyUsernameDefaultsKey)) {
       () throws(KeychainError) -> String? in
       try KeychainHelper.read(key: KeychainHelper.feedbinPasswordKey)
     }
   }
 
-  func add(_ credentials: FeedbinCredentials) throws(KeychainError) {
-    try KeychainHelper.add(key: KeychainHelper.feedbinPasswordKey, value: credentials.password)
-    UserDefaults.standard.set(credentials.username, forKey: Self.usernameDefaultsKey)
+  func removeLegacy() {
+    UserDefaults.standard.removeObject(forKey: Self.legacyUsernameDefaultsKey)
+    try? KeychainHelper.delete(key: KeychainHelper.feedbinPasswordKey)
   }
 
-  func remove() throws(KeychainError) {
-    try KeychainHelper.delete(key: KeychainHelper.feedbinPasswordKey)
-    UserDefaults.standard.removeObject(forKey: Self.usernameDefaultsKey)
+  // MARK: - Pure rules
+
+  nonisolated static func encodeItem(_ credentials: FeedbinCredentials) throws(KeychainError) -> String {
+    do {
+      return try String(decoding: JSONEncoder().encode(credentials), as: UTF8.self)
+    } catch {
+      throw .encodingFailed
+    }
+  }
+
+  /// Data that does not decode, including empty data, is a failed read, never
+  /// a missing account.
+  nonisolated static func decodeItem(_ item: String) throws(KeychainError) -> FeedbinCredentials {
+    do {
+      return try JSONDecoder().decode(FeedbinCredentials.self, from: Data(item.utf8))
+    } catch {
+      throw .encodingFailed
+    }
   }
 
   /// Reads the password only for a non-empty username: without a username
   /// there is no account, and the read could show the Keychain access dialog.
-  nonisolated static func credentials(
+  nonisolated static func legacyCredentials(
     username: String?,
     readPassword: () throws(KeychainError) -> String?
   ) throws(KeychainError) -> FeedbinCredentials? {
@@ -54,11 +90,20 @@ extension KeychainFeedbinCredentialStore: FeedbinCredentialStore {}
 
 actor MemoryFeedbinCredentialStore {
   private var credentials: FeedbinCredentials?
+  private var legacyUsername: String?
+  private var legacyPassword: String?
   private var loadFailure: KeychainError?
+  private var legacyPasswordReadFailure: KeychainError?
 
-  init(credentials: FeedbinCredentials? = nil) { self.credentials = credentials }
+  init(credentials: FeedbinCredentials? = nil, legacyUsername: String? = nil, legacyPassword: String? = nil) {
+    self.credentials = credentials
+    self.legacyUsername = legacyUsername
+    self.legacyPassword = legacyPassword
+  }
 
   func configureLoadFailure(_ failure: KeychainError?) { loadFailure = failure }
+
+  func configureLegacyPasswordReadFailure(_ failure: KeychainError?) { legacyPasswordReadFailure = failure }
 
   func load() throws(KeychainError) -> FeedbinCredentials? {
     if let loadFailure { throw loadFailure }
@@ -72,6 +117,19 @@ actor MemoryFeedbinCredentialStore {
 
   func remove() throws(KeychainError) {
     credentials = nil
+  }
+
+  func loadLegacy() throws(KeychainError) -> FeedbinCredentials? {
+    try KeychainFeedbinCredentialStore.legacyCredentials(username: legacyUsername) {
+      () throws(KeychainError) -> String? in
+      if let legacyPasswordReadFailure { throw legacyPasswordReadFailure }
+      return legacyPassword
+    }
+  }
+
+  func removeLegacy() {
+    legacyUsername = nil
+    legacyPassword = nil
   }
 }
 
