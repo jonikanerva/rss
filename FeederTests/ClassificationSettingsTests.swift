@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 
 @testable import Feeder
@@ -19,15 +20,15 @@ struct ClassificationSettingsTests {
     let firstRevision = settings.keyRevision
     try await settings.save("replacement", for: .vercel)
     #expect(settings.keyRevision > firstRevision)
-    #expect(await store.load(provider: .openAI) == "openai-test")
-    #expect(await store.load(provider: .vercel) == "replacement")
+    #expect(try await store.load(provider: .openAI) == "openai-test")
+    #expect(try await store.load(provider: .vercel) == "replacement")
     try await settings.removeKey(for: .vercel)
     #expect(!settings.hasStoredKey)
     settings.select(.openAI)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
-    #expect(await store.load(provider: .openAI) == "openai-test")
-    #expect(await settings.keyForModelList() == nil)
+    #expect(try await store.load(provider: .openAI) == "openai-test")
+    #expect(try await settings.keyForModelList() == nil)
   }
 
   @Test
@@ -47,13 +48,13 @@ struct ClassificationSettingsTests {
   }
 
   @Test
-  func headlessDefaultIsInertAndNeverReadsCloudSettings() async {
+  func headlessDefaultIsInertAndNeverReadsCloudSettings() async throws {
     let settings = ClassificationSettingsModel(isInert: true)
     #expect(settings.provider == .appleFM)
     #expect(!settings.hasStoredKey)
     settings.select(.vercel)
     #expect(!settings.hasStoredKey)
-    #expect(await settings.keyForModelList() == nil)
+    #expect(try await settings.keyForModelList() == nil)
   }
   @Test
   func saveUsesCapturedProviderAfterSelectionChanges() async throws {
@@ -65,8 +66,8 @@ struct ClassificationSettingsTests {
     await settings.refreshKey()
     #expect(settings.provider == .openAI)
     #expect(settings.hasStoredKey)
-    #expect(await store.load(provider: .openAI) == "openai-test")
-    #expect(await store.load(provider: .vercel) == "vercel-test")
+    #expect(try await store.load(provider: .openAI) == "openai-test")
+    #expect(try await store.load(provider: .vercel) == "vercel-test")
   }
   @Test
   func rapidProviderSwitchesDiscardTheEarlierKeyLoad() async throws {
@@ -82,6 +83,61 @@ struct ClassificationSettingsTests {
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
   }
+
+  // MARK: - Keychain probe and read
+
+  @Test(arguments: [true, false])
+  func probeAloneDrivesTheSavedKeyState(itemExists: Bool) async {
+    let store = RecordingClassificationKeyStore(probe: .success(itemExists), read: .failure(.osStatus(errSecAuthFailed)))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey == itemExists)
+    #expect(!settings.isLoadingKey)
+    #expect(await store.calls == [.exists(.vercel)])
+  }
+
+  @Test(arguments: [KeychainError.osStatus(errSecInteractionNotAllowed), .osStatus(errSecAuthFailed), .encodingFailed])
+  func failedProbeKeepsEditAndRetryAvailable(failure: KeychainError) async {
+    let store = MemoryClassificationKeyStore()
+    await store.configureProbe(.failure(failure))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    #expect(!settings.isLoadingKey)
+  }
+
+  @Test
+  func failedModelListReadThrowsAfterOneRead() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true), read: .failure(.osStatus(errSecAuthFailed)))
+    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    await #expect(throws: KeychainError.osStatus(errSecAuthFailed)) { try await settings.keyForModelList() }
+    #expect(await store.calls == [.exists(.openAI), .load(.openAI)])
+  }
+
+  @Test
+  func unreadableKeyModelLineDoesNotClaimAMissingKey() {
+    #expect(ModelListState.keyUnreadable == .failed(reason: "Models load when the API key can be read."))
+    #expect(ModelListState.keyUnreadable != .needsKey)
+  }
+
+  @Test
+  func readableKeyReachesTheModelList() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true), read: .success("sk-test"))
+    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    await settings.refreshKey()
+    #expect(try await settings.keyForModelList() == "sk-test")
+  }
+
+  @Test
+  func emptyStoredKeyGivesTheModelListNoKey() async throws {
+    let store = MemoryClassificationKeyStore(values: [.openAI: ""])
+    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    #expect(try await settings.keyForModelList() == nil)
+  }
 }
 
 actor DelayedClassificationKeyStore {
@@ -91,15 +147,56 @@ actor DelayedClassificationKeyStore {
 
   init() { (gate, continuation) = AsyncStream<Void>.makeStream() }
 
-  func load(provider: ClassificationProviderKind) async -> String? {
+  func exists(provider: ClassificationProviderKind) async -> Bool {
     started = true
     for await _ in gate { break }
-    return "fake-key"
+    return true
   }
 
   func release() { continuation.finish() }
+  func load(provider: ClassificationProviderKind) -> String? { "fake-key" }
   func save(_ value: String, provider: ClassificationProviderKind) throws { throw KeychainError.osStatus(-1) }
   func remove(provider: ClassificationProviderKind) throws { throw KeychainError.osStatus(-1) }
 }
 
 extension DelayedClassificationKeyStore: ClassificationKeyStore {}
+
+/// Records each store call in order and answers from its configuration, with
+/// no Keychain access.
+actor RecordingClassificationKeyStore {
+  enum Call: Equatable {
+    case load(ClassificationProviderKind)
+    case exists(ClassificationProviderKind)
+    case save(ClassificationProviderKind)
+    case remove(ClassificationProviderKind)
+  }
+
+  private(set) var calls: [Call] = []
+  private let probe: Result<Bool, KeychainError>
+  private let read: Result<String?, KeychainError>
+
+  init(probe: Result<Bool, KeychainError>, read: Result<String?, KeychainError> = .success(nil)) {
+    self.probe = probe
+    self.read = read
+  }
+
+  func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
+    calls.append(.load(provider))
+    return try read.get()
+  }
+
+  func exists(provider: ClassificationProviderKind) throws(KeychainError) -> Bool {
+    calls.append(.exists(provider))
+    return try probe.get()
+  }
+
+  func save(_ value: String, provider: ClassificationProviderKind) {
+    calls.append(.save(provider))
+  }
+
+  func remove(provider: ClassificationProviderKind) {
+    calls.append(.remove(provider))
+  }
+}
+
+extension RecordingClassificationKeyStore: ClassificationKeyStore {}

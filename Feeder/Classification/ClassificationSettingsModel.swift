@@ -1,15 +1,23 @@
 import Foundation
 
 nonisolated protocol ClassificationKeyStore: Sendable {
-  func load(provider: ClassificationProviderKind) async -> String?
+  /// Follows the contract of `KeychainHelper.read(key:)`.
+  func load(provider: ClassificationProviderKind) async throws(KeychainError) -> String?
+  /// Follows the contract of `KeychainHelper.exists(key:)`.
+  func exists(provider: ClassificationProviderKind) async throws(KeychainError) -> Bool
   func save(_ value: String, provider: ClassificationProviderKind) async throws
   func remove(provider: ClassificationProviderKind) async throws
 }
 
 actor KeychainClassificationKeyStore {
-  func load(provider: ClassificationProviderKind) -> String? {
-    guard !Task.isCancelled else { return nil }
-    return provider.keychainKey.flatMap { KeychainHelper.load(key: $0) }
+  func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
+    guard !Task.isCancelled, let key = provider.keychainKey else { return nil }
+    return try KeychainHelper.read(key: key)
+  }
+
+  func exists(provider: ClassificationProviderKind) throws(KeychainError) -> Bool {
+    guard !Task.isCancelled, let key = provider.keychainKey else { return false }
+    return try KeychainHelper.exists(key: key)
   }
 
   func save(_ value: String, provider: ClassificationProviderKind) throws {
@@ -31,11 +39,26 @@ extension KeychainClassificationKeyStore: ClassificationKeyStore {}
 actor MemoryClassificationKeyStore {
   private var values: [ClassificationProviderKind: String]
   private var failure: KeychainError?
+  private var readFailure: KeychainError?
+  private var probe: Result<Bool, KeychainError>?
 
   init(values: [ClassificationProviderKind: String] = [:]) { self.values = values }
 
+  /// Applies to `save` and `remove`.
   func configureFailure(_ failure: KeychainError?) { self.failure = failure }
-  func load(provider: ClassificationProviderKind) -> String? { values[provider] }
+  func configureReadFailure(_ failure: KeychainError?) { readFailure = failure }
+  /// Nil answers from the stored values.
+  func configureProbe(_ result: Result<Bool, KeychainError>?) { probe = result }
+
+  func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
+    if let readFailure { throw readFailure }
+    return values[provider]
+  }
+
+  func exists(provider: ClassificationProviderKind) throws(KeychainError) -> Bool {
+    guard let probe else { return values[provider] != nil }
+    return try probe.get()
+  }
 
   func save(_ value: String, provider: ClassificationProviderKind) throws {
     try Task.checkCancellation()
@@ -91,9 +114,10 @@ final class ClassificationSettingsModel {
       keyState = .missing
       return
     }
-    let key = await store.load(provider: selected)
+    // A failed probe is not a missing key: "Edit" and Retry stay available.
+    let exists = (try? await store.exists(provider: selected)) ?? true
     guard !Task.isCancelled, provider == selected, keyRevision == revision else { return }
-    keyState = (key ?? "").isEmpty ? .missing : .saved
+    keyState = exists ? .saved : .missing
   }
 
   func save(_ key: String, for provider: ClassificationProviderKind) async throws {
@@ -108,8 +132,10 @@ final class ClassificationSettingsModel {
     keyRevision &+= 1
   }
 
-  func keyForModelList() async -> String? {
+  /// A throw is a failed read: the caller must not show it as a missing key.
+  func keyForModelList() async throws(KeychainError) -> String? {
     guard !isInert, provider == .openAI, hasStoredKey else { return nil }
-    return await store.load(provider: .openAI)
+    guard let key = try await store.load(provider: .openAI), !key.isEmpty else { return nil }
+    return key
   }
 }

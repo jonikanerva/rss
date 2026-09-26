@@ -149,7 +149,14 @@ struct ClassificationSettingsView: View {
 
   private func refreshModelList() async {
     guard settings.provider == .openAI else { return }
-    guard let apiKey = await settings.keyForModelList() else {
+    let storedKey: String?
+    do throws(KeychainError) {
+      storedKey = try await settings.keyForModelList()
+    } catch {
+      modelListState = .keyUnreadable
+      return
+    }
+    guard let apiKey = storedKey else {
       modelListState = .needsKey
       return
     }
