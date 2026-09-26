@@ -55,14 +55,10 @@ extension KeychainFeedbinCredentialStore: FeedbinCredentialStore {}
 actor MemoryFeedbinCredentialStore {
   private var credentials: FeedbinCredentials?
   private var loadFailure: KeychainError?
-  private var addFailure: KeychainError?
-  private var removeFailure: KeychainError?
 
   init(credentials: FeedbinCredentials? = nil) { self.credentials = credentials }
 
   func configureLoadFailure(_ failure: KeychainError?) { loadFailure = failure }
-  func configureAddFailure(_ failure: KeychainError?) { addFailure = failure }
-  func configureRemoveFailure(_ failure: KeychainError?) { removeFailure = failure }
 
   func load() throws(KeychainError) -> FeedbinCredentials? {
     if let loadFailure { throw loadFailure }
@@ -70,13 +66,11 @@ actor MemoryFeedbinCredentialStore {
   }
 
   func add(_ credentials: FeedbinCredentials) throws(KeychainError) {
-    if let addFailure { throw addFailure }
     guard self.credentials == nil else { throw .osStatus(errSecDuplicateItem) }
     self.credentials = credentials
   }
 
   func remove() throws(KeychainError) {
-    if let removeFailure { throw removeFailure }
     credentials = nil
   }
 }
