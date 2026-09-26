@@ -80,7 +80,7 @@ struct ClassificationProviderResolutionTests {
     }
     let failure = error as? any ClassificationFailure
     #expect(failure?.batchAbort == .needsKey)
-    #expect(failure?.retryDisposition == .poll)
+    #expect(failure?.retryDisposition == .blocked)
   }
 
   // MARK: - OpenAI path with key

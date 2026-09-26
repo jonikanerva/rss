@@ -90,7 +90,7 @@ struct OpenAIClassificationTransportTests {
     default: Issue.record("Expected OpenAIError.needsKey, got \(String(describing: error))")
     }
     #expect(error?.batchAbort == .needsKey)
-    #expect(error?.retryDisposition == .poll)
+    #expect(error?.retryDisposition == .blocked)
     #expect(await recorder.requests.isEmpty)
   }
 
