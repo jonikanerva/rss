@@ -237,6 +237,7 @@ struct TransientEntrySkipTests {
     VercelClassificationError.http(401, retryAfter: nil),
     FakeClassificationFailure(batchAbort: .providerUnavailable),
     VercelClassificationError.http(429, retryAfter: nil),
+    VercelClassificationError.http(402, retryAfter: nil),
     OpenAIError.apiError(statusCode: 503, message: "x", retryAfter: 5),
     AppleFMClassificationError.modelUnavailable,
   ]
@@ -261,7 +262,6 @@ struct TransientEntrySkipTests {
 
   nonisolated private static let serviceLimits: [any Error] = [
     VercelClassificationError.http(429, retryAfter: nil),
-    VercelClassificationError.http(402, retryAfter: nil),
     OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil),
     AppleFMClassificationError.rateLimited(retryAfter: nil),
   ]

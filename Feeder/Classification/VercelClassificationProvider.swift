@@ -167,7 +167,9 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     case .http(let status, _):
       switch status {
       case 401, 403: .keyRejected
-      case 402, 429: .rateLimited
+      // A billing failure: its disposition must stay blocked (`STACK.md → Cloud classification`).
+      case 402: .quotaExhausted
+      case 429: .rateLimited
       case 408, 500...599: .providerUnavailable
       default: .modelRejected
       }
@@ -178,9 +180,6 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     switch self {
     case .needsKey, .invalidCategories, .inputTooLarge: .poll
     case .network: .transient(retryAfter: nil)
-    // An exhausted budget heals when the account is topped up, with no change
-    // in the app, so it takes the backoff instead of the shared block rule.
-    case .http(402, let retryAfter): .transient(retryAfter: retryAfter)
     case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
     case .invalidResponse: .blocked
     }
