@@ -8,9 +8,12 @@ import Testing
 /// equal-timestamp run, an insert above the cursor never shifts a page seam,
 /// the cursor row leaving the filter never skips rows, `hasMore` is exact at a
 /// page boundary, and pin coverage grows the first page to the pinned row's
-/// position. It runs the production writer and reader on one shared in-memory
-/// container; the serial unit-target run caps coordinator pressure
-/// (`STACK.md § 14`), because `.serialized` orders tests within the suite only.
+/// position. The refresh pins hold the trust condition behind refresh
+/// suppression: every write that changes the visible window must show in the
+/// fetches that the view consumes. It runs the production writer and reader on
+/// one shared in-memory container; the serial unit-target run caps coordinator
+/// pressure (`STACK.md § 14`), because `.serialized` orders tests within the
+/// suite only.
 @Suite("DataReader keyset paging", .serialized)
 struct DataReaderPagingTests {
   /// Base instant for generated `published` timestamps — matches the
@@ -27,27 +30,31 @@ struct DataReaderPagingTests {
   }
 
   /// One seeded row: `id`, seconds before the base instant (bigger = older),
-  /// and read state. Category is always `tech`.
+  /// read state, and category. The fetches read the `tech` category.
   private struct RowSpec {
     let id: Int
     let age: Int
     let read: Bool
+    let category: String
 
-    init(id: Int, age: Int, read: Bool = false) {
+    init(id: Int, age: Int, read: Bool = false, category: String = "tech") {
       self.id = id
       self.age = age
       self.read = read
+      self.category = category
     }
   }
 
-  /// Seed a feed, the `tech` category, and the given rows through the
-  /// production write path (`persistEntries` + `applyClassification`), then
-  /// return the writer + reader pair.
+  /// Seed a feed, the `tech` and `other` categories, and the given rows through
+  /// the production write path (`persistEntries` + `applyClassification`), each
+  /// row in the category of its spec, then return the writer + reader pair.
   private func makeSeededPair(_ specs: [RowSpec]) async throws -> (DataWriter, DataReader) {
     let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
     try await writer.syncFeeds([FeedbinFixtures.subscription()])
     try await writer.addCategory(
       label: "tech", displayName: "Tech", description: "Tech news", sortOrder: 0)
+    try await writer.addCategory(
+      label: "other", displayName: "Other", description: "Everything else", sortOrder: 1)
     let entries = try specs.map { spec in
       try FeedbinFixtures.entry(
         id: spec.id, title: "Story \(spec.id)",
@@ -58,7 +65,7 @@ struct DataReaderPagingTests {
     for spec in specs {
       try await writer.applyClassification(
         entryID: spec.id,
-        result: ClassificationResult(entryID: spec.id, categoryLabel: "tech"))
+        result: ClassificationResult(entryID: spec.id, categoryLabel: spec.category))
     }
     return (writer, reader)
   }
@@ -185,12 +192,61 @@ struct DataReaderPagingTests {
     #expect(!lastPage.hasMore)
   }
 
+  // MARK: - Refresh trust
+
+  /// Reclassification lands an older row below the loaded window's cursor. The
+  /// whole-window refresh returns identical sections and flips `hasMore`, which
+  /// re-arms the append trigger, so "the row must appear" holds as "the row
+  /// becomes reachable". The view consumes that flag through its own guard
+  /// branch for a sections-unchanged result.
   @Test
-  func emptyCategoryFirstPageResolvesEmpty() async throws {
-    let (_, reader) = try await makeSeededPair([])
-    let result = try await fetch(reader, window: .firstPage(limit: 10))
-    #expect(result.sections.isEmpty)
-    #expect(!result.hasMore)
+  func reclassificationBelowCursorFlipsOnlyHasMore() async throws {
+    var specs = (1...5).map { RowSpec(id: 1000 + $0, age: $0 * 60) }
+    let olderID = 2001
+    specs.append(RowSpec(id: olderID, age: 600, category: "other"))
+    let (writer, reader) = try await makeSeededPair(specs)
+
+    let window = try await fetch(reader, window: .firstPage(limit: 10))
+    #expect(window.allEntryIDs.count == 5)
+    #expect(!window.hasMore)
+    let cursor = try #require(entryListCursor(of: window.sections))
+
+    // The reclassification write: the older row moves INTO the visible axis,
+    // strictly below the loaded window's bottom edge.
+    try await writer.applyClassification(
+      entryID: olderID,
+      result: ClassificationResult(entryID: olderID, categoryLabel: "tech"))
+
+    let refreshed = try await fetch(reader, window: .atOrAbove(cursor))
+    #expect(refreshed.sections == window.sections)
+    #expect(refreshed.hasMore)
+
+    // Reachability: the re-armed append path returns the reclassified row.
+    let nextPage = try await fetch(reader, window: .after(cursor, limit: 10))
+    #expect(nextPage.sections.flatMap(\.rows).map(\.feedbinEntryID) == [olderID])
+  }
+
+  /// An empty visible category that gains its first row must surface it
+  /// without user action. The view's refresh path fetches a first page when
+  /// the window has no cursor; this pins the data shape that path consumes —
+  /// empty before the write, one row after.
+  @Test
+  func emptyCategoryGainsItsFirstRow() async throws {
+    let (writer, reader) = try await makeSeededPair(
+      [RowSpec(id: 3001, age: 60, category: "other")])
+
+    let empty = try await fetch(reader, window: .firstPage(limit: 10))
+    #expect(empty.sections.isEmpty)
+    #expect(!empty.hasMore)
+    #expect(entryListCursor(of: empty.sections) == nil)
+
+    try await writer.applyClassification(
+      entryID: 3001,
+      result: ClassificationResult(entryID: 3001, categoryLabel: "tech"))
+
+    let firstPage = try await fetch(reader, window: .firstPage(limit: 10))
+    #expect(firstPage.sections.flatMap(\.rows).map(\.feedbinEntryID) == [3001])
+    #expect(!firstPage.hasMore)
   }
 
   // MARK: - Pin coverage
