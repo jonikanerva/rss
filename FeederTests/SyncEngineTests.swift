@@ -271,6 +271,22 @@ struct SyncEngineTests {
   }
 
   @Test
+  func quitSkipsReadsThatThisLaunchAlreadyQueued() async throws {
+    let client = FakeFeedbinClient()
+    let (engine, _) = try await makeEngine(with: client)
+    engine.recordPendingReads([1], forWindow: UUID())
+    engine.queueReadIDs([1])
+    await engine.pushPendingReads()
+    let delegate = FeederAppDelegate()
+    delegate.syncEngine = engine
+
+    delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[1]])
+  }
+
+  @Test
   func failedPushKeepsQueuedReadReadWithoutBanner() async throws {
     let client = FakeFeedbinClient()
     await client.setUnreadIDsResponse([1, 2])

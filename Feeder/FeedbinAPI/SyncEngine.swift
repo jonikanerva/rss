@@ -230,6 +230,8 @@ final class SyncEngine {
 
   @ObservationIgnored
   private var pendingReadsByWindow: [UUID: Set<Int>] = [:]
+  @ObservationIgnored
+  private var readIDsQueuedThisLaunch: Set<Int> = []
 
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
@@ -374,23 +376,30 @@ final class SyncEngine {
 
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
   /// `DataWriter.updateReadState` keeps a queued ID read, and
-  /// `applyQueuedReads()` writes it to the store as read at launch.
+  /// `applyQueuedReads()` writes it to the store as read at launch. It also
+  /// records the IDs, so that `queueRecordedPendingReads()` does not queue them
+  /// again.
   func queueReadIDs(_ ids: Set<Int>) {
     guard !ids.isEmpty else { return }
     pendingReadIDsToSync.formUnion(ids)
+    readIDsQueuedThisLaunch.formUnion(ids)
   }
 
   /// Keep a copy of the pending reads of one window for the quit step. An
   /// empty set removes the copy. Do not remove a copy when its window closes:
-  /// the quit step must also queue the reads of a closed window.
+  /// the quit step must also see the reads of a closed window.
   func recordPendingReads(_ ids: Set<Int>, forWindow window: UUID) {
     pendingReadsByWindow[window] = ids.isEmpty ? nil : ids
   }
 
-  /// Add the pending reads of every window to the read queue. Must stay
-  /// synchronous: `FeederAppDelegate.applicationWillTerminate(_:)` calls it.
+  /// Add the pending reads of every window to the read queue, except the IDs
+  /// that `queueReadIDs(_:)` queued earlier in this launch. A push can have
+  /// sent those IDs already, and a second push would undo a later mark-unread
+  /// on another device.
   func queueRecordedPendingReads() {
-    let ids = Set(pendingReadsByWindow.values.joined())
+    // Keep this method synchronous:
+    // `FeederAppDelegate.applicationWillTerminate(_:)` calls it.
+    let ids = Set(pendingReadsByWindow.values.joined()).subtracting(readIDsQueuedThisLaunch)
     queueReadIDs(ids)
     logger.info("Quit: queued \(ids.count, privacy: .public) pending reads")
   }

@@ -222,9 +222,9 @@ struct FeederApp: App {
 
 // MARK: - App delegate
 
-/// The app's `NSApplicationDelegate`. At quit it queues the pending reads of
-/// every window. In a perf launch it activates the app. It adds no UI and
-/// never calls `exit()`.
+/// The app's `NSApplicationDelegate`. At quit it queues each pending read that
+/// this launch has not queued yet. In a perf launch it activates the app. It
+/// adds no UI and never calls `exit()`.
 final class FeederAppDelegate: NSObject, NSApplicationDelegate {
   /// `FeederApp` owns the engine and sets this reference in its bootstrap.
   weak var syncEngine: SyncEngine?
