@@ -22,12 +22,12 @@ struct EntryListSectionLabelTests {
 
   @Test
   func olderDateContainsWeekdayDayMonthYear() {
-    let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: Date())!
-    let label = entryListSectionLabel(for: Calendar.current.startOfDay(for: fiveDaysAgo))
+    let olderDate = Date(timeIntervalSince1970: 1_750_000_000)
+    let label = entryListSectionLabel(for: Calendar.current.startOfDay(for: olderDate))
     #expect(label != "Today" && label != "Yesterday")
-    let day = Calendar.current.component(.day, from: fiveDaysAgo)
+    let day = Calendar.current.component(.day, from: olderDate)
     #expect(label.contains("\(day)."))
-    let yearString = fiveDaysAgo.formatted(.dateTime.year())
+    let yearString = olderDate.formatted(.dateTime.year())
     #expect(label.contains(yearString))
   }
 }
@@ -39,6 +39,15 @@ struct EntryListSectionLabelTests {
 /// the labels it feeds.
 @MainActor
 struct GroupRowsByDayTests {
+  private static let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+  /// Anchors at local noon, so all three dates fall on one local day at any
+  /// time of the run and in any host zone. Never offset `base` by hours instead.
+  private static func sameDayPublishDates(on day: Date) throws -> [Date] {
+    let noon = try #require(Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: day))
+    return [noon, noon.addingTimeInterval(-3600), noon.addingTimeInterval(-7200)]
+  }
+
   /// Builds row DTOs with the given publish dates. Only the
   /// `PersistentIdentifier` needs a store (it has no public initializer);
   /// every field the grouping reads is set right here.
@@ -75,10 +84,7 @@ struct GroupRowsByDayTests {
 
   @Test
   func rowsAllOnSameDayProduceOneSection() throws {
-    let now = Date()
-    let rows = try Self.makeRows(publishDates: [
-      now, now.addingTimeInterval(-3600), now.addingTimeInterval(-7200),
-    ])
+    let rows = try Self.makeRows(publishDates: Self.sameDayPublishDates(on: Date()))
     let sections = groupRowsByDay(rows)
     #expect(sections.count == 1)
     #expect(sections[0].rows.count == 3)
@@ -100,19 +106,15 @@ struct GroupRowsByDayTests {
 
   @Test
   func sectionIDsAreStartOfDay() throws {
-    let now = Date()
-    let rows = try Self.makeRows(publishDates: [now])
+    let rows = try Self.makeRows(publishDates: [Self.base])
     let sections = groupRowsByDay(rows)
-    let expectedStartOfDay = Calendar.current.startOfDay(for: now)
+    let expectedStartOfDay = Calendar.current.startOfDay(for: Self.base)
     #expect(sections[0].id == expectedStartOfDay)
   }
 
   @Test
   func rowOrderIsPreservedWithinSections() throws {
-    let now = Date()
-    let rows = try Self.makeRows(publishDates: [
-      now, now.addingTimeInterval(-3600), now.addingTimeInterval(-7200),
-    ])
+    let rows = try Self.makeRows(publishDates: Self.sameDayPublishDates(on: Self.base))
     let sections = groupRowsByDay(rows)
     #expect(sections[0].rows.map(\.feedbinEntryID) == rows.map(\.feedbinEntryID))
   }
