@@ -24,7 +24,7 @@ struct ClassificationSettingsTests {
     #expect(await store.load(provider: .vercel) == "replacement")
     try await settings.removeKey(for: .vercel)
     #expect(!settings.hasStoredKey)
-    settings.select(.openAI)
+    _ = settings.select(.openAI)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     #expect(await store.load(provider: .openAI) == "openai-test")
@@ -52,7 +52,7 @@ struct ClassificationSettingsTests {
     let settings = ClassificationSettingsModel(isInert: true)
     #expect(settings.provider == .appleFM)
     #expect(!settings.hasStoredKey)
-    settings.select(.vercel)
+    _ = settings.select(.vercel)
     #expect(!settings.hasStoredKey)
     #expect(try await settings.keyForModelList() == nil)
   }
@@ -61,7 +61,7 @@ struct ClassificationSettingsTests {
     let store = MemoryClassificationKeyStore(values: [.openAI: "openai-test"])
     let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
     let editedProvider = settings.provider
-    settings.select(.openAI)
+    _ = settings.select(.openAI)
     try await settings.save("vercel-test", for: editedProvider)
     await settings.refreshKey()
     #expect(settings.provider == .openAI)
@@ -75,8 +75,8 @@ struct ClassificationSettingsTests {
     let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
     let earlierLoad = Task { await settings.refreshKey() }
     try await waitUntil("key load starts") { await store.started }
-    settings.select(.openAI)
-    settings.select(.vercel)
+    _ = settings.select(.openAI)
+    _ = settings.select(.vercel)
     await store.release()
     await earlierLoad.value
     #expect(settings.isLoadingKey)
@@ -109,7 +109,8 @@ struct ClassificationSettingsTests {
   @Test
   func failedModelListReadThrowsAfterOneRead() async throws {
     let store = RecordingClassificationKeyStore(probe: .success(true), read: .failure(.osStatus(errSecAuthFailed)))
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     await #expect(throws: KeychainError.osStatus(errSecAuthFailed)) { try await settings.keyForModelList() }
@@ -125,7 +126,8 @@ struct ClassificationSettingsTests {
   @Test
   func readableKeyReachesTheModelList() async throws {
     let store = RecordingClassificationKeyStore(probe: .success(true), read: .success("sk-test"))
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(try await settings.keyForModelList() == "sk-test")
   }
@@ -133,7 +135,8 @@ struct ClassificationSettingsTests {
   @Test
   func emptyStoredKeyGivesTheModelListNoKey() async throws {
     let store = MemoryClassificationKeyStore(values: [.openAI: ""])
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     #expect(try await settings.keyForModelList() == nil)
@@ -183,6 +186,199 @@ struct ClassificationSettingsTests {
     let store = MemoryClassificationKeyStore(values: [.vercel: "old"])
     await #expect(throws: KeychainError.osStatus(errSecDuplicateItem)) { try await store.add("new", provider: .vercel) }
     #expect(await store.load(provider: .vercel) == "old")
+  }
+}
+
+// MARK: - Reclassification prompt
+
+@MainActor
+@Suite("Reclassification prompt")
+struct ReclassificationPromptTests {
+  @Test(arguments: [
+    (ClassificationProviderKind.appleFM, "Apple Foundation Models"),
+    (ClassificationProviderKind.openAI, "OpenAI (gpt-test-model)"),
+    (ClassificationProviderKind.vercel, "JEV through Vercel AI Gateway"),
+  ])
+  func providerPickAsksWithItsTarget(provider: ClassificationProviderKind, target: String) async {
+    let store = MemoryClassificationKeyStore(values: [.openAI: "openai-test", .vercel: "vercel-test"])
+    let settings = ClassificationSettingsModel(
+      provider: provider == .appleFM ? .vercel : .appleFM, store: store, isInert: true, openAIModel: "gpt-test-model")
+    #expect(settings.select(provider))
+    #expect(settings.reclassificationPrompt == .afterKeyProbe)
+    await settings.refreshKey()
+    #expect(settings.reclassificationTarget == target)
+  }
+
+  @Test
+  func failedProbeAsks() async {
+    let store = MemoryClassificationKeyStore()
+    await store.configureProbe(.failure(.osStatus(errSecInteractionNotAllowed)))
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: store, isInert: true)
+    #expect(settings.select(.vercel))
+    await settings.refreshKey()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test(arguments: [ClassificationProviderKind.openAI, .vercel])
+  func cloudPickWithoutASavedKeyNeverAsks(provider: ClassificationProviderKind) async {
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: MemoryClassificationKeyStore(), isInert: true)
+    #expect(settings.select(provider))
+    await settings.refreshKey()
+    #expect(!settings.hasStoredKey)
+    #expect(settings.reclassificationPrompt == .idle)
+  }
+
+  @Test
+  func initialProbeWithAStoredKeyNeverAsks() async {
+    let store = MemoryClassificationKeyStore(values: [.vercel: "vercel-test"])
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    #expect(settings.reclassificationPrompt == .idle)
+    // Keep this step: without it, the test passes on the initial `idle` phase alone.
+    #expect(settings.select(.appleFM))
+    #expect(settings.select(.vercel))
+    await settings.refreshKey()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test
+  func supersededProbeNeverAsks() async throws {
+    let store = DelayedClassificationKeyStore()
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: store, isInert: true)
+    #expect(settings.select(.vercel))
+    let supersededProbe = Task { await settings.refreshKey() }
+    try await waitUntil("key probe starts") { await store.started }
+    #expect(settings.select(.openAI))
+    #expect(settings.select(.vercel))
+    await store.release()
+    await supersededProbe.value
+    #expect(settings.reclassificationTarget == nil)
+    #expect(settings.reclassificationPrompt == .afterKeyProbe)
+    await settings.refreshKey()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test
+  func cancelledProbeNeverAsks() async throws {
+    let store = DelayedClassificationKeyStore()
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: store, isInert: true)
+    #expect(settings.select(.vercel))
+    let probe = Task { await settings.refreshKey() }
+    try await waitUntil("key probe starts") { await store.started }
+    probe.cancel()
+    await store.release()
+    await probe.value
+    #expect(settings.reclassificationTarget == nil)
+    #expect(settings.reclassificationPrompt == .afterKeyProbe)
+    #expect(settings.isLoadingKey)
+    await settings.refreshKey()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test
+  func firstKeyAsksOnlyAfterTheKeyEditorCloses() async throws {
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: MemoryClassificationKeyStore(), isInert: true)
+    #expect(settings.select(.vercel))
+    await settings.refreshKey()
+    #expect(settings.reclassificationPrompt == .idle)
+    try await settings.save("vercel-test", for: .vercel)
+    #expect(settings.reclassificationPrompt == .afterKeyEditorCloses)
+    // The save bumps the key revision, so the view probes again while the
+    // editor is open. That probe must not ask.
+    await settings.refreshKey()
+    #expect(settings.reclassificationPrompt == .afterKeyEditorCloses)
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test
+  func replacementRemovalFailedAddAndCancelNeverAsk() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.hasStoredKey)
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationPrompt == .idle)
+
+    try await settings.save("replacement", for: .vercel)
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationPrompt == .idle)
+
+    try await settings.removeKey(for: .vercel)
+    settings.keyEditorClosed()
+    #expect(!settings.hasStoredKey)
+    #expect(settings.reclassificationPrompt == .idle)
+
+    await store.configureAddFailure(.osStatus(errSecInteractionNotAllowed))
+    await #expect(throws: KeychainError.self) { try await settings.save("first", for: .vercel) }
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationPrompt == .idle)
+  }
+
+  @Test
+  func retryAfterAFailedAddAsks() async throws {
+    let store = RecordingClassificationKeyStore(probe: .success(true))
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    await store.configureAddFailure(.osStatus(errSecInteractionNotAllowed))
+    await #expect(throws: KeychainError.self) { try await settings.save("replacement", for: .vercel) }
+    #expect(!settings.hasStoredKey)
+    #expect(settings.reclassificationPrompt == .idle)
+    await store.configureAddFailure(nil)
+    try await settings.save("retry", for: .vercel)
+    #expect(settings.reclassificationPrompt == .afterKeyEditorCloses)
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+  }
+
+  @Test
+  func modelChangeWithASavedKeyAsksWithTheModel() async {
+    let store = MemoryClassificationKeyStore(values: [.openAI: "openai-test"])
+    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.openAIModel == OpenAIModelSetting.defaultModel)
+    #expect(settings.reclassificationPrompt == .idle)
+    #expect(settings.selectOpenAIModel("gpt-test-model"))
+    #expect(settings.openAIModel == "gpt-test-model")
+    #expect(settings.reclassificationTarget == "OpenAI (gpt-test-model)")
+    settings.dismissReclassificationPrompt()
+    #expect(!settings.selectOpenAIModel("gpt-test-model"))
+    #expect(settings.reclassificationPrompt == .idle)
+  }
+
+  @Test
+  func modelPickDuringAPendingProbeAsksWithTheNewModel() async throws {
+    let store = DelayedClassificationKeyStore()
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: store, isInert: true)
+    #expect(settings.select(.openAI))
+    let probe = Task { await settings.refreshKey() }
+    try await waitUntil("key probe starts") { await store.started }
+    let revision = settings.keyRevision
+    // A repeated pick of the selected provider must not restart the probe.
+    #expect(!settings.select(.openAI))
+    #expect(settings.keyRevision == revision)
+    #expect(settings.selectOpenAIModel("gpt-test-model"))
+    #expect(settings.reclassificationPrompt == .afterKeyProbe)
+    await store.release()
+    await probe.value
+    #expect(settings.reclassificationTarget == "OpenAI (gpt-test-model)")
+  }
+
+  @Test
+  func dismissOutsideShowingChangesNothing() async throws {
+    let settings = ClassificationSettingsModel(provider: .appleFM, store: MemoryClassificationKeyStore(), isInert: true)
+    #expect(settings.select(.vercel))
+    settings.dismissReclassificationPrompt()
+    #expect(settings.reclassificationPrompt == .afterKeyProbe)
+    await settings.refreshKey()
+    try await settings.save("vercel-test", for: .vercel)
+    settings.dismissReclassificationPrompt()
+    #expect(settings.reclassificationPrompt == .afterKeyEditorCloses)
+    settings.keyEditorClosed()
+    #expect(settings.reclassificationTarget == "JEV through Vercel AI Gateway")
+    settings.dismissReclassificationPrompt()
+    #expect(settings.reclassificationPrompt == .idle)
   }
 }
 

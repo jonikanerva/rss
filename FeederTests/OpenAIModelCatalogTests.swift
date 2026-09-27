@@ -286,9 +286,9 @@ struct PickerOptionsTests {
 
 /// Proof that the read path cannot pin the user: running the reducer and the
 /// options builder over every outcome leaves the `openai_model` key unset.
-/// Only an explicit user pick (the view's single `persist` call site) writes
-/// it — a programmatic write here would silently freeze every unset user at
-/// the then-current default.
+/// Only an explicit pick in `ClassificationSettingsModel.selectOpenAIModel(_:)`
+/// calls `persist` — a programmatic write here would silently freeze every
+/// unset user at the then-current default.
 @Suite("Model resolution never writes")
 struct ModelResolutionNeverWritesTests {
   private let isolatedDefaults: IsolatedDefaults

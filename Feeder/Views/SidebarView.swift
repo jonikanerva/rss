@@ -160,3 +160,65 @@ struct SidebarView: View, Equatable {
     }
   }
 }
+
+// MARK: - Previews
+
+@MainActor
+private enum SidebarPreviewFixtures {
+  static let folderGroups = [
+    SidebarFolderGroup(
+      label: "technology", displayName: "Technology",
+      categories: [
+        SidebarCategorySnapshot(label: "apple", displayName: "Apple"),
+        SidebarCategorySnapshot(label: "ai", displayName: "Artificial Intelligence and Machine Learning Research"),
+        SidebarCategorySnapshot(label: "home_automation", displayName: "Home Automation"),
+      ]),
+    SidebarFolderGroup(
+      label: "gaming", displayName: "Gaming, Consoles, and Interactive Entertainment",
+      categories: [SidebarCategorySnapshot(label: "video_games", displayName: "Video Games")]),
+  ]
+  static let rootCategories = [SidebarCategorySnapshot(label: "science", displayName: "Science")]
+  static let categoryUnreadCounts = ["apple": 3, "ai": 1284, "home_automation": 0, "video_games": 3, "science": 0]
+  static let folderUnreadCounts = ["technology": 1287, "gaming": 3]
+
+  static func sidebar(
+    textSize: AppTextSize, selection: Binding<SidebarSelection?>, collapsedFolders: Binding<SidebarCollapsedFolders>
+  ) -> some View {
+    let fontSettings = AppFontSettings(textSize: textSize)
+    return SidebarView(
+      visibleFolderGroups: folderGroups,
+      rootCategories: rootCategories,
+      categoryUnreadCounts: categoryUnreadCounts,
+      folderUnreadCounts: folderUnreadCounts,
+      fontBody: fontSettings.body,
+      canMarkAllRead: true,
+      onMarkAllRead: { _ in },
+      selection: selection,
+      collapsedFolders: collapsedFolders
+    )
+    .environment(fontSettings)
+    .environment(SyncEngine.preview())
+    .environment(ClassificationEngine())
+    .frame(width: ColumnWidthSetting.Column.sidebar.defaultIdealWidth, height: 520)
+  }
+}
+
+#Preview("Sidebar - Folders") {
+  @Previewable
+  @State
+  var selection: SidebarSelection? = .category("apple")
+  @Previewable
+  @State
+  var collapsed = SidebarCollapsedFolders(labels: ["gaming"])
+  SidebarPreviewFixtures.sidebar(textSize: .medium, selection: $selection, collapsedFolders: $collapsed)
+}
+
+#Preview("Sidebar - Huge") {
+  @Previewable
+  @State
+  var selection: SidebarSelection? = .category("apple")
+  @Previewable
+  @State
+  var collapsed = SidebarCollapsedFolders(labels: ["gaming"])
+  SidebarPreviewFixtures.sidebar(textSize: .xxLarge, selection: $selection, collapsedFolders: $collapsed)
+}

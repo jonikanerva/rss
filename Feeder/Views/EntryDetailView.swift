@@ -226,18 +226,11 @@ private struct ArticleWebContainer: View {
 
 // MARK: - Preview
 
-#Preview("Article Detail") {
-  articleDetailPreview(fontSettings: AppFontSettings())
-}
-
-#Preview("Article Detail — Huge Text") {
-  // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
-  // the preview injects the font settings the shipped code uses.
-  articleDetailPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
-}
-
 @MainActor
-private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
+private func articleDetailPreview(
+  fontSettings: AppFontSettings, viewMode: ArticleViewMode = .reader,
+  content: String = "<p>Apple today announced the M5 Ultra, its most powerful chip ever.</p>"
+) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -251,7 +244,7 @@ private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
   let entry = Entry(
     feedbinEntryID: 1, title: "Apple unveils M5 Ultra chip with record-breaking AI performance",
     author: "Tom Warren", url: "https://example.com/1",
-    content: "<p>Apple today announced the M5 Ultra, its most powerful chip ever.</p>",
+    content: content,
     summary: nil, extractedContentURL: nil,
     publishedAt: .now.addingTimeInterval(-3600), createdAt: .now
   )
@@ -259,9 +252,40 @@ private func articleDetailPreview(fontSettings: AppFontSettings) -> some View {
   entry.displayDomain = "theverge.com"
   context.insert(entry)
 
-  return EntryDetailView(entry: entry, viewMode: .reader)
+  return EntryDetailView(entry: entry, viewMode: viewMode)
     .environment(fontSettings)
     .environment(FaviconStore())
     .modelContainer(container)
     .frame(width: 600, height: 500)
+}
+
+/// Inline HTML only. Keep out images, iframes, and remote stylesheets: a web
+/// preview must not load a remote resource.
+private let articleDetailWebPreviewHTML = """
+  <p>Apple today announced the M5 Ultra, its most powerful chip ever. The \
+  <a href="https://example.com/m5-ultra">announcement</a> lists the new GPU cores.</p>
+  <blockquote><p>It is the fastest chip that we have ever made.</p></blockquote>
+  <p>Developers run <code>swift build</code> to compile for the new chip.</p>
+  <pre><code>swift build --configuration release
+  swift test</code></pre>
+  <p>The chip ships in the Mac Studio later this year.</p>
+  """
+
+#Preview("Article Detail") {
+  articleDetailPreview(fontSettings: AppFontSettings())
+}
+
+#Preview("Article Detail — Huge Text") {
+  // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
+  // the preview injects the font settings the shipped code uses.
+  articleDetailPreview(fontSettings: AppFontSettings(textSize: .xxLarge))
+}
+
+#Preview("Article Detail — Web") {
+  articleDetailPreview(fontSettings: AppFontSettings(), viewMode: .web, content: articleDetailWebPreviewHTML)
+}
+
+#Preview("Article Detail — Web, Dark") {
+  articleDetailPreview(fontSettings: AppFontSettings(), viewMode: .web, content: articleDetailWebPreviewHTML)
+    .preferredColorScheme(.dark)
 }

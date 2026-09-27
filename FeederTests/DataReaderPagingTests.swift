@@ -7,8 +7,9 @@ import Testing
 /// Keyset paging integration pins: pages tile exactly through an
 /// equal-timestamp run, an insert above the cursor never shifts a page seam,
 /// the cursor row leaving the filter never skips rows, `hasMore` is exact at a
-/// page boundary, and pin coverage grows the first page to the pinned row's
-/// position. The refresh pins hold the trust condition behind refresh
+/// page boundary, pin coverage grows the first page to the pinned row's
+/// position, and the Read filter returns only read rows plus the pinned row.
+/// The refresh pins hold the trust condition behind refresh
 /// suppression: every write that changes the visible window must show in the
 /// fetches that the view consumes. It runs the production writer and reader on
 /// one shared in-memory container; the serial unit-target run caps coordinator
@@ -269,5 +270,27 @@ struct DataReaderPagingTests {
     #expect(rowIDs(result).contains(pinnedID))
     #expect(rowIDs(result).last == pinnedID)
     #expect(result.hasMore)
+  }
+
+  // MARK: - Read filter
+
+  @Test
+  func readFilterReturnsOnlyReadRowsPlusThePinnedRow() async throws {
+    let pinnedID = 4004
+    let specs = [
+      RowSpec(id: 4001, age: 60, read: true),
+      RowSpec(id: 4002, age: 120),
+      RowSpec(id: 4003, age: 180, read: true),
+      RowSpec(id: pinnedID, age: 240),
+      RowSpec(id: 4005, age: 300, read: true),
+      RowSpec(id: 4006, age: 360),
+      RowSpec(id: 4007, age: 420, read: true),
+    ]
+    let (_, reader) = try await makeSeededPair(specs)
+
+    let result = try await fetch(reader, window: .firstPage(limit: 10), pinned: pinnedID, showRead: true)
+
+    #expect(rowIDs(result) == [4001, 4003, pinnedID, 4005, 4007])
+    #expect(!result.hasMore)
   }
 }

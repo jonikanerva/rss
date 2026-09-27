@@ -3,10 +3,8 @@ import SwiftUI
 
 // MARK: - Preview-only (outside the layer rules per STACK.md § 0; preview/test exemptions per § 7)
 //
-// PreviewSupport centralises the in-memory ModelContainer used by every
-// SwiftUI #Preview. Each preview retains its own fixture-insert code; only
-// the container creation is shared, so a schema change touches one place
-// (the Schema() array below) instead of every preview file.
+// Build each preview store with `makeContainer()`: a schema change then
+// touches one place (the `Schema` below) instead of every preview file.
 
 @MainActor
 enum PreviewSupport {

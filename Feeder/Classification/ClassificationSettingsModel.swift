@@ -75,50 +75,84 @@ extension MemoryClassificationKeyStore: ClassificationKeyStore {}
 final class ClassificationSettingsModel {
   enum KeyState { case loading, missing, saved }
 
+  enum ReclassificationPrompt: Equatable {
+    case idle
+    case afterKeyProbe
+    case afterKeyEditorCloses
+    case showing(target: String)
+  }
+
   private(set) var provider: ClassificationProviderKind
   private(set) var keyState: KeyState
   private(set) var keyRevision = 0
+  private(set) var openAIModel: String
+  private(set) var reclassificationPrompt: ReclassificationPrompt = .idle
   let isInert: Bool
   private let store: any ClassificationKeyStore
 
   var hasStoredKey: Bool { keyState == .saved }
   var isLoadingKey: Bool { keyState == .loading }
 
+  var reclassificationTarget: String? {
+    guard case .showing(let target) = reclassificationPrompt else { return nil }
+    return target
+  }
+
   init(
     provider: ClassificationProviderKind? = nil,
     store: (any ClassificationKeyStore)? = nil,
-    isInert: Bool = HeadlessMode.isEnabled
+    isInert: Bool = HeadlessMode.isEnabled,
+    openAIModel: String? = nil
   ) {
     self.isInert = isInert
     let selected = provider ?? (isInert ? .appleFM : .current)
     self.provider = selected
     self.store = store ?? (isInert ? MemoryClassificationKeyStore() : KeychainClassificationKeyStore())
+    self.openAIModel = openAIModel ?? (isInert ? OpenAIModelSetting.defaultModel : OpenAIModelSetting.current())
     keyState = selected == .appleFM ? .missing : .loading
   }
 
-  func select(_ provider: ClassificationProviderKind) {
+  /// Returns false, and changes nothing, for the provider that is already selected.
+  func select(_ provider: ClassificationProviderKind) -> Bool {
+    guard provider != self.provider else { return false }
     self.provider = provider
     keyRevision &+= 1
     if !isInert { ClassificationProviderKind.persist(provider) }
     keyState = provider == .appleFM ? .missing : .loading
+    reclassificationPrompt = .afterKeyProbe
+    return true
+  }
+
+  /// Returns false, and changes nothing, for the model that is already selected.
+  func selectOpenAIModel(_ model: String) -> Bool {
+    guard model != openAIModel else { return false }
+    openAIModel = model
+    if !isInert { OpenAIModelSetting.persist(model) }
+    if hasStoredKey { reclassificationPrompt = .showing(target: targetName(for: .openAI)) }
+    return true
   }
 
   func refreshKey() async {
     let selected = provider
     let revision = keyRevision
-    guard selected != .appleFM else {
-      keyState = .missing
-      return
+    let state: KeyState
+    if selected == .appleFM {
+      state = .missing
+    } else {
+      // A failed probe is not a missing key: "Edit" and Retry stay available.
+      let exists = (try? await store.exists(provider: selected)) ?? true
+      state = exists ? .saved : .missing
     }
-    // A failed probe is not a missing key: "Edit" and Retry stay available.
-    let exists = (try? await store.exists(provider: selected)) ?? true
     guard !Task.isCancelled, provider == selected, keyRevision == revision else { return }
-    keyState = exists ? .saved : .missing
+    keyState = state
+    guard reclassificationPrompt == .afterKeyProbe else { return }
+    reclassificationPrompt = selected == .appleFM || state == .saved ? .showing(target: targetName(for: selected)) : .idle
   }
 
   /// Must delete before the add: an update keeps the access list of the old
   /// item. When the delete completes and the add fails, no key is saved.
   func save(_ key: String, for provider: ClassificationProviderKind) async throws {
+    let hadKey = hasStoredKey
     try await store.remove(provider: provider)
     do {
       try await store.add(key, provider: provider)
@@ -127,11 +161,22 @@ final class ClassificationSettingsModel {
       throw error
     }
     commitKeyChange(.saved, for: provider)
+    if !hadKey, provider == self.provider { reclassificationPrompt = .afterKeyEditorCloses }
   }
 
   func removeKey(for provider: ClassificationProviderKind) async throws {
     try await store.remove(provider: provider)
     commitKeyChange(.missing, for: provider)
+  }
+
+  func keyEditorClosed() {
+    guard reclassificationPrompt == .afterKeyEditorCloses else { return }
+    reclassificationPrompt = .showing(target: targetName(for: provider))
+  }
+
+  func dismissReclassificationPrompt() {
+    guard case .showing = reclassificationPrompt else { return }
+    reclassificationPrompt = .idle
   }
 
   /// A throw is a failed read: the caller must not show it as a missing key.
@@ -144,5 +189,13 @@ final class ClassificationSettingsModel {
   private func commitKeyChange(_ state: KeyState, for provider: ClassificationProviderKind) {
     if self.provider == provider { keyState = state }
     keyRevision &+= 1
+  }
+
+  private func targetName(for provider: ClassificationProviderKind) -> String {
+    switch provider {
+    case .appleFM: provider.displayName
+    case .openAI: "OpenAI (\(openAIModel))"
+    case .vercel: "JEV through Vercel AI Gateway"
+    }
   }
 }
