@@ -60,7 +60,7 @@ struct EntryRowView: View {
             // height effect: both weights report the same line metrics.
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(EntryRowMetrics.titleLineLimit)
-            .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+            .foregroundStyle(isRead ? .tertiary : .primary)
 
           Spacer()
 
@@ -78,7 +78,7 @@ struct EntryRowView: View {
           .font(fontSettings.rowFeedName)
           .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
           .truncationMode(.middle)
-          .foregroundStyle(FontTheme.domainPillColor)
+          .foregroundStyle(.secondary)
           .layoutPriority(1)
 
         // The summary fills the rest of the column. An empty excerpt leaves its
@@ -175,6 +175,15 @@ struct FaviconView: View {
     faviconImage: previewFaviconImage())
 }
 
+#Preview("Selection States") {
+  entryRowSelectionPreview()
+}
+
+#Preview("Selection States — Dark") {
+  entryRowSelectionPreview()
+    .preferredColorScheme(.dark)
+}
+
 /// A drawn stand-in favicon, so the base previews cover the favicon-image
 /// state while the fallback preview keeps the nil-image case.
 @MainActor
@@ -243,12 +252,79 @@ private func readPreviewRow() -> EntryRowDTO {
   )
 }
 
+private let previewRowWidth: CGFloat = 380
+
 @MainActor
 private func entryRowPreview(
   row: EntryRowDTO, fontSettings: AppFontSettings, faviconImage: NSImage? = nil
 ) -> some View {
   EntryRowView(row: row, faviconImage: faviconImage)
     .environment(fontSettings)
-    .frame(width: 380)
+    .frame(width: previewRowWidth)
     .padding()
+}
+
+/// Preview-only selection looks of an article-list row. Each case sets the
+/// fill and the environment that the `List` gives a row in that state. Only
+/// the emphasized selection raises the background prominence.
+private enum PreviewSelection: CaseIterable {
+  case notSelected
+  case emphasized
+  case unemphasized
+  case inactiveWindow
+
+  var label: String {
+    switch self {
+    case .notSelected: "Not selected"
+    case .emphasized: "Emphasized selection"
+    case .unemphasized: "Unemphasized selection"
+    case .inactiveWindow: "Inactive window"
+    }
+  }
+
+  var fill: Color {
+    switch self {
+    case .notSelected: .clear
+    case .emphasized: Color(nsColor: .selectedContentBackgroundColor)
+    case .unemphasized, .inactiveWindow: Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+    }
+  }
+
+  var prominence: BackgroundProminence { self == .emphasized ? .increased : .standard }
+}
+
+@MainActor
+private func entryRowSelectionPreview() -> some View {
+  let read = readPreviewRow()
+  let unread = unreadPreviewRow()
+  let favicon = previewFaviconImage()
+  return VStack(alignment: .leading, spacing: 4) {
+    ForEach(PreviewSelection.allCases, id: \.self) { selection in
+      selectionCaption(selection.label)
+      selectedEntryRow(row: read, faviconImage: favicon, selection: selection)
+      selectedEntryRow(row: unread, faviconImage: favicon, selection: selection)
+    }
+    selectionCaption("Emphasized selection, no favicon")
+    selectedEntryRow(row: unread, faviconImage: nil, selection: .emphasized)
+  }
+  .environment(AppFontSettings())
+  .padding()
+}
+
+@MainActor
+private func selectionCaption(_ text: String) -> some View {
+  Text(text)
+    .font(.caption)
+    .foregroundStyle(.secondary)
+    .padding(.top, 8)
+}
+
+@MainActor
+private func selectedEntryRow(row: EntryRowDTO, faviconImage: NSImage?, selection: PreviewSelection) -> some View {
+  EntryRowView(row: row, faviconImage: faviconImage)
+    .frame(width: previewRowWidth)
+    .padding(.horizontal, EntryRowMetrics.horizontalInset)
+    .background(selection.fill)
+    .environment(\.backgroundProminence, selection.prominence)
+    .environment(\.appearsActive, selection != .inactiveWindow)
 }

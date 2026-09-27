@@ -5,10 +5,10 @@ import Testing
 
 @testable import Feeder
 
-/// Headless geometry check for the row-height floor and the title and summary
-/// split. It hosts the same `List` shape the article list renders in an
-/// offscreen hosting view, then reads the backing table through public API. The
-/// invariants:
+/// Headless check for the row-height floor, the title and summary split, and
+/// the row's text on an emphasized selection. It hosts the same `List` shape the
+/// article list renders in an offscreen hosting view, then reads the backing
+/// table through public API. The invariants:
 ///
 /// 1. The table's fallback row height equals the floor. The bridge draws that
 ///    value in its failure mode, so it must already be the full row height.
@@ -21,10 +21,14 @@ import Testing
 /// 5. The rendered line counts match: a bitmap of the row is scanned for ink
 ///    bands, the bands are equally tall, and the bottom padding holds no ink,
 ///    which would be where overflow landed.
+/// 6. A read row's title and domain adapt to the emphasized selection: with the
+///    increased background prominence, they change at least half as much as the
+///    summary, which uses a hierarchical style.
 ///
-/// It runs at every text size and at three content-column widths, including the
-/// platform's default width, which is a shipped state because the column has no
-/// width bound. No screen is needed: the window is ordered offscreen.
+/// Invariants 1 to 5 run at every text size and at three content-column widths,
+/// including the platform's default width, which is a shipped state because the
+/// column has no width bound. No screen is needed: the window is ordered
+/// offscreen.
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
   private static let widths: [CGFloat] = [200, 320, 600]
@@ -188,7 +192,6 @@ struct EntryRowGeometryTests {
   @MainActor
   func renderedLineCounts(size: AppTextSize) throws {
     let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
-    let heights = EntryRowMetrics.lineHeights(scale: size.scaleFactor)
     let ids = PreviewSupport.mintEntryIdentifiers(count: Self.renderCases.count)
     let rowTop = Int(EntryRowMetrics.verticalPadding)
     let columnBottom = rowTop + Int(settings.entryRowTextColumnHeight)
@@ -196,22 +199,20 @@ struct EntryRowGeometryTests {
       for (index, renderCase) in Self.renderCases.enumerated() {
         let row = Self.makeRow(id: ids[index], feedbinEntryID: index + 1, shape: renderCase.shape)
         let scan = try Self.renderInk(row: row, settings: settings, width: width)
+        let slots = Self.slotRows(titleLines: renderCase.titleLines, settings: settings)
         let context = "size \(size) width \(width) \(renderCase.name)"
-        let titleHeight = renderCase.titleLines * Int(heights.title)
-        let domainTop = rowTop + titleHeight + Int(EntryRowMetrics.textSpacing)
-        let summaryTop = domainTop + Int(heights.meta) + Int(EntryRowMetrics.textSpacing) - 1
 
         // The bitmap is exactly the row's natural height: column + padding.
         #expect(scan.height == columnBottom + rowTop, "\(context): image height \(scan.height)")
         // (iii) The title shows exactly its line count.
-        let titleBands = scan.bands(in: rowTop..<(rowTop + titleHeight + 1))
+        let titleBands = scan.bands(in: slots.title)
         #expect(titleBands.count == renderCase.titleLines, "\(context): title bands \(titleBands)")
         // The domain line is present when set and empty when nil.
-        let domainBands = scan.bands(in: domainTop..<(domainTop + Int(heights.meta)))
+        let domainBands = scan.bands(in: slots.domain)
         let hasDomain = renderCase.shape.domain.map { !$0.isEmpty } ?? false
         #expect(domainBands.count == (hasDomain ? 1 : 0), "\(context): domain bands \(domainBands)")
         // The summary shows the expected whole lines under the title.
-        let summaryBands = scan.bands(in: summaryTop..<columnBottom)
+        let summaryBands = scan.bands(in: slots.summary)
         #expect(renderCase.summaryLines.contains(summaryBands.count), "\(context): summary bands \(summaryBands)")
         // (i) Every summary line is drawn whole: equal band heights.
         let bandHeights = summaryBands.map(\.count)
@@ -223,6 +224,34 @@ struct EntryRowGeometryTests {
         #expect(bottomBands.isEmpty, "\(context): ink in the bottom padding \(bottomBands)")
       }
     }
+  }
+
+  // MARK: - T3: emphasized selection
+
+  /// Stand-in for the emphasized selection fill. A fixed sRGB value keeps the
+  /// render independent of the accent color of the Mac that runs the test.
+  private static let selectionFill = Color(.sRGB, red: 0, green: 100 / 255, blue: 225 / 255)
+
+  @Test("a read row's title and domain adapt to the emphasized selection like its summary")
+  @MainActor
+  func readRowTextAdaptsToEmphasizedSelection() throws {
+    let settings = AppFontSettings(textSize: .medium, userDefaults: Self.isolatedDefaults())
+    let shape = RowShape(title: Self.longTitle, domain: Self.longDomain, excerpt: Self.longExcerpt, isRead: true)
+    let row = Self.makeRow(id: PreviewSupport.mintEntryIdentifiers(count: 1)[0], feedbinEntryID: 1, shape: shape)
+    let standard = try Self.renderRow(row: row, settings: settings, width: 320, fill: Self.selectionFill)
+    let increased = try Self.renderRow(
+      row: row, settings: settings, width: 320, fill: Self.selectionFill, prominence: .increased)
+    let slots = Self.slotRows(titleLines: 2, settings: settings)
+    let columns = Self.textColumns(imageWidth: standard.width)
+    let summaryChange = Self.meanTextChange(standard, increased, rows: slots.summary, columns: columns)
+    let titleChange = Self.meanTextChange(standard, increased, rows: slots.title, columns: columns)
+    let domainChange = Self.meanTextChange(standard, increased, rows: slots.domain, columns: columns)
+
+    // The summary uses a hierarchical style. When it does not change, the
+    // renderer ignores the prominence, and the two checks below prove nothing.
+    try #require(summaryChange > 0.05, "summary change \(summaryChange)")
+    #expect(titleChange >= summaryChange / 2, "title change \(titleChange) vs summary change \(summaryChange)")
+    #expect(domainChange >= summaryChange / 2, "domain change \(domainChange) vs summary change \(summaryChange)")
   }
 
   // MARK: - Sample rows
@@ -320,7 +349,7 @@ struct EntryRowGeometryTests {
     return probeHeight(of: summary, width: width)
   }
 
-  // MARK: - Bitmap scan (T2)
+  // MARK: - Bitmap scan (T2, T3)
 
   /// Per-row ink flags of a rendered bitmap, top row first, plus the band
   /// grouping the assertions read.
@@ -345,35 +374,81 @@ struct EntryRowGeometryTests {
     }
   }
 
+  /// An RGBA copy of a rendered image. Bitmap memory starts at the TOP row, so
+  /// row 0 is the top of the image.
+  nonisolated private struct Bitmap: Sendable {
+    let width: Int
+    let height: Int
+    let bytes: [UInt8]
+
+    /// Rec. 709 luminance of the pixel at (`x`, `y`), from 0 to 1.
+    func luminance(x: Int, y: Int) -> Double {
+      let offset = (y * width + x) * 4
+      return (0.2126 * Double(bytes[offset]) + 0.7152 * Double(bytes[offset + 1]) + 0.0722 * Double(bytes[offset + 2]))
+        / 255
+    }
+  }
+
+  /// Bitmap row ranges of the three text slots of a rendered row.
+  nonisolated private struct SlotRows: Sendable {
+    let title: Range<Int>
+    let domain: Range<Int>
+    let summary: Range<Int>
+  }
+
   /// Renders the shipped `EntryRowView` at the content width of a `width`-pt
-  /// column on a white background in light mode, at 1 px per point, and
-  /// scans the text column (right of the favicon, left of the time label)
-  /// for rows with any dark pixel.
+  /// column on `fill` in light mode, at 1 px per point.
   @MainActor
-  private static func renderInk(row: EntryRowDTO, settings: AppFontSettings, width: CGFloat) throws -> InkScan {
+  private static func renderRow(
+    row: EntryRowDTO, settings: AppFontSettings, width: CGFloat,
+    fill: Color = .white, prominence: BackgroundProminence = .standard
+  ) throws -> Bitmap {
     let contentWidth = width - 2 * EntryRowMetrics.horizontalInset
     let view = EntryRowView(row: row, faviconImage: nil)
       .environment(settings)
       .frame(width: contentWidth)
-      .background(Color.white)
+      .background(fill)
+      .environment(\.backgroundProminence, prominence)
       .environment(\.colorScheme, .light)
     let renderer = ImageRenderer(content: view)
     renderer.scale = 1
     let image = try #require(renderer.cgImage, "ImageRenderer produced no image")
-    let textStart = Int(EntryRowMetrics.faviconSize + EntryRowMetrics.faviconSpacing)
-    let textEnd = image.width - 80
-    return try scanInk(image, xRange: textStart..<textEnd)
+    return try bitmap(of: image)
   }
 
-  /// Draws `image` into an RGBA bitmap and flags every row that has a pixel
-  /// darker than the luminance threshold inside `xRange`. Bitmap memory
-  /// starts at the TOP row, so index 0 is the top of the image.
-  private static func scanInk(_ image: CGImage, xRange: Range<Int>) throws -> InkScan {
+  /// Renders the row on a white background and scans its text column for
+  /// rows with any dark pixel.
+  @MainActor
+  private static func renderInk(row: EntryRowDTO, settings: AppFontSettings, width: CGFloat) throws -> InkScan {
+    let bitmap = try renderRow(row: row, settings: settings, width: width)
+    return scanInk(bitmap, xRange: textColumns(imageWidth: bitmap.width))
+  }
+
+  /// The text column of a rendered row: right of the favicon slot, left of
+  /// the time label.
+  private static func textColumns(imageWidth: Int) -> Range<Int> {
+    Int(EntryRowMetrics.faviconSize + EntryRowMetrics.faviconSpacing)..<(imageWidth - 80)
+  }
+
+  @MainActor
+  private static func slotRows(titleLines: Int, settings: AppFontSettings) -> SlotRows {
+    let heights = EntryRowMetrics.lineHeights(scale: settings.textSize.scaleFactor)
+    let rowTop = Int(EntryRowMetrics.verticalPadding)
+    let titleHeight = titleLines * Int(heights.title)
+    let domainTop = rowTop + titleHeight + Int(EntryRowMetrics.textSpacing)
+    let summaryTop = domainTop + Int(heights.meta) + Int(EntryRowMetrics.textSpacing) - 1
+    return SlotRows(
+      title: rowTop..<(rowTop + titleHeight + 1),
+      domain: domainTop..<(domainTop + Int(heights.meta)),
+      summary: summaryTop..<(rowTop + Int(settings.entryRowTextColumnHeight)))
+  }
+
+  private static func bitmap(of image: CGImage) throws -> Bitmap {
     let width = image.width
     let height = image.height
     let bytesPerPixel = 4
     var pixels = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-    let inkRows: [Bool] = try pixels.withUnsafeMutableBytes { buffer in
+    try pixels.withUnsafeMutableBytes { buffer in
       let context = try #require(
         CGContext(
           data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
@@ -381,18 +456,31 @@ struct EntryRowGeometryTests {
           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
         "no bitmap context")
       context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-      let bytes = buffer.bindMemory(to: UInt8.self)
-      return (0..<height).map { y in
-        xRange.contains { x in
-          let offset = (y * width + x) * bytesPerPixel
-          let luminance =
-            (0.2126 * Double(bytes[offset]) + 0.7152 * Double(bytes[offset + 1]) + 0.0722 * Double(bytes[offset + 2]))
-            / 255
-          return luminance < 0.85
-        }
+    }
+    return Bitmap(width: width, height: height, bytes: pixels)
+  }
+
+  /// Flags every row of `bitmap` that has a pixel darker than the luminance
+  /// threshold inside `xRange`.
+  private static func scanInk(_ bitmap: Bitmap, xRange: Range<Int>) -> InkScan {
+    InkScan(inkRows: (0..<bitmap.height).map { y in xRange.contains { x in bitmap.luminance(x: x, y: y) < 0.85 } })
+  }
+
+  /// Mean luminance change between two renders of one layout, over the text
+  /// pixels inside `rows` and `columns`. A text pixel differs from the fill,
+  /// which the top-left pixel shows, by more than 0.02 in either render. A
+  /// region without a text pixel returns 0.
+  private static func meanTextChange(_ first: Bitmap, _ second: Bitmap, rows: Range<Int>, columns: Range<Int>) -> Double {
+    let fill = first.luminance(x: 0, y: 0)
+    let changes = rows.flatMap { y in
+      columns.compactMap { x -> Double? in
+        let before = first.luminance(x: x, y: y)
+        let after = second.luminance(x: x, y: y)
+        guard abs(before - fill) > 0.02 || abs(after - fill) > 0.02 else { return nil }
+        return abs(before - after)
       }
     }
-    return InkScan(inkRows: inkRows)
+    return changes.isEmpty ? 0 : changes.reduce(0, +) / Double(changes.count)
   }
 
   // MARK: - Hosting

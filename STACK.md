@@ -238,6 +238,7 @@ UTC everywhere internally, converted only at the boundary (`CLAUDE.md → Time`)
 - **Design authority:** Apple Human Interface Guidelines (macOS). The app must look and feel like Apple built it — no custom design language.
   - Standard SwiftUI components (`List`, `NavigationSplitView`, `Table`, `Form`, `Toggle`, …); no custom controls when Apple provides an equivalent.
   - System colors (`Color.primary`, `Color.secondary`, `.background`) and system fonts (`.body`, `.headline`, `.caption`); dark mode honoured.
+  - Text in a selectable `List` row uses a hierarchical style (`.primary`, `.secondary`, `.tertiary`). A fixed color such as `Color(nsColor: .secondaryLabelColor)` does not adapt to the emphasized selection.
   - Target the newest macOS APIs. No private API calls. No third-party UI frameworks.
 - **Keyboard (first-class, `VISION.md → Core Principles`):** every core action has a shortcut, discoverable in menus; focus behavior predictable and consistent; sidebar ↔ article list ↔ detail pane fully keyboard-navigable; the app is operable without a mouse.
 - **Readability:** good contrast at all times; comfortable body-text sizes for long sessions; clear information hierarchy at a glance; premium / calm / harmonious — reduce noise, not information.
