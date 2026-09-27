@@ -41,6 +41,7 @@ If any answer is `no`, this PR documents the conflict in the **Why** section abo
 - [ ] Previews / fixtures cover the new states.
 - [ ] Privacy declaration (`PrivacyInfo.xcprivacy`) updated if a new required-reason / required-data API was adopted.
 - [ ] If the schema changed: a new `VersionedSchema` is added and `FeederMigrationPlan` updated with a stage; custom stages recompute the denormalized display fields they touch (`STACK.md → Persistence shape`).
+- [ ] Hot-path gate (STACK.md → Performance budgets): not triggered, no new hot-path work and the reason, or the test and the signpost interval for each unit of new hot-path work.
 - [ ] Owner-run checks (`STACK.md → Gates`): `none triggered`, or each triggered check as `ran on <SHA>: PASS` or `triggered, pending owner run`.
 - [ ] The issue this PR resolves is linked with `Closes #<N>` above. Any binding decision introduced (if any) is stated in plain language in this description and the issue.
 

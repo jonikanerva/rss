@@ -18,10 +18,6 @@ struct ContentView: View {
   /// rows land at the top and `List` keeps the scroll anchor, so this dwell
   /// only collapses a burst of pages into one re-fetch.
   fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
-  /// Entry count seeded for the headless reading state. Large enough to fill
-  /// the perf seeder's categories, small enough to keep the automated launch
-  /// fast.
-  private static let headlessSeedEntryCount = 120
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -125,7 +121,6 @@ struct ContentView: View {
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
-  private var isPerfScenarioMode: Bool { PerfScenarioRunner.isEnabled }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
@@ -857,10 +852,6 @@ struct ContentView: View {
   /// `FeederApp.usesFeedbinAccount(in:)` is false: each one gets the `.unused`
   /// account phase, so `FeedbinAccountLifecycle` never boots it.
   private func bootLaunchMode() {
-    if isPerfScenarioMode {
-      runPerfScenario()
-      return
-    }
     if HeadlessMode.isEnabled {
       bootHeadless()
       return
@@ -888,63 +879,16 @@ struct ContentView: View {
     }
   }
 
-  /// Seeds the data store: call it only on a launch with the in-memory store.
   private func bootHeadless() {
-    let container = modelContext.container
     // Defence in depth: an inert client means no sync path can reach Feedbin.
     syncEngine.attachClient(InertFeedbinClient())
-    Task {
-      let writer = await DataWriter.makeDetached(modelContainer: container)
-      let reader = await DataReader.makeDetached(modelContainer: container)
-      syncEngine.attachWriter(writer)
-      syncEngine.attachReader(reader)
-      // The perf seeder gives every entry exactly one category and strict
-      // newest-first order, honouring the `VISION.md` invariants.
-      _ = try? await writer.seedPerfTestData(entryCount: Self.headlessSeedEntryCount)
-      if selection == nil {
-        selection = .folder("technology")
-      }
-    }
+    seedUITestDataIfNeeded()
   }
 
-  /// Drive the headless perf scenario. `PerfScenarioRunner` mutates
-  /// `selection`, `selectedEntryID`, and `articleViewMode` on MainActor — the
-  /// same writes the user would make — and calls `exit(0)` so `xctrace`
-  /// finalises the recorded trace.
-  private func runPerfScenario() {
-    let container = modelContext.container
-    Task { @MainActor in
-      let writer = await DataWriter.makeDetached(modelContainer: container)
-      let reader = await DataReader.makeDetached(modelContainer: container)
-      syncEngine.attachWriter(writer)
-      syncEngine.attachReader(reader)
-      await PerfScenarioRunner.run(
-        writer: writer,
-        syncEngine: syncEngine,
-        apply: { newSelection, newEntryID, newMode in
-          selection = newSelection
-          selectedEntryID = newEntryID
-          articleViewMode = newMode
-        },
-        visibleEntryIDs: { currentEntries.ids },
-        navigate: { direction in
-          // Route through the real J/K handler so the walk pays the actual
-          // per-keystroke recompute, not a bare `selection =`.
-          switch direction {
-          case .next: _ = bareKeyActions.onJ()
-          case .previous: _ = bareKeyActions.onK()
-          }
-        },
-        bumpEntryList: { bumpEntryList() },
-        currentSelection: { selection }
-      )
-    }
-  }
-
+  /// Seeds the data store: call it only on a launch with the in-memory store.
   private func seedUITestDataIfNeeded() {
     let container = modelContext.container
     Task {
-      // Without a writer the demo-mode launch sticks on `ProgressView`.
       let writer = await DataWriter.makeDetached(modelContainer: container)
       let reader = await DataReader.makeDetached(modelContainer: container)
       syncEngine.attachWriter(writer)

@@ -94,7 +94,6 @@ struct FeederApp: App {
   nonisolated static func usesFeedbinAccount(in environment: [String: String]) -> Bool {
     !HeadlessMode.isEnabled(in: environment)
       && environment["UITEST_DEMO_MODE"] != "1"
-      && environment["FEEDER_PERF_MODE"] != "1"
       && environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1"
   }
 
@@ -223,15 +222,10 @@ struct FeederApp: App {
 // MARK: - App delegate
 
 /// The app's `NSApplicationDelegate`. At quit it queues each pending read that
-/// this launch has not queued yet. In a perf launch it activates the app. It
-/// adds no UI and never calls `exit()`.
+/// this launch has not queued yet. It adds no UI and never calls `exit()`.
 final class FeederAppDelegate: NSObject, NSApplicationDelegate {
   /// `FeederApp` owns the engine and sets this reference in its bootstrap.
   weak var syncEngine: SyncEngine?
-  /// Owned handle for the one-shot window-ordering retry, so the async work is
-  /// not fire-and-forget (`STACK.md § 9`). It completes in one main-actor hop,
-  /// and the delegate's lifetime bounds it.
-  private var windowOrderRetry: Task<Void, Never>?
 
   // MARK: - Quit
 
@@ -239,46 +233,5 @@ final class FeederAppDelegate: NSObject, NSApplicationDelegate {
     // Keep this call synchronous: the process exits when this method returns,
     // so a Task or an actor hop started here can be lost (`STACK.md § 14`).
     syncEngine?.queueRecordedPendingReads()
-  }
-
-  // MARK: - Perf activation
-
-  // `xctrace record --launch` starts the process without activating it, and a
-  // macOS app that is not active may never order its `WindowGroup` window on
-  // screen. SwiftUI then never fires the window's `.onAppear` or `.task`, so
-  // the perf scenario never starts.
-
-  // Both hooks gate on `PerfScenarioRunner.isEnabled`, the same source of
-  // truth that `ContentView` reads, so the forced activation and the scenario
-  // trigger cannot diverge.
-
-  func applicationWillFinishLaunching(_ notification: Notification) {
-    // Load-bearing gate: keep it the first statement. Any other launch
-    // returns here, and this hook does nothing.
-    guard PerfScenarioRunner.isEnabled else { return }
-    // Force a normal foreground app so the window can become key. Set before
-    // launch finishes, so the policy holds when SwiftUI creates the scene.
-    NSApp.setActivationPolicy(.regular)
-  }
-
-  func applicationDidFinishLaunching(_ notification: Notification) {
-    // Load-bearing gate: keep it the first statement.
-    guard PerfScenarioRunner.isEnabled else { return }
-    // `activate()` brings the app forward under the cooperative activation
-    // model.
-    NSApp.activate()
-    if let window = NSApp.windows.first {
-      // Activation alone does not order a specific window front, and SwiftUI
-      // fires `.onAppear` and `.task` only for a displayed window.
-      window.makeKeyAndOrderFront(nil)
-    } else {
-      // SwiftUI may not have created the window yet at `didFinishLaunching`.
-      // One owned next-tick retry orders it front once the window exists —
-      // never a loop (`STACK.md § 7 / § 9`). With no window the run fails
-      // closed downstream.
-      windowOrderRetry = Task { @MainActor in
-        NSApp.windows.first?.makeKeyAndOrderFront(nil)
-      }
-    }
   }
 }

@@ -103,9 +103,10 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
 | `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests). Owner-run.                        |
-| `$PERF_CMD`      | `make perf` (local perf regression suite; see § 4). Owner-run.                       |
 
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
+
+One narrow exception: when an issue or the owner names an owner trace (§ 4 → Owner trace), an agent may read that trace with `xcrun xctrace export`, also with `--toc`. The raw export stays on the Mac. Only counts and durations go into an issue or a PR. An agent never runs `xctrace record` or `xctrace import`, and never uses `--launch` or `--attach`.
 
 ### Testing strategy
 
@@ -139,16 +140,18 @@ Hygiene for a new or changed test:
 | A change to the `DataReader` or `DataWriter` container or executor (§ 14) | dev | `make test-stress-tsan` |
 | Focus trigger | owner | `make test-focus` |
 | Settings trigger | owner | `make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke` |
-| Hot-path trigger (§ 4) | owner | `$PERF_CMD`, or an Instruments trace for felt lag |
+| Hot-path trigger (§ 4) | dev | The § 4 evidence, or "no new hot-path work" and the reason |
+| After-trace trigger | owner | An owner trace of the slow action after the fix (§ 4 → Owner trace) |
 
 `make test-all` ends with one stamp line: `verify: head=<sha> tree=clean|dirty result=<result> tests=<n>`. `tree=clean` means that HEAD did not move, and that `git status` showed no change and no untracked file at the start and at the end of the run. `tests` counts the passed tests. Only a `tree=clean` line with `result=Passed` whose head is the PR head is gate evidence. The PM compares the line with the pushed head before qa starts. `make test-all` refuses a `UNIT_TEST` selection.
 
 A run with `UNIT_TEST` or `UI_TEST` fails when fewer tests pass than there are selectors. The guard counts passed tests. The guard proves that a selector matched a test only when the run has one selector, or when each selector names one test method. A mutation check therefore selects one suite per run. A Swift Testing single-test selector can match no test, so select the suite. Use the suite type name, not the file name.
 
-Owner-run checks take over the screen, so the owner runs them. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
+Owner-run checks take over the screen or need the owner's real data, so the owner runs them. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
 
-- **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, `FeederUITests/FeederUITests.swift`, the `test-ui` or `test-focus` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
-- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
+- **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, `FeederUITests/FeederUITests.swift`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe or the `test-focus` target in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
+- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
+- **After-trace trigger:** the PR closes an issue that names an owner trace.
 
 ### Build folders
 
@@ -164,9 +167,48 @@ A full clone uses `/tmp/FeederDerivedData`. A linked `git worktree`, or a copy w
 - **Article list scroll:** 120 fps achievable on ProMotion.
 - **Sync / classification:** background work must not block the UI; long-running classification batches are cancellable and yield cooperatively.
 
-Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded.
+Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded. No automated check measures these budgets. An owner trace (§ 4 → Owner trace) measures the frame, launch, scroll, and sync budgets. No check measures the memory ceiling.
 
-**Hot-path gate:** if a diff touches the hot path (`ContentView`, `EntryRowView`, `EntryDetailView`, `DataWriter` queries, `UnreadCountsSnapshot`, or signpost-bounded paths), the owner runs `$PERF_CMD` (§ 3 → Gates). It must pass without regression against the baselines in `Tests/PerfBaselines/` (see `Tests/PerfBaselines/README.md`; refresh with `make perf-record-baseline` only when a change is intentionally accepted).
+### Hot-path gate
+
+- **Trigger:** the diff changes `ContentView.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryRowView.swift`, or `EntryDetailView.swift` under `Feeder/Views/`, `DataReader.swift` or `DataWriter.swift` under `Feeder/Data/`, or the `UnreadCountsSnapshot` declaration in `Feeder/Data/DataWriterDTOs.swift`.
+- **New hot-path work:** new main-actor work that runs for each frame, row, keystroke, or selection change, or a new `DataReader` or `DataWriter` read or write.
+- **Answer:** the PR answers the gate in one line: `not triggered`; or `no new hot-path work` and the reason; or the evidence for each unit of new hot-path work.
+- **Evidence:** a test and a `PerformanceSignpostName` interval around the work. For work that runs off the main actor, the test is a `@MainActor` off-main test (§ 5). For work that stays on the main actor, the test bounds the input size of the work through the existing API, for example the page limit or the visible rows. The test adds no production hook. No test bounds a duration.
+- The gate needs no owner run.
+
+### Owner trace
+
+When one of these feels slow more than once, the owner records a trace: a sidebar move, an article open, a scroll, the UI during a sync, or a launch. The owner records every trace.
+
+- Record in the daily app with the real data, and do not relaunch the app first. For a slow launch, let Instruments launch Feeder.
+- Use the Time Profiler template, which includes Hangs, and add the os_signpost instrument. For a scroll hitch, use the Animation Hitches template. Record for 30 to 60 seconds, and repeat the slow action three to five times.
+- Save the trace as `~/Desktop/feeder-<topic>.trace`. The trace stays on the Mac, because the repository is public.
+- Add one sentence to the issue: what felt slow, the trace file name, and the build identity. The build identity is the branch and the `git log -1 --oneline` of the installed build.
+- Read `read-fetch-sections` in the os_signpost instrument. The read runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
+
+### Signposts
+
+`PerformanceSignpostName` holds every name. A PR that adds or removes a name updates this list. `row-body-build` is an event. Each other name is an interval.
+
+| Name | The felt symptom that it attributes |
+| ---- | ----------------------------------- |
+| `sidebar-click` | A sidebar move is slow. The interval is the SwiftUI commit after the selection changes. |
+| `article-click` | An article open is slow. The interval is the SwiftUI commit after the row selection changes. |
+| `detail-render` | The article body appears late. The interval covers the HTML render in a detached task. |
+| `read-fetch-sections` | The article list appears late. The interval is the fetch, the projection, and the grouping on the `DataReader` actor. |
+| `structural-reload` | The article list stays blank after a sidebar move. The interval runs from the start of the reload, after the debounce, to the new rows. |
+| `reload-diff` | A list reload is slow on the main actor. The interval is the row comparison. |
+| `reload-set-build` | A list reload is slow on the main actor. The interval is the build of the identifier set. |
+| `reload-state-assign` | A list reload is slow on the main actor. The interval is the state assignment. |
+| `contentview-reeval` | A list reload makes the whole window stutter. The interval runs from the new visible rows to the next `ContentView` render. |
+| `row-body-build` | A list reload is slow for a large category. More events inside one `structural-reload` interval than visible rows show that the `List` builds rows that are not visible. |
+| `net-fetch-page` | A sync is slow. The interval is the network request for one page. |
+| `write-persist-page` | The UI is slow during a sync. The interval is the persist of one page. Back-to-back intervals with no `net-fetch-page` gap show that the writes saturate the shared SwiftData coordinator. |
+
+### Rollback
+
+Commit `c27208c3b1f588b9a6332110196a2458f8c4d139`, the base of the removal, holds the full automated performance harness. Restore a part of the harness only when an owner trace shows a regression that a repeatable measurement must guard.
 
 ---
 
@@ -175,7 +217,7 @@ Profile before optimizing. Stay inside these budgets unless a measurement-backed
 - **Storage primitive:** SwiftData (`@Model`, `ModelContainer`, `@Query`).
 - **Writes:** ALL writes go through `DataWriter` (`@ModelActor`). No `ModelContext` on MainActor (§0).
 - **Reads (article list + sidebar counts):** go through `DataReader` (`@ModelActor`) — a SECOND **read-only** `ModelContext` on the SAME app container as `DataWriter` and the SwiftUI main context (`autosaveEnabled = false`; zero `insert`/`save`). The separate actor keeps these reads off the writer actor's mailbox (the panel-2 starvation fix); the shared container keeps `PersistentIdentifier`s interoperable so the render/selection path (`modelContext.model(for:)`) is unchanged (§0, §14).
-- **Off-main is the EXECUTOR, not the actor (hard-won, issue #135).** `@ModelActor` + `DefaultSerialModelExecutor` guarantee only *serialised, thread-safe* context access — NOT background execution. Awaited from a MainActor caller (every SwiftUI read site is one), a bare model actor's fetch runs **on the main thread**, silently: before the fix, Instruments per-thread attribution showed `DataReader` at 18.85 s main vs 0.99 s background, which was the felt category-nav lag that seven symptom-targeted fixes missed. So every SwiftData actor (`DataReader`, `DataWriter`) MUST bind its executor to a dedicated **background** queue (a custom `SerialModelExecutor`, §14) and assert `dispatchPrecondition(condition: .notOnQueue(.main))` at the top of each fetch/write. "Runs off-main" is a claim you PROVE with per-thread Instruments attribution — never assume it from the actor keyword.
+- **Off-main is the EXECUTOR, not the actor (hard-won, issue #135).** `@ModelActor` + `DefaultSerialModelExecutor` guarantee only *serialised, thread-safe* context access — NOT background execution. Awaited from a MainActor caller (every SwiftUI read site is one), a bare model actor's fetch runs **on the main thread**, silently: before the fix, Instruments per-thread attribution showed `DataReader` at 18.85 s main vs 0.99 s background, which was the felt category-nav lag that seven symptom-targeted fixes missed. So every SwiftData actor (`DataReader`, `DataWriter`) MUST bind its executor to a dedicated **background** queue (a custom `SerialModelExecutor`, §14) and assert `dispatchPrecondition(condition: .notOnQueue(.main))` at the top of each fetch/write. Never assume off-main execution from the actor keyword. A `@MainActor` test proves the executor binding: the actor's isolated methods do not run on the main thread (`DataReaderOffMainExecutorTests`, `DataWriterOffMainExecutorTests`). An owner trace (§ 4) shows main-thread time on real data.
 - **Persisted entities:** declared by `VISION.md → Persistence and Privacy Posture`.
 - **Schema versioning:** SwiftData first-party migration. Every shipped schema shape is a `VersionedSchema` (e.g. `FeederSchemaV1`). `FeederMigrationPlan: SchemaMigrationPlan` lists the versions in order plus the stages between them. The `ModelContainer` is opened with the plan so SwiftData runs the right stage at launch. **Prefer lightweight stages** (`.lightweight(fromVersion:toVersion:)`) for additive / removal-only changes — no data movement needed. **Use custom stages** (`.custom(fromVersion:toVersion:willMigrate:didMigrate:)`) when a denormalized display field needs recomputing or when data has to be transformed. **No auto-wipe on schema change.** User folders, categories (with `displayName`, `categoryDescription`, `keywords`, `sortOrder`), classified entries (`primaryCategory`, `primaryFolder`), and feeds must survive every schema bump.
 - **Pre-computed display fields:** `DataWriter` pre-computes `plainText`, `formattedDate`, `formattedPublishedTime`, `primaryCategory`, `primaryFolder`, `displayDomain`, `summaryPlainText`, `articleBlocksData` at write time. **Any future schema change that touches the inputs to these fields requires a custom migration stage that recomputes them** so older rows render consistently with newly synced rows. The pure helpers in `Helpers/EntryFormatting.swift` and `Helpers/HTMLToBlocks.swift` are `nonisolated` and reusable from inside `willMigrate` / `didMigrate` closures.
@@ -216,7 +258,7 @@ Hard rules for this stack; `/codereview` enforces every entry on every PR.
 - `ObservableObject`, `@StateObject`, `@ObservedObject`, `@EnvironmentObject`, `@Published` in new code — Observation framework only.
 - `NavigationView` — `NavigationSplitView` / `NavigationStack` only.
 - `ModelContext` on MainActor for writes — all writes through `DataWriter` (§0, §5).
-- A SwiftData actor (`@ModelActor` / `DefaultSerialModelExecutor`) whose fetches/writes are NOT bound to a dedicated **background** executor and NOT guarded by `dispatchPrecondition(condition: .notOnQueue(.main))` — the bare `ModelActor` pattern only *serialises* access; awaited from a MainActor caller it executes on the **main** thread, silently. Off-main means a custom `SerialModelExecutor` on a background queue (§5, §14), asserted, and verified by per-thread Instruments attribution — never assumed (issue #135).
+- A SwiftData actor (`@ModelActor` / `DefaultSerialModelExecutor`) whose fetches/writes are NOT bound to a dedicated **background** executor and NOT guarded by `dispatchPrecondition(condition: .notOnQueue(.main))` — the bare `ModelActor` pattern only *serialises* access; awaited from a MainActor caller it executes on the **main** thread, silently. Off-main means a custom `SerialModelExecutor` on a background queue (§5, §14), asserted, and proved by a `@MainActor` off-main test for each SwiftData actor (§ 5) — never assumed (issue #135).
 - Filtering `@Query` results in Swift — push predicates to SQLite via the `@Query` predicate.
 - `@unchecked Sendable`, `nonisolated(unsafe)`, `@preconcurrency`, `MainActor.assumeIsolated` without an inline-justified, audited comment explaining why no safe alternative exists.
 - Expensive work in `body` — no regex, loops, or Calendar math during view rendering (§0, §4).
