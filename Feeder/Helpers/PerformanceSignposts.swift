@@ -3,9 +3,9 @@ import os.signpost
 
 // MARK: - Shared OSSignposter
 
-/// Shared `OSSignposter` for click → render intervals at hot UI boundaries.
-/// The category is `.pointsOfInterest`, so Instruments surfaces the intervals
-/// with no extra configuration, and the subsystem matches the rest of the app
+/// Shared `OSSignposter` for every `PerformanceSignpostName` signpost. The
+/// category is `.pointsOfInterest`, so Instruments surfaces the signposts with
+/// no extra configuration, and the subsystem matches the rest of the app
 /// (`STACK.md § 8`).
 ///
 /// `OSSignposter` does no work when no profiler is attached, so the calls need
@@ -16,11 +16,11 @@ nonisolated let perfSignposter = OSSignposter(
   category: .pointsOfInterest
 )
 
-// MARK: - Interval names
+// MARK: - Signpost names
 
-/// Named entry points for every instrumented interval. One namespace keeps the
-/// Instruments labels stable and a rename in one place. `nonisolated`, because
-/// callers cross MainActor and nonisolated actor contexts interchangeably.
+/// Add or remove a name only together with its row in
+/// `STACK.md § 4 → Signposts`. `nonisolated`, because callers cross MainActor
+/// and nonisolated actor contexts interchangeably.
 nonisolated enum PerformanceSignpostName {
   /// Sidebar selection commit → the article list's task fires. Measures the
   /// SwiftUI commit cost of a sidebar move.
@@ -55,10 +55,8 @@ nonisolated enum PerformanceSignpostName {
 
   // MARK: - Structural-reload sub-cost split
   //
-  // Finer intervals that split the non-fetch portion of `structuralReload`
-  // across the individual MainActor operations. Diagnostic only, unlike
-  // `structuralReload` and `readFetchSections`, which are durable regression
-  // guards.
+  // Finer signposts that split the non-fetch portion of `structuralReload`
+  // across the individual MainActor operations.
 
   /// The row structural-equality walk on MainActor, which compares each row
   /// field by field.
