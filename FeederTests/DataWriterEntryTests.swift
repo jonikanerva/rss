@@ -284,7 +284,7 @@ struct DataWriterEntryTests {
     _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))
 
     // Mark 1001 as unread, 1002 and 1003 become read — 2 flips (1002, 1003)
-    let firstFlips = try await writer.updateReadState(unreadIDs: Set([1001]))
+    let firstFlips = try await writer.updateReadState(unreadIDs: Set([1001]), queuedReadIDs: [])
     #expect(firstFlips == 2)
 
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == false)
@@ -292,7 +292,7 @@ struct DataWriterEntryTests {
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1003)?.isRead == true)
 
     // Flip: only 1002 unread, rest become read — 2 flips (1001 read, 1002 unread)
-    let secondFlips = try await writer.updateReadState(unreadIDs: Set([1002]))
+    let secondFlips = try await writer.updateReadState(unreadIDs: Set([1002]), queuedReadIDs: [])
     #expect(secondFlips == 2)
 
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: 1001)?.isRead == true)
@@ -305,8 +305,26 @@ struct DataWriterEntryTests {
     let writer = try await makeWriter()
 
     // No entries exist — should not crash, should report 0 flips
-    let flips = try await writer.updateReadState(unreadIDs: Set())
+    let flips = try await writer.updateReadState(unreadIDs: Set(), queuedReadIDs: [])
     #expect(flips == 0)
+  }
+
+  @Test
+  func updateReadStateKeepsQueuedIDsRead() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+    let (queuedRead, queuedUnread, readNotQueued) = (1001, 1002, 1003)
+    let serverUnreadIDs: Set = [queuedRead, queuedUnread, readNotQueued]
+    let entries = try serverUnreadIDs.map { try FeedbinFixtures.entry(id: $0) }
+    _ = try await writer.persistEntries(entries, unreadIDs: serverUnreadIDs)
+    try await writer.markEntriesRead(feedbinEntryIDs: [queuedRead, readNotQueued])
+
+    let flips = try await writer.updateReadState(unreadIDs: serverUnreadIDs, queuedReadIDs: [queuedRead, queuedUnread])
+
+    #expect(flips == 2)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: queuedRead)?.isRead == true)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: queuedUnread)?.isRead == true)
+    #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: readNotQueued)?.isRead == false)
   }
 
   // MARK: - markAllAsRead

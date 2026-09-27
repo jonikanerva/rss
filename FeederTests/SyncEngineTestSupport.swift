@@ -22,6 +22,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   var subscriptionsError: Error?
   var extractedContentError: Error?
+  /// Thrown after the call enters `deleteUnreadEntriesCallLog`, so the log
+  /// also holds the batch of a failed push.
+  var deleteUnreadEntriesError: Error?
 
   // MARK: Timing knobs
 
@@ -37,6 +40,12 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   /// While set, `verifyCredentials()` waits until the gate opens.
   private var verifyGate: AsyncGate?
+  /// While set, `deleteUnreadEntries` logs the call and then waits until the
+  /// gate opens.
+  private var deleteUnreadEntriesGate: AsyncGate?
+  /// While set, the page stream bumps `fetchEntryPagesCallCount` and then waits
+  /// until the gate opens before it yields a page.
+  private var entryPagesGate: AsyncGate?
 
   // MARK: Call logs
 
@@ -69,6 +78,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   func deleteUnreadEntries(_ ids: [Int]) async throws {
     deleteUnreadEntriesCallLog.append(ids)
+    if let deleteUnreadEntriesGate { await deleteUnreadEntriesGate.wait() }
+    if let deleteUnreadEntriesError { throw deleteUnreadEntriesError }
   }
 
   func verifyCredentials() async throws -> Bool {
@@ -91,6 +102,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     return AsyncThrowingStream { continuation in
       let task = Task {
         let snapshot = await snapshotTask.value
+        if let gate = snapshot.gate { await gate.wait() }
         if snapshot.delay > .zero {
           try? await Task.sleep(for: snapshot.delay)
         }
@@ -117,6 +129,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setEntryPagesInterPageDelay(_ value: Duration) { entryPagesInterPageDelay = value }
   func setVerifyResult(_ value: Result<Bool, any Error>) { verifyResult = value }
   func holdVerification(until gate: AsyncGate) { verifyGate = gate }
+  func setDeleteUnreadEntriesError(_ value: Error?) { deleteUnreadEntriesError = value }
+  func holdDeleteUnreadEntries(until gate: AsyncGate) { deleteUnreadEntriesGate = gate }
+  func holdEntryPages(until gate: AsyncGate) { entryPagesGate = gate }
 
   // MARK: - Internal
 
@@ -124,10 +139,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// counter is a reliable "the stream body has started" signal. The engine's
   /// own flag is not: it flips before any client call.
   private func snapshotEntryPagesState() -> (
-    pages: [FeedbinEntriesPage], delay: Duration, interPageDelay: Duration
+    pages: [FeedbinEntriesPage], delay: Duration, interPageDelay: Duration, gate: AsyncGate?
   ) {
     fetchEntryPagesCallCount += 1
-    return (entryPagesResponse, entryPagesInitialDelay, entryPagesInterPageDelay)
+    return (entryPagesResponse, entryPagesInitialDelay, entryPagesInterPageDelay, entryPagesGate)
   }
 }
 

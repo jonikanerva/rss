@@ -2,10 +2,10 @@ import Foundation
 
 // MARK: - Inert Feedbin client (seam 1, defence in depth)
 
-/// A no-op `FeedbinClientProtocol` for headless mode: every method performs no
-/// network I/O and returns an empty result. Headless boot attaches it, so a sync
-/// path that is somehow reached still cannot contact Feedbin. Defence in depth
-/// behind the credential skip, which already stops periodic sync.
+/// A `FeedbinClientProtocol` for headless mode: no method performs network
+/// I/O. Headless boot attaches it, so a sync path that is somehow reached still
+/// cannot contact Feedbin. Defence in depth behind the credential skip, which
+/// already stops periodic sync.
 actor InertFeedbinClient: FeedbinClientProtocol {
   func fetchSubscriptions() async throws -> [FeedbinSubscription] { [] }
 
@@ -13,7 +13,11 @@ actor InertFeedbinClient: FeedbinClientProtocol {
 
   func fetchUnreadEntryIDs() async throws -> [Int] { [] }
 
-  func deleteUnreadEntries(_ ids: [Int]) async throws {}
+  // Must throw: a push that succeeds removes its IDs from the `SyncEngine` read
+  // queue, and a headless launch shares that queue with the owner's launches.
+  func deleteUnreadEntries(_ ids: [Int]) async throws {
+    throw URLError(.notConnectedToInternet)
+  }
 
   func verifyCredentials() async throws -> Bool { true }
 
