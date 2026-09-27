@@ -94,7 +94,7 @@ nonisolated func categorizeSyncError(_ error: Error) -> SyncError {
 // MARK: - FeedbinAccountPhase
 
 /// `unused` belongs to a launch that never reads or saves credentials:
-/// headless, demo, perf, and previews.
+/// headless, demo, and previews.
 nonisolated enum FeedbinAccountPhase: Equatable, Sendable {
   case checking
   case noAccount

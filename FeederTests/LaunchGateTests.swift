@@ -25,7 +25,6 @@ struct LaunchGateTests {
     ["FEEDER_HEADLESS": "0"],
     ["UITEST_IN_MEMORY_STORE": "0"],
     ["UITEST_DEMO_MODE": "0"],
-    ["FEEDER_PERF_MODE": "1"],
     ["XCODE_RUNNING_FOR_PREVIEWS": "1"],
     ["XCTestConfigurationFilePath": "/x"],
   ])
@@ -38,10 +37,9 @@ struct LaunchGateTests {
   @Test(arguments: [
     ["FEEDER_HEADLESS": "1"],
     ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "1"],
-    ["FEEDER_PERF_MODE": "1"],
     ["XCODE_RUNNING_FOR_PREVIEWS": "1"],
   ])
-  func headlessDemoPerfAndPreviewsUseNoAccount(environment: [String: String]) {
+  func headlessDemoAndPreviewsUseNoAccount(environment: [String: String]) {
     #expect(!FeederApp.usesFeedbinAccount(in: environment))
   }
 
@@ -87,13 +85,6 @@ struct LaunchGateTests {
 
     await engine.loadAccountAtLaunch()
     #expect(engine.account == .noAccount)
-  }
-
-  @Test
-  func perfLaunchHoldsTheKeychainStoreButNeverUsesIt() {
-    let engine = FeederApp.makeSyncEngine(environment: ["FEEDER_PERF_MODE": "1"])
-    #expect(engine.credentialStore is KeychainFeedbinCredentialStore)
-    #expect(engine.account == .unused)
   }
 
   @Test

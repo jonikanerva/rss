@@ -16,14 +16,6 @@ nonisolated let perfSignposter = OSSignposter(
   category: .pointsOfInterest
 )
 
-/// Flags a mis-paired signpost interval: a begin taken while an earlier begin
-/// is still un-ended. Debug level, so the misuse surfaces under `os_log`
-/// filtering without reaching production logs.
-nonisolated let perfSignpostLogger = Logger(
-  subsystem: "com.feeder.app",
-  category: "PerformanceSignposts"
-)
-
 // MARK: - Interval names
 
 /// Named entry points for every instrumented interval. One namespace keeps the
@@ -40,11 +32,6 @@ nonisolated enum PerformanceSignpostName {
   /// loads it. Measures the off-MainActor render alone, without the
   /// click-to-task latency.
   static let detailRender: StaticString = "detail-render"
-  /// Brackets the interleaved navigation pass `PerfScenarioRunner` drives while
-  /// a write-pressure task hammers the store. Seeding and cold start must stay
-  /// outside it, because the parser windows its hang counts to this interval.
-  /// Emitted only under the perf-mode flag.
-  static let perfNavWindow: StaticString = "perf-nav-window"
 
   // MARK: - Read-starvation instrumentation
   //

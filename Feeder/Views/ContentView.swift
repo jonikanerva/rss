@@ -121,7 +121,6 @@ struct ContentView: View {
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
-  private var isPerfScenarioMode: Bool { PerfScenarioRunner.isEnabled }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
@@ -853,10 +852,6 @@ struct ContentView: View {
   /// `FeederApp.usesFeedbinAccount(in:)` is false: each one gets the `.unused`
   /// account phase, so `FeedbinAccountLifecycle` never boots it.
   private func bootLaunchMode() {
-    if isPerfScenarioMode {
-      runPerfScenario()
-      return
-    }
     if HeadlessMode.isEnabled {
       bootHeadless()
       return
@@ -888,40 +883,6 @@ struct ContentView: View {
     // Defence in depth: an inert client means no sync path can reach Feedbin.
     syncEngine.attachClient(InertFeedbinClient())
     seedUITestDataIfNeeded()
-  }
-
-  /// Drive the headless perf scenario. `PerfScenarioRunner` mutates
-  /// `selection`, `selectedEntryID`, and `articleViewMode` on MainActor — the
-  /// same writes the user would make — and calls `exit(0)` so `xctrace`
-  /// finalises the recorded trace.
-  private func runPerfScenario() {
-    let container = modelContext.container
-    Task { @MainActor in
-      let writer = await DataWriter.makeDetached(modelContainer: container)
-      let reader = await DataReader.makeDetached(modelContainer: container)
-      syncEngine.attachWriter(writer)
-      syncEngine.attachReader(reader)
-      await PerfScenarioRunner.run(
-        writer: writer,
-        syncEngine: syncEngine,
-        apply: { newSelection, newEntryID, newMode in
-          selection = newSelection
-          selectedEntryID = newEntryID
-          articleViewMode = newMode
-        },
-        visibleEntryIDs: { currentEntries.ids },
-        navigate: { direction in
-          // Route through the real J/K handler so the walk pays the actual
-          // per-keystroke recompute, not a bare `selection =`.
-          switch direction {
-          case .next: _ = bareKeyActions.onJ()
-          case .previous: _ = bareKeyActions.onK()
-          }
-        },
-        bumpEntryList: { bumpEntryList() },
-        currentSelection: { selection }
-      )
-    }
   }
 
   /// Seeds the data store: call it only on a launch with the in-memory store.
