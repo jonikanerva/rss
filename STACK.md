@@ -95,19 +95,64 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 
 ## 3. Build & verify commands
 
-| Variable         | Command                                                |
-| ---------------- | ------------------------------------------------------ |
-| `$FORMAT_CMD`    | `make lint-fix`                                        |
-| `$LINT_CMD`      | `make lint`                                            |
-| `$BUILD_CMD`     | `make build`                                           |
-| `$TEST_CMD`      | `make test`                                            |
-| `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests)            |
-| `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests)      |
-| `$PERF_CMD`      | `make perf` (local perf regression suite; see §4)      |
-
-For a settings-only change, run the relevant UI method with `make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke`. This launches one UI test. `make test-ui` without a selector runs all UI tests. Reuse passing results for unchanged UI paths from the same task; rerun them only after relevant changes or failures. Keep key storage, privacy, retry, and state-transition coverage in unit tests. A UI retry must target the failed method after a specific fix.
+| Variable         | Command                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `$FORMAT_CMD`    | `make lint-fix`                                                                      |
+| `$LINT_CMD`      | `make lint`                                                                          |
+| `$BUILD_CMD`     | `make build`                                                                         |
+| `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
+| `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
+| `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests). Owner-run.                        |
+| `$PERF_CMD`      | `make perf` (local perf regression suite; see § 4). Owner-run.                       |
 
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
+
+### Testing strategy
+
+A test must protect a `VISION.md` invariant or a doctrine risk that an edit can break without notice. Delete a test that protects neither.
+
+| Layer | What to test | How |
+| ----- | ------------ | --- |
+| Domain (`Feeder/Helpers/`, pure types) | Each rule and each edge case: chronology, the single category and its fallback, UTC at the boundary (§ 10), parsing, formatting. | Unit tests with fixed input and a fixed `Date`. |
+| State owners (`SyncEngine`, `ClassificationEngine`, `ClassificationSettingsModel`) | The phase timeline: success, degraded, blocked, retry, cancellation. | Fakes, an injected clock, and an in-memory container. |
+| Persistence (`DataWriter`, `DataReader`, `FeederMigrationPlan`) | One test per contract: each write, each read predicate, the off-main guard, each migration stage. | The real actors on an in-memory container. A migration test uses an on-disk store in a unique temporary folder. |
+| Services (`FeedbinClient`, classification providers, key stores) | The request shape, the private fields, the map from status to disposition. | A stub transport or a memory store. No network. |
+| Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14). |
+| AppKit focus and first responder | Focus after a click, and keys while the web view has focus. | The focus check (XCUITest, owner-run). Add no other XCUITest. |
+
+Do not test Apple framework behaviour, styling, a private helper whose owner has tests, or a timing budget (§ 4 owns performance evidence). Keep key storage, privacy, retry, and state-transition coverage in unit tests.
+
+Hygiene for a new or changed test:
+
+- Do not use a real Keychain item, `UserDefaults.standard`, `URLCache.shared` or another shared URL-loading store, the general pasteboard, or the app's on-disk store. The unit-test host runs in the owner's app container.
+- Do not use a fixed sleep over 100 ms. Wait for a state, or inject a clock.
+- An on-demand test uses `.enabled(if:)`.
+
+### Gates
+
+| When | Who | Check |
+| ---- | --- | ----- |
+| Each commit | dev | `$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD` |
+| Each push | dev | `$VERIFY_CMD` once, on the committed tree to push. The hand-off quotes the `verify:` line and the pushed head. |
+| Review | qa | `$VERIFY_CMD` once per PR, last, on the head that qa passes. No run in a FAIL round. |
+| Mutation check | dev | `make test UNIT_TEST=FeederTests/<Suite>`, one suite per run, in a detached worktree. |
+| A change to the `DataReader` or `DataWriter` container or executor (§ 14) | dev | `make test-stress-tsan` |
+| Focus trigger | owner | `make test-focus` |
+| Settings trigger | owner | `make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke` |
+| Hot-path trigger (§ 4) | owner | `$PERF_CMD`, or an Instruments trace for felt lag |
+
+`make test-all` ends with one stamp line: `verify: head=<sha> tree=clean|dirty result=<result> tests=<n>`. `tree=clean` means that HEAD did not move, and that `git status` showed no change and no untracked file at the start and at the end of the run. `tests` counts the passed tests. Only a `tree=clean` line with `result=Passed` whose head is the PR head is gate evidence. The PM compares the line with the pushed head before qa starts. `make test-all` refuses a `UNIT_TEST` selection.
+
+A run with `UNIT_TEST` or `UI_TEST` fails when fewer tests pass than there are selectors. A Swift Testing single-test selector can match no test, so select the suite. Use the suite type name, not the file name.
+
+Owner-run checks take over the screen, so the owner runs them. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
+
+- **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, or `FeederUITests/FeederUITests.swift`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
+- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, or `testVercelSettingsKeyboardSmoke`.
+
+### Build folders
+
+Each checkout builds in its own folder. The main checkout uses `/tmp/FeederDerivedData`. Every other copy (a linked `git worktree` or an exported copy) uses `.build/DerivedData` inside that copy. Review and mutation-check worktrees live under `$TMPDIR`. The agent removes each worktree after use (`git worktree remove` deletes the folder). Do not pass `DERIVED_DATA` to a gate run.
 
 ---
 
@@ -121,7 +166,7 @@ The `Makefile` at the repository root is the single source of truth for these co
 
 Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded.
 
-**Hot-path gate:** if a diff touches the hot path (`ContentView`, `EntryRowView`, `EntryDetailView`, `DataWriter` queries, `UnreadCountsSnapshot`, or signpost-bounded paths), run `$PERF_CMD` — it must pass without regression against the baselines in `Tests/PerfBaselines/` (see `Tests/PerfBaselines/README.md`; refresh with `make perf-record-baseline` only when a change is intentionally accepted).
+**Hot-path gate:** if a diff touches the hot path (`ContentView`, `EntryRowView`, `EntryDetailView`, `DataWriter` queries, `UnreadCountsSnapshot`, or signpost-bounded paths), the owner runs `$PERF_CMD` (§ 3 → Gates). It must pass without regression against the baselines in `Tests/PerfBaselines/` (see `Tests/PerfBaselines/README.md`; refresh with `make perf-record-baseline` only when a change is intentionally accepted).
 
 ---
 
