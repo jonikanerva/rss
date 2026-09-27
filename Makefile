@@ -9,6 +9,8 @@
 #   make test-full  — full gate: lint + build + unit + UI
 #   make clean      — remove derived data and artifacts
 
+# /usr/bin/make is GNU Make 3.81, which ignores .SHELLFLAGS: start each recipe
+# line that has a pipeline or a command substitution with `set -euo pipefail;`.
 SHELL          := /bin/bash
 .SHELLFLAGS    := -euo pipefail -c
 
@@ -26,6 +28,9 @@ DERIVED_DATA   ?= $(CURDIR)/.build/DerivedData
 DESTINATION    ?= platform=macOS
 UNIT_RESULT    ?= artifacts/local/xcresult/unit-tests.xcresult
 UI_RESULT      ?= artifacts/local/xcresult/ui-smoke.xcresult
+# Test selectors, separated by spaces. Select a Swift Testing suite as a whole
+# (FeederTests/<Suite>, the type name): a single-test selector can match no test.
+UNIT_TEST      ?= FeederTests
 UI_TEST        ?= FeederUITests
 REPORT_DIR     ?= artifacts/local/test-reports
 
@@ -148,34 +153,42 @@ install-perf: ## Build Release under the perf bundle id + executable name and in
 # Test
 # ---------------------------------------------------------------------------
 
-test: build ## Run unit tests (FeederTests, excluding the perf suite)
+# $(call xcresult_field,<result bundle>,<key>) prints one top-level field of the
+# bundle's test summary.
+xcresult_field = xcrun xcresulttool get test-results summary --path '$(1)' --compact | plutil -extract $(2) raw -o - -
+
+# $(call only_testing,<selectors>) gives each selector its own -only-testing
+# argument. An empty list stops make: without an -only-testing argument,
+# xcodebuild runs every test target of the scheme, UI tests included.
+only_testing = $(addprefix -only-testing:,$(or $(strip $(1)),$(error The test selector list is empty; name at least one suite or method)))
+
+# $(call require_passed_tests,<result bundle>,<selectors>) fails the run when
+# fewer tests passed than there are selectors, so a selector that matches no
+# test cannot pass.
+require_passed_tests = set -euo pipefail; \
+	passed=$$($(call xcresult_field,$(1),passedTests)); \
+	[ "$$passed" -ge $(words $(2)) ] || \
+	{ echo "error: $$passed tests passed, fewer than the number of selectors ($(words $(2))): $(strip $(2))" >&2; exit 1; }
+
+test: build ## Run unit tests; UNIT_TEST=FeederTests/<Suite> runs one suite
 	@echo "==> unit tests"
 	@mkdir -p $(dir $(UNIT_RESULT))
 	@rm -rf $(UNIT_RESULT)
-	@# `-parallel-testing-enabled NO` runs the whole target SERIALLY. The unit
-	@# target has many suites that each spin up a fresh SwiftData `ModelContainer`
-	@# (one Core Data coordinator apiece); Swift Testing runs suites in parallel by
-	@# default, and `@Suite(.serialized)` only serialises WITHIN a suite — per
-	@# Apple's docs it "does not influence how those tests run relative to unrelated
-	@# tests", so it does NOT cap the number of coordinators alive at once across
-	@# suites. Under that concurrency the coordinators intermittently abort the test
-	@# host (a cascade of 0.000 s failures). Serialising the run caps it at one
-	@# coordinator at a time — deterministic and green (STACK.md §14).
-	@# The XCTest host boots the full Feeder app. `TEST_RUNNER_FEEDER_HEADLESS=1`
-	@# makes it boot HEADLESS (in-memory store, no Keychain read, no onboarding,
-	@# no sync) so the run is fully UNATTENDED — no macOS Keychain consent prompt
-	@# blocking on a human. A plain variable on the xcodebuild process does NOT
-	@# reach the host; xcodebuild strips the `TEST_RUNNER_` prefix and sets
-	@# `FEEDER_HEADLESS` in the host's env, where `HeadlessMode.isEnabled` reads it
-	@# (same prefix mechanism as `test-stress-tsan` below; #141).
+	@# Keep the run serial: many SwiftData coordinators alive at once can abort
+	@# the test host, and `@Suite(.serialized)` orders tests only inside one suite
+	@# (STACK.md § 14).
+	@# Keep the `TEST_RUNNER_` prefix: xcodebuild passes only prefixed variables
+	@# to the test host. The headless host uses an in-memory store, reads no
+	@# Keychain item, and starts no sync, so no consent prompt stops the run.
 	TEST_RUNNER_FEEDER_HEADLESS=1 xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-parallel-testing-enabled NO \
 		-resultBundlePath $(UNIT_RESULT) \
-		-only-testing:FeederTests \
+		$(call only_testing,$(UNIT_TEST)) \
 		-skip-testing:FeederTests/PerfSignpostTests \
 		-skip-testing:FeederTests/MicroBenchmarkTests \
 		-skip-testing:FeederTests/C3ReadStarvationMeasurementTests
+	@$(call require_passed_tests,$(UNIT_RESULT),$(UNIT_TEST))
 
 # Isolated Thread-Sanitizer run of the whole DataReader concurrency suite — the
 # evidence gate for the shared-container topology (STACK.md §14). Its heavyweight
@@ -240,7 +253,7 @@ c3-measure: build ## C3 read-starvation measurement + disposition verdict (#138 
 		-parallel-testing-enabled NO \
 		-only-testing:FeederTests/C3ReadStarvationMeasurementTests
 
-test-ui: build ## Run UI tests; UI_TEST can select one suite or method
+test-ui: build ## Run UI tests; UI_TEST selects one or more suites or methods
 	@echo "==> UI smoke tests"
 	@mkdir -p $(dir $(UI_RESULT))
 	@rm -rf $(UI_RESULT)
@@ -248,7 +261,8 @@ test-ui: build ## Run UI tests; UI_TEST can select one suite or method
 		./Tools/UITestRunner/run_ui_tests.sh test-without-building \
 		$(XCODEBUILD_FLAGS) \
 		-resultBundlePath $(UI_RESULT) \
-		"-only-testing:$(UI_TEST)"
+		$(call only_testing,$(UI_TEST))
+	@$(call require_passed_tests,$(UI_RESULT),$(UI_TEST))
 
 # ---------------------------------------------------------------------------
 # Full gate
