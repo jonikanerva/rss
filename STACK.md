@@ -117,7 +117,7 @@ A test must protect a `VISION.md` invariant or a doctrine risk that an edit can 
 | State owners (`SyncEngine`, `ClassificationEngine`, `ClassificationSettingsModel`) | The phase timeline: success, degraded, blocked, retry, cancellation. | Fakes, an injected clock, and an in-memory container. |
 | Persistence (`DataWriter`, `DataReader`, `FeederMigrationPlan`) | One test per contract: each write, each read predicate, the off-main guard, each migration stage. | The real actors on an in-memory container. A migration test uses an on-disk store in a unique temporary folder. |
 | Services (`FeedbinClient`, classification providers, key stores) | The request shape, the private fields, the map from status to disposition. | A stub transport or a memory store. No network. |
-| Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14). |
+| Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14) or the selection-text rule (§ 11). |
 | AppKit focus and first responder | Focus after a click, and keys while the web view has focus. | The focus check (XCUITest, owner-run). Add no other XCUITest. |
 
 Do not test Apple framework behaviour, styling, a private helper whose owner has tests, or a timing budget (§ 4 owns performance evidence). Keep key storage, privacy, retry, and state-transition coverage in unit tests.
@@ -235,6 +235,7 @@ Hard rules for this stack; `/codereview` enforces every entry on every PR.
 - Custom controls where a standard macOS component exists; private API calls; third-party UI frameworks (§11).
 - New SwiftPM packages without a §6 entry approved in advance.
 - A modifier placed outside `navigationSplitViewColumnWidth` on a column's content (measured 2026-09-17: an outer `onGeometryChange` hides the width preference from the split view, and the column lays out at the platform default); use `persistedColumnWidth(column:ideal:)`, whose regression test (`PersistedColumnWidthTests`) pins the order.
+- An article-list row whose height is not the row floor, `AppFontSettings.entryRowHeight` (measured 2026-09-16: on macOS 27 the `NSTableView`-backed `List` can draw rows at the table's fallback row height, `defaultMinListRowHeight`, until a scroll re-tiles the table). Every row renders at the floor, and the article list sets `defaultMinListRowHeight` to the floor, so a row at the fallback height is whole. The fixed height forces two rules: the title, domain, and summary lines fit the fixed text column, and the summary shows only the whole lines that the title leaves free. `EntryRowGeometryTests` pins the floor, the fit, and the line counts.
 
 ---
 

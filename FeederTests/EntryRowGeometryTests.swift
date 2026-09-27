@@ -35,20 +35,17 @@ struct EntryRowGeometryTests {
 
   // MARK: - Floor
 
-  @Test("table fallback row height equals the floor", arguments: AppTextSize.allCases)
-  @MainActor
-  func fallbackRowHeightEqualsFloor(size: AppTextSize) async throws {
-    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
-    let table = try await Self.hostList(settings: settings, width: 320)
-    #expect(table.rowHeight == settings.entryRowHeight)
-  }
-
-  @Test("every row is exactly one floor tall and rows sit one floor apart", arguments: AppTextSize.allCases)
+  @Test(
+    "the table fallback row height and every row are one floor tall, and rows sit one floor apart",
+    arguments: AppTextSize.allCases)
   @MainActor
   func rowRectsEqualFloor(size: AppTextSize) async throws {
     let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     for width in Self.widths {
       let table = try await Self.hostList(settings: settings, width: width)
+      #expect(
+        table.rowHeight == settings.entryRowHeight,
+        "size \(size) width \(width) fallback \(table.rowHeight) vs floor \(settings.entryRowHeight)")
       #expect(table.numberOfRows == Self.sampleRows.count, "width \(width)")
       let rects = (0..<table.numberOfRows).map { table.rect(ofRow: $0) }
       for (index, rect) in rects.enumerated() {
@@ -486,7 +483,10 @@ struct EntryRowGeometryTests {
 
   // MARK: - Hosting
 
-  /// Hosts the `EntryListView` list shape offscreen and returns its table.
+  /// Hosts the `EntryListView` list shape offscreen and returns its table once
+  /// the rows have settled. The host is tall enough to show every sample row
+  /// at every text size, because the table makes no row view for a row outside
+  /// its visible rect.
   @MainActor
   private static func hostList(settings: AppFontSettings, width: CGFloat) async throws -> NSTableView {
     let ids = PreviewSupport.mintEntryIdentifiers(count: sampleRows.count)
@@ -505,19 +505,38 @@ struct EntryRowGeometryTests {
     .environment(\.defaultMinListRowHeight, settings.entryRowHeight)
     .environment(settings)
     let hosting = NSHostingView(rootView: list)
-    hosting.frame = NSRect(x: -6000, y: -6000, width: width, height: 1200)
+    hosting.frame = NSRect(x: -6000, y: -6000, width: width, height: 2000)
     let window = NSWindow(
       contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
     window.contentView = hosting
     window.orderFrontRegardless()
-    hosting.layoutSubtreeIfNeeded()
-    // One run-loop turn so the bridge creates and measures the table rows.
-    try await Task.sleep(for: .milliseconds(200))
-    hosting.layoutSubtreeIfNeeded()
-    let tables = findTableViews(in: hosting)
-    window.orderOut(nil)
-    let table = try #require(tables.first, "no NSTableView under the hosting view")
-    return table
+    defer { window.orderOut(nil) }
+    return try await settledTable(in: hosting, rowCount: rows.count)
+  }
+
+  /// Polls every 5 ms, for at most 2 s, until the table has `rowCount` rows,
+  /// every row has a row view, and three row-rect samples in a row agree. The
+  /// bridge makes and measures the rows in later run-loop turns, which each
+  /// sleep gives it.
+  @MainActor
+  private static func settledTable(in hosting: NSView, rowCount: Int) async throws -> NSTableView {
+    let deadline = ContinuousClock.now + .seconds(2)
+    var samples: [[NSRect]] = []
+    while true {
+      hosting.layoutSubtreeIfNeeded()
+      if let table = findTableViews(in: hosting).first, table.numberOfRows == rowCount,
+        (0..<rowCount).allSatisfy({ table.rowView(atRow: $0, makeIfNecessary: false) != nil })
+      {
+        let rects = (0..<rowCount).map { table.rect(ofRow: $0) }
+        if rects != samples.last { samples = [] }
+        samples.append(rects)
+        if samples.count == 3 { return table }
+      } else {
+        samples = []
+      }
+      try #require(ContinuousClock.now < deadline, "the table rows did not settle within 2 s")
+      try await Task.sleep(for: .milliseconds(5))
+    }
   }
 
   @MainActor
