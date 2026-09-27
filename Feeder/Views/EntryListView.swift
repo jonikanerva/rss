@@ -239,6 +239,10 @@ struct EntryListView: View {
             }
           }
           .listStyle(.inset(alternatesRowBackgrounds: false))
+          // No `primaryAction`: on macOS it binds the row double-click.
+          .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
+            entryLinkMenu(for: ids)
+          }
           // Row-height floor: `List` bounds row height below by
           // `defaultMinListRowHeight`. Set it to the row's natural height, so
           // a re-measure that falls back to the platform default has nothing
@@ -359,6 +363,14 @@ struct EntryListView: View {
   private var isAuthFailed: Bool {
     if case .authFailed = syncEngine.lastError { return true }
     return false
+  }
+
+  @ViewBuilder
+  private func entryLinkMenu(for ids: Set<PersistentIdentifier>) -> some View {
+    if let url = entryLinkURL(for: ids, in: sections) {
+      Button("Open in Browser") { NSWorkspace.shared.openInBackground(url) }
+      Button("Copy Link") { NSPasteboard.general.writeLink(url) }
+    }
   }
 
   /// One reader fetch for the current context and the given window. Returns

@@ -709,19 +709,8 @@ struct ContentView: View {
   }
 
   private func openInBackground() {
-    guard let entry = selectedEntry,
-      let url = URL(string: entry.url),
-      let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
-    else { return }
-    NSWorkspace.shared.open(
-      [url],
-      withApplicationAt: appURL,
-      configuration: {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
-        return config
-      }()
-    )
+    guard let url = selectedEntry.flatMap({ entryLinkURL(from: $0.url) }) else { return }
+    NSWorkspace.shared.openInBackground(url)
   }
 
   // MARK: - Sidebar
