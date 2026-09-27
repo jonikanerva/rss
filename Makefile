@@ -56,22 +56,7 @@ XCODEBUILD_FLAGS = \
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
 
-# Perf-trace build identity. The perf/trace Release build renames its
-# EXECUTABLE (PRODUCT_NAME=FeederPerf, see install-perf) and also ships under a
-# distinct bundle id at a distinct app path. The EXECUTABLE rename is what makes
-# `xctrace record --launch` resolve unambiguously: xctrace resolves its launch
-# target by EXECUTABLE NAME through LaunchServices, and the daily app plus every
-# Xcode Debug build all share the name `Feeder`, so a `Feeder`-named launch can
-# hijack to the wrong (stale) build (issue #129). Nothing else ever sets
-# PRODUCT_NAME=FeederPerf, so the perf executable name resolves to exactly this
-# install even with Xcode open. The distinct bundle id + app path additionally
-# keep perf runs from overwriting the user's daily `Feeder.app`; the shipping
-# app identity (name, id, path) is untouched.
-PERF_APP_NAME   ?= FeederPerf
-PERF_BUNDLE_ID  ?= com.feeder.app.perf
-
-.PHONY: lint lint-fix build install install-perf test test-stress-tsan test-ui test-focus test-all test-full clean artifacts help \
-        perf perf-signpost perf-trace perf-record-baseline perf-preflight
+.PHONY: lint lint-fix build install test test-stress-tsan test-ui test-focus test-all test-full clean artifacts help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -113,44 +98,6 @@ install: ## Build Release and install to /Applications
 	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app" "$(INSTALL_DIR)/$(APP_NAME).app"
 	@echo "==> done: $(INSTALL_DIR)/$(APP_NAME).app"
 
-install-perf: ## Build Release under the perf bundle id + executable name and install as FeederPerf.app
-	@echo "==> build Release (perf: id $(PERF_BUNDLE_ID), executable $(PERF_APP_NAME))"
-	xcodebuild build \
-		-project $(PROJECT) \
-		-scheme $(SCHEME) \
-		-configuration Release \
-		-derivedDataPath $(DERIVED_DATA) \
-		-destination '$(DESTINATION)' \
-		PRODUCT_BUNDLE_IDENTIFIER=$(PERF_BUNDLE_ID) \
-		PRODUCT_NAME=$(PERF_APP_NAME) \
-		PRODUCT_MODULE_NAME=$(APP_NAME) \
-		CODE_SIGN_IDENTITY="-" \
-		ENABLE_APP_SANDBOX=NO \
-		ENABLE_HARDENED_RUNTIME=NO
-	@echo "==> install $(PERF_APP_NAME).app → $(INSTALL_DIR)"
-	@# PRODUCT_NAME=FeederPerf renames the built EXECUTABLE (not just the bundle
-	@# id): the app-target Release product builds as FeederPerf.app with
-	@# CFBundleExecutable `FeederPerf`, so `xctrace record --launch` — which
-	@# resolves its target by executable name through LaunchServices — can no
-	@# longer hijack the daily `Feeder` binary or an Xcode Debug build (#129).
-	@# The build compiles only the app target, so this CLI override renames the
-	@# app alone, never a test target.
-	@#
-	@# PRODUCT_MODULE_NAME is pinned back to Feeder so the Swift module — and the
-	@# module-qualified SwiftData @Model identity (Feeder.Entry, …) — stays
-	@# IDENTICAL to the shipping build, so perf measurements reflect production
-	@# code. The perf app is SANDBOXED (the Feeder.entitlements app-sandbox key
-	@# still applies despite ENABLE_APP_SANDBOX=NO), so its distinct bundle id
-	@# gives it its OWN container store (~/Library/Containers/com.feeder.app.perf/
-	@# …/Feeder.store) — fully ISOLATED from the daily app's store
-	@# (~/Library/Containers/donut.Feeder/…). Perf runs cannot touch the user's
-	@# real reading DB. The pin still earns its place: it keeps the perf
-	@# container's @Model identity stable across runs and guards a future
-	@# sandbox-off regression that would otherwise share a store.
-	@rm -rf "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
-	@cp -R "$(DERIVED_DATA)/Build/Products/Release/$(PERF_APP_NAME).app" "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
-	@echo "==> done: $(INSTALL_DIR)/$(PERF_APP_NAME).app"
-
 # ---------------------------------------------------------------------------
 # Test
 # ---------------------------------------------------------------------------
@@ -188,9 +135,7 @@ test: build ## Run unit tests; UNIT_TEST=FeederTests/<Suite> runs one suite
 		$(XCODEBUILD_FLAGS) \
 		-parallel-testing-enabled NO \
 		-resultBundlePath $(UNIT_RESULT) \
-		$(call only_testing,$(UNIT_TEST)) \
-		-skip-testing:FeederTests/PerfSignpostTests \
-		-skip-testing:FeederTests/MicroBenchmarkTests
+		$(call only_testing,$(UNIT_TEST))
 	@$(call require_passed_tests,$(UNIT_RESULT),$(UNIT_TEST))
 
 # Thread Sanitizer run of the DataReader concurrency suite, the evidence for the
@@ -280,70 +225,3 @@ clean: ## Remove derived data and test artifacts
 	rm -rf $(DERIVED_DATA)
 	rm -rf artifacts/local
 	@echo "==> done"
-
-# ---------------------------------------------------------------------------
-# Perf (local-only headless suite — not chained into test-all)
-# ---------------------------------------------------------------------------
-
-PERF_RESULT_DIR  ?= artifacts/local/perf
-PERF_BASELINE    ?= Tests/PerfBaselines/baseline-current.json
-PERF_DATASET     ?= 5000
-PERF_ITERATIONS  ?= 5
-# Recording ceiling per iteration. The full deterministic scenario — fresh
-# 5000-row seed (~6 s) + nav walk (~12 s) + trailing flush — self-exits at
-# ~19-22 s, so the app terminates well before this ceiling and xctrace returns
-# 0. 20 s left almost no margin (the nav window alone ends ~18.5 s), so a
-# thermally-loaded iteration raced the limit and got killed before the
-# `perf-nav-window` closed. 40 s is headroom, not a target (issue #132).
-PERF_TIME_LIMIT  ?= 40000
-
-perf: perf-preflight perf-signpost perf-trace ## Local perf regression suite (Levels 2 + 4)
-	@echo "==> perf: PASS"
-
-perf-preflight: ## Verify the host is not thermally throttled before recording
-	@./Tools/PerfParser/preflight.sh
-
-perf-signpost: build ## Levels 1 + 2 — function-level XCTest microbenchmarks + XCTOSSignpostMetric medians
-	@mkdir -p $(PERF_RESULT_DIR)
-	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
-	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
-		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
-		-only-testing:FeederTests/PerfSignpostTests \
-		-only-testing:FeederTests/MicroBenchmarkTests
-	@swift run --package-path Tools/PerfParser PerfParser \
-		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
-		--baseline $(PERF_BASELINE)
-
-perf-trace: install-perf ## Level 4 — xctrace Time Profiler, median over N iterations
-	@./Tools/PerfParser/run_trace_iterations.sh \
-		--iterations $(PERF_ITERATIONS) \
-		--time-limit $(PERF_TIME_LIMIT) \
-		--output-dir $(PERF_RESULT_DIR) \
-		--dataset-size $(PERF_DATASET) \
-		--app-path "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
-	@swift run --package-path Tools/PerfParser PerfParser \
-		--trace-dir $(PERF_RESULT_DIR) \
-		--baseline $(PERF_BASELINE)
-
-perf-record-baseline: perf-preflight install-perf ## Refresh baseline JSON from current run
-	@echo "==> perf-record-baseline (refreshes baseline from this run)"
-	@./Tools/PerfParser/run_trace_iterations.sh \
-		--iterations $(PERF_ITERATIONS) \
-		--time-limit $(PERF_TIME_LIMIT) \
-		--output-dir $(PERF_RESULT_DIR) \
-		--dataset-size $(PERF_DATASET) \
-		--app-path "$(INSTALL_DIR)/$(PERF_APP_NAME).app"
-	@swift run --package-path Tools/PerfParser PerfParser \
-		--trace-dir $(PERF_RESULT_DIR) \
-		--baseline $(PERF_BASELINE) \
-		--write-baseline
-	@mkdir -p $(PERF_RESULT_DIR)
-	@rm -rf $(PERF_RESULT_DIR)/signpost.xcresult
-	xcodebuild test-without-building $(XCODEBUILD_FLAGS) \
-		-resultBundlePath $(PERF_RESULT_DIR)/signpost.xcresult \
-		-only-testing:FeederTests/PerfSignpostTests \
-		-only-testing:FeederTests/MicroBenchmarkTests
-	@swift run --package-path Tools/PerfParser PerfParser \
-		--xcresult $(PERF_RESULT_DIR)/signpost.xcresult \
-		--baseline $(PERF_BASELINE) \
-		--write-baseline

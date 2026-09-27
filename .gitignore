@@ -33,10 +33,9 @@ __pycache__/
 # Local build/test artifacts
 artifacts/
 
-# xctrace default-named trace bundles. The perf-suite scripts pass an
-# explicit --output, but a stray run with the flag misordered (or a manual
-# `xctrace record --launch` invocation) drops these in the repo root.
-Launch_*.trace/
+# Instruments traces. An owner trace stays on the Mac, because the repository
+# is public (STACK.md § 4).
+*.trace/
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
