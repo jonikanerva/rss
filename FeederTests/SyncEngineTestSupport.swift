@@ -8,8 +8,8 @@ import SwiftData
 /// In-memory `FeedbinClientProtocol` for the sync tests. It models only the
 /// surface those tests exercise; a method the engine calls but no test asserts
 /// on returns a safe default and still behaves like the real client, so a sync
-/// runs end to end. Every method records its invocations, so a test introspects
-/// the orchestration without reaching into private state.
+/// runs end to end. The methods that the tests assert on record their calls, so
+/// a test introspects the orchestration without reaching into private state.
 actor FakeFeedbinClient: FeedbinClientProtocol {
   // MARK: Configurable responses
 
@@ -46,8 +46,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var deleteUnreadEntriesCallLog: [[Int]] = []
   /// Recorded URLs `fetchExtractedContent(from:)` was called with.
   var extractedContentCallLog: [String] = []
-  /// How many times the page stream was entered. Bumped synchronously at the
-  /// start of the stream's body, so a race-guard test gates on it.
+  /// How many times the page stream was entered. The stream bumps it in the
+  /// actor hop that reads its configuration, before it yields a page, so a
+  /// race-guard test gates on it.
   var fetchEntryPagesCallCount: Int = 0
   /// Bumped when `verifyCredentials()` is entered, before any gate wait.
   var verifyCallCount: Int = 0
@@ -122,9 +123,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   // MARK: - Internal
 
-  /// Read the snapshot and bump the call counter in one actor hop, so the
-  /// counter is a reliable "the stream body has started" signal. The engine's
-  /// own flag is not: it flips before any client call.
+  /// Read the snapshot and bump the call counter in one actor hop, so a moved
+  /// counter means that the stream has read its configuration, gates included.
+  /// The engine's own flag is no such signal: it flips before any client call.
   private func snapshotEntryPagesState() -> (
     pages: [FeedbinEntriesPage], gate: AsyncGate?, laterGate: AsyncGate?
   ) {

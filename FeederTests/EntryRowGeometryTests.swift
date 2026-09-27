@@ -5,7 +5,7 @@ import Testing
 
 @testable import Feeder
 
-/// Headless check for the row-height floor, the title and summary split, and
+/// Offscreen check for the row-height floor, the title and summary split, and
 /// the row's text on an emphasized selection. It hosts the same `List` shape the
 /// article list renders in an offscreen hosting view, then reads the backing
 /// table through public API. The invariants:
@@ -19,16 +19,16 @@ import Testing
 /// 4. The split fits the column budget: the laid-out heights leave room for the
 ///    summary lines each title length allows.
 /// 5. The rendered line counts match: a bitmap of the row is scanned for ink
-///    bands, the bands are equally tall, and the bottom padding holds no ink,
-///    which would be where overflow landed.
+///    bands, the summary bands are equally tall within 1 px, and the bottom
+///    padding holds no ink, which would be where overflow landed.
 /// 6. A read row's title and domain adapt to the emphasized selection: with the
 ///    increased background prominence, they change at least half as much as the
 ///    summary, which uses a hierarchical style.
 ///
 /// Invariants 1 to 5 run at every text size and at three content-column widths,
 /// including the platform's default width, which is a shipped state because the
-/// column has no width bound. No screen is needed: the window is ordered
-/// offscreen.
+/// column has no width bound. Each host window opens far offscreen, at the
+/// origin (-6000, -6000).
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
   private static let widths: [CGFloat] = [200, 320, 600]
@@ -129,7 +129,8 @@ struct EntryRowGeometryTests {
       // An EMPTY `Text` with reserved space is 14 pt at every size, not the
       // font's line height: the reason the row never renders "" directly.
       #expect(emptyStringDomain == 14, context)
-      // The arithmetic the floor is built from stays at or above the layout.
+      // The arithmetic the floor is built from stays at or above the layout,
+      // within 1 pt.
       #expect(summaryLine >= oneSummaryLine - 1, context)
     }
   }
@@ -199,19 +200,20 @@ struct EntryRowGeometryTests {
         let slots = Self.slotRows(titleLines: renderCase.titleLines, settings: settings)
         let context = "size \(size) width \(width) \(renderCase.name)"
 
-        // The bitmap is exactly the row's natural height: column + padding.
+        // The bitmap is exactly the row's natural height: the column plus the
+        // top and bottom padding.
         #expect(scan.height == columnBottom + rowTop, "\(context): image height \(scan.height)")
         // (iii) The title shows exactly its line count.
         let titleBands = scan.bands(in: slots.title)
         #expect(titleBands.count == renderCase.titleLines, "\(context): title bands \(titleBands)")
-        // The domain line is present when set and empty when nil.
+        // The domain line is present when set, and empty when nil or "".
         let domainBands = scan.bands(in: slots.domain)
         let hasDomain = renderCase.shape.domain.map { !$0.isEmpty } ?? false
         #expect(domainBands.count == (hasDomain ? 1 : 0), "\(context): domain bands \(domainBands)")
         // The summary shows the expected whole lines under the title.
         let summaryBands = scan.bands(in: slots.summary)
         #expect(renderCase.summaryLines.contains(summaryBands.count), "\(context): summary bands \(summaryBands)")
-        // (i) Every summary line is drawn whole: equal band heights.
+        // (i) Every summary line is drawn whole: band heights within 1 px.
         let bandHeights = summaryBands.map(\.count)
         if let tallest = bandHeights.max(), let shortest = bandHeights.min() {
           #expect(tallest - shortest <= 1, "\(context): summary band heights \(bandHeights)")

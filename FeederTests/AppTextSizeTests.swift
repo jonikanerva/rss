@@ -111,8 +111,8 @@ struct AppTextSizeTests {
 
   @Test
   func allAliasesDifferAcrossScales() {
-    // Defends every published alias against a future refactor that forgets
-    // to multiply by `scaleFactor`. If any of these become accidentally
+    // Defends each alias below against a future refactor that forgets to
+    // multiply by `scaleFactor`. If any of these become accidentally
     // size-independent, the test fails before users see flat scaling.
     let small = makeIsolatedSettings(textSize: .small)
     let large = makeIsolatedSettings(textSize: .xxLarge)

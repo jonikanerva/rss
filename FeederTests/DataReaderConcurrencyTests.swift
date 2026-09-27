@@ -202,16 +202,15 @@ struct DataReaderConcurrencyTests {
 
   /// Isolates the production topology — exactly one writer and one reader actor
   /// on one shared container — from the test target's own parallelism.
-  /// `make test-stress-tsan` runs this suite alone under Thread Sanitizer, so
-  /// the only concurrency in the process is that pair. A clean pass with no
-  /// exception over the high iteration count is the ship signal.
+  /// `make test-stress-tsan` runs this suite alone under Thread Sanitizer, so no
+  /// other test runs beside that pair. A clean pass with no exception over the
+  /// high iteration count is the ship signal.
   ///
   /// The writer sustains inserts and updates while the reader sustains both read
   /// surfaces, with no gate or sleep, over enough interleaved rounds that
   /// overlap is near-certain. The test asserts that it reaches the end, that no
-  /// torn row ever appears as an empty category bucket, that reader-minted IDs
-  /// keep resolving in the app container, and that the reader completes every
-  /// round while writes are in flight.
+  /// torn row ever appears as an empty category bucket, and that reader-minted
+  /// IDs keep resolving in the app container.
   @Test(
     "Shared container: sustained 1+1 read-during-write is clean (TSan gate)",
     // Only `make test-stress-tsan` sets the variable, so the everyday gate skips this test.
@@ -258,8 +257,8 @@ struct DataReaderConcurrencyTests {
           }
         }
       }
-      // Sustained fetches, asserting non-torn results and cross-context ID
-      // resolution on every round while writes are in flight.
+      // Sustained fetches beside the writes, asserting non-torn results and
+      // cross-context ID resolution on every round.
       group.addTask {
         for _ in 0..<300 {
           let result = try? await reader.fetchEntrySections(

@@ -5,10 +5,9 @@ import Testing
 
 // MARK: - DataReader.fetchUnreadCountsSnapshot
 
-/// Integration coverage for the unread aggregation that replaces the
-/// MainActor `@Query unreadEntries` fetch. The snapshot is the sole input the
-/// sidebar reads for badge counts, so its contract — empty case, mixed
-/// read/unread, multi-axis grouping — is what these tests pin down.
+/// Integration coverage for the unread aggregation on the reader actor. The
+/// sidebar reads its badge counts from the snapshot, so its contract — empty
+/// case, mixed read/unread, multi-axis grouping — is what these tests pin down.
 /// `.serialized`: these tests open a `DataReader` (2nd read-only context)
 /// alongside the writer. Serialises WITHIN this suite; the target-wide cap on
 /// concurrent Core Data coordinators is the `make test` gate's
@@ -230,8 +229,8 @@ struct UnreadCountsSnapshotFetchTests {
   ///
   /// Backs `unreadEligiblePredicate(cutoffDate:)` as the single source of
   /// truth — both call sites must agree on the eligible row set for every
-  /// cutoff the production code can reach (Settings → `articleKeepDays`
-  /// picker offers 1–30 days, plus the 30-day `maxRetentionAge` ceiling).
+  /// cutoff the production code can reach (the Settings `articleKeepDays`
+  /// picker offers 1, 3, 7, 14, and 30 days; `maxRetentionAge` is 30 days).
   @Test(
     arguments: [
       Date.distantPast,

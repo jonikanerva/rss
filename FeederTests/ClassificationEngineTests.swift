@@ -579,12 +579,11 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil)
   }
 
-  /// Cancellation preserves the banner: the cancelled batch aborts with the same
-  /// reason, so the outcome is equality-suppressed, its zero-count snapshots
-  /// carry no evidence of progress, and the plain terminal does not own the
-  /// field. Zero writes proves all three paths left the banner alone. The
-  /// always-aborting provider is deliberate — a working one would race the
-  /// throttled counting snapshot against the stop call.
+  /// The stop lands while call 1 sleeps in the fake's delay. The fake still
+  /// throws its `.offline` failure, but the runner checks cancellation first
+  /// and returns `.cancelled`, not an abort. Only a zero-count snapshot and
+  /// plain terminals reach the engine, and none writes `lastAbort`. Keep the
+  /// provider aborting: after a late stop, a working one could clear the banner.
   @Test
   func cancellationPreservesLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
