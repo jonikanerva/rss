@@ -376,9 +376,9 @@ final class SyncEngine {
 
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
   /// `DataWriter.updateReadState` keeps a queued ID read, and
-  /// `applyQueuedReads()` writes it to the store as read at launch. It also
-  /// records the IDs, so that `queueRecordedPendingReads()` does not queue them
-  /// again.
+  /// `applyQueuedReads()` writes a queued ID to the store as read at launch.
+  /// Also record the IDs, so that `queueRecordedPendingReads()` does not queue
+  /// them again.
   func queueReadIDs(_ ids: Set<Int>) {
     guard !ids.isEmpty else { return }
     pendingReadIDsToSync.formUnion(ids)
