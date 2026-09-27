@@ -9,6 +9,7 @@ struct FeederCommandContext {
   let markAllReadAction: () -> Void
   let toggleViewModeAction: () -> Void
   let openInBrowserAction: () -> Void
+  let copyLinkAction: () -> Void
   let moveSelectionDownAction: () -> Void
   let moveSelectionUpAction: () -> Void
   let canMarkAllRead: Bool
@@ -79,6 +80,11 @@ struct FeederCommands: Commands {
 
       Button("Open in Browser\t B") {
         context?.openInBrowserAction()
+      }
+      .disabled(context == nil || context?.canOpenInBrowser != true)
+
+      Button("Copy Link") {
+        context?.copyLinkAction()
       }
       .disabled(context == nil || context?.canOpenInBrowser != true)
     }

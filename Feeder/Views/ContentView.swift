@@ -414,6 +414,7 @@ struct ContentView: View {
         markAllReadAction: markAllAsRead,
         toggleViewModeAction: toggleArticleViewMode,
         openInBrowserAction: openInBackground,
+        copyLinkAction: copySelectedLink,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
         moveSelectionUpAction: { moveSidebarSelection(by: -1) },
         canMarkAllRead: articleFilter == .unread && selection != nil,
@@ -709,8 +710,17 @@ struct ContentView: View {
   }
 
   private func openInBackground() {
-    guard let url = selectedEntry.flatMap({ entryLinkURL(from: $0.url) }) else { return }
+    guard let url = selectedEntryURL else { return }
     NSWorkspace.shared.openInBackground(url)
+  }
+
+  private func copySelectedLink() {
+    guard let url = selectedEntryURL else { return }
+    NSPasteboard.general.writeLink(url)
+  }
+
+  private var selectedEntryURL: URL? {
+    selectedEntry.flatMap { entryLinkURL(from: $0.url) }
   }
 
   // MARK: - Sidebar
