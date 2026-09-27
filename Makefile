@@ -59,7 +59,7 @@ INSTALL_DIR     ?= /Applications
 .PHONY: lint lint-fix build install test test-stress-tsan test-ui test-focus test-all test-full clean artifacts help
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
+	@set -euo pipefail; grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------------------
 # Lint
