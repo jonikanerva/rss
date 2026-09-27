@@ -15,7 +15,14 @@ SHELL          := /bin/bash
 PROJECT        ?= Feeder.xcodeproj
 SCHEME         ?= Feeder
 CONFIGURATION  ?= Debug
+# Each checkout builds in its own folder (STACK.md § 3 → Build folders). A
+# linked worktree is also its own top level; only its git dir tells it apart.
+ifeq ($(shell git rev-parse --show-toplevel 2>/dev/null),$(CURDIR))
+ifneq ($(filter %/.git,$(shell git rev-parse --absolute-git-dir 2>/dev/null)),)
 DERIVED_DATA   ?= /tmp/FeederDerivedData
+endif
+endif
+DERIVED_DATA   ?= $(CURDIR)/.build/DerivedData
 DESTINATION    ?= platform=macOS
 UNIT_RESULT    ?= artifacts/local/xcresult/unit-tests.xcresult
 UI_RESULT      ?= artifacts/local/xcresult/ui-smoke.xcresult
