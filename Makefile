@@ -68,7 +68,7 @@ INSTALL_DIR     ?= /Applications
 PERF_APP_NAME   ?= FeederPerf
 PERF_BUNDLE_ID  ?= com.feeder.app.perf
 
-.PHONY: lint lint-fix build install install-perf test test-stress-tsan c3-measure test-ui test-all test-full clean artifacts help \
+.PHONY: lint lint-fix build install install-perf test test-stress-tsan c3-measure test-ui test-focus test-all test-full clean artifacts help \
         perf perf-signpost perf-trace perf-record-baseline perf-preflight
 
 help: ## Show this help
@@ -263,6 +263,13 @@ test-ui: build ## Run UI tests; UI_TEST selects one or more suites or methods
 		-resultBundlePath $(UI_RESULT) \
 		$(call only_testing,$(UI_TEST))
 	@$(call require_passed_tests,$(UI_RESULT),$(UI_TEST))
+
+# The owner-run focus check (STACK.md § 3 → Gates).
+test-focus: UI_TEST = FeederUITests/FeederUITests/testClickReclaimsFocusFromWebViewForSidebarArrows \
+	FeederUITests/FeederUITests/testClickArticleRowThenArrowSelectsNextRow \
+	FeederUITests/FeederUITests/testBareKeyRInsideWebViewTogglesViewMode
+test-focus: UI_RESULT = artifacts/local/xcresult/ui-focus.xcresult
+test-focus: test-ui ## Owner-run focus check: the three focus UI tests in one launch
 
 # ---------------------------------------------------------------------------
 # Full gate
