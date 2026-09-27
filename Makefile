@@ -17,8 +17,10 @@ SHELL          := /bin/bash
 PROJECT        ?= Feeder.xcodeproj
 SCHEME         ?= Feeder
 CONFIGURATION  ?= Debug
-# Each checkout builds in its own folder (STACK.md § 3 → Build folders). A
-# linked worktree is also its own top level; only its git dir tells it apart.
+# A full clone builds in /tmp/FeederDerivedData, so a second full clone shares
+# that folder. A linked worktree, or a copy without .git, builds in its own
+# .build/DerivedData (STACK.md § 3 → Build folders). A linked worktree is also
+# its own top level, so only its git dir tells it apart from a full clone.
 ifeq ($(shell git rev-parse --show-toplevel 2>/dev/null),$(CURDIR))
 ifneq ($(filter %/.git,$(shell git rev-parse --absolute-git-dir 2>/dev/null)),)
 DERIVED_DATA   ?= /tmp/FeederDerivedData
@@ -163,8 +165,9 @@ xcresult_field = xcrun xcresulttool get test-results summary --path '$(1)' --com
 only_testing = $(addprefix -only-testing:,$(or $(strip $(1)),$(error The test selector list is empty; name at least one suite or method)))
 
 # $(call require_passed_tests,<result bundle>,<selectors>) fails the run when
-# fewer tests passed than there are selectors, so a selector that matches no
-# test cannot pass.
+# fewer tests passed than there are selectors. The guard counts passed tests, so
+# it proves that a selector matched a test only when the run has one selector,
+# or when each selector names one test method.
 require_passed_tests = set -euo pipefail; \
 	passed=$$($(call xcresult_field,$(1),passedTests)); \
 	[ "$$passed" -ge $(words $(2)) ] || \
@@ -178,7 +181,8 @@ test: build ## Run unit tests; UNIT_TEST=FeederTests/<Suite> runs one suite
 	@# the test host, and `@Suite(.serialized)` orders tests only inside one suite
 	@# (STACK.md § 14).
 	@# Keep the `TEST_RUNNER_` prefix: xcodebuild passes only prefixed variables
-	@# to the test host. The headless host uses an in-memory store, reads no
+	@# to the test host. xcodebuild strips the prefix: the host reads
+	@# `FEEDER_HEADLESS`. The headless host uses an in-memory store, reads no
 	@# Keychain item, and starts no sync, so no consent prompt stops the run.
 	TEST_RUNNER_FEEDER_HEADLESS=1 xcodebuild test-without-building \
 		$(XCODEBUILD_FLAGS) \
@@ -261,13 +265,13 @@ ifneq ($(filter test-all,$(MAKECMDGOALS)),)
 ifneq ($(strip $(UNIT_TEST)),FeederTests)
 $(error make test-all runs every unit test and refuses UNIT_TEST="$(UNIT_TEST)"; use make test for a selection)
 endif
-RUN_START      := $(shell git rev-parse HEAD 2>/dev/null)$(if $(shell git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error),+dirty)
+RUN_START      := $(shell git rev-parse --verify -q HEAD 2>/dev/null)$(if $(shell git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error),+dirty)
 endif
 
 test-all: lint build test ## Quick gate: lint + build + unit (no UI), then the verify: line
 	@set -euo pipefail; \
 	start='$(RUN_START)'; \
-	head=$$(git rev-parse HEAD 2>/dev/null || true); \
+	head=$$(git rev-parse --verify -q HEAD 2>/dev/null || true); \
 	changes=$$(git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error); \
 	if [ -z "$${start%+dirty}" ] || [ -z "$$head" ]; then \
 		echo "error: the verify stamp needs a git HEAD" >&2; exit 1; \
