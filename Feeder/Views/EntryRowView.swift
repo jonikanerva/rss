@@ -60,7 +60,7 @@ struct EntryRowView: View {
             // height effect: both weights report the same line metrics.
             .fontWeight(isRead ? .regular : .semibold)
             .lineLimit(EntryRowMetrics.titleLineLimit)
-            .foregroundStyle(isRead ? Color(nsColor: .tertiaryLabelColor) : .primary)
+            .foregroundStyle(isRead ? .tertiary : .primary)
 
           Spacer()
 
@@ -78,7 +78,7 @@ struct EntryRowView: View {
           .font(fontSettings.rowFeedName)
           .lineLimit(EntryRowMetrics.domainLineLimit, reservesSpace: true)
           .truncationMode(.middle)
-          .foregroundStyle(FontTheme.domainPillColor)
+          .foregroundStyle(.secondary)
           .layoutPriority(1)
 
         // The summary fills the rest of the column. An empty excerpt leaves its
