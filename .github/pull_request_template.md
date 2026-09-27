@@ -35,13 +35,13 @@ If any answer is `no`, this PR documents the conflict in the **Why** section abo
 
 ## Verification
 
-- [ ] `make test-all` (`$VERIFY_CMD` per `STACK.md → Build & verify commands`) ran and is green.
+- [ ] `make test-all` (`$VERIFY_CMD`) ran once on the pushed head: `verify: head=<sha> tree=clean result=Passed tests=<n>`.
 - [ ] `make lint-fix` (`$FORMAT_CMD`) is idempotent (re-running produces no diff).
 - [ ] Tests added or updated for new logic.
 - [ ] Previews / fixtures cover the new states.
 - [ ] Privacy declaration (`PrivacyInfo.xcprivacy`) updated if a new required-reason / required-data API was adopted.
 - [ ] If the schema changed: a new `VersionedSchema` is added and `FeederMigrationPlan` updated with a stage; custom stages recompute the denormalized display fields they touch (`STACK.md → Persistence shape`).
-- [ ] If the diff touches the hot path: `make perf` (`$PERF_CMD`) passed without regression (`STACK.md → Performance budgets`).
+- [ ] Owner-run checks (`STACK.md → Gates`): `none triggered`, or each triggered check as `ran on <SHA>: PASS` or `triggered, pending owner run`.
 - [ ] The issue this PR resolves is linked with `Closes #<N>` above. Any binding decision introduced (if any) is stated in plain language in this description and the issue.
 
 ## States handled
