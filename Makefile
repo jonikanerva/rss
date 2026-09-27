@@ -190,40 +190,18 @@ test: build ## Run unit tests; UNIT_TEST=FeederTests/<Suite> runs one suite
 		-skip-testing:FeederTests/C3ReadStarvationMeasurementTests
 	@$(call require_passed_tests,$(UNIT_RESULT),$(UNIT_TEST))
 
-# Isolated Thread-Sanitizer run of the whole DataReader concurrency suite — the
-# evidence gate for the shared-container topology (STACK.md §14). Its heavyweight
-# member, `sharedContainerProductionShapeStress`, drives hundreds of concurrent
-# read-during-write rounds on a shared on-disk container; run alongside the rest
-# of the parallel test target's many coordinators it over-stresses Core Data and
-# can abort (a test-parallelism artifact, not a product bug). It therefore
-# self-skips (no-op) in the normal `make test-all` gate and runs only here:
-#   make test-stress-tsan
-#
-# Three things this invocation gets right that a naive one does not:
-#
-# 1. Full `xcodebuild test` (build-for-testing + test), NOT `test-without-building`
-#    — Thread Sanitizer is compile-time instrumentation, so it must be built into
-#    the binary. Reusing the non-TSan `build` product and injecting
-#    `-enableThreadSanitizer YES` only at run time launches the host under the
-#    TSan runtime with an un-instrumented executable, which aborts at startup
-#    ("crashed before establishing connection"). This target builds its own
-#    TSan-instrumented product rather than depending on the plain `build` target.
-#
-# 2. `TEST_RUNNER_FEEDER_RUN_STRESS=1`, not a plain `FEEDER_RUN_STRESS=1` — a
-#    plain variable set on the xcodebuild process does NOT reach the test-host
-#    process, so the stress guard would never see it and would silently self-skip.
-#    xcodebuild strips the `TEST_RUNNER_` prefix and sets `FEEDER_RUN_STRESS` in
-#    the host's environment, which is where the guard reads it.
-#
-# 3. Suite-level `-only-testing:FeederTests/DataReaderConcurrencyTests`, not a
-#    per-test selector — a Swift Testing single-test selector
-#    (`.../sharedContainerProductionShapeStress`) enters the suite but matches
-#    zero cases, so nothing runs. Running only this `.serialized` suite gives the
-#    required isolation: it is the sole suite in the process, and `.serialized`
-#    runs each of its tests (the stress test included) one at a time.
+# Thread Sanitizer run of the DataReader concurrency suite, the evidence for the
+# shared-container topology (STACK.md § 14). The suite's stress test runs only
+# here; the unit run skips it.
 test-stress-tsan: ## Isolated Thread-Sanitizer run of the DataReader concurrency suite
 	@mkdir -p $(DERIVED_DATA)
-	TEST_RUNNER_FEEDER_RUN_STRESS=1 xcodebuild test \
+	@# Keep `xcodebuild test`: Thread Sanitizer is compiled in, so this target
+	@# builds its own instrumented product and must not reuse `build`.
+	@# Keep the `TEST_RUNNER_` prefix: only prefixed variables reach the test
+	@# host. The headless host stays out of the Keychain and the app's store.
+	@# Keep the suite selector: a single-test selector can match no test. As the
+	@# only suite in the process, the `.serialized` suite runs one test at a time.
+	TEST_RUNNER_FEEDER_HEADLESS=1 TEST_RUNNER_FEEDER_RUN_STRESS=1 xcodebuild test \
 		$(XCODEBUILD_FLAGS) \
 		-parallel-testing-enabled NO \
 		-enableThreadSanitizer YES \
