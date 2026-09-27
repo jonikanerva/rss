@@ -56,6 +56,7 @@ struct GroupRowsByDayTests {
         persistentID: entry.persistentModelID,
         feedbinEntryID: 1000 + offset,
         title: "Entry \(offset)",
+        url: "https://example.com/\(offset)",
         formattedPublishedTime: "09.30",
         displayDomain: "example.com",
         excerpt: "Excerpt \(offset)",

@@ -296,6 +296,7 @@ struct EntryRowGeometryTests {
       persistentID: id,
       feedbinEntryID: feedbinEntryID,
       title: shape.title,
+      url: "https://example.com/\(feedbinEntryID)",
       formattedPublishedTime: "09.30",
       displayDomain: shape.domain,
       excerpt: shape.excerpt,

@@ -150,6 +150,7 @@ final class MicroBenchmarkTests: XCTestCase {
         persistentID: entry.persistentModelID,
         feedbinEntryID: 500_000 + offset,
         title: "Row \(offset)",
+        url: "https://example.com/\(offset)",
         formattedPublishedTime: "09.30",
         displayDomain: "example.com",
         excerpt: "Row excerpt \(offset)",

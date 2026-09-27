@@ -207,6 +207,7 @@ private func unreadPreviewRow() -> EntryRowDTO {
     persistentID: PreviewSupport.mintEntryIdentifiers(count: 1)[0],
     feedbinEntryID: 1,
     title: "Goat Simulator maker Coffee Stain to close its mobile studio",
+    url: "https://mobilegamer.biz/coffee-stain-mobile-studio",
     formattedPublishedTime: "09.30",
     displayDomain: "mobilegamer.biz",
     excerpt: "Coffee Stain is closing its mobile development arm in Malmö, Sweden.",
@@ -223,6 +224,7 @@ private func shortTitlePreviewRow() -> EntryRowDTO {
     persistentID: PreviewSupport.mintEntryIdentifiers(count: 1)[0],
     feedbinEntryID: 3,
     title: "Coffee Stain closes studio",
+    url: "https://mobilegamer.biz/coffee-stain-closes-studio",
     formattedPublishedTime: "10.15",
     displayDomain: "mobilegamer.biz",
     excerpt:
@@ -242,6 +244,7 @@ private func readPreviewRow() -> EntryRowDTO {
     persistentID: PreviewSupport.mintEntryIdentifiers(count: 1)[0],
     feedbinEntryID: 2,
     title: "EU passes sweeping AI regulation requiring model transparency",
+    url: "https://arstechnica.com/eu-ai-regulation",
     formattedPublishedTime: "08.30",
     displayDomain: "arstechnica.com",
     excerpt: "The European Union has approved comprehensive AI legislation.",

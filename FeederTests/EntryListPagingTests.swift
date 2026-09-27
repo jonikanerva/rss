@@ -41,6 +41,7 @@ struct EntryListPagingTests {
       persistentID: entry.persistentModelID,
       feedbinEntryID: id,
       title: "Row \(id)",
+      url: "https://example.com/\(id)",
       formattedPublishedTime: "",
       displayDomain: nil,
       excerpt: "",
