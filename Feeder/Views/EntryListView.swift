@@ -772,6 +772,68 @@ private enum EntryListPreviewFixtures {
     engine.applyPreviewState(lastError: lastError)
     return engine
   }
+
+  static func alternatingReadRows() -> ModelContainer {
+    container(
+      with: (1...6).map { index in
+        let isRead = index.isMultiple(of: 2)
+        return SeedRow(
+          id: 2000 + index, title: isRead ? "Read article \(index)" : "Unread article \(index)",
+          publishedAt: .now.addingTimeInterval(-Double(index) * 900), isRead: isRead)
+      })
+  }
+
+  static func unreadRows() -> ModelContainer {
+    container(
+      with: (1...3).map { index in
+        SeedRow(id: 2100 + index, title: "Unread article \(index)", publishedAt: .now.addingTimeInterval(-Double(index) * 900))
+      })
+  }
+
+  static func dayHeaderRows() -> ModelContainer {
+    container(with: [
+      SeedRow(id: 2201, title: "Published today", publishedAt: .now),
+      SeedRow(id: 2202, title: "Published yesterday", publishedAt: Calendar.current.startOfDay(for: .now) - 3600),
+      SeedRow(id: 2203, title: "Published on an older day", publishedAt: Date(timeIntervalSince1970: 1_789_560_000)),
+    ])
+  }
+
+  private struct SeedRow {
+    let id: Int
+    let title: String
+    let publishedAt: Date
+    var isRead = false
+  }
+
+  private static func container(with rows: [SeedRow]) -> ModelContainer {
+    let container = PreviewSupport.makeContainer()
+    let context = container.mainContext
+    let feed = Feed(
+      feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "Preview Feed",
+      feedURL: "https://preview.example.com/feed", siteURL: "https://preview.example.com",
+      createdAt: .now)
+    context.insert(feed)
+    let excerpt = "A short excerpt that fits the summary lines of the row."
+    for row in rows {
+      let entry = Entry(
+        feedbinEntryID: row.id, title: row.title, author: "Bot",
+        url: "https://preview.example.com/\(row.id)", content: "<p>\(excerpt)</p>",
+        summary: excerpt, extractedContentURL: nil, publishedAt: row.publishedAt, createdAt: row.publishedAt)
+      entry.feed = feed
+      entry.primaryCategory = "apple"
+      entry.primaryFolder = "technology"
+      entry.isClassified = true
+      entry.isRead = row.isRead
+      entry.formattedDate = formatEntryDate(row.publishedAt)
+      entry.formattedPublishedTime = formatEntryTime(row.publishedAt)
+      entry.displayDomain = "preview.example.com"
+      entry.plainText = excerpt
+      entry.summaryPlainText = excerpt
+      context.insert(entry)
+    }
+    try? context.save()
+    return container
+  }
 }
 
 // The offline, auth-failed, and at-rest stores stay empty: a fetched row
@@ -840,4 +902,23 @@ private enum EntryListPreviewFixtures {
 
 #Preview("Row Matrix - Medium, 200 pt") {
   EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium, width: 200)
+}
+
+#Preview("Read Filter") {
+  EntryListPreviewHost(container: EntryListPreviewFixtures.alternatingReadRows(), filter: .read)
+}
+
+#Preview("Empty - No Read Articles") {
+  EntryListPreviewHost(container: EntryListPreviewFixtures.unreadRows(), filter: .read)
+}
+
+#Preview("Error - Couldn't Load Articles") {
+  EntryListFetchErrorView()
+    .frame(width: 360, height: 480)
+}
+
+#Preview("Day Headers - Huge, 200 pt") {
+  EntryListPreviewHost(
+    container: EntryListPreviewFixtures.dayHeaderRows(), cutoffDate: .distantPast,
+    fontSettings: AppFontSettings(textSize: .xxLarge), width: 200, height: 900)
 }
