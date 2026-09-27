@@ -275,7 +275,30 @@ test-focus: test-ui ## Owner-run focus check: the three focus UI tests in one la
 # Full gate
 # ---------------------------------------------------------------------------
 
-test-all: lint build test ## Quick gate: lint + build + unit (no UI)
+# test-all is gate evidence (STACK.md § 3 → Gates), so it runs every unit test.
+# RUN_START must stay `:=`, so make records HEAD and the tree state at parse
+# time, before any recipe runs. Only this recipe prints the stamp; a sub-make
+# would record its own start.
+ifneq ($(filter test-all,$(MAKECMDGOALS)),)
+ifneq ($(strip $(UNIT_TEST)),FeederTests)
+$(error make test-all runs every unit test and refuses UNIT_TEST="$(UNIT_TEST)"; use make test for a selection)
+endif
+RUN_START      := $(shell git rev-parse HEAD 2>/dev/null)$(if $(shell git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error),+dirty)
+endif
+
+test-all: lint build test ## Quick gate: lint + build + unit (no UI), then the verify: line
+	@set -euo pipefail; \
+	start='$(RUN_START)'; \
+	head=$$(git rev-parse HEAD 2>/dev/null || true); \
+	changes=$$(git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error); \
+	if [ -z "$${start%+dirty}" ] || [ -z "$$head" ]; then \
+		echo "error: the verify stamp needs a git HEAD" >&2; exit 1; \
+	fi; \
+	tree=dirty; \
+	if [ "$$start" = "$$head" ] && [ -z "$$changes" ]; then tree=clean; fi; \
+	result=$$($(call xcresult_field,$(UNIT_RESULT),result)); \
+	tests=$$($(call xcresult_field,$(UNIT_RESULT),passedTests)); \
+	echo "verify: head=$$head tree=$$tree result=$$result tests=$$tests"
 
 test-full: lint build test test-ui ## Full gate: lint + build + unit + UI
 
