@@ -26,17 +26,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// also holds the batch of a failed push.
   var deleteUnreadEntriesError: Error?
 
-  // MARK: Timing knobs
-
-  /// Sleep inserted before the page yielding begins, so a race-guard test keeps
-  /// the primary sync in flight while a second operation tries to start. It
-  /// sits after the call-count bump, so that counter signals the stream started.
-  var entryPagesInitialDelay: Duration = .zero
-
-  /// Sleep inserted between page yields, which keeps the stream open after the
-  /// first page is consumed. A test then observes the engine's live fetch total
-  /// while the sync is still running.
-  var entryPagesInterPageDelay: Duration = .zero
+  // MARK: Gates
 
   /// While set, `verifyCredentials()` waits until the gate opens.
   private var verifyGate: AsyncGate?
@@ -46,6 +36,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// While set, the page stream bumps `fetchEntryPagesCallCount` and then waits
   /// until the gate opens before it yields a page.
   private var entryPagesGate: AsyncGate?
+  /// While set, the page stream waits until the gate opens before it yields
+  /// each page after the first, so the stream stays open after the first page.
+  private var laterEntryPagesGate: AsyncGate?
 
   // MARK: Call logs
 
@@ -103,14 +96,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
       let task = Task {
         let snapshot = await snapshotTask.value
         if let gate = snapshot.gate { await gate.wait() }
-        if snapshot.delay > .zero {
-          try? await Task.sleep(for: snapshot.delay)
-        }
         for (index, page) in snapshot.pages.enumerated() {
           if Task.isCancelled { break }
-          if index > 0 && snapshot.interPageDelay > .zero {
-            try? await Task.sleep(for: snapshot.interPageDelay)
-          }
+          if index > 0, let laterGate = snapshot.laterGate { await laterGate.wait() }
           continuation.yield(page)
         }
         continuation.finish()
@@ -125,13 +113,12 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setUnreadIDsResponse(_ value: [Int]) { unreadIDsResponse = value }
   func setEntryPagesResponse(_ value: [FeedbinEntriesPage]) { entryPagesResponse = value }
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
-  func setEntryPagesInitialDelay(_ value: Duration) { entryPagesInitialDelay = value }
-  func setEntryPagesInterPageDelay(_ value: Duration) { entryPagesInterPageDelay = value }
   func setVerifyResult(_ value: Result<Bool, any Error>) { verifyResult = value }
   func holdVerification(until gate: AsyncGate) { verifyGate = gate }
   func setDeleteUnreadEntriesError(_ value: Error?) { deleteUnreadEntriesError = value }
   func holdDeleteUnreadEntries(until gate: AsyncGate) { deleteUnreadEntriesGate = gate }
   func holdEntryPages(until gate: AsyncGate) { entryPagesGate = gate }
+  func holdLaterEntryPages(until gate: AsyncGate) { laterEntryPagesGate = gate }
 
   // MARK: - Internal
 
@@ -139,10 +126,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// counter is a reliable "the stream body has started" signal. The engine's
   /// own flag is not: it flips before any client call.
   private func snapshotEntryPagesState() -> (
-    pages: [FeedbinEntriesPage], delay: Duration, interPageDelay: Duration, gate: AsyncGate?
+    pages: [FeedbinEntriesPage], gate: AsyncGate?, laterGate: AsyncGate?
   ) {
     fetchEntryPagesCallCount += 1
-    return (entryPagesResponse, entryPagesInitialDelay, entryPagesInterPageDelay, entryPagesGate)
+    return (entryPagesResponse, entryPagesGate, laterEntryPagesGate)
   }
 }
 
