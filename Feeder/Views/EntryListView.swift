@@ -612,74 +612,64 @@ private struct EntryListFetchErrorView: View {
 
 // MARK: - Previews
 
-#Preview("Empty - Offline") {
-  EntryListOfflinePreview()
-}
-
-#Preview("Empty - Auth Failed") {
-  EntryListAuthFailedPreview()
-}
-
-#Preview("Empty While Classifying — No Articles") {
-  EntryListEmptyWhileClassifyingPreview()
-}
-
-#Preview("Empty - No Articles (at rest)") {
-  EntryListEmptyAtRestPreview()
-}
-
-// Row matrix: the row-height floor and the title / summary split at every
-// text size, in a 320-pt content column and at the 200-pt and 600-pt
-// extremes. Every row must be exactly `entryRowHeight` tall. The seeded
-// shapes cover a wrapped title, a missing domain, an empty-string domain, an
-// empty excerpt, the three-line threshold and one word past it, a read and
-// unread twin, an emoji title, and a long domain.
-
-#Preview("Row Matrix - Small") {
-  EntryListRowMatrixPreview(textSize: .small)
-}
-
-#Preview("Row Matrix - Medium") {
-  EntryListRowMatrixPreview(textSize: .medium)
-}
-
-#Preview("Row Matrix - Large") {
-  EntryListRowMatrixPreview(textSize: .large)
-}
-
-#Preview("Row Matrix - Extra Large") {
-  EntryListRowMatrixPreview(textSize: .xLarge)
-}
-
-#Preview("Row Matrix - Huge") {
-  EntryListRowMatrixPreview(textSize: .xxLarge)
-}
-
-#Preview("Row Matrix - Medium, Dark") {
-  EntryListRowMatrixPreview(textSize: .medium)
-    .preferredColorScheme(.dark)
-}
-
-#Preview("Row Matrix - Medium, 600 pt") {
-  EntryListRowMatrixPreview(textSize: .medium, width: 600)
-}
-
-#Preview("Row Matrix - Medium, 200 pt") {
-  EntryListRowMatrixPreview(textSize: .medium, width: 200)
-}
-
-/// Seeds the row shapes above and renders `EntryListView` at the given
-/// content-column width and text size. Row 1010 is unread in the store but
-/// sits in `pendingReadIDs`, so it renders as read inside the unread filter.
+/// Renders `EntryListView` for the `apple` category: a fixture row shows only
+/// when it carries that category.
 @MainActor
-private struct EntryListRowMatrixPreview: View {
-  let textSize: AppTextSize
-  var width: CGFloat = 320
+private struct EntryListPreviewHost: View {
+  let container: ModelContainer
+  var filter: ArticleFilter = .unread
+  var cutoffDate: Date = .now.addingTimeInterval(-7 * 86_400)
+  var fontSettings = AppFontSettings()
+  var syncEngine = SyncEngine.preview()
+  var pendingReadIDs: Set<Int> = []
+  var width: CGFloat = 360
+  var height: CGFloat = 480
   @State
   private var reader: DataReader?
   @State
   private var selectedEntryID: PersistentIdentifier?
-  private let container: ModelContainer = {
+
+  var body: some View {
+    Group {
+      if let reader {
+        EntryListView(
+          category: "apple",
+          folder: nil,
+          filter: filter,
+          cutoffDate: cutoffDate,
+          reader: reader,
+          refreshVersion: 0,
+          pinnedFeedbinEntryID: nil,
+          selectedEntryID: $selectedEntryID,
+          onMarkAllRead: {}
+        )
+      } else {
+        ProgressView()
+      }
+    }
+    .environment(\.pendingReadIDs, pendingReadIDs)
+    .environment(syncEngine)
+    .environment(fontSettings)
+    .environment(FaviconStore())
+    .modelContainer(container)
+    .task {
+      reader = await DataReader.makeDetached(modelContainer: container)
+    }
+    .frame(width: width, height: height)
+  }
+}
+
+@MainActor
+private enum EntryListPreviewFixtures {
+  /// Row 1010 is unread in the store but sits in `pendingReadIDs`, so it
+  /// renders as read inside the unread filter.
+  static func rowMatrixPreview(textSize: AppTextSize, width: CGFloat = 320) -> EntryListPreviewHost {
+    EntryListPreviewHost(
+      container: rowMatrix(), fontSettings: AppFontSettings(textSize: textSize), pendingReadIDs: [1010],
+      width: width, height: 1400)
+  }
+
+  static func rowMatrix() -> ModelContainer {
     let container = PreviewSupport.makeContainer()
     let context = container.mainContext
     let feed = Feed(
@@ -740,143 +730,11 @@ private struct EntryListRowMatrixPreview: View {
     }
     try? context.save()
     return container
-  }()
-
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(\.pendingReadIDs, [1010])
-    .environment(SyncEngine.preview())
-    .environment(AppFontSettings(textSize: textSize))
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: width, height: 1400)
   }
-}
 
-/// Renders `EntryListView` in the offline-empty state: container is seeded
-/// but contains no entries, and `SyncEngine.lastError` is set to `.network`
-/// so the view picks the `ContentUnavailableView("Offline", …)` branch.
-@MainActor
-private struct EntryListOfflinePreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntryID: PersistentIdentifier?
-  private let container: ModelContainer = PreviewSupport.makeContainer()
-  private let syncEngine: SyncEngine = {
-    let engine = SyncEngine.preview()
-    engine.applyPreviewState(
-      lastError: .network("The Internet connection appears to be offline."))
-    return engine
-  }()
-
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(AppFontSettings())
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
-  }
-}
-
-/// Renders `EntryListView` in the auth-failed empty state: container is seeded
-/// but contains no entries, and `SyncEngine.lastError` is set to `.authFailed`
-/// so the view picks the "Signed out of Feedbin" branch.
-@MainActor
-private struct EntryListAuthFailedPreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntryID: PersistentIdentifier?
-  private let container: ModelContainer = PreviewSupport.makeContainer()
-  private let syncEngine: SyncEngine = {
-    let engine = SyncEngine.preview()
-    engine.applyPreviewState(
-      lastError: .authFailed("Invalid Feedbin credentials"))
-    return engine
-  }()
-
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(AppFontSettings())
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
-  }
-}
-
-/// Renders `EntryListView` with classification mid-batch, a classified row in
-/// another category, and the queried category resolving empty. The pane shows
-/// "No Articles": a resolved-empty fetch asserts emptiness regardless of
-/// engine activity, and the drain channel re-fetches as classification lands
-/// rows. The mid-batch engine is injected on purpose, to show that engine
-/// activity does not change this outcome.
-@MainActor
-private struct EntryListEmptyWhileClassifyingPreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntryID: PersistentIdentifier?
-  private let container: ModelContainer = {
+  /// One classified row in another category, so the `apple` list resolves
+  /// empty.
+  static func otherCategoryRow() -> ModelContainer {
     let container = PreviewSupport.makeContainer()
     let context = container.mainContext
     let feed = Feed(
@@ -896,9 +754,9 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
     context.insert(entry)
     try? context.save()
     return container
-  }()
-  private let syncEngine = SyncEngine.preview()
-  private let classificationEngine: ClassificationEngine = {
+  }
+
+  static func midBatchClassificationEngine() -> ClassificationEngine {
     let engine = ClassificationEngine()
     engine.applyPreviewState(
       isClassifying: true,
@@ -907,75 +765,79 @@ private struct EntryListEmptyWhileClassifyingPreview: View {
       totalToClassify: 8
     )
     return engine
-  }()
+  }
 
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(classificationEngine)
-    .environment(AppFontSettings())
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
+  static func syncEngine(lastError: SyncError) -> SyncEngine {
+    let engine = SyncEngine.preview()
+    engine.applyPreviewState(lastError: lastError)
+    return engine
   }
 }
 
-/// Renders `EntryListView` in the genuine empty state at rest: no rows, no
-/// sync error → the resolved-empty fetch shows "No Articles" (the
-/// `.noArticles` case of `entryListDisplayState`).
-@MainActor
-private struct EntryListEmptyAtRestPreview: View {
-  @State
-  private var reader: DataReader?
-  @State
-  private var selectedEntryID: PersistentIdentifier?
-  private let container: ModelContainer = PreviewSupport.makeContainer()
-  private let syncEngine = SyncEngine.preview()
+// The offline, auth-failed, and at-rest stores stay empty: a fetched row
+// renders the list instead (`entryListDisplayState`).
 
-  var body: some View {
-    Group {
-      if let reader {
-        EntryListView(
-          category: "apple",
-          folder: nil,
-          filter: .unread,
-          cutoffDate: .now.addingTimeInterval(-7 * 86_400),
-          reader: reader,
-          refreshVersion: 0,
-          pinnedFeedbinEntryID: nil,
-          selectedEntryID: $selectedEntryID,
-          onMarkAllRead: {}
-        )
-      } else {
-        ProgressView()
-      }
-    }
-    .environment(syncEngine)
-    .environment(AppFontSettings())
-    .environment(FaviconStore())
-    .modelContainer(container)
-    .task {
-      reader = await DataReader.makeDetached(modelContainer: container)
-    }
-    .frame(width: 360, height: 480)
-  }
+#Preview("Empty - Offline") {
+  EntryListPreviewHost(
+    container: PreviewSupport.makeContainer(),
+    syncEngine: EntryListPreviewFixtures.syncEngine(lastError: .network("The Internet connection appears to be offline."))
+  )
+}
+
+#Preview("Empty - Auth Failed") {
+  EntryListPreviewHost(
+    container: PreviewSupport.makeContainer(),
+    syncEngine: EntryListPreviewFixtures.syncEngine(lastError: .authFailed("Invalid Feedbin credentials"))
+  )
+}
+
+#Preview("Empty While Classifying — No Articles") {
+  // The mid-batch engine is injected on purpose, to show that engine activity
+  // does not change the "No Articles" outcome.
+  EntryListPreviewHost(container: EntryListPreviewFixtures.otherCategoryRow())
+    .environment(EntryListPreviewFixtures.midBatchClassificationEngine())
+}
+
+#Preview("Empty - No Articles (at rest)") {
+  EntryListPreviewHost(container: PreviewSupport.makeContainer())
+}
+
+// Row matrix: the row-height floor and the title / summary split at every
+// text size, in a 320-pt content column and at the 200-pt and 600-pt
+// extremes. Every row must be exactly `entryRowHeight` tall. The seeded
+// shapes cover a wrapped title, a missing domain, an empty-string domain, an
+// empty excerpt, the three-line threshold and one word past it, a read and
+// unread twin, an emoji title, and a long domain.
+
+#Preview("Row Matrix - Small") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .small)
+}
+
+#Preview("Row Matrix - Medium") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium)
+}
+
+#Preview("Row Matrix - Large") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .large)
+}
+
+#Preview("Row Matrix - Extra Large") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .xLarge)
+}
+
+#Preview("Row Matrix - Huge") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .xxLarge)
+}
+
+#Preview("Row Matrix - Medium, Dark") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Row Matrix - Medium, 600 pt") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium, width: 600)
+}
+
+#Preview("Row Matrix - Medium, 200 pt") {
+  EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium, width: 200)
 }
