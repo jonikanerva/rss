@@ -37,13 +37,13 @@ nonisolated enum PerformanceSignpostName {
   //
   // Four intervals that attribute one question: does a dense sync-page write
   // burst saturate the shared SwiftData coordinator and starve the article-list
-  // read? Pure measurement — production behaviour is unchanged.
+  // read? The signposts do not change production behaviour.
 
   /// How long the article-list read takes on the reader actor. Windowed
   /// against `writePersistPage`, it separates the under-burst read cost from
   /// the at-rest baseline.
   static let readFetchSections: StaticString = "read-fetch-sections"
-  /// Structural key change → sections replaced: how long the article pane
+  /// Structural key change → sections replaced: how long the article list
   /// shows its blank window, and how much of that overlaps an active persist.
   static let structuralReload: StaticString = "structural-reload"
   /// One sync-page network GET. The gap it represents is what an unbounded

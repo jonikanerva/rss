@@ -167,7 +167,7 @@ A full clone uses `/tmp/FeederDerivedData`. A linked `git worktree`, or a copy w
 - **Article list scroll:** 120 fps achievable on ProMotion.
 - **Sync / classification:** background work must not block the UI; long-running classification batches are cancellable and yield cooperatively.
 
-Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded. No automated check measures these budgets. An owner trace (§ 4 → Owner trace) measures them.
+Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded. No automated check measures these budgets. An owner trace (§ 4 → Owner trace) measures the frame, launch, scroll, and sync budgets. No check measures the memory ceiling.
 
 ### Hot-path gate
 
@@ -179,13 +179,13 @@ Profile before optimizing. Stay inside these budgets unless a measurement-backed
 
 ### Owner trace
 
-When a core action feels slow more than once, the owner records a trace. The core actions are a sidebar move, an article open, a scroll, and the UI during a sync. The owner records every trace.
+When one of these feels slow more than once, the owner records a trace: a sidebar move, an article open, a scroll, the UI during a sync, or a launch. The owner records every trace.
 
 - Record in the daily app with the real data, and do not relaunch the app first. For a slow launch, let Instruments launch Feeder.
 - Use the Time Profiler template, which includes Hangs, and add the os_signpost instrument. For a scroll hitch, use the Animation Hitches template. Record for 30 to 60 seconds, and repeat the slow action three to five times.
 - Save the trace as `~/Desktop/feeder-<topic>.trace`. The trace stays on the Mac, because the repository is public.
 - Add one sentence to the issue: what felt slow, the trace file name, and the build identity. The build identity is the branch and the `git log -1 --oneline` of the installed build.
-- To check the `DataReader` executor, read the start thread and the end thread of each `read-fetch-sections` interval in the os_signpost instrument. Both must be a background thread. An interval on the main thread shows that the executor binding failed (§ 5). The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
+- Read `read-fetch-sections` in the os_signpost instrument. The read runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
 
 ### Signposts
 
@@ -197,7 +197,7 @@ When a core action feels slow more than once, the owner records a trace. The cor
 | `article-click` | An article open is slow. The interval is the SwiftUI commit after the row selection changes. |
 | `detail-render` | The article body appears late. The interval covers the HTML render in a detached task. |
 | `read-fetch-sections` | The article list appears late. The interval is the fetch, the projection, and the grouping on the `DataReader` actor. |
-| `structural-reload` | The article pane stays blank after a sidebar move. The interval runs from the start of the reload, after the debounce, to the new rows. |
+| `structural-reload` | The article list stays blank after a sidebar move. The interval runs from the start of the reload, after the debounce, to the new rows. |
 | `reload-diff` | A list reload is slow on the main actor. The interval is the row comparison. |
 | `reload-set-build` | A list reload is slow on the main actor. The interval is the build of the identifier set. |
 | `reload-state-assign` | A list reload is slow on the main actor. The interval is the state assignment. |
