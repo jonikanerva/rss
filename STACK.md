@@ -275,7 +275,7 @@ UTC everywhere internally, converted only at the boundary (`CLAUDE.md → Time`)
 - **Internal representation:** all timestamps in logic, SwiftData persistence, caches, and logs are `Date` instants. Canonical timeline ordering (`VISION.md → Core Principles`) sorts on `Date`, never on formatted strings.
 - **Boundary conversion:** inbound Feedbin timestamps parse to `Date` immediately (`ISO8601DateFormatter`, GMT by default); user-facing values convert at the last moment via `Text(date, format:)` / `.formatted(...)` or a `DateFormatter` / `Calendar` with an explicit `timeZone`.
 - **Banned:** storing or computing with calendar components or local-time strings in logic; manual UTC-offset arithmetic; `DateFormatter` / `Calendar` without an explicit `timeZone` outside the display boundary. *Documented exception:* the pre-computed display-string fields `formattedDate` / `formattedPublishedTime` (§5) are an Intentional Divergence (§14) — they are display artifacts, never inputs to logic or ordering.
-- **Tests:** inject a fixed `Date` rather than reading `Date.now`; no timezone-dependent assertions.
+- **Tests:** inject a fixed `Date` rather than reading `Date.now`; no timezone-dependent assertions. A test reads the clock only for code that reads the clock itself and takes no `now` input, such as `articleCutoffDate()` and `DataWriter.purgeEntriesOlderThan(_:)`. No assertion then depends on the local day. An instant that must stay newer than a cutoff that the code computes from the clock is at least five seconds newer than the test's cutoff.
 
 ---
 

@@ -135,11 +135,11 @@ struct DataReaderConcurrencyTests {
     // The declared row snapshot: identity, render fields, the link, the
     // read-state snapshot, the grouping input, and the favicon pair.
     let context = ModelContext(try DataWriterTestSupport.makeInMemoryContainer())
+    let day = Date(timeIntervalSince1970: 0)
     let minted = Entry(
       feedbinEntryID: 4001, title: "Pin", author: nil, url: "https://example.com/pin",
-      content: nil, summary: nil, extractedContentURL: nil, publishedAt: .now, createdAt: .now)
+      content: nil, summary: nil, extractedContentURL: nil, publishedAt: day, createdAt: day)
     context.insert(minted)
-    let day = Date(timeIntervalSince1970: 0)
     let row = EntryRowDTO(
       persistentID: minted.persistentModelID,
       feedbinEntryID: 4001,

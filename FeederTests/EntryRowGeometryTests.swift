@@ -298,7 +298,7 @@ struct EntryRowGeometryTests {
       displayDomain: shape.domain,
       excerpt: shape.excerpt,
       isRead: shape.isRead,
-      publishedAt: .now,
+      publishedAt: Date(timeIntervalSince1970: 1_750_000_000),
       feedFeedbinID: 1,
       feedInitial: "M"
     )

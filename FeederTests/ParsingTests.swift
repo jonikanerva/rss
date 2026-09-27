@@ -89,8 +89,8 @@ struct EntryContentFallbackTests {
       content: content,
       summary: summary,
       extractedContentURL: nil,
-      publishedAt: .now,
-      createdAt: .now
+      publishedAt: Date(timeIntervalSince1970: 1_750_000_000),
+      createdAt: Date(timeIntervalSince1970: 1_750_000_000)
     )
     if let extracted = extractedContent {
       entry.extractedContent = extracted

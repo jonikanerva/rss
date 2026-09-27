@@ -16,6 +16,9 @@ import Testing
 /// stop other suites running in parallel. Not a production limitation.
 @Suite(.serialized)
 struct UnreadCountsSnapshotFetchTests {
+  /// Reference instant for the cutoff sweep, in place of the clock.
+  private static let reference = Date(timeIntervalSince1970: 1_750_000_000)
+
   private func makeWriter() async throws -> DataWriter {
     try await DataWriterTestSupport.makeWriter()
   }
@@ -221,7 +224,7 @@ struct UnreadCountsSnapshotFetchTests {
   }
 
   /// Stronger parity check: sweep the cutoff across a representative range
-  /// (distant past → 100d → 30d → 7d → 1d → now) so a future drift in
+  /// (distant past → 100d → 30d → 7d → 1d → reference) so a future drift in
   /// either fetcher's eligibility predicate fails this test for at least
   /// one cutoff value instead of slipping through the single-cutoff case.
   ///
@@ -232,11 +235,11 @@ struct UnreadCountsSnapshotFetchTests {
   @Test(
     arguments: [
       Date.distantPast,
-      Date.now.addingTimeInterval(-100 * 86_400),
-      Date.now.addingTimeInterval(-30 * 86_400),
-      Date.now.addingTimeInterval(-7 * 86_400),
-      Date.now.addingTimeInterval(-1 * 86_400),
-      Date.now,
+      reference.addingTimeInterval(-100 * 86_400),
+      reference.addingTimeInterval(-30 * 86_400),
+      reference.addingTimeInterval(-7 * 86_400),
+      reference.addingTimeInterval(-1 * 86_400),
+      reference,
     ]
   )
   func snapshotMatchesFetchEntrySectionsAcrossCutoffs(cutoff: Date) async throws {
@@ -249,13 +252,13 @@ struct UnreadCountsSnapshotFetchTests {
     // parameterised cutoff lands somewhere meaningful (not always above or
     // always below the seeded entries). 60 days back covers the widest
     // production cutoff (30d maxRetentionAge) with margin.
-    let now = Date.now
+    let reference = Self.reference
     let seedDates: [(id: Int, published: Date)] = [
-      (id: 7001, published: now.addingTimeInterval(-90 * 86_400)),
-      (id: 7002, published: now.addingTimeInterval(-45 * 86_400)),
-      (id: 7003, published: now.addingTimeInterval(-20 * 86_400)),
-      (id: 7004, published: now.addingTimeInterval(-5 * 86_400)),
-      (id: 7005, published: now.addingTimeInterval(-1 * 3_600)),
+      (id: 7001, published: reference.addingTimeInterval(-90 * 86_400)),
+      (id: 7002, published: reference.addingTimeInterval(-45 * 86_400)),
+      (id: 7003, published: reference.addingTimeInterval(-20 * 86_400)),
+      (id: 7004, published: reference.addingTimeInterval(-5 * 86_400)),
+      (id: 7005, published: reference.addingTimeInterval(-1 * 3_600)),
     ]
     let isoFormatter = ISO8601DateFormatter()
     isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
