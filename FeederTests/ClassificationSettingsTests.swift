@@ -24,7 +24,7 @@ struct ClassificationSettingsTests {
     #expect(await store.load(provider: .vercel) == "replacement")
     try await settings.removeKey(for: .vercel)
     #expect(!settings.hasStoredKey)
-    settings.select(.openAI)
+    _ = settings.select(.openAI)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     #expect(await store.load(provider: .openAI) == "openai-test")
@@ -52,7 +52,7 @@ struct ClassificationSettingsTests {
     let settings = ClassificationSettingsModel(isInert: true)
     #expect(settings.provider == .appleFM)
     #expect(!settings.hasStoredKey)
-    settings.select(.vercel)
+    _ = settings.select(.vercel)
     #expect(!settings.hasStoredKey)
     #expect(try await settings.keyForModelList() == nil)
   }
@@ -61,7 +61,7 @@ struct ClassificationSettingsTests {
     let store = MemoryClassificationKeyStore(values: [.openAI: "openai-test"])
     let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
     let editedProvider = settings.provider
-    settings.select(.openAI)
+    _ = settings.select(.openAI)
     try await settings.save("vercel-test", for: editedProvider)
     await settings.refreshKey()
     #expect(settings.provider == .openAI)
@@ -75,8 +75,8 @@ struct ClassificationSettingsTests {
     let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
     let earlierLoad = Task { await settings.refreshKey() }
     try await waitUntil("key load starts") { await store.started }
-    settings.select(.openAI)
-    settings.select(.vercel)
+    _ = settings.select(.openAI)
+    _ = settings.select(.vercel)
     await store.release()
     await earlierLoad.value
     #expect(settings.isLoadingKey)
@@ -109,7 +109,8 @@ struct ClassificationSettingsTests {
   @Test
   func failedModelListReadThrowsAfterOneRead() async throws {
     let store = RecordingClassificationKeyStore(probe: .success(true), read: .failure(.osStatus(errSecAuthFailed)))
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     await #expect(throws: KeychainError.osStatus(errSecAuthFailed)) { try await settings.keyForModelList() }
@@ -125,7 +126,8 @@ struct ClassificationSettingsTests {
   @Test
   func readableKeyReachesTheModelList() async throws {
     let store = RecordingClassificationKeyStore(probe: .success(true), read: .success("sk-test"))
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(try await settings.keyForModelList() == "sk-test")
   }
@@ -133,7 +135,8 @@ struct ClassificationSettingsTests {
   @Test
   func emptyStoredKeyGivesTheModelListNoKey() async throws {
     let store = MemoryClassificationKeyStore(values: [.openAI: ""])
-    let settings = ClassificationSettingsModel(provider: .openAI, store: store, isInert: false)
+    let settings = ClassificationSettingsModel(
+      provider: .openAI, store: store, isInert: false, openAIModel: OpenAIModelSetting.defaultModel)
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     #expect(try await settings.keyForModelList() == nil)

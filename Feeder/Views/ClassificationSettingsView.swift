@@ -13,14 +13,6 @@ struct ClassificationSettingsView: View {
   @State
   private var keyEditor: ClassificationProviderKind?
   @State
-  private var pendingReclassification: ClassificationProviderKind?
-  @State
-  private var pendingProviderSelection: ClassificationProviderKind?
-  @State
-  private var reclassifyTarget: String?
-  @State
-  private var modelSelection: String = OpenAIModelSetting.current()
-  @State
   private var modelListState: ModelListState = .needsKey
 
   init(settings: ClassificationSettingsModel = ClassificationSettingsModel()) {
@@ -54,7 +46,7 @@ struct ClassificationSettingsView: View {
               .disabled(settings.isLoadingKey)
           }
           if settings.provider == .openAI {
-            OpenAIModelPickerRow(selection: Binding(get: { modelSelection }, set: selectModel), state: modelListState)
+            OpenAIModelPickerRow(selection: Binding(get: { settings.openAIModel }, set: selectModel), state: modelListState)
           } else {
             LabeledContent("Model", value: "JEV (Typesafe)")
             Text("Article titles, text, and category definitions are sent to Vercel AI Gateway and Typesafe for classification.")
@@ -80,30 +72,16 @@ struct ClassificationSettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .sheet(
-      item: $keyEditor,
-      onDismiss: {
-        if let provider = pendingReclassification {
-          pendingReclassification = nil
-          reclassifyTarget = targetName(provider)
-        }
-      }
-    ) { provider in
-      APIKeyEditSheet(settings: settings, provider: provider) { firstKeyAdded in
-        configurationChanged()
-        if firstKeyAdded { pendingReclassification = provider }
-      }
+    .sheet(item: $keyEditor, onDismiss: { settings.keyEditorClosed() }) { provider in
+      APIKeyEditSheet(settings: settings, provider: provider) { configurationChanged() }
     }
-    .task(id: "\(settings.provider.rawValue)|\(settings.keyRevision)") {
-      await settings.refreshKey()
-      guard !Task.isCancelled else { return }
-      if pendingProviderSelection == settings.provider {
-        pendingProviderSelection = nil
-        if settings.provider == .appleFM || settings.hasStoredKey { reclassifyTarget = targetName(settings.provider) }
-      }
-    }
+    .task(id: "\(settings.provider.rawValue)|\(settings.keyRevision)") { await settings.refreshKey() }
     .task(id: modelFetchKey) { await refreshModelList() }
-    .alert("Reclassify Articles?", isPresented: Binding(get: { reclassifyTarget != nil }, set: { if !$0 { reclassifyTarget = nil } })) {
+    .alert(
+      "Reclassify Articles?",
+      isPresented: Binding(
+        get: { settings.reclassificationTarget != nil }, set: { if !$0 { settings.dismissReclassificationPrompt() } })
+    ) {
       Button("Reclassify", role: .destructive) {
         Task {
           if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
@@ -111,38 +89,23 @@ struct ClassificationSettingsView: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("Reclassify existing articles with \(reclassifyTarget ?? "the selected provider")? This replaces their category assignments.")
+      Text(
+        "Reclassify existing articles with \(settings.reclassificationTarget ?? "the selected provider")? This replaces their category assignments."
+      )
     }
   }
 
   private func selectProvider(_ provider: ClassificationProviderKind) {
-    guard provider != settings.provider else { return }
-    pendingProviderSelection = provider
-    settings.select(provider)
-    configurationChanged()
+    if settings.select(provider) { configurationChanged() }
   }
 
   private func selectModel(_ model: String) {
-    guard model != modelSelection else { return }
-    modelSelection = model
-    // Persist only on an explicit user pick. A programmatic write pins a user
-    // who never picked to the current default.
-    if !settings.isInert { OpenAIModelSetting.persist(model) }
-    configurationChanged()
-    if settings.hasStoredKey { reclassifyTarget = targetName(.openAI) }
+    if settings.selectOpenAIModel(model) { configurationChanged() }
   }
 
   private func configurationChanged() {
     guard !settings.isInert, let writer = syncEngine.writer else { return }
     classificationEngine.configurationChanged(writer: writer)
-  }
-
-  private func targetName(_ provider: ClassificationProviderKind) -> String {
-    switch provider {
-    case .appleFM: provider.displayName
-    case .openAI: "OpenAI (\(modelSelection))"
-    case .vercel: "JEV through Vercel AI Gateway"
-    }
   }
 
   private var modelFetchKey: String { "\(settings.provider.rawValue)|\(settings.keyRevision)|\(settings.hasStoredKey)" }
@@ -179,7 +142,7 @@ extension ClassificationProviderKind: Identifiable {
 private struct APIKeyEditSheet: View {
   let settings: ClassificationSettingsModel
   let provider: ClassificationProviderKind
-  let onCommit: (Bool) -> Void
+  let onCommit: () -> Void
   @Environment(\.dismiss)
   private var dismiss
   @Environment(AppFontSettings.self)
@@ -200,7 +163,7 @@ private struct APIKeyEditSheet: View {
 
   init(
     settings: ClassificationSettingsModel, provider: ClassificationProviderKind,
-    errorMessage: String? = nil, onCommit: @escaping (Bool) -> Void
+    errorMessage: String? = nil, onCommit: @escaping () -> Void
   ) {
     self.settings = settings
     self.provider = provider
@@ -253,19 +216,19 @@ private struct APIKeyEditSheet: View {
 
   private func perform(_ operation: KeyEditOperation) async {
     let hadKey = settings.hasStoredKey
-    // Report only a write the store accepted, so the parent never shows a key
-    // as saved after a failed write.
+    // Report only a completed store change, so the engine restarts with the
+    // key that the store holds.
     do {
       switch operation {
       case .save(let value): try await settings.save(value, for: provider)
       case .remove: try await settings.removeKey(for: provider)
       }
       // A completed Security write must reach the engine even if dismissal cancels the view task.
-      onCommit(operation != .remove && !hadKey)
+      onCommit()
       dismiss()
     } catch {
       // A save that fails after its delete completed removed the old key: the engine must learn of it.
-      if hadKey, !settings.hasStoredKey { onCommit(false) }
+      if hadKey, !settings.hasStoredKey { onCommit() }
       guard !Task.isCancelled else { return }
       errorMessage =
         operation == .remove
@@ -333,13 +296,13 @@ private struct ClassificationSettingsPreview: View {
 #Preview("OpenAI — quota") { ClassificationSettingsPreview(provider: .openAI, reason: .quotaExhausted) }
 #Preview("OpenAI — needs key") { ClassificationSettingsPreview(provider: .openAI, reason: .needsKey, hasKey: false) }
 #Preview("Vercel — key sheet") {
-  APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: { _ in })
+  APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: {})
     .environment(AppFontSettings())
 }
 #Preview("Vercel — Keychain denied") {
   APIKeyEditSheet(
     settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel,
-    errorMessage: "Could not save the API key to Keychain. Try again.", onCommit: { _ in }
+    errorMessage: "Could not save the API key to Keychain. Try again.", onCommit: {}
   )
   .environment(AppFontSettings(textSize: .xxLarge))
   .preferredColorScheme(.dark)
