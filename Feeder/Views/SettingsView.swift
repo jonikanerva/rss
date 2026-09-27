@@ -10,6 +10,8 @@ struct SettingsView: View {
   private var fontSettings
   @Environment(\.modelContext)
   private var modelContext
+  @AppStorage(SettingsPane.userDefaultsKey)
+  private var selectedPane: SettingsPane = .default
   /// Category list, used only for its count. The set is small enough that the
   /// full query is cheap, and staying reactive keeps the Data section in step
   /// when the user edits categories in another tab.
@@ -31,31 +33,26 @@ struct SettingsView: View {
   }()
 
   var body: some View {
-    TabView {
-      accountTab
-        .tabItem {
-          Label("Account", systemImage: "person.crop.circle")
-        }
+    TabView(selection: $selectedPane) {
+      Tab("Account", systemImage: "person.crop.circle", value: .account) {
+        accountTab
+      }
 
-      appearanceTab
-        .tabItem {
-          Label("Appearance", systemImage: "textformat.size")
-        }
+      Tab("Appearance", systemImage: "textformat.size", value: .appearance) {
+        appearanceTab
+      }
 
-      syncTab
-        .tabItem {
-          Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-        }
+      Tab("Sync", systemImage: "arrow.triangle.2.circlepath", value: .sync) {
+        syncTab
+      }
 
-      categoriesTab
-        .tabItem {
-          Label("Categories", systemImage: "tag")
-        }
+      Tab("Categories", systemImage: "tag", value: .categories) {
+        categoriesTab
+      }
 
-      classificationTab
-        .tabItem {
-          Label("Classification", systemImage: "brain")
-        }
+      Tab("Classification", systemImage: "brain", value: .classification) {
+        classificationTab
+      }
     }
     .frame(
       minWidth: 420, idealWidth: 480, maxWidth: 550,
@@ -378,10 +375,8 @@ extension Double {
   settingsSeededPreview()
 }
 
-// The preview opens on the first tab; the Appearance tab holds the text-size
-// picker.
 #Preview("Settings - Appearance Tab") {
-  settingsSeededPreview()
+  settingsSeededPreview(pane: .appearance)
 }
 
 #Preview("Account - Checking") {
@@ -420,8 +415,12 @@ extension Double {
 
 @MainActor
 private func settingsSeededPreview(
-  account: FeedbinAccountPhase = .signedIn(username: "user@example.com")
+  account: FeedbinAccountPhase = .signedIn(username: "user@example.com"),
+  pane: SettingsPane = .account
 ) -> some View {
+  let previewDefaults = UserDefaults(suiteName: "SettingsViewPreviews") ?? .standard
+  SettingsPane.persist(pane, in: previewDefaults)
+
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -465,4 +464,5 @@ private func settingsSeededPreview(
     .environment(ClassificationEngine())
     .environment(AppFontSettings())
     .modelContainer(container)
+    .defaultAppStorage(previewDefaults)
 }
