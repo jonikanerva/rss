@@ -12,7 +12,7 @@ Read order: `VISION.md` → this file → `STACK.md` → the issue (`gh issue vi
 The backlog is the GitHub issue list. Drive work through `/project-manager` — the team lead and the only surface that talks to the user; invoke it by issue number (`solve issue #42`) or a problem description.
 
 - `/project-manager` — reads the issue, proposes a plan, then convenes the team (`architect`, `ux-guardian`, `devils-advocate`, `lead-dev`, `qa-enforcer`). They design, stress-test, implement, open a PR, and run `/codereview` to PASS. The PR reaches the user only after PASS, for the final review.
-- `/implement <task>` — branch → change → `$VERIFY_CMD` → commit → push → PR. `lead-dev` runs it once per issue.
+- `/implement <task>` — branch → change → lint and build → commit → `$VERIFY_CMD` → push → PR. `lead-dev` runs it once per issue.
 - `/codereview` — reviews the branch against `main`, posts a PASS/FAIL comment. Only `qa-enforcer` runs it (once after each `/implement`); `lead-dev` hands the PR off rather than reviewing its own work.
 
 ## Audit trail
@@ -37,7 +37,7 @@ Use Simplified Technical English (STE) for English text that users read in the r
 
 ## Verification
 
-Run `$VERIFY_CMD` (from `STACK.md`) before every commit and PR; it must pass with no new warnings. Always go through the named commands (`$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD`, `$TEST_CMD`, `$VERIFY_CMD`); never invoke the underlying tools directly.
+Run `$LINT_CMD` and `$BUILD_CMD` before every commit. Run `$VERIFY_CMD` (from `STACK.md`) once before every push, on the exact committed tree you push; it must pass with no new warnings. The hand-off reports the pushed head SHA and the `$VERIFY_CMD` summary line, or the stamp line when `STACK.md` defines one. The reviewer runs `$VERIFY_CMD` once per PR, on the head it passes. `STACK.md` states which other checks run when, and which only the owner runs. Always go through the named commands (`$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD`, `$TEST_CMD`, `$VERIFY_CMD`); never invoke the underlying tools directly.
 
 ---
 
@@ -73,7 +73,7 @@ Strictest async-safety mode in `STACK.md`, no new warnings. Isolate critical-pat
 
 ## Responsiveness & resource budget
 
-On the critical execution path (whatever `STACK.md` declares — UI thread, event loop, request hot path): keep synchronous work within the budget; run anything slower off-path with a placeholder, last-known-good value, stream, or pagination; give every external call a timeout and graceful fallback; render large collections lazily with stable ids; load assets via async loader or thread-safe cache; do no expensive work in code that runs on every event — cache derived results; never make navigation or input wait on I/O. Prefer continuity over blankness. Profile hot-path changes with the tooling in `STACK.md`. Pause background work when the surface is inactive.
+On the critical execution path (whatever `STACK.md` declares — UI thread, event loop, request hot path): keep synchronous work within the budget; run anything slower off-path with a placeholder, last-known-good value, stream, or pagination; give every external call a timeout and graceful fallback; render large collections lazily with stable ids; load assets via async loader or thread-safe cache; do no expensive work in code that runs on every event — cache derived results; never make navigation or input wait on I/O. Prefer continuity over blankness. Back a hot-path change with the performance evidence that `STACK.md` asks for. Pause background work when the surface is inactive.
 
 ## States handled
 

@@ -20,8 +20,8 @@ surface. Invoke it by issue number (`solve issue #42`) or a problem description.
   `architect`, `ux_guardian`, `devils_advocate`, `lead_dev`, and `qa_enforcer`
   custom agents. They design, stress-test, implement, open a PR, and run
   `$codereview` to PASS. The PR reaches the user only after PASS.
-- `$implement <task>` runs the feature branch → change → `$VERIFY_CMD` → commit
-  → push → PR workflow. `lead_dev` runs it once per issue.
+- `$implement <task>` runs the feature branch → change → lint and build → commit
+  → `$VERIFY_CMD` → push → PR workflow. `lead_dev` runs it once per issue.
 - `$codereview` reviews the branch against `main` and posts a PASS/FAIL review.
   Only `qa_enforcer` runs it after implementation; `lead_dev` does not review
   its own work.
@@ -76,9 +76,14 @@ rewrite compact operating contracts only to apply STE.
 
 ## Verification
 
-Run `$VERIFY_CMD` from `STACK.md` before every commit and PR; it must pass with
-no new warnings. Always use the named `$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD`,
-`$TEST_CMD`, and `$VERIFY_CMD`; never substitute their underlying tools.
+Run `$LINT_CMD` and `$BUILD_CMD` before every commit. Run `$VERIFY_CMD` (from
+`STACK.md`) once before every push, on the exact committed tree you push; it
+must pass with no new warnings. The hand-off reports the pushed head SHA and the
+`$VERIFY_CMD` summary line, or the stamp line when `STACK.md` defines one. The
+reviewer runs `$VERIFY_CMD` once per PR, on the head it passes. `STACK.md`
+states which other checks run when, and which only the owner runs. Always go
+through the named commands (`$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD`,
+`$TEST_CMD`, `$VERIFY_CMD`); never invoke the underlying tools directly.
 
 ---
 
@@ -134,7 +139,8 @@ Move slower work off-path and preserve continuity with a placeholder,
 last-known-good value, stream, or pagination. Give external calls timeouts and
 graceful fallbacks. Render large collections lazily with stable IDs. Cache
 expensive derived work rather than repeating it per event. Navigation and
-input never wait on I/O. Pause background work when its surface is inactive.
+input never wait on I/O. Back a hot-path change with the performance evidence
+that `STACK.md` asks for. Pause background work when its surface is inactive.
 
 ## States handled
 
