@@ -183,6 +183,17 @@ final class ClassificationEngine {
     var currentClassificationTaskID: UUID? { classificationTaskID }
     var currentEntryFailures: TransientEntryFailures { entryFailures }
     private(set) var lastAbortWriteCount = 0
+
+    /// Waits until the current classification task ends. Cancelling the wait
+    /// cancels that task, so a test that stops waiting also stops the work.
+    func waitForClassificationTask() async {
+      guard let task = classificationTask else { return }
+      _ = await withTaskCancellationHandler {
+        await task.value
+      } onCancel: {
+        task.cancel()
+      }
+    }
   #endif
 
   private func apply(_ snapshot: ProgressSnapshot, provider: ClassificationProviderKind?) {
