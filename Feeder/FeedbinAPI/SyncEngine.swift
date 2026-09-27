@@ -413,7 +413,8 @@ final class SyncEngine {
 
   /// Push the queued read IDs to Feedbin. Only the pushed IDs leave the queue,
   /// and a failed push keeps all of them. A call while `isSyncing` is true does
-  /// nothing: `sync()` pushes the queue itself.
+  /// nothing, and the IDs stay queued for a later push, such as the next
+  /// `sync()`.
   func pushPendingReads() async {
     guard !isSyncing else { return }
     await pushQueuedReads()
