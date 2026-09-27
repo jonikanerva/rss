@@ -150,23 +150,6 @@ extension DataWriter {
     try modelContext.save()
   }
 
-  /// Test-only: wipe every persisted row, so a fresh fixture re-seeds on the
-  /// same container. The measurement suite reuses one on-disk container across
-  /// its repetitions, because churning many coordinators crashes the test host,
-  /// and resets between them to keep each repetition isolated.
-  func resetStoreForMeasurement() throws {
-    // Delete row by row rather than by model type: a batch delete trips the
-    // entry's mandatory inverse relationship. Children first, then the taxonomy
-    // and the feeds.
-    for entry in try modelContext.fetch(FetchDescriptor<Entry>()) { modelContext.delete(entry) }
-    for feed in try modelContext.fetch(FetchDescriptor<Feed>()) { modelContext.delete(feed) }
-    for category in try modelContext.fetch(FetchDescriptor<Feeder.Category>()) {
-      modelContext.delete(category)
-    }
-    for folder in try modelContext.fetch(FetchDescriptor<Folder>()) { modelContext.delete(folder) }
-    try modelContext.save()
-  }
-
   func fetchEntrySnapshot(feedbinEntryID id: Int) throws -> EntrySnapshot? {
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.feedbinEntryID == id }
