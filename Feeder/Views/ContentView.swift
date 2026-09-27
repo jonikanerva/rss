@@ -329,6 +329,7 @@ struct ContentView: View {
         onUnreadCountChange: { prunePendingReadIDs() }
       )
     )
+    .modifier(PendingReadQuitRecord(pendingReadIDs: pendingReadIDs))
     // Both edges fire when the work finishes, and only when that batch
     // actually changed rows. A quiet tick must leave the list untouched.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in

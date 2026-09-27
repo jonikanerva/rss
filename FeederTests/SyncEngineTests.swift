@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -42,14 +43,29 @@ struct SyncEngineTests {
   /// orchestration, and the entry-persisting path needs feed rows, not the
   /// seeded taxonomy.
   private func makeEngine(with client: FakeFeedbinClient) async throws -> (SyncEngine, DataWriter) {
-    let container = try DataWriterTestSupport.makeInMemoryContainer()
-    let writer = DataWriter(modelContainer: container)
+    let writer = try await DataWriterTestSupport.makeWriter()
+    return (makeEngine(writer: writer, client: client), writer)
+  }
 
+  /// An engine on this test's `UserDefaults` suite. Without a client it cannot
+  /// reach Feedbin, as in an offline launch.
+  private func makeEngine(writer: DataWriter, client: (any FeedbinClientProtocol)? = nil) -> SyncEngine {
     // The attached fake bypasses the account phase, as in a headless launch.
     let engine = SyncEngine(defaults: defaults, credentialStore: MemoryFeedbinCredentialStore(), account: .unused)
     engine.attachWriter(writer)
-    engine.attachClient(client)
-    return (engine, writer)
+    if let client { engine.attachClient(client) }
+    return engine
+  }
+
+  /// Store unread entries with the given IDs in one feed.
+  private func seedUnreadEntries(_ ids: [Int], in writer: DataWriter) async throws {
+    try await writer.syncFeeds([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    let entries = try ids.map { try FeedbinFixtures.entry(id: $0, feedId: 100) }
+    _ = try await writer.persistEntries(entries, unreadIDs: Set(ids))
+  }
+
+  private func isRead(_ id: Int, in writer: DataWriter) async throws -> Bool? {
+    try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isRead
   }
 
   // MARK: - 1. Happy path
@@ -230,5 +246,115 @@ struct SyncEngineTests {
 
     await syncHandle.value
     #expect(engine.isSyncing == false)
+  }
+
+  // MARK: - 7. Read queue across quit, failed pushes, and syncs
+
+  @Test
+  func quitQueuesEveryWindowAndRelaunchMarksThemReadOffline() async throws {
+    let writer = try await DataWriterTestSupport.makeWriter()
+    try await seedUnreadEntries([1, 2, 3, 4], in: writer)
+    let quitting = makeEngine(writer: writer)
+    quitting.recordPendingReads([1, 2], forWindow: UUID())
+    quitting.recordPendingReads([3], forWindow: UUID())
+    let delegate = FeederAppDelegate()
+    delegate.syncEngine = quitting
+
+    delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+    let relaunched = makeEngine(writer: writer)
+    await relaunched.applyQueuedReads()
+    for id in 1...3 {
+      #expect(try await isRead(id, in: writer) == true, "entry \(id)")
+    }
+    #expect(try await isRead(4, in: writer) == false)
+  }
+
+  @Test
+  func quitSkipsReadsThatThisLaunchAlreadyQueued() async throws {
+    let client = FakeFeedbinClient()
+    let (engine, _) = try await makeEngine(with: client)
+    engine.recordPendingReads([1], forWindow: UUID())
+    engine.queueReadIDs([1])
+    await engine.pushPendingReads()
+    let delegate = FeederAppDelegate()
+    delegate.syncEngine = engine
+
+    delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[1]])
+  }
+
+  @Test
+  func failedPushKeepsQueuedReadReadWithoutBanner() async throws {
+    let client = FakeFeedbinClient()
+    await client.setUnreadIDsResponse([1, 2])
+    await client.setDeleteUnreadEntriesError(URLError(.notConnectedToInternet))
+    let (engine, writer) = try await makeEngine(with: client)
+    try await seedUnreadEntries([1, 2], in: writer)
+    engine.queueReadIDs([1])
+    try await writer.markEntriesRead(feedbinEntryIDs: [1])
+
+    await engine.sync()
+
+    #expect(try await isRead(1, in: writer) == true)
+    #expect(try await isRead(2, in: writer) == false)
+    #expect(engine.lastError == nil)
+    await client.setDeleteUnreadEntriesError(nil)
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[1], [1]])
+  }
+
+  @Test
+  func readQueuedDuringPushSurvivesPushSuccess() async throws {
+    let client = FakeFeedbinClient()
+    let gate = AsyncGate()
+    await client.holdDeleteUnreadEntries(until: gate)
+    let (engine, _) = try await makeEngine(with: client)
+    engine.queueReadIDs([1])
+    let push = Task { await engine.pushPendingReads() }
+    try await waitUntil("the push reaches the client") { await client.deleteUnreadEntriesCallLog.count == 1 }
+
+    engine.queueReadIDs([2])
+    gate.open()
+    await push.value
+    await engine.pushPendingReads()
+
+    #expect(await client.deleteUnreadEntriesCallLog == [[1], [2]])
+  }
+
+  @Test
+  func pushSkipsWhileSyncRuns() async throws {
+    let client = FakeFeedbinClient()
+    let gate = AsyncGate()
+    await client.holdEntryPages(until: gate)
+    let (engine, _) = try await makeEngine(with: client)
+    let firstSync = Task { await engine.sync() }
+    try await waitUntil("the sync reaches the entry pages") { await client.fetchEntryPagesCallCount == 1 }
+
+    engine.queueReadIDs([7])
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog.isEmpty)
+    gate.open()
+    await firstSync.value
+    #expect(await client.deleteUnreadEntriesCallLog.isEmpty)
+
+    await engine.sync()
+    #expect(await client.deleteUnreadEntriesCallLog == [[7]])
+  }
+
+  @Test
+  func inertClientKeepsTheQueue() async throws {
+    let writer = try await DataWriterTestSupport.makeWriter()
+    let engine = makeEngine(writer: writer, client: InertFeedbinClient())
+    engine.queueReadIDs([1])
+
+    await engine.pushPendingReads()
+
+    let client = FakeFeedbinClient()
+    engine.attachClient(client)
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[1]])
   }
 }

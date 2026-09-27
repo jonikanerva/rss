@@ -22,10 +22,10 @@ struct FeederApp: App {
   /// selection, focus, and scroll anchor survive it.
   @State
   private var fontSettings = AppFontSettings()
-  /// Perf-only activation delegate. Constructed on every launch but inert in a
-  /// shipping build: both hooks return early unless `FEEDER_PERF_MODE` is set.
-  @NSApplicationDelegateAdaptor(PerfActivationAppDelegate.self)
-  private var perfActivationDelegate
+  /// Declare no second adaptor: SwiftUI allows one per app, so every app
+  /// delegate hook belongs in `FeederAppDelegate`.
+  @NSApplicationDelegateAdaptor(FeederAppDelegate.self)
+  private var appDelegate
 
   init() {
     // Must run before any window or split view exists, so the split view lays
@@ -176,6 +176,7 @@ struct FeederApp: App {
   /// inside the `ModelContainer` open in `init`; bootstrap only seeds taxonomy
   /// on a freshly created store.
   private func runBootstrap() async {
+    appDelegate.syncEngine = syncEngine
     let writer = await DataWriter.makeDetached(modelContainer: modelContainer)
     do {
       let outcome = try await writer.bootstrap()
@@ -184,6 +185,9 @@ struct FeederApp: App {
         "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
       syncEngine.attachWriter(writer)
+      // Keep this after `attachWriter` and before `.ready`, so that the first
+      // list render and the first sidebar counts show the queued reads as read.
+      await syncEngine.applyQueuedReads()
       // The read-only companion is created only once the container is up and
       // bootstrapped. It is a second context on that same container, so there
       // is no separate store to migrate and no connection held across the
@@ -216,29 +220,41 @@ struct FeederApp: App {
   }
 }
 
-// MARK: - Perf activation delegate
+// MARK: - App delegate
 
-/// The app's single `NSApplicationDelegate`. Its hooks foreground the app for
-/// the headless perf run and are otherwise inert.
-///
-/// `xctrace record --launch` starts the process without activating it, and a
-/// non-activated macOS app may never order its `WindowGroup` window on screen.
-/// SwiftUI then never fires the window's `.onAppear` or `.task`, so the perf
-/// scenario never starts.
-///
-/// Both hooks gate on `PerfScenarioRunner.isEnabled` as their first statement,
-/// the same source of truth `ContentView` reads, so the forced activation and
-/// the scenario trigger cannot diverge. In a shipping launch both return at
-/// once: the delegate adds no UI and never calls `exit()`.
-final class PerfActivationAppDelegate: NSObject, NSApplicationDelegate {
+/// The app's `NSApplicationDelegate`. At quit it queues each pending read that
+/// this launch has not queued yet. In a perf launch it activates the app. It
+/// adds no UI and never calls `exit()`.
+final class FeederAppDelegate: NSObject, NSApplicationDelegate {
+  /// `FeederApp` owns the engine and sets this reference in its bootstrap.
+  weak var syncEngine: SyncEngine?
   /// Owned handle for the one-shot window-ordering retry, so the async work is
   /// not fire-and-forget (`STACK.md § 9`). It completes in one main-actor hop,
   /// and the delegate's lifetime bounds it.
   private var windowOrderRetry: Task<Void, Never>?
 
+  // MARK: - Quit
+
+  func applicationWillTerminate(_ notification: Notification) {
+    // Keep this call synchronous: the process exits when this method returns,
+    // so a Task or an actor hop started here can be lost (`STACK.md § 14`).
+    syncEngine?.queueRecordedPendingReads()
+  }
+
+  // MARK: - Perf activation
+
+  // `xctrace record --launch` starts the process without activating it, and a
+  // macOS app that is not active may never order its `WindowGroup` window on
+  // screen. SwiftUI then never fires the window's `.onAppear` or `.task`, so
+  // the perf scenario never starts.
+
+  // Both hooks gate on `PerfScenarioRunner.isEnabled`, the same source of
+  // truth that `ContentView` reads, so the forced activation and the scenario
+  // trigger cannot diverge.
+
   func applicationWillFinishLaunching(_ notification: Notification) {
-    // Load-bearing gate: keep it the first statement. A shipping launch
-    // returns here and the delegate does nothing.
+    // Load-bearing gate: keep it the first statement. Any other launch
+    // returns here, and this hook does nothing.
     guard PerfScenarioRunner.isEnabled else { return }
     // Force a normal foreground app so the window can become key. Set before
     // launch finishes, so the policy holds when SwiftUI creates the scene.

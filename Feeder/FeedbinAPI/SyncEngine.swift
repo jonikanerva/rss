@@ -228,6 +228,11 @@ final class SyncEngine {
     }
   }
 
+  @ObservationIgnored
+  private var pendingReadsByWindow: [UUID: Set<Int>] = [:]
+  @ObservationIgnored
+  private var readIDsQueuedThisLaunch: Set<Int> = []
+
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
   init(
@@ -367,24 +372,77 @@ final class SyncEngine {
     return true
   }
 
-  // MARK: - Sync
+  // MARK: - Read queue
 
-  /// Queue entry IDs to be pushed as read to Feedbin on next sync or explicit push.
+  /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
+  /// `DataWriter.updateReadState` keeps a queued ID read, and
+  /// `applyQueuedReads()` writes a queued ID to the store as read at launch.
+  /// Also record the IDs, so that `queueRecordedPendingReads()` does not queue
+  /// them again.
   func queueReadIDs(_ ids: Set<Int>) {
+    guard !ids.isEmpty else { return }
     pendingReadIDsToSync.formUnion(ids)
+    readIDsQueuedThisLaunch.formUnion(ids)
   }
 
-  /// Push any queued read IDs to Feedbin, then clear them.
+  /// Keep a copy of the pending reads of one window for the quit step. An
+  /// empty set removes the copy. Do not remove a copy when its window closes:
+  /// the quit step must also see the reads of a closed window.
+  func recordPendingReads(_ ids: Set<Int>, forWindow window: UUID) {
+    pendingReadsByWindow[window] = ids.isEmpty ? nil : ids
+  }
+
+  /// Add the pending reads of every window to the read queue, except the IDs
+  /// that `queueReadIDs(_:)` queued earlier in this launch. A push can have
+  /// sent those IDs already, and a second push would undo a later mark-unread
+  /// on another device.
+  func queueRecordedPendingReads() {
+    // Keep this method synchronous:
+    // `FeederAppDelegate.applicationWillTerminate(_:)` calls it.
+    let ids = Set(pendingReadsByWindow.values.joined()).subtracting(readIDsQueuedThisLaunch)
+    queueReadIDs(ids)
+    logger.info("Quit: queued \(ids.count, privacy: .public) pending reads")
+  }
+
+  /// Write the queued reads to the store as read. It needs the attached
+  /// writer, and it is safe to call more than once.
+  func applyQueuedReads() async {
+    guard let writer else { return }
+    let ids = pendingReadIDsToSync
+    if !ids.isEmpty {
+      do {
+        try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      } catch {
+        logger.error("Launch: failed to apply queued reads: \(error.localizedDescription)")
+        return
+      }
+    }
+    logger.info("Launch: applied \(ids.count, privacy: .public) queued reads")
+  }
+
+  /// Push the queued read IDs to Feedbin. Only the pushed IDs leave the queue,
+  /// and a failed push keeps all of them. A call while `isSyncing` is true does
+  /// nothing, and the IDs stay queued for a later push, such as the next
+  /// `sync()`.
   func pushPendingReads() async {
-    guard let client, !pendingReadIDsToSync.isEmpty else { return }
-    let ids = Array(pendingReadIDsToSync)
+    guard !isSyncing else { return }
+    await pushQueuedReads()
+  }
+
+  private func pushQueuedReads() async {
+    let ids = pendingReadIDsToSync
+    guard let client, !ids.isEmpty else { return }
     do {
-      try await client.deleteUnreadEntries(ids)
-      pendingReadIDsToSync.removeAll()
+      try await client.deleteUnreadEntries(Array(ids))
+      // Subtract, never clear: an ID queued during the request is not pushed yet.
+      pendingReadIDsToSync.subtract(ids)
     } catch {
+      // Log only, and set no `lastError`: the IDs stay queued for the next push.
       logger.error("Failed to push read state: \(error.localizedDescription)")
     }
   }
+
+  // MARK: - Sync
 
   /// Start periodic background sync using structured concurrency.
   func startPeriodicSync(interval: TimeInterval = 300) {
@@ -446,7 +504,7 @@ final class SyncEngine {
 
       // Push queued local read-state changes first, so the `unreadIDs` set
       // fetched below reflects them.
-      await pushPendingReads()
+      await pushQueuedReads()
 
       // The `max` keeps a stale `lastSyncDate` from reaching further back than
       // the retention window allows. On the first sync it falls back to the
@@ -509,7 +567,7 @@ final class SyncEngine {
     }
     fetchedCount = totalFetched
 
-    let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet)
+    let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet, queuedReadIDs: pendingReadIDsToSync)
 
     if totalNew > 0 || readStateFlips > 0 {
       logger.info("Entry fetch: \(totalNew) new + \(readStateFlips) read-state flips")

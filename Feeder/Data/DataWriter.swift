@@ -322,18 +322,21 @@ actor DataWriter: ModelActor {
 
   // MARK: - Read state
 
-  /// Sync local `isRead` state to match the server's unread-IDs set for every
-  /// entry in the store. Returns the number of rows that actually flipped so
-  /// callers can tell whether a sync changed anything (cross-device read-state
-  /// propagation), not just whether new entries were inserted.
-  func updateReadState(unreadIDs: Set<Int>) throws -> Int {
+  /// Set `isRead` on every entry in the store: an ID in `queuedReadIDs` is
+  /// read, and any other ID is read unless `unreadIDs` lists it. Returns the
+  /// number of rows that actually flipped so callers can tell whether a sync
+  /// changed anything (cross-device read-state propagation), not just whether
+  /// new entries were inserted.
+  func updateReadState(unreadIDs: Set<Int>, queuedReadIDs: Set<Int>) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
     var updatedCount = 0
     for entry in allEntries {
-      let shouldBeRead = !unreadIDs.contains(entry.feedbinEntryID)
+      // A change that marks an entry unread must first remove its ID from the
+      // `SyncEngine` read queue, or this line keeps the entry read.
+      let shouldBeRead = queuedReadIDs.contains(entry.feedbinEntryID) || !unreadIDs.contains(entry.feedbinEntryID)
       if entry.isRead != shouldBeRead {
         entry.isRead = shouldBeRead
         updatedCount += 1
