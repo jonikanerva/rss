@@ -228,6 +228,9 @@ final class SyncEngine {
     }
   }
 
+  @ObservationIgnored
+  private var pendingReadsByWindow: [UUID: Set<Int>] = [:]
+
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
   init(
@@ -370,9 +373,42 @@ final class SyncEngine {
   // MARK: - Read queue
 
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
-  /// `DataWriter.updateReadState` keeps a queued ID read.
+  /// `DataWriter.updateReadState` keeps a queued ID read, and
+  /// `applyQueuedReads()` writes it to the store as read at launch.
   func queueReadIDs(_ ids: Set<Int>) {
+    guard !ids.isEmpty else { return }
     pendingReadIDsToSync.formUnion(ids)
+  }
+
+  /// Keep a copy of the pending reads of one window for the quit step. An
+  /// empty set removes the copy. Do not remove a copy when its window closes:
+  /// the quit step must also queue the reads of a closed window.
+  func recordPendingReads(_ ids: Set<Int>, forWindow window: UUID) {
+    pendingReadsByWindow[window] = ids.isEmpty ? nil : ids
+  }
+
+  /// Add the pending reads of every window to the read queue. Must stay
+  /// synchronous: `FeederAppDelegate.applicationWillTerminate(_:)` calls it.
+  func queueRecordedPendingReads() {
+    let ids = Set(pendingReadsByWindow.values.joined())
+    queueReadIDs(ids)
+    logger.info("Quit: queued \(ids.count, privacy: .public) pending reads")
+  }
+
+  /// Write the queued reads to the store as read. It needs the attached
+  /// writer, and it is safe to call more than once.
+  func applyQueuedReads() async {
+    guard let writer else { return }
+    let ids = pendingReadIDsToSync
+    if !ids.isEmpty {
+      do {
+        try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      } catch {
+        logger.error("Launch: failed to apply queued reads: \(error.localizedDescription)")
+        return
+      }
+    }
+    logger.info("Launch: applied \(ids.count, privacy: .public) queued reads")
   }
 
   /// Push the queued read IDs to Feedbin. Only the pushed IDs leave the queue,

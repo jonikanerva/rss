@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -247,7 +248,27 @@ struct SyncEngineTests {
     #expect(engine.isSyncing == false)
   }
 
-  // MARK: - 7. Read queue across failed pushes and syncs
+  // MARK: - 7. Read queue across quit, failed pushes, and syncs
+
+  @Test
+  func quitQueuesEveryWindowAndRelaunchMarksThemReadOffline() async throws {
+    let writer = try await DataWriterTestSupport.makeWriter()
+    try await seedUnreadEntries([1, 2, 3, 4], in: writer)
+    let quitting = makeEngine(writer: writer)
+    quitting.recordPendingReads([1, 2], forWindow: UUID())
+    quitting.recordPendingReads([3], forWindow: UUID())
+    let delegate = FeederAppDelegate()
+    delegate.syncEngine = quitting
+
+    delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+    let relaunched = makeEngine(writer: writer)
+    await relaunched.applyQueuedReads()
+    for id in 1...3 {
+      #expect(try await isRead(id, in: writer) == true, "entry \(id)")
+    }
+    #expect(try await isRead(4, in: writer) == false)
+  }
 
   @Test
   func failedPushKeepsQueuedReadReadWithoutBanner() async throws {
