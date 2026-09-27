@@ -195,8 +195,9 @@ struct PendingReadCountsFromSnapshotTests {
 
   // MARK: - Overlay keyspace
 
-  /// The overlay keys are the snapshot's categories, not the pending IDs: a
-  /// large pending set over three categories gives exactly three keys.
+  /// The overlay has one key for each snapshot category that holds a pending
+  /// ID, not one key for each pending ID: 1000 pending IDs over three
+  /// categories give exactly three keys.
   @Test
   func pendingOverlayIsBoundedByCategoryCountNotEntryCount() {
     // Snapshot with 3 categories but 1000 unread entries spread across
@@ -227,8 +228,8 @@ struct PendingReadCountsFromSnapshotTests {
     #expect(overlay.count == 3)
   }
 
-  /// The folder overlay has the same keyspace rule: the keys are the
-  /// snapshot's folders, not the pending IDs.
+  /// The folder overlay follows the same rule: one key for each snapshot
+  /// folder that holds a pending ID, not one key for each pending ID.
   @Test
   func folderOverlayIsBoundedByFolderCountNotEntryCount() {
     var unreadByFolder: [String: Set<Int>] = ["tech": [], "media": []]

@@ -24,8 +24,8 @@ import Testing
 @Suite("DataReader concurrency + freshness", .serialized)
 struct DataReaderConcurrencyTests {
   /// Writer and reader over one shared in-memory container, seeded with a feed
-  /// and a two-category taxonomy. Every write goes through the writer and every
-  /// read through the reader.
+  /// and a two-category taxonomy. Writes go through the writer, and the list
+  /// and snapshot fetches go through the reader.
   private func makePair() async throws -> (DataWriter, DataReader) {
     let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
     let sub = try FeedbinFixtures.subscription(id: 1, feedId: 100)

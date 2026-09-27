@@ -4,7 +4,7 @@ import Testing
 
 @testable import Feeder
 
-/// Headless check of `ColumnWidthRecorder` for both columns through
+/// Offscreen check of `ColumnWidthRecorder` for both columns through
 /// `persistedColumnWidth`, with a short injected settle delay: the geometry
 /// observer, the launch-layout skip, the width-only debounce key, the settle
 /// debounce, and the sanity floor reach an injected `UserDefaults` suite
@@ -91,12 +91,13 @@ struct ColumnWidthRecorderTests {
     #expect(try await Self.storedValue(in: defaults, key: key, becomes: 350))
   }
 
-  /// Polls the suite every 5 ms until `key` holds `expected` or two seconds
-  /// pass. Polling keeps the test independent of run-loop timing on a loaded
-  /// machine.
+  /// Polls the suite until `key` holds `expected`, with a 5 ms sleep between
+  /// polls, and gives up after two seconds. Polling keeps the test independent
+  /// of run-loop timing on a loaded machine.
   @MainActor
   private static func storedValue(in defaults: UserDefaults, key: String, becomes expected: Double) async throws -> Bool {
-    for _ in 0..<400 {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
       if defaults.object(forKey: key) as? Double == expected { return true }
       try await Task.sleep(for: .milliseconds(5))
     }

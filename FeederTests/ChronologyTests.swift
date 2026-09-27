@@ -3,11 +3,11 @@ import Testing
 
 @testable import Feeder
 
-/// Pins `VISION.md → Core Principles`: every timeline is `publishedAt`
-/// descending with the `feedbinEntryID` tiebreak, and classification never
-/// moves an article. The production writer and reader share one in-memory
-/// container, and `ClassificationRunner` with a fake provider drains the
-/// backlog.
+/// Pins "Chronology is canonical" (`VISION.md → Core Principles`) as the
+/// reader implements it: every timeline is `publishedAt` descending with the
+/// `feedbinEntryID` tiebreak, and classification never moves an article. The
+/// production writer and reader share one in-memory container, and
+/// `ClassificationRunner` with a fake provider drains the pending rows.
 @Suite("Chronology is canonical", .serialized)
 struct ChronologyTests {
   /// One fixture article, with its timestamps in seconds from `base`.
@@ -76,8 +76,8 @@ struct ChronologyTests {
     let drainOrder = try requestedTitles.map { title in
       try #require(Self.articles.first { $0.title == title }).id
     }
-    // A drain in timeline order would let a reader that follows the write
-    // order pass.
+    // The drain must not write the rows in their timeline order, or a reader
+    // that lists rows in write order would pass the checks of those rows.
     try #require(drainOrder != [1006, 1005, 1004, 1003, 1007], "drain order \(drainOrder)")
 
     let newsTimeline = [1001, 1002, 1005, 1004, 1003]

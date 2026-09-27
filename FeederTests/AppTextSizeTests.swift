@@ -9,7 +9,7 @@ import Testing
 // default, and the fact that the settings object really produces a different
 // font per size.
 //
-// Every test builds its settings on the test's own `UserDefaults` suite, so
+// A test that builds settings uses the test's own `UserDefaults` suite, so
 // the write-back lands in a throwaway store instead of the developer's own
 // preferences.
 

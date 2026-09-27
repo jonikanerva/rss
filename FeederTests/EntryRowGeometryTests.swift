@@ -485,8 +485,8 @@ struct EntryRowGeometryTests {
 
   /// Hosts the `EntryListView` list shape offscreen and returns its table once
   /// the rows have settled. The host is tall enough to show every sample row
-  /// at every text size, because the table makes no row view for a row outside
-  /// its visible rect.
+  /// at every text size: the poll waits for every row view, and a row outside
+  /// the visible rect can have none.
   @MainActor
   private static func hostList(settings: AppFontSettings, width: CGFloat) async throws -> NSTableView {
     let ids = PreviewSupport.mintEntryIdentifiers(count: sampleRows.count)
@@ -514,10 +514,10 @@ struct EntryRowGeometryTests {
     return try await settledTable(in: hosting, rowCount: rows.count)
   }
 
-  /// Polls every 5 ms, for at most 2 s, until the table has `rowCount` rows,
-  /// every row has a row view, and three row-rect samples in a row agree. The
-  /// bridge makes and measures the rows in later run-loop turns, which each
-  /// sleep gives it.
+  /// Polls until the table has `rowCount` rows, every row has a row view, and
+  /// three row-rect samples in a row agree, with a 5 ms sleep between polls,
+  /// and fails the test after 2 s. The bridge makes and measures the rows in
+  /// later run-loop turns, which each sleep gives it.
   @MainActor
   private static func settledTable(in hosting: NSView, rowCount: Int) async throws -> NSTableView {
     let deadline = ContinuousClock.now + .seconds(2)

@@ -144,8 +144,8 @@ struct ClassificationEngineTests {
 
     engine.stopContinuousClassification()
 
-    // The task ends after the in-flight call returns, its result persists, and
-    // the loop's cancellation check breaks the batch.
+    // The task ends after the in-flight call returns: the runner's cancellation
+    // check drops that call's result and ends the batch.
     try await waitForClassificationTaskEnd(engine)
 
     let callCount = await provider.callCount

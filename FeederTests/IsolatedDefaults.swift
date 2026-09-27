@@ -1,9 +1,10 @@
 import Foundation
 import Testing
 
-/// Owns one `UserDefaults` suite with a unique name, and removes the suite in
-/// `deinit`. Store the owner in the test suite, so that it lives until the
-/// test's last write: a write after the removal creates the suite again.
+/// Owns one `UserDefaults` suite with a unique name, and removes the suite's
+/// persistent domain in `deinit`. Store the owner in the test suite, so that it
+/// lives until the test's last write: a write after the removal stores its key
+/// in the domain again.
 final class IsolatedDefaults {
   let defaults: UserDefaults
   private let suiteName: String

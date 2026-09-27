@@ -250,8 +250,8 @@ struct UnreadCountsSnapshotFetchTests {
 
     // Spread published timestamps across the cutoff sweep range so each
     // parameterised cutoff lands somewhere meaningful (not always above or
-    // always below the seeded entries). 60 days back covers the widest
-    // production cutoff (30d maxRetentionAge) with margin.
+    // always below the seeded entries). The oldest seed, 90 days back, lies
+    // past the widest production cutoff (the 30-day `maxRetentionAge`).
     let reference = Self.reference
     let seedDates: [(id: Int, published: Date)] = [
       (id: 7001, published: reference.addingTimeInterval(-90 * 86_400)),

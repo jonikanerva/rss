@@ -50,8 +50,9 @@ private nonisolated func relativeDayName(for date: Date, now: Date) -> String? {
   return calendar.isDate(date, inSameDayAs: today.start.addingTimeInterval(-60)) ? "Yesterday" : nil
 }
 
-/// Format a date for display: "Today, 5th Mar, 21:24", "Yesterday, 4th Mar,
-/// 09:05", or "Monday, 2nd Mar, 18:30". `now` decides Today and Yesterday.
+/// Format a date for display, for example "Today, 5th Mar, 21:24", "Yesterday,
+/// 4th Mar, 09:05", or "Monday, 2nd Mar, 18:30" in an English locale with a
+/// 24-hour clock. `now` decides Today and Yesterday.
 nonisolated func formatEntryDate(_ date: Date, now: Date = .now) -> String {
   let calendar = Calendar.current
   let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
