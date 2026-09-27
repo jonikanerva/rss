@@ -184,12 +184,7 @@ struct EntryListView: View {
             description: Text("Connect to the internet to sync new articles.")
           )
         case .error:
-          ContentUnavailableView {
-            Label("Couldn't Load Articles", systemImage: "exclamationmark.triangle")
-          } description: {
-            Text("Select the category again to retry.")
-          }
-          .accessibilityIdentifier("timeline.error")
+          EntryListFetchErrorView()
         case .noArticles:
           ContentUnavailableView {
             Label("No Articles", systemImage: "newspaper")
@@ -599,6 +594,19 @@ struct EntryListView: View {
   /// the `List` and drop the scroll position.
   private var structuralKey: String {
     "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+  }
+}
+
+// MARK: - Fetch Error View
+
+private struct EntryListFetchErrorView: View {
+  var body: some View {
+    ContentUnavailableView {
+      Label("Couldn't Load Articles", systemImage: "exclamationmark.triangle")
+    } description: {
+      Text("Select the category again to retry.")
+    }
+    .accessibilityIdentifier("timeline.error")
   }
 }
 
