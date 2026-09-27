@@ -152,6 +152,7 @@ struct SyncStatusView: View {
     case .network, .other:
       Task { await syncEngine.sync() }
     case .authFailed:
+      SettingsPane.persist(.account)
       openSettings()
     }
   }
@@ -170,6 +171,7 @@ struct SyncStatusView: View {
         .foregroundStyle(.secondary)
       if abort.offersSettings {
         Button("Open Settings") {
+          SettingsPane.persist(.classification)
           openSettings()
         }
         .buttonStyle(.link)

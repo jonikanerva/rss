@@ -170,9 +170,12 @@ struct EntryListView: View {
           } description: {
             Text("Sign in again to resume syncing your feeds.")
           } actions: {
-            Button("Sign In Again") { openSettings() }
-              .buttonStyle(.borderedProminent)
-              .accessibilityIdentifier("timeline.authError.signIn")
+            Button("Sign In Again") {
+              SettingsPane.persist(.account)
+              openSettings()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("timeline.authError.signIn")
           }
         case .offline:
           ContentUnavailableView(
