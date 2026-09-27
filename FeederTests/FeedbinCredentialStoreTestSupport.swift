@@ -6,7 +6,8 @@ import Synchronization
 // MARK: - Async gate
 
 /// One-shot latch: every `wait()` returns after `open()`, and any number of
-/// callers can wait at once.
+/// callers can wait at once. `wait()` ignores cancellation: a cancelled waiter
+/// still waits for `open()`.
 final class AsyncGate: Sendable {
   private let continuation: AsyncStream<Void>.Continuation
   private let opened: Task<Void, Never>

@@ -7,8 +7,9 @@ import Testing
 // MARK: - ClassificationEngine integration tests
 //
 // The real providers are bypassed: the engine is built with a provider factory
-// override, so every batch resolves through a fake. The test target therefore
-// touches neither `UserDefaults` nor the Keychain.
+// override, so every batch resolves through a fake and no test reads the
+// Keychain. Each task start still reads the provider kind from
+// `UserDefaults.standard`, for the banner's provider name.
 
 @MainActor
 @Suite("ClassificationEngine")
@@ -35,6 +36,19 @@ struct ClassificationEngineTests {
     let provider = FakeClassificationProvider()
     let engine = ClassificationEngine(providerFactoryOverride: { provider })
     return (engine, writer, provider)
+  }
+
+  /// Waits at most two seconds for the engine's classification task to end.
+  /// On a timeout `waitUntil` records an issue, and the cancelled waiter
+  /// cancels the task, so a regression fails fast and cannot hang the run.
+  private func waitForClassificationTaskEnd(_ engine: ClassificationEngine) async throws {
+    let ended = AtomicFlag()
+    let waiter = Task {
+      await engine.waitForClassificationTask()
+      ended.set()
+    }
+    defer { waiter.cancel() }
+    try await waitUntil("the classification task ends") { ended.isSet }
   }
 
   private func seedCategories(_ writer: DataWriter) async throws {
@@ -130,9 +144,9 @@ struct ClassificationEngineTests {
 
     engine.stopContinuousClassification()
 
-    // Let the cancellation propagate: the in-flight call returns, its result
-    // persists, and the loop's cancellation check then breaks the batch.
-    try await Task.sleep(for: .milliseconds(200))
+    // The task ends after the in-flight call returns: the runner's cancellation
+    // check drops that call's result and ends the batch.
+    try await waitForClassificationTaskEnd(engine)
 
     let callCount = await provider.callCount
     #expect(callCount < 10, "Expected cancellation to stop the batch before all 10 entries; got \(callCount)")
@@ -565,12 +579,11 @@ struct ClassificationEngineTests {
     #expect(engine.lastAbort == nil)
   }
 
-  /// Cancellation preserves the banner: the cancelled batch aborts with the same
-  /// reason, so the outcome is equality-suppressed, its zero-count snapshots
-  /// carry no evidence of progress, and the plain terminal does not own the
-  /// field. Zero writes proves all three paths left the banner alone. The
-  /// always-aborting provider is deliberate — a working one would race the
-  /// throttled counting snapshot against the stop call.
+  /// The stop lands while call 1 sleeps in the fake's delay. The fake still
+  /// throws its `.offline` failure, but the runner checks cancellation first
+  /// and returns `.cancelled`, not an abort. Only a zero-count snapshot and
+  /// plain terminals reach the engine, and none writes `lastAbort`. Keep the
+  /// provider aborting: after a late stop, a working one could clear the banner.
   @Test
   func cancellationPreservesLastAbort() async throws {
     let (engine, writer, provider) = try await makeEngineAndWriter()
@@ -583,9 +596,9 @@ struct ClassificationEngineTests {
     engine.startContinuousClassification(writer: writer)
     try await waitUntil("provider.callCount >= 1") { await provider.callCount >= 1 }
     engine.stopContinuousClassification()
-    // Let the loop-exit terminal flow through before asserting: the point is
-    // that it must not write.
-    try await Task.sleep(for: .milliseconds(300))
+    // Wait until the task ends, so the loop-exit terminal has flowed through
+    // before the asserts: the point is that it must not write.
+    try await waitForClassificationTaskEnd(engine)
 
     #expect(engine.lastAbort == .offline, "Cancellation must not clear the banner")
     #expect(engine.lastAbortWriteCount == 0, "No snapshot on the cancel path may write lastAbort")

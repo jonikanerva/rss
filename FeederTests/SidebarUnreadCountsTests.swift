@@ -192,6 +192,68 @@ struct PendingReadCountsFromSnapshotTests {
     let result = counts.subtractingPendingCounts(overlay)
     #expect(result == counts)
   }
+
+  // MARK: - Overlay keyspace
+
+  /// The overlay has one key for each snapshot category that holds a pending
+  /// ID, not one key for each pending ID: 1000 pending IDs over three
+  /// categories give exactly three keys.
+  @Test
+  func pendingOverlayIsBoundedByCategoryCountNotEntryCount() {
+    // Snapshot with 3 categories but 1000 unread entries spread across
+    // them. The pending set carries all 1000 IDs.
+    var unreadByCategory: [String: Set<Int>] = ["apple": [], "world_news": [], "media": []]
+    var unreadIDs: Set<Int> = []
+    for i in 0..<1000 {
+      let bucket = i % 3
+      let label = ["apple", "world_news", "media"][bucket]
+      unreadByCategory[label]?.insert(i)
+      unreadIDs.insert(i)
+    }
+    let snapshot = UnreadCountsSnapshot(
+      categoryCounts: unreadByCategory.mapValues(\.count),
+      folderCounts: [:],
+      unreadFeedbinEntryIDs: unreadIDs,
+      unreadIDByCategory: unreadByCategory,
+      unreadIDByFolder: [:],
+      totalUnread: 1000
+    )
+
+    let overlay = pendingReadCountsByCategory(snapshot: snapshot, pending: unreadIDs)
+
+    // The overlay carries exactly one entry per category the snapshot
+    // knows about — not 1000 entries, one per pending ID. This is the
+    // O(buckets) shape the sidebar depends on.
+    #expect(overlay.count == snapshot.categoryCounts.count)
+    #expect(overlay.count == 3)
+  }
+
+  /// The folder overlay follows the same rule: one key for each snapshot
+  /// folder that holds a pending ID, not one key for each pending ID.
+  @Test
+  func folderOverlayIsBoundedByFolderCountNotEntryCount() {
+    var unreadByFolder: [String: Set<Int>] = ["tech": [], "media": []]
+    var unreadIDs: Set<Int> = []
+    for i in 0..<500 {
+      let bucket = i % 2
+      let label = ["tech", "media"][bucket]
+      unreadByFolder[label]?.insert(i)
+      unreadIDs.insert(i)
+    }
+    let snapshot = UnreadCountsSnapshot(
+      categoryCounts: [:],
+      folderCounts: unreadByFolder.mapValues(\.count),
+      unreadFeedbinEntryIDs: unreadIDs,
+      unreadIDByCategory: [:],
+      unreadIDByFolder: unreadByFolder,
+      totalUnread: 500
+    )
+
+    let overlay = pendingReadCountsByFolder(snapshot: snapshot, pending: unreadIDs)
+
+    #expect(overlay.count == snapshot.folderCounts.count)
+    #expect(overlay.count == 2)
+  }
 }
 
 // MARK: - sidebarNavigationItems

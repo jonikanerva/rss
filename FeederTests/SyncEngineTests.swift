@@ -15,22 +15,14 @@ import Testing
 struct SyncEngineTests {
   // MARK: - Per-test isolation
 
-  /// Per-test isolated `UserDefaults`, under a unique suite name, so this
-  /// suite's keys never touch the standard domain and cannot race a sibling
-  /// suite that asserts on them. `.serialized` would not help: it orders tests
-  /// within one suite only.
-  private let defaults: UserDefaults
-  private let suiteName: String
+  /// Per-test isolated `UserDefaults`, so this suite's keys never touch the
+  /// standard domain and cannot race a sibling suite that asserts on them.
+  /// `.serialized` would not help: it orders tests within one suite only.
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
 
-  init() {
-    let id = "FeederTests.SyncEngine.\(UUID().uuidString)"
-    self.suiteName = id
-    // The initialiser returns nil only for a reserved name, and a random UUID is
-    // never one, so the unwrap is safe and fails loudly if that changes.
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
-    self.defaults = defaults
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("SyncEngine")
   }
 
   // MARK: - Builders
@@ -120,10 +112,12 @@ struct SyncEngineTests {
     await client.setSubscriptionsResponse([subscription])
     await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
     await client.setUnreadIDsResponse([])
-    // Hold the entry-page stream open for the race-guard window. The delay sits
+    // Hold the entry-page stream open for the race-guard window. The gate sits
     // between the call-count bump and the first page yield, so once the counter
-    // moves the stream has started and the whole delay is available.
-    await client.setEntryPagesInitialDelay(.milliseconds(400))
+    // moves the stream has started and stays open until the gate opens.
+    let pageGate = AsyncGate()
+    defer { pageGate.open() }
+    await client.holdEntryPages(until: pageGate)
 
     let (engine, _) = try await makeEngine(with: client)
 
@@ -142,7 +136,8 @@ struct SyncEngineTests {
     // no I/O.
     try await Task.sleep(for: .milliseconds(50))
 
-    // Wait for the primary sync to finish on its own.
+    // Release the primary sync and wait for it to finish.
+    pageGate.open()
     await syncHandle.value
 
     let pagesAfter = await client.fetchEntryPagesCallCount
@@ -210,8 +205,8 @@ struct SyncEngineTests {
   /// numerator is throttled. This pins the behaviour, so a refactor cannot
   /// silently defer the total to the terminal edge.
   ///
-  /// The fake holds the stream open between pages, so the assertion window sees
-  /// the total while the sync is still running.
+  /// The fake holds the second page, so the assertion window sees the total
+  /// while the sync is still running.
   @Test
   func fetchTotalIsLiveWhileStreamOpen() async throws {
     let client = FakeFeedbinClient()
@@ -226,14 +221,16 @@ struct SyncEngineTests {
     await client.setSubscriptionsResponse([subscription])
     await client.setEntryPagesResponse(pages)
     await client.setUnreadIDsResponse([5001, 5002])
-    await client.setEntryPagesInterPageDelay(.milliseconds(400))
+    let laterPageGate = AsyncGate()
+    defer { laterPageGate.open() }
+    await client.holdLaterEntryPages(until: laterPageGate)
 
     let (engine, _) = try await makeEngine(with: client)
 
     let syncHandle = Task { await engine.sync() }
 
-    // Poll the engine until the total lands from the first page. The inter-page
-    // delay keeps the stream open well past this cadence.
+    // Poll the engine until the total lands from the first page. The gate keeps
+    // the stream open until the asserts below have run.
     let deadline = ContinuousClock.now.advanced(by: .seconds(2))
     while engine.totalToFetch == 0 && ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(5))
@@ -242,8 +239,9 @@ struct SyncEngineTests {
     #expect(engine.totalToFetch == 1000, "totalToFetch (B) must be live from page 1's record-count total")
     #expect(
       engine.isSyncing == true,
-      "sync must still be in-flight while the inter-page delay holds the stream open")
+      "sync must still be in-flight while the gate holds the second page")
 
+    laterPageGate.open()
     await syncHandle.value
     #expect(engine.isSyncing == false)
   }
@@ -310,6 +308,7 @@ struct SyncEngineTests {
   func readQueuedDuringPushSurvivesPushSuccess() async throws {
     let client = FakeFeedbinClient()
     let gate = AsyncGate()
+    defer { gate.open() }
     await client.holdDeleteUnreadEntries(until: gate)
     let (engine, _) = try await makeEngine(with: client)
     engine.queueReadIDs([1])
@@ -328,6 +327,7 @@ struct SyncEngineTests {
   func pushSkipsWhileSyncRuns() async throws {
     let client = FakeFeedbinClient()
     let gate = AsyncGate()
+    defer { gate.open() }
     await client.holdEntryPages(until: gate)
     let (engine, _) = try await makeEngine(with: client)
     let firstSync = Task { await engine.sync() }

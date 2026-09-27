@@ -4,13 +4,18 @@ import Testing
 
 @testable import Feeder
 
-/// Headless check of `ColumnWidthRecorder` for both columns in the shipped
-/// shape, `persistedColumnWidth(column:ideal:)`: the geometry observer, the
-/// launch-layout skip, the width-only debounce key and the settle debounce
-/// reach an injected `UserDefaults` suite without a split view. `.serialized`:
-/// shares the offscreen-window hosting pattern with `EntryRowGeometryTests`.
+/// Offscreen check of `ColumnWidthRecorder` for both columns through
+/// `persistedColumnWidth`, with a short injected settle delay: the geometry
+/// observer, the launch-layout skip, the width-only debounce key, the settle
+/// debounce, and the sanity floor reach an injected `UserDefaults` suite
+/// without a split view. `.serialized` runs the two columns one at a time.
 @Suite("Column width recorder", .serialized)
 struct ColumnWidthRecorderTests {
+  private static let settleDelay: Duration = .milliseconds(20)
+  /// Five settle periods: a negative check waits this long for a store that
+  /// must not happen.
+  private static let quietWindow: Duration = .milliseconds(100)
+
   /// Drives the recorder's width and leading edge independently inside a
   /// fixed-size host: a leading spacer moves the recorded view, a fixed
   /// frame sets its width, a trailing spacer absorbs the rest. No host
@@ -31,7 +36,8 @@ struct ColumnWidthRecorderTests {
         Color.clear.frame(width: box.leading)
         Color.clear
           .frame(width: box.width)
-          .persistedColumnWidth(column: column, ideal: 400, defaults: defaults)
+          .persistedColumnWidth(
+            column: column, ideal: 400, defaults: defaults, settleDelay: ColumnWidthRecorderTests.settleDelay)
         Color.clear
       }
     }
@@ -58,14 +64,14 @@ struct ColumnWidthRecorderTests {
 
     // First settled value = launch layout. 450 differs from the default, so
     // the only outcome that leaves the key absent is `skippedLaunchLayout`.
-    try await Task.sleep(for: .milliseconds(700))
+    try await Task.sleep(for: Self.quietWindow)
     #expect(defaults.object(forKey: key) == nil, "launch layout must not be stored")
 
     // The leading edge moves while the width stays put. The debounce must not
     // re-arm, so the still-launch-shaped width is not stored.
     box.leading = 100
     hosting.layoutSubtreeIfNeeded()
-    try await Task.sleep(for: .milliseconds(700))
+    try await Task.sleep(for: Self.quietWindow)
     #expect(defaults.object(forKey: key) == nil, "an x-only change must not persist")
 
     // A width change stores: the launch flag flipped on the first settle.
@@ -76,7 +82,7 @@ struct ColumnWidthRecorderTests {
     // The sanity floor: a collapsed or hidden column is not stored.
     box.width = 80
     hosting.layoutSubtreeIfNeeded()
-    try await Task.sleep(for: .milliseconds(600))
+    try await Task.sleep(for: Self.quietWindow)
     #expect(defaults.object(forKey: key) as? Double == 520)
 
     // A later ordinary width is stored: the recorder is still live.
@@ -85,14 +91,15 @@ struct ColumnWidthRecorderTests {
     #expect(try await Self.storedValue(in: defaults, key: key, becomes: 350))
   }
 
-  /// Polls the suite until `key` holds `expected` or two seconds pass.
-  /// Polling keeps the test independent of run-loop timing on a loaded
-  /// machine; the debounce itself is 150 ms.
+  /// Polls the suite until `key` holds `expected`, with a 5 ms sleep between
+  /// polls, and gives up after two seconds. Polling keeps the test independent
+  /// of run-loop timing on a loaded machine.
   @MainActor
   private static func storedValue(in defaults: UserDefaults, key: String, becomes expected: Double) async throws -> Bool {
-    for _ in 0..<40 {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
       if defaults.object(forKey: key) as? Double == expected { return true }
-      try await Task.sleep(for: .milliseconds(50))
+      try await Task.sleep(for: .milliseconds(5))
     }
     return defaults.object(forKey: key) as? Double == expected
   }

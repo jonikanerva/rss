@@ -42,10 +42,6 @@ enum WebKitPreheat {
   /// caller never awaits it before rendering articles.
   static func warmIfNeeded() {
     guard phase == .cold else { return }
-    // The measurement host renders no articles, and spinning up `WKWebView` in
-    // that sandboxed long-running process crashes WebKit mid-run. Inert in
-    // production, where the variable is unset.
-    guard ProcessInfo.processInfo.environment["FEEDER_C3_MEASURE"] != "1" else { return }
     phase = .warming
     logger.info("WebKit preheat starting")
 

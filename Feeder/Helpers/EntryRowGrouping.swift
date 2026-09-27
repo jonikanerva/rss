@@ -4,8 +4,8 @@ import Foundation
 
 /// Group already-sorted rows by calendar day, preserving order. Grouping
 /// follows the user's local calendar on purpose, like the day labels it feeds
-/// (`STACK.md § 10` and § 14).
-nonisolated func groupRowsByDay(_ rows: [EntryRowDTO]) -> [EntryListSection] {
+/// (`STACK.md § 10` and § 14). Every section label reads the same `now`.
+nonisolated func groupRowsByDay(_ rows: [EntryRowDTO], now: Date = .now) -> [EntryListSection] {
   let calendar = Calendar.current
   var sections: [EntryListSection] = []
   var currentDay: Date?
@@ -16,7 +16,7 @@ nonisolated func groupRowsByDay(_ rows: [EntryRowDTO]) -> [EntryListSection] {
     if day != currentDay {
       if let prevDay = currentDay, !currentRows.isEmpty {
         sections.append(
-          EntryListSection(id: prevDay, label: entryListSectionLabel(for: prevDay), rows: currentRows)
+          EntryListSection(id: prevDay, label: entryListSectionLabel(for: prevDay, now: now), rows: currentRows)
         )
       }
       currentDay = day
@@ -27,7 +27,7 @@ nonisolated func groupRowsByDay(_ rows: [EntryRowDTO]) -> [EntryListSection] {
   }
   if let lastDay = currentDay, !currentRows.isEmpty {
     sections.append(
-      EntryListSection(id: lastDay, label: entryListSectionLabel(for: lastDay), rows: currentRows)
+      EntryListSection(id: lastDay, label: entryListSectionLabel(for: lastDay, now: now), rows: currentRows)
     )
   }
   return sections

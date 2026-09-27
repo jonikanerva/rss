@@ -23,10 +23,9 @@ import Testing
 /// target-wide parallelism for that (`STACK.md § 14`).
 @Suite("DataReader concurrency + freshness", .serialized)
 struct DataReaderConcurrencyTests {
-  /// Writer and reader over one shared on-disk container in the production
-  /// journal mode, because an in-memory shared-cache store races under parallel
-  /// load. Seeded with a feed and a two-category taxonomy. Every write goes
-  /// through the writer and every read through the reader.
+  /// Writer and reader over one shared in-memory container, seeded with a feed
+  /// and a two-category taxonomy. Writes go through the writer, and the list
+  /// and snapshot fetches go through the reader.
   private func makePair() async throws -> (DataWriter, DataReader) {
     let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
     let sub = try FeedbinFixtures.subscription(id: 1, feedId: 100)
@@ -136,11 +135,11 @@ struct DataReaderConcurrencyTests {
     // The declared row snapshot: identity, render fields, the link, the
     // read-state snapshot, the grouping input, and the favicon pair.
     let context = ModelContext(try DataWriterTestSupport.makeInMemoryContainer())
+    let day = Date(timeIntervalSince1970: 0)
     let minted = Entry(
       feedbinEntryID: 4001, title: "Pin", author: nil, url: "https://example.com/pin",
-      content: nil, summary: nil, extractedContentURL: nil, publishedAt: .now, createdAt: .now)
+      content: nil, summary: nil, extractedContentURL: nil, publishedAt: day, createdAt: day)
     context.insert(minted)
-    let day = Date(timeIntervalSince1970: 0)
     let row = EntryRowDTO(
       persistentID: minted.persistentModelID,
       feedbinEntryID: 4001,
@@ -203,24 +202,20 @@ struct DataReaderConcurrencyTests {
 
   /// Isolates the production topology — exactly one writer and one reader actor
   /// on one shared container — from the test target's own parallelism.
-  /// `make test-stress-tsan` runs this suite alone under Thread Sanitizer, so
-  /// the only concurrency in the process is that pair. A clean pass with no
-  /// exception over the high iteration count is the ship signal.
+  /// `make test-stress-tsan` runs this suite alone under Thread Sanitizer, so no
+  /// other test runs beside that pair. A clean pass with no exception over the
+  /// high iteration count is the ship signal.
   ///
   /// The writer sustains inserts and updates while the reader sustains both read
   /// surfaces, with no gate or sleep, over enough interleaved rounds that
   /// overlap is near-certain. The test asserts that it reaches the end, that no
-  /// torn row ever appears as an empty category bucket, that reader-minted IDs
-  /// keep resolving in the app container, and that the reader completes every
-  /// round while writes are in flight.
-  @Test("Shared container: sustained 1+1 read-during-write is clean (TSan gate)")
+  /// torn row ever appears as an empty category bucket, and that reader-minted
+  /// IDs keep resolving in the app container.
+  @Test(
+    "Shared container: sustained 1+1 read-during-write is clean (TSan gate)",
+    // Only `make test-stress-tsan` sets the variable, so the everyday gate skips this test.
+    .enabled(if: ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1"))
   func sharedContainerProductionShapeStress() async throws {
-    // This test drives hundreds of concurrent read-during-write rounds and
-    // belongs in its own run, not the everyday gate, so it self-skips unless the
-    // stress variable is set. Only the dedicated target sets it, and it must
-    // reach the test host through the `TEST_RUNNER_` prefix.
-    guard ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1" else { return }
-
     // One shared on-disk container, with the writer and the reader both on it.
     let container = try DataWriterTestSupport.makeOnDiskContainer()
     let storeURL = container.configurations.first?.url
@@ -262,8 +257,8 @@ struct DataReaderConcurrencyTests {
           }
         }
       }
-      // Sustained fetches, asserting non-torn results and cross-context ID
-      // resolution on every round while writes are in flight.
+      // Sustained fetches beside the writes, asserting non-torn results and
+      // cross-context ID resolution on every round.
       group.addTask {
         for _ in 0..<300 {
           let result = try? await reader.fetchEntrySections(

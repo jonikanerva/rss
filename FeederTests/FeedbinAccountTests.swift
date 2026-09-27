@@ -83,15 +83,11 @@ struct FeedbinAccountTests {
 
   /// Per-test `UserDefaults`, so the engine's sync keys never reach the
   /// standard domain, which is the owner's real one in the test host.
-  private let defaults: UserDefaults
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
 
-  init() {
-    let id = "FeederTests.FeedbinAccount.\(UUID().uuidString)"
-    // A random UUID is never a reserved suite name.
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
-    self.defaults = defaults
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("FeedbinAccount")
   }
 
   private func makeEngine(

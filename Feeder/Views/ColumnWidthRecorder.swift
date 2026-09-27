@@ -28,9 +28,15 @@ nonisolated struct ColumnGeometry: Equatable, Sendable {
 /// `UserDefaults` write happens at human-event frequency, once per settled
 /// drag (`STACK.md § 14` envelope). No `Timer`, no GCD. No per-frame logging.
 struct ColumnWidthRecorder: ViewModifier {
+  static let defaultSettleDelay: Duration = .milliseconds(150)
+
   let column: ColumnWidthSetting.Column
   /// Store for the width. Production uses `.standard`; tests inject a suite.
   let defaults: UserDefaults
+  /// How long the width must stay unchanged before it is stored. A divider
+  /// pauses this long only when the drag has settled. A drag released less
+  /// than `settleDelay` before quit keeps the previous width.
+  let settleDelay: Duration
   @State
   private var geometry: ColumnGeometry?
   /// The first settled value after this identity appears is the platform's
@@ -52,14 +58,13 @@ struct ColumnWidthRecorder: ViewModifier {
   @State
   private var createdAt: ContinuousClock.Instant = .now
 
-  /// How long the width must stay unchanged before it is stored. A divider
-  /// pauses this long only when the drag has settled. A drag released less
-  /// than `settleDelay` before quit keeps the previous width.
-  private static let settleDelay: Duration = .milliseconds(150)
-
-  init(column: ColumnWidthSetting.Column, defaults: UserDefaults = .standard) {
+  init(
+    column: ColumnWidthSetting.Column, defaults: UserDefaults = .standard,
+    settleDelay: Duration = ColumnWidthRecorder.defaultSettleDelay
+  ) {
     self.column = column
     self.defaults = defaults
+    self.settleDelay = settleDelay
   }
 
   func body(content: Content) -> some View {
@@ -75,7 +80,7 @@ struct ColumnWidthRecorder: ViewModifier {
       // layout.
       .task(id: geometry?.width) {
         guard let geometry else { return }
-        try? await Task.sleep(for: Self.settleDelay)
+        try? await Task.sleep(for: settleDelay)
         guard !Task.isCancelled else { return }
         let isLaunchLayout = !hasSeenLaunchLayout
         hasSeenLaunchLayout = true
@@ -110,9 +115,10 @@ extension View {
   /// `PersistedColumnWidthTests` pins the order with a positive and a
   /// negative case, and `STACK.md § 7` bans the loose pair of modifiers.
   func persistedColumnWidth(
-    column: ColumnWidthSetting.Column, ideal: CGFloat, defaults: UserDefaults = .standard
+    column: ColumnWidthSetting.Column, ideal: CGFloat, defaults: UserDefaults = .standard,
+    settleDelay: Duration = ColumnWidthRecorder.defaultSettleDelay
   ) -> some View {
-    modifier(ColumnWidthRecorder(column: column, defaults: defaults))
+    modifier(ColumnWidthRecorder(column: column, defaults: defaults, settleDelay: settleDelay))
       .navigationSplitViewColumnWidth(ideal: ideal)
   }
 }

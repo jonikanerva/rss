@@ -11,14 +11,11 @@ import Testing
 /// `UserDefaults` suite keeps parallel suites off the standard domain.
 @Suite("OpenAIModelSetting")
 struct OpenAIModelSettingTests {
-  private let defaults: UserDefaults
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
 
-  init() {
-    let id = "FeederTests.OpenAIModelSetting.\(UUID().uuidString)"
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
-    self.defaults = defaults
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("OpenAIModelSetting")
   }
 
   /// An absent key resolves to the app default, so an unset user follows a

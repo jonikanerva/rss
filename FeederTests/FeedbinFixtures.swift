@@ -30,22 +30,23 @@ enum FeedbinFixtures {
 
   /// Build a `FeedbinEntry`. `title` and `content` are optional so callers
   /// can construct the "missing fields" cases that exercise decoder
-  /// fallbacks. `published` doubles as `created_at` — both fields are
-  /// required by `FeedbinEntry` but the tests rarely care that they differ.
+  /// fallbacks. `FeedbinEntry` requires both timestamps, and `createdAt`
+  /// defaults to `published`.
   static func entry(
     id: Int = 1001,
     feedId: Int = 100,
     title: String? = "Test Article",
     content: String? = "<p>Hello <b>world</b></p>",
     url: String = "https://example.com/article",
-    published: String = "2025-06-15T12:00:00.000000Z"
+    published: String = "2025-06-15T12:00:00.000000Z",
+    createdAt: String? = nil
   ) throws -> FeedbinEntry {
     var json: [String: Any] = [
       "id": id,
       "feed_id": feedId,
       "url": url,
       "published": published,
-      "created_at": published,
+      "created_at": createdAt ?? published,
     ]
     if let title { json["title"] = title }
     if let content { json["content"] = content }

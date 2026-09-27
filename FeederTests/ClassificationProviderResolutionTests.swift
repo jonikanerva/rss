@@ -12,25 +12,16 @@ import Testing
 struct ClassificationProviderResolutionTests {
   // MARK: - Per-test isolation
 
-  /// Per-test isolated `UserDefaults` instance. Built with a unique
-  /// `suiteName` so reads/writes of `ClassificationProviderKind.userDefaultsKey`
-  /// never touch `.standard`. Parallel suite execution (Swift Testing's
-  /// default) cannot then flip another test's `.persist` selection between
-  /// the persist and the `buildProvider` call. Pattern matches
-  /// `SyncEngineTests.init`.
-  private let defaults: UserDefaults
+  /// Per-test isolated `UserDefaults`, so reads and writes of
+  /// `ClassificationProviderKind.userDefaultsKey` never touch `.standard`, and a
+  /// parallel test cannot flip this test's `.persist` selection between the
+  /// persist and the `buildProvider` call.
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
   private let categories = [CategoryDefinition(label: "tech", description: "Technology news")]
 
-  init() {
-    let id = "FeederTests.ClassificationProviderResolution.\(UUID().uuidString)"
-    // `init(suiteName:)` returns nil for reserved names ("standard", "main",
-    // etc.). A random UUID never hits one of those, so the force unwrap is
-    // safe and surfaces an immediate test failure if Apple changes that
-    // contract.
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
-    self.defaults = defaults
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("ClassificationProviderResolution")
   }
 
   // MARK: - Apple FM path

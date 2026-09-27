@@ -39,22 +39,28 @@ nonisolated func formatEntryTime(_ date: Date) -> String {
   return String(format: "%02d.%02d", hour, minute)
 }
 
-/// Format a date for display: "Today, 5th Mar, 21:24" / "Yesterday, 4th Mar" / "Monday, 2nd Mar"
-nonisolated func formatEntryDate(_ date: Date) -> String {
+/// "Today" or "Yesterday" for the day that contains `date`, seen from `now` in
+/// `Calendar.current`, or nil for any other day. The rule is Foundation's
+/// `isDateInToday` and `isDateInYesterday` with `now` in place of the clock:
+/// yesterday is the day that contains the instant 60 s before today starts.
+private nonisolated func relativeDayName(for date: Date, now: Date) -> String? {
+  let calendar = Calendar.current
+  if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+  guard let today = calendar.dateInterval(of: .day, for: now) else { return nil }
+  return calendar.isDate(date, inSameDayAs: today.start.addingTimeInterval(-60)) ? "Yesterday" : nil
+}
+
+/// Format a date for display, for example "Today, 5th Mar, 21:24", "Yesterday,
+/// 4th Mar, 09:05", or "Monday, 2nd Mar, 18:30" in an English locale with a
+/// 24-hour clock. `now` decides Today and Yesterday.
+nonisolated func formatEntryDate(_ date: Date, now: Date = .now) -> String {
   let calendar = Calendar.current
   let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
   let day = calendar.component(.day, from: date)
   let suffix = ordinalSuffix(forDay: day)
   let month = date.formatted(.dateTime.month(.abbreviated))
-
-  if calendar.isDateInToday(date) {
-    return "Today, \(day)\(suffix) \(month), \(time)"
-  } else if calendar.isDateInYesterday(date) {
-    return "Yesterday, \(day)\(suffix) \(month), \(time)"
-  } else {
-    let weekday = date.formatted(.dateTime.weekday(.wide))
-    return "\(weekday), \(day)\(suffix) \(month), \(time)"
-  }
+  let dayName = relativeDayName(for: date, now: now) ?? date.formatted(.dateTime.weekday(.wide))
+  return "\(dayName), \(day)\(suffix) \(month), \(time)"
 }
 
 /// Extract display domain from a URL string, stripping the `www.` prefix.
@@ -86,18 +92,13 @@ nonisolated func feedInitial(from feedTitle: String?) -> String {
   return String(first).uppercased()
 }
 
-/// Format the article list's day-section label for a start-of-day date.
-nonisolated func entryListSectionLabel(for date: Date) -> String {
-  let calendar = Calendar.current
-  if calendar.isDateInToday(date) {
-    return "Today"
-  } else if calendar.isDateInYesterday(date) {
-    return "Yesterday"
-  } else {
-    let weekday = date.formatted(.dateTime.weekday(.wide))
-    let day = calendar.component(.day, from: date)
-    let month = date.formatted(.dateTime.month(.wide))
-    let year = date.formatted(.dateTime.year())
-    return "\(weekday) \(day). \(month) \(year)"
-  }
+/// Format the article list's day-section label for the day that contains
+/// `date`. `now` decides Today and Yesterday.
+nonisolated func entryListSectionLabel(for date: Date, now: Date) -> String {
+  if let dayName = relativeDayName(for: date, now: now) { return dayName }
+  let weekday = date.formatted(.dateTime.weekday(.wide))
+  let day = Calendar.current.component(.day, from: date)
+  let month = date.formatted(.dateTime.month(.wide))
+  let year = date.formatted(.dateTime.year())
+  return "\(weekday) \(day). \(month) \(year)"
 }

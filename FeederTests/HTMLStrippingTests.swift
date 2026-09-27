@@ -55,23 +55,25 @@ struct HTMLStrippingTests {
 // MARK: - formatEntryDate
 
 struct DateFormattingTests {
+  private static let now = Date(timeIntervalSince1970: 1_750_000_000)
+
   @Test
   func todayShowsTodayPrefix() {
-    let formatted = formatEntryDate(Date())
+    let formatted = formatEntryDate(Self.now, now: Self.now)
     #expect(formatted.hasPrefix("Today,"))
   }
 
   @Test
   func yesterdayShowsYesterdayPrefix() {
-    let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-    let formatted = formatEntryDate(yesterday)
+    let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Self.now)!
+    let formatted = formatEntryDate(yesterday, now: Self.now)
     #expect(formatted.hasPrefix("Yesterday,"))
   }
 
   @Test
   func olderDateShowsWeekday() {
-    let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: Date())!
-    let formatted = formatEntryDate(fiveDaysAgo)
+    let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: Self.now)!
+    let formatted = formatEntryDate(fiveDaysAgo, now: Self.now)
     #expect(!formatted.hasPrefix("Today,"))
     #expect(!formatted.hasPrefix("Yesterday,"))
     // Should start with a weekday name

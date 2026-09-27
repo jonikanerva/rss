@@ -17,6 +17,9 @@ struct DataWriterEntryTests {
     try await DataWriterTestSupport.makeWriter()
   }
 
+  /// Reference instant for the tests that pass a cutoff, in place of the clock.
+  private static let reference = Date(timeIntervalSince1970: 1_750_000_000)
+
   private func seedFeed(_ writer: DataWriter, id: Int = 1, feedId: Int = 100) async throws {
     let sub = try FeedbinFixtures.subscription(id: id, feedId: feedId)
     try await writer.syncFeeds([sub])
@@ -217,22 +220,22 @@ struct DataWriterEntryTests {
 
     let iso = ISO8601DateFormatter()
     iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let nowIso = iso.string(from: Date())
+    let referenceIso = iso.string(from: Self.reference)
     // One entry well outside a one-year window, two inside it.
     let old = try FeedbinFixtures.entry(id: 1001, published: "2020-01-01T00:00:00.000000Z")
-    let recentA = try FeedbinFixtures.entry(id: 1002, title: "Recent A", published: nowIso)
-    let recentB = try FeedbinFixtures.entry(id: 1003, title: "Recent B", published: nowIso)
+    let recentA = try FeedbinFixtures.entry(id: 1002, title: "Recent A", published: referenceIso)
+    let recentB = try FeedbinFixtures.entry(id: 1003, title: "Recent B", published: referenceIso)
     _ = try await writer.persistEntries([old, recentA, recentB], unreadIDs: Set([1001, 1002, 1003]))
 
-    let oneYearAgo = Date().addingTimeInterval(-365 * 86_400)
+    let oneYearBefore = Self.reference.addingTimeInterval(-365 * 86_400)
     // Old entry is before the cutoff → excluded; both recent are unclassified.
-    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 2)
+    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearBefore) == 2)
 
     // Classifying one recent entry drops the pending count by one.
     try await writer.applyClassification(
       entryID: 1002,
       result: ClassificationResult(entryID: 1002, categoryLabel: "tech"))
-    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearAgo) == 1)
+    #expect(try await writer.countUnclassifiedEntries(cutoffDate: oneYearBefore) == 1)
 
     // A distant-past cutoff pulls the older entry back into scope.
     #expect(try await writer.countUnclassifiedEntries(cutoffDate: .distantPast) == 2)
@@ -255,7 +258,7 @@ struct DataWriterEntryTests {
       try FeedbinFixtures.entry(
         id: 1001 + index,
         title: "Article \(index)",
-        published: iso.string(from: Date().addingTimeInterval(Double(index) * 60))
+        published: iso.string(from: Self.reference.addingTimeInterval(Double(index) * 60))
       )
     }
     _ = try await writer.persistEntries(entries, unreadIDs: Set(entries.map(\.id)))

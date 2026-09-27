@@ -5,7 +5,7 @@ import Testing
 
 @testable import Feeder
 
-/// Headless check for the row-height floor, the title and summary split, and
+/// Offscreen check for the row-height floor, the title and summary split, and
 /// the row's text on an emphasized selection. It hosts the same `List` shape the
 /// article list renders in an offscreen hosting view, then reads the backing
 /// table through public API. The invariants:
@@ -19,36 +19,33 @@ import Testing
 /// 4. The split fits the column budget: the laid-out heights leave room for the
 ///    summary lines each title length allows.
 /// 5. The rendered line counts match: a bitmap of the row is scanned for ink
-///    bands, the bands are equally tall, and the bottom padding holds no ink,
-///    which would be where overflow landed.
+///    bands, the summary bands are equally tall within 1 px, and the bottom
+///    padding holds no ink, which would be where overflow landed.
 /// 6. A read row's title and domain adapt to the emphasized selection: with the
 ///    increased background prominence, they change at least half as much as the
 ///    summary, which uses a hierarchical style.
 ///
 /// Invariants 1 to 5 run at every text size and at three content-column widths,
 /// including the platform's default width, which is a shipped state because the
-/// column has no width bound. No screen is needed: the window is ordered
-/// offscreen.
+/// column has no width bound. Each host window opens far offscreen, at the
+/// origin (-6000, -6000).
 @Suite("Entry row geometry", .serialized)
 struct EntryRowGeometryTests {
   private static let widths: [CGFloat] = [200, 320, 600]
 
   // MARK: - Floor
 
-  @Test("table fallback row height equals the floor", arguments: AppTextSize.allCases)
-  @MainActor
-  func fallbackRowHeightEqualsFloor(size: AppTextSize) async throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
-    let table = try await Self.hostList(settings: settings, width: 320)
-    #expect(table.rowHeight == settings.entryRowHeight)
-  }
-
-  @Test("every row is exactly one floor tall and rows sit one floor apart", arguments: AppTextSize.allCases)
+  @Test(
+    "the table fallback row height and every row are one floor tall, and rows sit one floor apart",
+    arguments: AppTextSize.allCases)
   @MainActor
   func rowRectsEqualFloor(size: AppTextSize) async throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     for width in Self.widths {
       let table = try await Self.hostList(settings: settings, width: width)
+      #expect(
+        table.rowHeight == settings.entryRowHeight,
+        "size \(size) width \(width) fallback \(table.rowHeight) vs floor \(settings.entryRowHeight)")
       #expect(table.numberOfRows == Self.sampleRows.count, "width \(width)")
       let rects = (0..<table.numberOfRows).map { table.rect(ofRow: $0) }
       for (index, rect) in rects.enumerated() {
@@ -66,8 +63,8 @@ struct EntryRowGeometryTests {
 
   @Test("every row shape's natural height is the floor minus the margin", arguments: AppTextSize.allCases)
   @MainActor
-  func naturalHeightIsFloorMinusMargin(size: AppTextSize) {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+  func naturalHeightIsFloorMinusMargin(size: AppTextSize) throws {
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let ids = PreviewSupport.mintEntryIdentifiers(count: Self.sampleRows.count)
     for width in Self.widths {
       let contentWidth = width - 2 * EntryRowMetrics.horizontalInset
@@ -87,8 +84,8 @@ struct EntryRowGeometryTests {
 
   @Test("title, domain and summary line heights fit the fixed column", arguments: AppTextSize.allCases)
   @MainActor
-  func lineHeightsFitColumn(size: AppTextSize) {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+  func lineHeightsFitColumn(size: AppTextSize) throws {
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let column = settings.entryRowTextColumnHeight
     let summaryLine = EntryRowMetrics.lineHeights(scale: size.scaleFactor).summary
     let gaps = 2 * EntryRowMetrics.textSpacing
@@ -132,7 +129,8 @@ struct EntryRowGeometryTests {
       // An EMPTY `Text` with reserved space is 14 pt at every size, not the
       // font's line height: the reason the row never renders "" directly.
       #expect(emptyStringDomain == 14, context)
-      // The arithmetic the floor is built from stays at or above the layout.
+      // The arithmetic the floor is built from stays at or above the layout,
+      // within 1 pt.
       #expect(summaryLine >= oneSummaryLine - 1, context)
     }
   }
@@ -191,7 +189,7 @@ struct EntryRowGeometryTests {
     arguments: AppTextSize.allCases)
   @MainActor
   func renderedLineCounts(size: AppTextSize) throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let ids = PreviewSupport.mintEntryIdentifiers(count: Self.renderCases.count)
     let rowTop = Int(EntryRowMetrics.verticalPadding)
     let columnBottom = rowTop + Int(settings.entryRowTextColumnHeight)
@@ -202,19 +200,20 @@ struct EntryRowGeometryTests {
         let slots = Self.slotRows(titleLines: renderCase.titleLines, settings: settings)
         let context = "size \(size) width \(width) \(renderCase.name)"
 
-        // The bitmap is exactly the row's natural height: column + padding.
+        // The bitmap is exactly the row's natural height: the column plus the
+        // top and bottom padding.
         #expect(scan.height == columnBottom + rowTop, "\(context): image height \(scan.height)")
         // (iii) The title shows exactly its line count.
         let titleBands = scan.bands(in: slots.title)
         #expect(titleBands.count == renderCase.titleLines, "\(context): title bands \(titleBands)")
-        // The domain line is present when set and empty when nil.
+        // The domain line is present when set, and empty when nil or "".
         let domainBands = scan.bands(in: slots.domain)
         let hasDomain = renderCase.shape.domain.map { !$0.isEmpty } ?? false
         #expect(domainBands.count == (hasDomain ? 1 : 0), "\(context): domain bands \(domainBands)")
         // The summary shows the expected whole lines under the title.
         let summaryBands = scan.bands(in: slots.summary)
         #expect(renderCase.summaryLines.contains(summaryBands.count), "\(context): summary bands \(summaryBands)")
-        // (i) Every summary line is drawn whole: equal band heights.
+        // (i) Every summary line is drawn whole: band heights within 1 px.
         let bandHeights = summaryBands.map(\.count)
         if let tallest = bandHeights.max(), let shortest = bandHeights.min() {
           #expect(tallest - shortest <= 1, "\(context): summary band heights \(bandHeights)")
@@ -235,7 +234,7 @@ struct EntryRowGeometryTests {
   @Test("a read row's title and domain adapt to the emphasized selection like its summary")
   @MainActor
   func readRowTextAdaptsToEmphasizedSelection() throws {
-    let settings = AppFontSettings(textSize: .medium, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: .medium, userDefaults: Self.isolatedDefaults())
     let shape = RowShape(title: Self.longTitle, domain: Self.longDomain, excerpt: Self.longExcerpt, isRead: true)
     let row = Self.makeRow(id: PreviewSupport.mintEntryIdentifiers(count: 1)[0], feedbinEntryID: 1, shape: shape)
     let standard = try Self.renderRow(row: row, settings: settings, width: 320, fill: Self.selectionFill)
@@ -301,7 +300,7 @@ struct EntryRowGeometryTests {
       displayDomain: shape.domain,
       excerpt: shape.excerpt,
       isRead: shape.isRead,
-      publishedAt: .now,
+      publishedAt: Date(timeIntervalSince1970: 1_750_000_000),
       feedFeedbinID: 1,
       feedInitial: "M"
     )
@@ -486,7 +485,10 @@ struct EntryRowGeometryTests {
 
   // MARK: - Hosting
 
-  /// Hosts the `EntryListView` list shape offscreen and returns its table.
+  /// Hosts the `EntryListView` list shape offscreen and returns its table once
+  /// the rows have settled. The host is tall enough to show every sample row
+  /// at every text size: the poll waits for every row view, and a row outside
+  /// the visible rect can have none.
   @MainActor
   private static func hostList(settings: AppFontSettings, width: CGFloat) async throws -> NSTableView {
     let ids = PreviewSupport.mintEntryIdentifiers(count: sampleRows.count)
@@ -505,19 +507,38 @@ struct EntryRowGeometryTests {
     .environment(\.defaultMinListRowHeight, settings.entryRowHeight)
     .environment(settings)
     let hosting = NSHostingView(rootView: list)
-    hosting.frame = NSRect(x: -6000, y: -6000, width: width, height: 1200)
+    hosting.frame = NSRect(x: -6000, y: -6000, width: width, height: 2000)
     let window = NSWindow(
       contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
     window.contentView = hosting
     window.orderFrontRegardless()
-    hosting.layoutSubtreeIfNeeded()
-    // One run-loop turn so the bridge creates and measures the table rows.
-    try await Task.sleep(for: .milliseconds(200))
-    hosting.layoutSubtreeIfNeeded()
-    let tables = findTableViews(in: hosting)
-    window.orderOut(nil)
-    let table = try #require(tables.first, "no NSTableView under the hosting view")
-    return table
+    defer { window.orderOut(nil) }
+    return try await settledTable(in: hosting, rowCount: rows.count)
+  }
+
+  /// Polls until the table has `rowCount` rows, every row has a row view, and
+  /// three row-rect samples in a row agree, with a 5 ms sleep between polls,
+  /// and fails the test after 2 s. The bridge makes and measures the rows in
+  /// later run-loop turns, which each sleep gives it.
+  @MainActor
+  private static func settledTable(in hosting: NSView, rowCount: Int) async throws -> NSTableView {
+    let deadline = ContinuousClock.now + .seconds(2)
+    var samples: [[NSRect]] = []
+    while true {
+      hosting.layoutSubtreeIfNeeded()
+      if let table = findTableViews(in: hosting).first, table.numberOfRows == rowCount,
+        (0..<rowCount).allSatisfy({ table.rowView(atRow: $0, makeIfNecessary: false) != nil })
+      {
+        let rects = (0..<rowCount).map { table.rect(ofRow: $0) }
+        if rects != samples.last { samples = [] }
+        samples.append(rects)
+        if samples.count == 3 { return table }
+      } else {
+        samples = []
+      }
+      try #require(ContinuousClock.now < deadline, "the table rows did not settle within 2 s")
+      try await Task.sleep(for: .milliseconds(5))
+    }
   }
 
   @MainActor
@@ -530,9 +551,9 @@ struct EntryRowGeometryTests {
     return result
   }
 
-  private static func isolatedDefaults() -> UserDefaults {
+  private static func isolatedDefaults() throws -> UserDefaults {
     let name = "EntryRowGeometryTests"
-    let defaults = UserDefaults(suiteName: name) ?? .standard
+    let defaults = try #require(UserDefaults(suiteName: name))
     defaults.removePersistentDomain(forName: name)
     return defaults
   }
