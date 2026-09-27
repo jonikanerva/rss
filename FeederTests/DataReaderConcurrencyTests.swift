@@ -23,10 +23,9 @@ import Testing
 /// target-wide parallelism for that (`STACK.md § 14`).
 @Suite("DataReader concurrency + freshness", .serialized)
 struct DataReaderConcurrencyTests {
-  /// Writer and reader over one shared on-disk container in the production
-  /// journal mode, because an in-memory shared-cache store races under parallel
-  /// load. Seeded with a feed and a two-category taxonomy. Every write goes
-  /// through the writer and every read through the reader.
+  /// Writer and reader over one shared in-memory container, seeded with a feed
+  /// and a two-category taxonomy. Every write goes through the writer and every
+  /// read through the reader.
   private func makePair() async throws -> (DataWriter, DataReader) {
     let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
     let sub = try FeedbinFixtures.subscription(id: 1, feedId: 100)
@@ -213,14 +212,11 @@ struct DataReaderConcurrencyTests {
   /// torn row ever appears as an empty category bucket, that reader-minted IDs
   /// keep resolving in the app container, and that the reader completes every
   /// round while writes are in flight.
-  @Test("Shared container: sustained 1+1 read-during-write is clean (TSan gate)")
+  @Test(
+    "Shared container: sustained 1+1 read-during-write is clean (TSan gate)",
+    // Only `make test-stress-tsan` sets the variable, so the everyday gate skips this test.
+    .enabled(if: ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1"))
   func sharedContainerProductionShapeStress() async throws {
-    // This test drives hundreds of concurrent read-during-write rounds and
-    // belongs in its own run, not the everyday gate, so it self-skips unless the
-    // stress variable is set. Only the dedicated target sets it, and it must
-    // reach the test host through the `TEST_RUNNER_` prefix.
-    guard ProcessInfo.processInfo.environment["FEEDER_RUN_STRESS"] == "1" else { return }
-
     // One shared on-disk container, with the writer and the reader both on it.
     let container = try DataWriterTestSupport.makeOnDiskContainer()
     let storeURL = container.configurations.first?.url
