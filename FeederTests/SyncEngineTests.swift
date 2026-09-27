@@ -15,22 +15,14 @@ import Testing
 struct SyncEngineTests {
   // MARK: - Per-test isolation
 
-  /// Per-test isolated `UserDefaults`, under a unique suite name, so this
-  /// suite's keys never touch the standard domain and cannot race a sibling
-  /// suite that asserts on them. `.serialized` would not help: it orders tests
-  /// within one suite only.
-  private let defaults: UserDefaults
-  private let suiteName: String
+  /// Per-test isolated `UserDefaults`, so this suite's keys never touch the
+  /// standard domain and cannot race a sibling suite that asserts on them.
+  /// `.serialized` would not help: it orders tests within one suite only.
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
 
-  init() {
-    let id = "FeederTests.SyncEngine.\(UUID().uuidString)"
-    self.suiteName = id
-    // The initialiser returns nil only for a reserved name, and a random UUID is
-    // never one, so the unwrap is safe and fails loudly if that changes.
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
-    self.defaults = defaults
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("SyncEngine")
   }
 
   // MARK: - Builders

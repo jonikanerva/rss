@@ -38,7 +38,7 @@ struct EntryRowGeometryTests {
   @Test("table fallback row height equals the floor", arguments: AppTextSize.allCases)
   @MainActor
   func fallbackRowHeightEqualsFloor(size: AppTextSize) async throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let table = try await Self.hostList(settings: settings, width: 320)
     #expect(table.rowHeight == settings.entryRowHeight)
   }
@@ -46,7 +46,7 @@ struct EntryRowGeometryTests {
   @Test("every row is exactly one floor tall and rows sit one floor apart", arguments: AppTextSize.allCases)
   @MainActor
   func rowRectsEqualFloor(size: AppTextSize) async throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     for width in Self.widths {
       let table = try await Self.hostList(settings: settings, width: width)
       #expect(table.numberOfRows == Self.sampleRows.count, "width \(width)")
@@ -66,8 +66,8 @@ struct EntryRowGeometryTests {
 
   @Test("every row shape's natural height is the floor minus the margin", arguments: AppTextSize.allCases)
   @MainActor
-  func naturalHeightIsFloorMinusMargin(size: AppTextSize) {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+  func naturalHeightIsFloorMinusMargin(size: AppTextSize) throws {
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let ids = PreviewSupport.mintEntryIdentifiers(count: Self.sampleRows.count)
     for width in Self.widths {
       let contentWidth = width - 2 * EntryRowMetrics.horizontalInset
@@ -87,8 +87,8 @@ struct EntryRowGeometryTests {
 
   @Test("title, domain and summary line heights fit the fixed column", arguments: AppTextSize.allCases)
   @MainActor
-  func lineHeightsFitColumn(size: AppTextSize) {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+  func lineHeightsFitColumn(size: AppTextSize) throws {
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let column = settings.entryRowTextColumnHeight
     let summaryLine = EntryRowMetrics.lineHeights(scale: size.scaleFactor).summary
     let gaps = 2 * EntryRowMetrics.textSpacing
@@ -191,7 +191,7 @@ struct EntryRowGeometryTests {
     arguments: AppTextSize.allCases)
   @MainActor
   func renderedLineCounts(size: AppTextSize) throws {
-    let settings = AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: size, userDefaults: Self.isolatedDefaults())
     let ids = PreviewSupport.mintEntryIdentifiers(count: Self.renderCases.count)
     let rowTop = Int(EntryRowMetrics.verticalPadding)
     let columnBottom = rowTop + Int(settings.entryRowTextColumnHeight)
@@ -235,7 +235,7 @@ struct EntryRowGeometryTests {
   @Test("a read row's title and domain adapt to the emphasized selection like its summary")
   @MainActor
   func readRowTextAdaptsToEmphasizedSelection() throws {
-    let settings = AppFontSettings(textSize: .medium, userDefaults: Self.isolatedDefaults())
+    let settings = try AppFontSettings(textSize: .medium, userDefaults: Self.isolatedDefaults())
     let shape = RowShape(title: Self.longTitle, domain: Self.longDomain, excerpt: Self.longExcerpt, isRead: true)
     let row = Self.makeRow(id: PreviewSupport.mintEntryIdentifiers(count: 1)[0], feedbinEntryID: 1, shape: shape)
     let standard = try Self.renderRow(row: row, settings: settings, width: 320, fill: Self.selectionFill)
@@ -530,9 +530,9 @@ struct EntryRowGeometryTests {
     return result
   }
 
-  private static func isolatedDefaults() -> UserDefaults {
+  private static func isolatedDefaults() throws -> UserDefaults {
     let name = "EntryRowGeometryTests"
-    let defaults = UserDefaults(suiteName: name) ?? .standard
+    let defaults = try #require(UserDefaults(suiteName: name))
     defaults.removePersistentDomain(forName: name)
     return defaults
   }

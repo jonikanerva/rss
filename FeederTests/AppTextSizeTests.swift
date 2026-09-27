@@ -9,22 +9,22 @@ import Testing
 // default, and the fact that the settings object really produces a different
 // font per size.
 //
-// Every test that mutates the size injects a per-suite `UserDefaults`, so the
-// write-back lands in a throwaway store instead of the developer's own
+// Every test builds its settings on the test's own `UserDefaults` suite, so
+// the write-back lands in a throwaway store instead of the developer's own
 // preferences.
-
-/// Per-suite `UserDefaults` store, cleared after every use so tests cannot
-/// leak state into each other or into shipped preferences.
-@MainActor
-private func makeIsolatedSettings(textSize: AppTextSize = .medium) -> AppFontSettings {
-  let suiteName = "FeederTests.appTextSize.\(UUID().uuidString)"
-  let store = UserDefaults(suiteName: suiteName) ?? .standard
-  store.removePersistentDomain(forName: suiteName)
-  return AppFontSettings(textSize: textSize, userDefaults: store)
-}
 
 @MainActor
 struct AppTextSizeTests {
+  private let isolatedDefaults: IsolatedDefaults
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("AppTextSize")
+  }
+
+  private func makeIsolatedSettings(textSize: AppTextSize = .medium) -> AppFontSettings {
+    AppFontSettings(textSize: textSize, userDefaults: isolatedDefaults.defaults)
+  }
+
   // MARK: - Scale factor mapping
 
   @Test

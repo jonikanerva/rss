@@ -291,12 +291,15 @@ struct PickerOptionsTests {
 /// the then-current default.
 @Suite("Model resolution never writes")
 struct ModelResolutionNeverWritesTests {
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("ModelResolutionNeverWrites")
+  }
+
   @Test
   func resolvingStatesAndOptionsLeavesModelKeyUnset() {
-    let id = "FeederTests.ModelResolutionNeverWrites.\(UUID().uuidString)"
-    guard let defaults = UserDefaults(suiteName: id) else {
-      fatalError("Failed to construct test-isolated UserDefaults suite \(id)")
-    }
     #expect(defaults.string(forKey: OpenAIModelSetting.userDefaultsKey) == nil)
 
     let outcomes: [Result<[OpenAIModel], OpenAIModelsError>] = [
