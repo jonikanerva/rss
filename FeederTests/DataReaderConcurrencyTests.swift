@@ -133,8 +133,8 @@ struct DataReaderConcurrencyTests {
   /// field is volatile. Reflection stays out (`STACK.md § 7`).
   @Test("fetchEntrySections DTOs match the declared field set (compile-time pin)")
   func fetchEntrySectionsDTOFieldSetPin() throws {
-    // The declared row snapshot: identity, render fields, the read-state
-    // snapshot, the grouping input, and the favicon pair.
+    // The declared row snapshot: identity, render fields, the link, the
+    // read-state snapshot, the grouping input, and the favicon pair.
     let context = ModelContext(try DataWriterTestSupport.makeInMemoryContainer())
     let minted = Entry(
       feedbinEntryID: 4001, title: "Pin", author: nil, url: "https://example.com/pin",
@@ -145,6 +145,7 @@ struct DataReaderConcurrencyTests {
       persistentID: minted.persistentModelID,
       feedbinEntryID: 4001,
       title: "Pin",
+      url: "https://example.com/pin",
       formattedPublishedTime: "09.30",
       displayDomain: "example.com",
       excerpt: "Excerpt",

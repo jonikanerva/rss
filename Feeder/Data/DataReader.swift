@@ -139,7 +139,7 @@ actor DataReader: ModelActor {
     // Prefetching `feed` in the same fetch keeps the favicon key and the
     // fallback initial free of a per-row relationship fault.
     descriptor.propertiesToFetch = [
-      \.feedbinEntryID, \.title, \.formattedPublishedTime, \.displayDomain,
+      \.feedbinEntryID, \.title, \.url, \.formattedPublishedTime, \.displayDomain,
       \.summaryPlainText, \.isRead, \.publishedAt,
     ]
     descriptor.relationshipKeyPathsForPrefetching = [\.feed]
@@ -339,6 +339,7 @@ actor DataReader: ModelActor {
       persistentID: entry.persistentModelID,
       feedbinEntryID: entry.feedbinEntryID,
       title: entry.title,
+      url: entry.url,
       formattedPublishedTime: entry.formattedPublishedTime,
       displayDomain: displayDomain,
       excerpt: rowExcerpt(

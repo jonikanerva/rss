@@ -414,6 +414,7 @@ struct ContentView: View {
         markAllReadAction: markAllAsRead,
         toggleViewModeAction: toggleArticleViewMode,
         openInBrowserAction: openInBackground,
+        copyLinkAction: copySelectedLink,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
         moveSelectionUpAction: { moveSidebarSelection(by: -1) },
         canMarkAllRead: articleFilter == .unread && selection != nil,
@@ -678,29 +679,23 @@ struct ContentView: View {
   }
 
   private func markAllAsRead() {
-    guard articleFilter == .unread, let target = selection,
-      let writer = syncEngine.writer
-    else { return }
-    selectedEntryID = nil
-    let markTarget: MarkReadTarget
-    let optimisticIDs: Set<Int>
-    // Read the optimistic set from the cached snapshot so the sidebar drops to
-    // zero in the same frame the article list empties, without waiting for the
-    // background writer to commit.
-    switch target {
-    case .folder(let label):
-      markTarget = .folder(label)
-      optimisticIDs = unreadSnapshot.unreadIDByFolder[label] ?? []
-    case .category(let label):
-      markTarget = .category(label)
-      optimisticIDs = unreadSnapshot.unreadIDByCategory[label] ?? []
+    guard let selection else { return }
+    markAllAsRead(target: selection)
+  }
+
+  private func markAllAsRead(target: SidebarSelection) {
+    guard articleFilter == .unread, let writer = syncEngine.writer else { return }
+    let plan = markAllReadPlan(
+      for: target, currentSelection: selection, snapshot: unreadSnapshot)
+    if plan.clearsArticleSelection {
+      selectedEntryID = nil
     }
-    pendingReadIDs.formUnion(optimisticIDs)
+    pendingReadIDs.formUnion(plan.optimisticIDs)
     Task {
       let markedIDs = try? await writer.markAllAsRead(
-        target: markTarget, cutoffDate: syncEngine.queryCutoffDate
+        target: plan.markTarget, cutoffDate: syncEngine.queryCutoffDate
       )
-      // Post-commit. Unlike the flush, mark-all-read changes the visible
+      // Post-commit. Unlike the flush, mark-all-read can change the visible
       // window itself, so the list must refetch immediately.
       bumpEntryList()
       guard let ids = markedIDs, !ids.isEmpty else { return }
@@ -709,19 +704,17 @@ struct ContentView: View {
   }
 
   private func openInBackground() {
-    guard let entry = selectedEntry,
-      let url = URL(string: entry.url),
-      let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
-    else { return }
-    NSWorkspace.shared.open(
-      [url],
-      withApplicationAt: appURL,
-      configuration: {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
-        return config
-      }()
-    )
+    guard let url = selectedEntryURL else { return }
+    NSWorkspace.shared.openInBackground(url)
+  }
+
+  private func copySelectedLink() {
+    guard let url = selectedEntryURL else { return }
+    NSPasteboard.general.writeLink(url)
+  }
+
+  private var selectedEntryURL: URL? {
+    selectedEntry.flatMap { entryLinkURL(from: $0.url) }
   }
 
   // MARK: - Sidebar
@@ -776,6 +769,8 @@ struct ContentView: View {
         categoryUnreadCounts: categoryUnreadCounts,
         folderUnreadCounts: folderUnreadCounts,
         fontBody: fontSettings.body,
+        canMarkAllRead: articleFilter == .unread,
+        onMarkAllRead: markAllAsRead(target:),
         selection: sidebarSelectionBinding,
         collapsedFolders: $collapsedFolders
       )

@@ -45,6 +45,8 @@ struct SidebarView: View, Equatable {
   let categoryUnreadCounts: [String: Int]
   let folderUnreadCounts: [String: Int]
   let fontBody: Font
+  let canMarkAllRead: Bool
+  let onMarkAllRead: (SidebarSelection) -> Void
   @Binding
   var selection: SidebarSelection?
   @Binding
@@ -55,9 +57,14 @@ struct SidebarView: View, Equatable {
     // back the same projection on every rebuild, while selection identity and
     // the collapsed-folder set are part of the render contract.
     //
-    // `fontBody` must stay in the comparison. The row titles read it through
-    // this `let`, so without it a text-size change leaves them at the previous
-    // font until some other structural input moves.
+    // `fontBody` and `canMarkAllRead` must stay in the comparison. The rows
+    // read them through these `let`s, so without them a text-size change
+    // leaves the titles at the previous font, and a filter flip leaves the row
+    // menus stale, until some other structural input moves.
+    //
+    // `onMarkAllRead` stays out of the comparison. A skipped body keeps the
+    // closure of an earlier value, so the closure must read the owner's state
+    // when it runs, never a value captured when the body was built.
     lhs.visibleFolderGroups == rhs.visibleFolderGroups
       && lhs.rootCategories == rhs.rootCategories
       && lhs.categoryUnreadCounts == rhs.categoryUnreadCounts
@@ -65,6 +72,7 @@ struct SidebarView: View, Equatable {
       && lhs.selection == rhs.selection
       && lhs.collapsedFolders == rhs.collapsedFolders
       && lhs.fontBody == rhs.fontBody
+      && lhs.canMarkAllRead == rhs.canMarkAllRead
   }
 
   var body: some View {
@@ -111,6 +119,7 @@ struct SidebarView: View, Equatable {
         titleAccessibilityIdentifier: "sidebar.folder.\(group.label)"
       )
       .tag(SidebarSelection.folder(group.label))
+      .contextMenu { markAllReadMenu(for: .folder(group.label)) }
     }
   }
 
@@ -125,6 +134,15 @@ struct SidebarView: View, Equatable {
       titleAccessibilityIdentifier: "sidebar.category.\(category.label)"
     )
     .tag(SidebarSelection.category(category.label))
+    .contextMenu { markAllReadMenu(for: .category(category.label)) }
+  }
+
+  /// The target is fixed per row. Never derive it from the selection.
+  @ViewBuilder
+  private func markAllReadMenu(for target: SidebarSelection) -> some View {
+    if canMarkAllRead {
+      Button("Mark All as Read") { onMarkAllRead(target) }
+    }
   }
 
   /// Shared row layout: title left, quiet count right, with a stable trailing

@@ -51,6 +51,8 @@ nonisolated struct EntryRowDTO: Sendable, Equatable, Hashable, Identifiable {
   let persistentID: PersistentIdentifier
   let feedbinEntryID: Int
   let title: String?
+  /// The entry's link as stored. It can be empty or fail to parse as a URL.
+  let url: String
   let formattedPublishedTime: String
   /// Display domain of the entry's feed, or `nil` when the entry has no
   /// domain. The projection maps the stored empty string (`extractDomain` of

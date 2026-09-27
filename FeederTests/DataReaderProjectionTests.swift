@@ -13,14 +13,18 @@ import Testing
 /// `.serialized` only orders tests within the suite.
 @Suite("DataReader row projection", .serialized)
 struct DataReaderProjectionTests {
-  /// Seed one feed with `siteUrl` and one classified `tech` entry through the
-  /// production write path, then return the projected row.
-  private func projectedRow(siteUrl: String) async throws -> EntryRowDTO {
+  /// Seed one feed with `siteUrl` and one classified `tech` entry with
+  /// `entryURL` through the production write path, then return the projected
+  /// row.
+  private func projectedRow(
+    siteUrl: String, entryURL: String = "https://example.com/article"
+  ) async throws -> EntryRowDTO {
     let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
     try await writer.syncFeeds([FeedbinFixtures.subscription(siteUrl: siteUrl)])
     try await writer.addCategory(
       label: "tech", displayName: "Tech", description: "Tech news", sortOrder: 0)
-    _ = try await writer.persistEntries([FeedbinFixtures.entry(id: 1)], unreadIDs: [1])
+    _ = try await writer.persistEntries(
+      [FeedbinFixtures.entry(id: 1, url: entryURL)], unreadIDs: [1])
     try await writer.applyClassification(
       entryID: 1, result: ClassificationResult(entryID: 1, categoryLabel: "tech"))
     let result = try await reader.fetchEntrySections(
@@ -40,5 +44,12 @@ struct DataReaderProjectionTests {
   func siteURLWithHostKeepsDomain() async throws {
     let row = try await projectedRow(siteUrl: "https://www.example.com")
     #expect(row.displayDomain == "example.com")
+  }
+
+  @Test("the row carries the entry's stored link")
+  func rowCarriesStoredLink() async throws {
+    let row = try await projectedRow(
+      siteUrl: "https://www.example.com", entryURL: "https://example.com/articles/row-link")
+    #expect(row.url == "https://example.com/articles/row-link")
   }
 }
