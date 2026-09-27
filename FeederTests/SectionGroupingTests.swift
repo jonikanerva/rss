@@ -7,23 +7,36 @@ import Testing
 // MARK: - entryListSectionLabel
 
 struct EntryListSectionLabelTests {
+  /// Every boundary comes from `startOfDay`, the day interval, and ±1 s, never
+  /// from a fixed day length, so the checks hold in every time zone.
   @Test
-  func todayReturnsToday() {
-    let startOfToday = Calendar.current.startOfDay(for: Date())
-    #expect(entryListSectionLabel(for: startOfToday) == "Today")
-  }
+  func labelsFollowTheDayBoundariesOfNow() throws {
+    let calendar = Calendar.current
+    let todayStart = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_750_000_000))
+    let tomorrowStart = try #require(calendar.dateInterval(of: .day, for: todayStart)).end
+    let todayEnd = tomorrowStart.addingTimeInterval(-1)
+    let yesterdayEnd = todayStart.addingTimeInterval(-1)
+    let yesterdayStart = calendar.startOfDay(for: yesterdayEnd)
+    let dayBeforeYesterdayEnd = yesterdayStart.addingTimeInterval(-1)
 
-  @Test
-  func yesterdayReturnsYesterday() {
-    let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-    let startOfYesterday = Calendar.current.startOfDay(for: yesterday)
-    #expect(entryListSectionLabel(for: startOfYesterday) == "Yesterday")
+    for now in [todayStart, todayEnd] {
+      #expect(entryListSectionLabel(for: todayStart, now: now) == "Today", "now \(now)")
+      #expect(entryListSectionLabel(for: todayEnd, now: now) == "Today", "now \(now)")
+      #expect(entryListSectionLabel(for: yesterdayStart, now: now) == "Yesterday", "now \(now)")
+      #expect(entryListSectionLabel(for: yesterdayEnd, now: now) == "Yesterday", "now \(now)")
+      for date in [dayBeforeYesterdayEnd, tomorrowStart] {
+        let label = entryListSectionLabel(for: date, now: now)
+        #expect(label.contains("\(calendar.component(.day, from: date))."), "now \(now) label \(label)")
+        #expect(label.contains(date.formatted(.dateTime.year())), "now \(now) label \(label)")
+      }
+    }
   }
 
   @Test
   func olderDateContainsWeekdayDayMonthYear() {
     let olderDate = Date(timeIntervalSince1970: 1_750_000_000)
-    let label = entryListSectionLabel(for: Calendar.current.startOfDay(for: olderDate))
+    let now = Date(timeIntervalSince1970: 1_760_000_000)
+    let label = entryListSectionLabel(for: Calendar.current.startOfDay(for: olderDate), now: now)
     #expect(label != "Today" && label != "Yesterday")
     let day = Calendar.current.component(.day, from: olderDate)
     #expect(label.contains("\(day)."))
@@ -34,9 +47,9 @@ struct EntryListSectionLabelTests {
 
 // MARK: - groupRowsByDay
 
-/// Pins the day bucketing and the section labels of `groupRowsByDay` against
-/// fixed wall-clock scenarios. Grouping follows the user's local calendar, like
-/// the labels it feeds.
+/// Pins the day bucketing and the section labels of `groupRowsByDay` against a
+/// fixed `now`. Grouping follows the user's local calendar, like the labels it
+/// feeds.
 @MainActor
 struct GroupRowsByDayTests {
   private static let base = Date(timeIntervalSince1970: 1_750_000_000)
@@ -79,13 +92,13 @@ struct GroupRowsByDayTests {
 
   @Test
   func emptyInputReturnsEmpty() {
-    #expect(groupRowsByDay([]).isEmpty)
+    #expect(groupRowsByDay([], now: Self.base).isEmpty)
   }
 
   @Test
   func rowsAllOnSameDayProduceOneSection() throws {
-    let rows = try Self.makeRows(publishDates: Self.sameDayPublishDates(on: Date()))
-    let sections = groupRowsByDay(rows)
+    let rows = try Self.makeRows(publishDates: Self.sameDayPublishDates(on: Self.base))
+    let sections = groupRowsByDay(rows, now: Self.base)
     #expect(sections.count == 1)
     #expect(sections[0].rows.count == 3)
     #expect(sections[0].label == "Today")
@@ -93,10 +106,10 @@ struct GroupRowsByDayTests {
 
   @Test
   func rowsSpanningTwoDaysProduceTwoSections() throws {
-    let today = Date()
-    let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
-    let rows = try Self.makeRows(publishDates: [today, yesterday, yesterday])
-    let sections = groupRowsByDay(rows)
+    let today = try Self.sameDayPublishDates(on: Self.base)
+    let yesterday = try Self.sameDayPublishDates(on: Calendar.current.startOfDay(for: Self.base).addingTimeInterval(-1))
+    let rows = try Self.makeRows(publishDates: [today[0], yesterday[0], yesterday[1]])
+    let sections = groupRowsByDay(rows, now: Self.base)
     #expect(sections.count == 2)
     #expect(sections[0].label == "Today")
     #expect(sections[0].rows.count == 1)
@@ -107,7 +120,7 @@ struct GroupRowsByDayTests {
   @Test
   func sectionIDsAreStartOfDay() throws {
     let rows = try Self.makeRows(publishDates: [Self.base])
-    let sections = groupRowsByDay(rows)
+    let sections = groupRowsByDay(rows, now: Self.base)
     let expectedStartOfDay = Calendar.current.startOfDay(for: Self.base)
     #expect(sections[0].id == expectedStartOfDay)
   }
@@ -115,7 +128,7 @@ struct GroupRowsByDayTests {
   @Test
   func rowOrderIsPreservedWithinSections() throws {
     let rows = try Self.makeRows(publishDates: Self.sameDayPublishDates(on: Self.base))
-    let sections = groupRowsByDay(rows)
+    let sections = groupRowsByDay(rows, now: Self.base)
     #expect(sections[0].rows.map(\.feedbinEntryID) == rows.map(\.feedbinEntryID))
   }
 }

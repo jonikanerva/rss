@@ -164,8 +164,10 @@ final class MicroBenchmarkTests: XCTestCase {
     let options = XCTMeasureOptions()
     options.iterationCount = 5
 
+    // Months after the newest row, so every label is a full date.
+    let now = Date(timeIntervalSinceReferenceDate: 810_000_000)
     measure(options: options) {
-      _ = groupRowsByDay(rows)
+      _ = groupRowsByDay(rows, now: now)
     }
   }
 
