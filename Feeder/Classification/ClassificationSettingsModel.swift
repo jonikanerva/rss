@@ -127,8 +127,6 @@ final class ClassificationSettingsModel {
   func selectOpenAIModel(_ model: String) -> Bool {
     guard model != openAIModel else { return false }
     openAIModel = model
-    // Persist only on an explicit user pick. A programmatic write pins a user
-    // who never picked to the current default.
     if !isInert { OpenAIModelSetting.persist(model) }
     if hasStoredKey { reclassificationPrompt = .showing(target: targetName(for: .openAI)) }
     return true

@@ -235,7 +235,7 @@ struct ReclassificationPromptTests {
     await settings.refreshKey()
     #expect(settings.hasStoredKey)
     #expect(settings.reclassificationPrompt == .idle)
-    // The same key asks after a provider pick.
+    // Keep this step: without it, the test passes on the initial `idle` phase alone.
     #expect(settings.select(.appleFM))
     #expect(settings.select(.vercel))
     await settings.refreshKey()

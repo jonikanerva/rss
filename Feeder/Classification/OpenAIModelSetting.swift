@@ -21,8 +21,6 @@ nonisolated enum OpenAIModelSetting {
     return stored
   }
 
-  /// Persist an explicit user pick. Never called programmatically — writing
-  /// the key pins the user to that model across future app-default bumps.
   static func persist(_ model: String, in defaults: UserDefaults = .standard) {
     defaults.set(model, forKey: userDefaultsKey)
   }

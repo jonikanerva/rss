@@ -199,7 +199,7 @@ private enum SidebarPreviewFixtures {
     .environment(fontSettings)
     .environment(SyncEngine.preview())
     .environment(ClassificationEngine())
-    .frame(width: 238, height: 520)
+    .frame(width: ColumnWidthSetting.Column.sidebar.defaultIdealWidth, height: 520)
   }
 }
 
