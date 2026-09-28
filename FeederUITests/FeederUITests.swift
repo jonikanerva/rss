@@ -150,7 +150,9 @@ final class FeederUITests: XCTestCase {
   private func makeHeadlessApp() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["FEEDER_HEADLESS"] = "1"
-    app.launchArguments += ["-sidebar.collapsedFolders", "[]", "-feeder.defaultsSeeded", "YES"]
+    // Keep the quotes around `[]`: the argument domain parses a value as a
+    // property list, and it drops an unquoted `[]`.
+    app.launchArguments += ["-sidebar.collapsedFolders", "\"[]\"", "-feeder.defaultsSeeded", "YES"]
     return app
   }
 }
