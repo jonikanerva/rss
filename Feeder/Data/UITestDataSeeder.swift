@@ -17,6 +17,9 @@ extension DataWriter {
     let techFolder = Folder(label: "technology", displayName: "Technology", sortOrder: 0)
     modelContext.insert(techFolder)
 
+    // The focus check presses the down arrow on Apple and expects World News:
+    // keep Apple the last category of the last folder, and World News the
+    // first root category.
     let apple = Category(
       label: "apple", displayName: "Apple",
       categoryDescription: "Apple news for local UI testing", sortOrder: 1,
@@ -24,16 +27,8 @@ extension DataWriter {
     let world = Category(
       label: "world_news", displayName: "World News",
       categoryDescription: "World news coverage for local UI testing", sortOrder: 1)
-    // A category with no entries, beside a populated one in the same folder, so
-    // a UI test can drive the transition from the empty view to a list with
-    // rows on demand.
-    let gadgets = Category(
-      label: "gadgets", displayName: "Gadgets",
-      categoryDescription: "Empty category for local UI testing", sortOrder: 0,
-      folderLabel: "technology")
     modelContext.insert(apple)
     modelContext.insert(world)
-    modelContext.insert(gadgets)
 
     let feed1 = Feed(
       feedbinSubscriptionID: 1, feedbinFeedID: 1, title: "The Verge",
