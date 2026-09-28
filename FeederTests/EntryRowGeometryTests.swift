@@ -497,14 +497,9 @@ struct EntryRowGeometryTests {
     }
     let list = List(rows) { row in
       EntryRowView(row: row, faviconImage: nil)
-        .listRowSeparator(.hidden)
-        .listRowInsets(
-          EdgeInsets(
-            top: 0, leading: EntryRowMetrics.horizontalInset,
-            bottom: 0, trailing: EntryRowMetrics.horizontalInset))
+        .modifier(EntryListRowModifiers())
     }
-    .listStyle(.inset(alternatesRowBackgrounds: false))
-    .environment(\.defaultMinListRowHeight, settings.entryRowHeight)
+    .modifier(EntryListModifiers(rowHeight: settings.entryRowHeight))
     .environment(settings)
     let hosting = NSHostingView(rootView: list)
     hosting.frame = NSRect(x: -6000, y: -6000, width: width, height: 2000)

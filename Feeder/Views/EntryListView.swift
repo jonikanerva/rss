@@ -209,15 +209,7 @@ struct EntryListView: View {
                   )
                   .tag(row.persistentID)
                   .id(row.persistentID)
-                  .listRowSeparator(.hidden)
-                  // Zero vertical inset: the row's own padding carries the
-                  // rhythm, so the table's row height equals the row content
-                  // height and the floor below matches it exactly.
-                  .listRowInsets(
-                    EdgeInsets(
-                      top: 0, leading: EntryRowMetrics.horizontalInset,
-                      bottom: 0, trailing: EntryRowMetrics.horizontalInset)
-                  )
+                  .modifier(EntryListRowModifiers())
                   // The trigger row's appearance fires for scroll and for
                   // J/K navigation alike. Keep this a plain id comparison —
                   // no per-row math in `body` (`STACK.md § 0 / § 4`).
@@ -233,18 +225,11 @@ struct EntryListView: View {
               }
             }
           }
-          .listStyle(.inset(alternatesRowBackgrounds: false))
+          .modifier(EntryListModifiers(rowHeight: fontSettings.entryRowHeight))
           // No `primaryAction`: on macOS it binds the row double-click.
           .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
             entryLinkMenu(for: ids)
           }
-          // Row-height floor: `List` bounds row height below by
-          // `defaultMinListRowHeight`. Set it to the row's natural height, so
-          // a re-measure that falls back to the platform default has nothing
-          // left to clip. The row itself carries no `.frame(height:)`, so this
-          // stays a floor and never becomes a cap. Scoped to this `List`; the
-          // sidebar keeps the system value.
-          .environment(\.defaultMinListRowHeight, fontSettings.entryRowHeight)
           .modifier(BareKeyHandler())
           .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
           .preference(key: VisibleEntriesKey.self, value: visibleEntries)
@@ -594,6 +579,41 @@ struct EntryListView: View {
   /// the `List` and drop the scroll position.
   private var structuralKey: String {
     "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+  }
+}
+
+// MARK: - Row and List Modifiers
+
+/// The row modifiers of the article list, which `EntryRowGeometryTests` also
+/// applies. Change the separator or the insets here, never at a call site.
+struct EntryListRowModifiers: ViewModifier {
+  func body(content: Content) -> some View {
+    content
+      .listRowSeparator(.hidden)
+      // Zero vertical inset: the row's own padding carries the rhythm, and the
+      // floor that `EntryListModifiers` applies counts no vertical inset.
+      .listRowInsets(
+        EdgeInsets(
+          top: 0, leading: EntryRowMetrics.horizontalInset,
+          bottom: 0, trailing: EntryRowMetrics.horizontalInset))
+  }
+}
+
+/// The list modifiers of the article list, which `EntryRowGeometryTests` also
+/// applies. Change the list style or the row-height floor here, never at a
+/// call site.
+struct EntryListModifiers: ViewModifier {
+  /// The row-height floor of `STACK.md § 7`: pass
+  /// `AppFontSettings.entryRowHeight`.
+  let rowHeight: CGFloat
+
+  func body(content: Content) -> some View {
+    content
+      .listStyle(.inset(alternatesRowBackgrounds: false))
+      // The row itself carries no `.frame(height:)`, so this value stays a
+      // floor and never becomes a cap. Keep it on the article list only: the
+      // sidebar keeps the system value.
+      .environment(\.defaultMinListRowHeight, rowHeight)
   }
 }
 
