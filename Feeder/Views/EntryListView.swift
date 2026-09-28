@@ -249,7 +249,7 @@ struct EntryListView: View {
         // re-check is what makes a cancelled burst step a no-op.
         try? await Task.sleep(for: Self.navDebounce)
         guard !Task.isCancelled else { return }
-        // Bracket the blank window, from the structural key change to the
+        // Bracket the blank window, from the end of the debounce to the
         // replaced sections. `defer` closes the interval even when a
         // structural-key change cancels the task mid-reload.
         let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)

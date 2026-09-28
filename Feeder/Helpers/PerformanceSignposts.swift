@@ -43,8 +43,9 @@ nonisolated enum PerformanceSignpostName {
   /// against `writePersistPage`, it separates the under-burst read cost from
   /// the at-rest baseline.
   static let readFetchSections: StaticString = "read-fetch-sections"
-  /// Structural key change → sections replaced: how long the article list
-  /// shows its blank window, and how much of that overlaps an active persist.
+  /// End of the navigation debounce → sections replaced: how long the article
+  /// list shows its blank window, and how much of that overlaps an active
+  /// persist.
   static let structuralReload: StaticString = "structural-reload"
   /// One sync-page network GET. The gap it represents is what an unbounded
   /// prefetch stream buffers away, which collapses the persist cadence.
