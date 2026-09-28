@@ -5,8 +5,7 @@
 #   make build      — build for testing
 #   make test       — unit tests (builds first)
 #   make test-ui    — UI smoke tests (builds first)
-#   make test-all   — quick gate: lint + build + unit (no UI)
-#   make test-full  — full gate: lint + build + unit + UI
+#   make test-all   — gate: lint + build + unit tests, then the verify: line
 #   make clean      — remove derived data and artifacts
 
 # /usr/bin/make is GNU Make 3.81, which ignores .SHELLFLAGS: start each recipe
@@ -56,7 +55,7 @@ XCODEBUILD_FLAGS = \
 APP_NAME        ?= Feeder
 INSTALL_DIR     ?= /Applications
 
-.PHONY: lint lint-fix build install test test-stress-tsan test-ui test-focus test-all test-full clean artifacts help
+.PHONY: lint lint-fix build install test test-stress-tsan test-ui test-focus test-all clean artifacts help
 
 help: ## Show this help
 	@set -euo pipefail; grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -171,10 +170,6 @@ test-focus: UI_TEST = FeederUITests/FeederUITests/testFocusFlows
 test-focus: UI_RESULT = artifacts/local/xcresult/ui-focus.xcresult
 test-focus: test-ui ## Owner-run focus check: the focus flows and the detail-pane VoiceOver label in one launch
 
-# ---------------------------------------------------------------------------
-# Full gate
-# ---------------------------------------------------------------------------
-
 # test-all is gate evidence (STACK.md § 3 → Gates), so it runs every unit test.
 # RUN_START must stay `:=`, so make records HEAD and the tree state at parse
 # time, before any recipe runs. Only this recipe prints the stamp; a sub-make
@@ -186,7 +181,7 @@ endif
 RUN_START      := $(shell git rev-parse --verify -q HEAD 2>/dev/null)$(if $(shell git --no-optional-locks status --porcelain --untracked-files=normal 2>/dev/null || echo error),+dirty)
 endif
 
-test-all: lint build test ## Quick gate: lint + build + unit (no UI), then the verify: line
+test-all: lint build test ## Gate: lint + build + unit tests, then the verify: line
 	@set -euo pipefail; \
 	start='$(RUN_START)'; \
 	head=$$(git rev-parse --verify -q HEAD 2>/dev/null || true); \
@@ -199,8 +194,6 @@ test-all: lint build test ## Quick gate: lint + build + unit (no UI), then the v
 	result=$$($(call xcresult_field,$(UNIT_RESULT),result)); \
 	tests=$$($(call xcresult_field,$(UNIT_RESULT),passedTests)); \
 	echo "verify: head=$$head tree=$$tree result=$$result tests=$$tests"
-
-test-full: lint build test test-ui ## Full gate: lint + build + unit + UI
 
 # ---------------------------------------------------------------------------
 # Artifacts

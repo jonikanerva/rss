@@ -102,7 +102,6 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 | `$BUILD_CMD`     | `make build`                                                                         |
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
-| `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests). Owner-run.                        |
 
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
 
