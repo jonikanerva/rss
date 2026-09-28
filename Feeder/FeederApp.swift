@@ -86,14 +86,11 @@ struct FeederApp: App {
   /// store must never read the owner's Keychain item.
   nonisolated static func usesInMemoryStores(in environment: [String: String]) -> Bool {
     HeadlessMode.isEnabled(in: environment)
-      || environment["UITEST_IN_MEMORY_STORE"] == "1"
-      || environment["UITEST_DEMO_MODE"] == "1"
   }
 
   /// False for exactly the launches that `ContentView.bootLaunchMode()` boots.
   nonisolated static func usesFeedbinAccount(in environment: [String: String]) -> Bool {
     !HeadlessMode.isEnabled(in: environment)
-      && environment["UITEST_DEMO_MODE"] != "1"
       && environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1"
   }
 
