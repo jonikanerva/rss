@@ -31,7 +31,8 @@ Requires Xcode 26 and a Feedbin account.
 ```bash
 make test-all   # lint + build + unit tests
 make build      # build only
-make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke
+make test-focus # owner-run focus check
+make test-ui UI_TEST=FeederUITests/FeederUITests/testVercelSettingsKeyboardSmoke  # owner-run settings check
 ```
 
 Open `Feeder.xcodeproj` in Xcode to run.

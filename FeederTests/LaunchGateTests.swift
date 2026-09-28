@@ -12,9 +12,7 @@ struct LaunchGateTests {
   // MARK: - In-memory store gate
 
   @Test(arguments: [
-    ["FEEDER_HEADLESS": "1"],
-    ["UITEST_IN_MEMORY_STORE": "1"],
-    ["UITEST_DEMO_MODE": "1"],
+    ["FEEDER_HEADLESS": "1"]
   ])
   func inMemoryStoresServeTestLaunches(environment: [String: String]) {
     #expect(FeederApp.usesInMemoryStores(in: environment))
@@ -23,8 +21,6 @@ struct LaunchGateTests {
   @Test(arguments: [
     [:],
     ["FEEDER_HEADLESS": "0"],
-    ["UITEST_IN_MEMORY_STORE": "0"],
-    ["UITEST_DEMO_MODE": "0"],
     ["XCODE_RUNNING_FOR_PREVIEWS": "1"],
     ["XCTestConfigurationFilePath": "/x"],
   ])
@@ -36,19 +32,18 @@ struct LaunchGateTests {
 
   @Test(arguments: [
     ["FEEDER_HEADLESS": "1"],
-    ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "1"],
     ["XCODE_RUNNING_FOR_PREVIEWS": "1"],
   ])
-  func headlessDemoAndPreviewsUseNoAccount(environment: [String: String]) {
+  func headlessAndPreviewsUseNoAccount(environment: [String: String]) {
     #expect(!FeederApp.usesFeedbinAccount(in: environment))
   }
 
   @Test(arguments: [
     [:],
-    ["UITEST_IN_MEMORY_STORE": "1"],
-    ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "0"],
+    ["FEEDER_HEADLESS": "0"],
+    ["XCTestConfigurationFilePath": "/x"],
   ])
-  func productionAndInMemoryOnboardingUseAnAccount(environment: [String: String]) {
+  func everyOtherLaunchUsesAnAccount(environment: [String: String]) {
     #expect(FeederApp.usesFeedbinAccount(in: environment))
   }
 
@@ -66,25 +61,6 @@ struct LaunchGateTests {
     let engine = FeederApp.makeSyncEngine(environment: ["FEEDER_HEADLESS": "1"])
     #expect(engine.credentialStore is MemoryFeedbinCredentialStore)
     #expect(engine.account == .unused)
-  }
-
-  @Test
-  func demoLaunchNeverUsesAnAccount() {
-    let engine = FeederApp.makeSyncEngine(environment: ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "1"])
-    #expect(engine.credentialStore is MemoryFeedbinCredentialStore)
-    #expect(engine.account == .unused)
-  }
-
-  @Test
-  func inMemoryOnboardingLaunchFindsNoAccount() async throws {
-    let engine = FeederApp.makeSyncEngine(environment: ["UITEST_IN_MEMORY_STORE": "1", "UITEST_DEMO_MODE": "0"])
-    // Must stop here when the gate regresses: the read below would then reach
-    // the owner's real Keychain item.
-    try #require(engine.credentialStore is MemoryFeedbinCredentialStore)
-    #expect(engine.account == .checking)
-
-    await engine.loadAccountAtLaunch()
-    #expect(engine.account == .noAccount)
   }
 
   @Test

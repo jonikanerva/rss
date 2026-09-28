@@ -120,7 +120,6 @@ struct ContentView: View {
   private var contentReevalVersion = 0
   private var processEnvironment: [String: String] { ProcessInfo.processInfo.environment }
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
-  private var isUITestDemoMode: Bool { processEnvironment["UITEST_DEMO_MODE"] == "1" }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
 
@@ -849,8 +848,9 @@ struct ContentView: View {
   // MARK: - Helpers
 
   /// Must branch on exactly the launches for which
-  /// `FeederApp.usesFeedbinAccount(in:)` is false: each one gets the `.unused`
-  /// account phase, so `FeedbinAccountLifecycle` never boots it.
+  /// `FeederApp.usesFeedbinAccount(in:)` is false, the headless launch and
+  /// previews: each one gets the `.unused` account phase, so
+  /// `FeedbinAccountLifecycle` never boots it.
   private func bootLaunchMode() {
     if HeadlessMode.isEnabled {
       bootHeadless()
@@ -866,15 +866,6 @@ struct ContentView: View {
         let reader = await DataReader.makeDetached(modelContainer: container)
         syncEngine.attachWriter(writer)
         syncEngine.attachReader(reader)
-      }
-      return
-    }
-    if isUITestDemoMode {
-      seedUITestDataIfNeeded()
-      if selection == nil {
-        if let firstFolder = folders.first {
-          selection = .folder(firstFolder.label)
-        }
       }
     }
   }

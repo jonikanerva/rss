@@ -102,7 +102,6 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 | `$BUILD_CMD`     | `make build`                                                                         |
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
-| `$TEST_FULL_CMD` | `make test-full` (lint → build → unit + UI tests). Owner-run.                        |
 
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
 
@@ -118,8 +117,11 @@ A test must protect a `VISION.md` invariant or a doctrine risk that an edit can 
 | State owners (`SyncEngine`, `ClassificationEngine`, `ClassificationSettingsModel`) | The phase timeline: success, degraded, blocked, retry, cancellation. | Fakes, an injected clock, and an in-memory container. |
 | Persistence (`DataWriter`, `DataReader`, `FeederMigrationPlan`) | One test per contract: each write, each read predicate, the off-main guard, each migration stage. | The real actors on an in-memory container. A migration test uses an on-disk store in a unique temporary folder. |
 | Services (`FeedbinClient`, classification providers, key stores) | The request shape, the private fields, the map from status to disposition. | A stub transport or a memory store. No network. |
-| Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14) or the selection-text rule (§ 11). |
-| AppKit focus and first responder | Focus after a click, and keys while the web view has focus. | The focus check (XCUITest, owner-run). Add no other XCUITest. |
+| Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14) or the selection-text rule (§ 11). The pending first fetch of the article list has no preview. `EntryListDisplayStateTests` pins its display rule. |
+| AppKit focus and first responder (the focus check) | Focus after a click, keys while the web view has focus, and the VoiceOver label of the detail pane. | One XCUITest method in one launch, owner-run. |
+| Settings keyboard path (the settings check) | The keyboard path of the API key sheet and of the Reclassify prompt in the running app. | One XCUITest method, owner-run. |
+
+Add no other XCUITest.
 
 Do not test Apple framework behaviour, styling, a private helper whose owner has tests, or a timing budget (§ 4 owns performance evidence). Keep key storage, privacy, retry, and state-transition coverage in unit tests.
 
@@ -147,10 +149,10 @@ Hygiene for a new or changed test:
 
 A run with `UNIT_TEST` or `UI_TEST` fails when fewer tests pass than there are selectors. The guard counts passed tests. The guard proves that a selector matched a test only when the run has one selector, or when each selector names one test method. A mutation check therefore selects one suite per run. A Swift Testing single-test selector can match no test, so select the suite. Use the suite type name, not the file name.
 
-Owner-run checks take over the screen or need the owner's real data, so the owner runs them. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
+Owner-run checks take over the screen or need the owner's real data, so the owner runs them. Quit the installed Feeder before an owner-run UI check. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
 
 - **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, `FeederUITests/FeederUITests.swift`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe or the `test-focus` target in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
-- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
+- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke` or a helper that it calls, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
 - **After-trace trigger:** the PR closes an issue that names an owner trace.
 
 ### Build folders
@@ -167,7 +169,7 @@ A full clone uses `/tmp/FeederDerivedData`. A linked `git worktree`, or a copy w
 - **Article list scroll:** 120 fps achievable on ProMotion.
 - **Sync / classification:** background work must not block the UI; long-running classification batches are cancellable and yield cooperatively.
 
-Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded. No automated check measures these budgets. An owner trace (§ 4 → Owner trace) measures the frame, launch, scroll, and sync budgets. No check measures the memory ceiling.
+Profile before optimizing. Stay inside these budgets unless a measurement-backed Intentional Divergence (§14) is recorded. No automated check measures these budgets. An owner trace (§ 4 → Owner trace) measures the frame, cold-start, scroll, and sync budgets. No check measures the memory ceiling.
 
 ### Hot-path gate
 
@@ -185,7 +187,7 @@ When one of these feels slow more than once, the owner records a trace: a sideba
 - Use the Time Profiler template, which includes Hangs, and add the os_signpost instrument. For a scroll hitch, use the Animation Hitches template. Record for 30 to 60 seconds, and repeat the slow action three to five times.
 - Save the trace as `~/Desktop/feeder-<topic>.trace`. The trace stays on the Mac, because the repository is public.
 - Add one sentence to the issue: what felt slow, the trace file name, and the build identity. The build identity is the branch and the `git log -1 --oneline` of the installed build.
-- Read `read-fetch-sections` in the os_signpost instrument. The read runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
+- Find `read-fetch-sections` in the os_signpost instrument. The interval runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
 
 ### Signposts
 

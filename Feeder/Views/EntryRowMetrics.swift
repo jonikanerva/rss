@@ -4,9 +4,7 @@ import AppKit
 /// and padding `EntryRowView` lays out with, and the fixed column height and
 /// row-height floor derived from them.
 ///
-/// Pure and `nonisolated`. The file belongs to both the app target and the UI
-/// test target, so the test that pins the row pitch computes its expectation
-/// from the same source the app renders with (`STACK.md § 13`).
+/// Pure and `nonisolated`.
 nonisolated enum EntryRowMetrics {
   // MARK: - Fonts
 
