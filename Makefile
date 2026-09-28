@@ -167,11 +167,9 @@ test-ui: build ## Run UI tests; UI_TEST selects one or more suites or methods
 	@$(call require_passed_tests,$(UI_RESULT),$(UI_TEST))
 
 # The owner-run focus check (STACK.md § 3 → Gates).
-test-focus: UI_TEST = FeederUITests/FeederUITests/testClickReclaimsFocusFromWebViewForSidebarArrows \
-	FeederUITests/FeederUITests/testClickArticleRowThenArrowSelectsNextRow \
-	FeederUITests/FeederUITests/testBareKeyRInsideWebViewTogglesViewMode
+test-focus: UI_TEST = FeederUITests/FeederUITests/testFocusFlows
 test-focus: UI_RESULT = artifacts/local/xcresult/ui-focus.xcresult
-test-focus: test-ui ## Owner-run focus check: the three focus UI tests in one launch
+test-focus: test-ui ## Owner-run focus check: the focus flows and the detail-pane VoiceOver label in one launch
 
 # ---------------------------------------------------------------------------
 # Full gate

@@ -119,7 +119,10 @@ A test must protect a `VISION.md` invariant or a doctrine risk that an edit can 
 | Persistence (`DataWriter`, `DataReader`, `FeederMigrationPlan`) | One test per contract: each write, each read predicate, the off-main guard, each migration stage. | The real actors on an in-memory container. A migration test uses an on-disk store in a unique temporary folder. |
 | Services (`FeedbinClient`, classification providers, key stores) | The request shape, the private fields, the map from status to disposition. | A stub transport or a memory store. No network. |
 | Interface (`Feeder/Views/`) | Each applicable state (§ 0). | One `#Preview` per state. Logic moves to a tested owner. A layout test only pins a documented platform defect (§ 7, § 14) or the selection-text rule (§ 11). |
-| AppKit focus and first responder | Focus after a click, and keys while the web view has focus. | The focus check (XCUITest, owner-run). Add no other XCUITest. |
+| AppKit focus and first responder (the focus check) | Focus after a click, keys while the web view has focus, and the VoiceOver label of the detail pane. | One XCUITest method in one launch, owner-run. |
+| Settings keyboard path (the settings check) | The keyboard path of the API key sheet and of the Reclassify prompt in the running app. | One XCUITest method, owner-run. |
+
+Add no other XCUITest.
 
 Do not test Apple framework behaviour, styling, a private helper whose owner has tests, or a timing budget (§ 4 owns performance evidence). Keep key storage, privacy, retry, and state-transition coverage in unit tests.
 
@@ -147,10 +150,10 @@ Hygiene for a new or changed test:
 
 A run with `UNIT_TEST` or `UI_TEST` fails when fewer tests pass than there are selectors. The guard counts passed tests. The guard proves that a selector matched a test only when the run has one selector, or when each selector names one test method. A mutation check therefore selects one suite per run. A Swift Testing single-test selector can match no test, so select the suite. Use the suite type name, not the file name.
 
-Owner-run checks take over the screen or need the owner's real data, so the owner runs them. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
+Owner-run checks take over the screen or need the owner's real data, so the owner runs them. Quit the installed Feeder before an owner-run UI check. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
 
 - **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, `FeederUITests/FeederUITests.swift`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe or the `test-focus` target in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
-- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
+- **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke` or a helper that it calls, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
 - **After-trace trigger:** the PR closes an issue that names an owner trace.
 
 ### Build folders
