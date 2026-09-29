@@ -17,11 +17,13 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var unreadIDsResponse: [Int] = []
   var entryPagesResponse: [FeedbinEntriesPage] = []
   var verifyResult: Result<Bool, any Error> = .success(true)
+  /// The answer to an extract URL that `extractedContentResults` does not name.
+  var defaultExtractedContentResult: Result<String, ExtractedContentFailure> = .failure(.noContent)
+  var extractedContentResults: [String: Result<String, ExtractedContentFailure>] = [:]
 
   // MARK: Configurable errors (non-nil → thrown instead of returning)
 
   var subscriptionsError: Error?
-  var extractedContentError: Error?
   /// Thrown after the call enters `deleteUnreadEntriesCallLog`, so the log
   /// also holds the batch of a failed push.
   var deleteUnreadEntriesError: Error?
@@ -39,6 +41,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// While set, the page stream waits until the gate opens before it yields
   /// each page after the first, so the stream stays open after the first page.
   private var laterEntryPagesGate: AsyncGate?
+  /// While a URL has a gate, its extract request logs the call and then waits
+  /// until the gate opens. A request that is cancelled before the gate opens
+  /// throws `.cancelled`.
+  private var extractedContentGates: [String: AsyncGate] = [:]
 
   // MARK: Call logs
 
@@ -82,10 +88,13 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     return try verifyResult.get()
   }
 
-  func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? {
+  func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String {
     extractedContentCallLog.append(extractedContentURL)
-    if let error = extractedContentError { throw error }
-    return nil
+    if let gate = extractedContentGates[extractedContentURL] {
+      await gate.wait()
+      if Task.isCancelled { throw .cancelled }
+    }
+    return try (extractedContentResults[extractedContentURL] ?? defaultExtractedContentResult).get()
   }
 
   nonisolated func fetchAllEntryPages(since: Date?) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
@@ -120,6 +129,13 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func holdDeleteUnreadEntries(until gate: AsyncGate) { deleteUnreadEntriesGate = gate }
   func holdEntryPages(until gate: AsyncGate) { entryPagesGate = gate }
   func holdLaterEntryPages(until gate: AsyncGate) { laterEntryPagesGate = gate }
+  func setDefaultExtractedContentResult(_ value: Result<String, ExtractedContentFailure>) {
+    defaultExtractedContentResult = value
+  }
+  func setExtractedContentResult(_ value: Result<String, ExtractedContentFailure>, for url: String) {
+    extractedContentResults[url] = value
+  }
+  func holdExtractedContent(for url: String, until gate: AsyncGate?) { extractedContentGates[url] = gate }
 
   // MARK: - Internal
 

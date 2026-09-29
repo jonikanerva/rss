@@ -12,6 +12,32 @@ nonisolated struct FeedbinRequestCase: Sendable, CustomTestStringConvertible {
   let call: @Sendable (FeedbinClient) async throws -> Void
 }
 
+nonisolated struct ExtractedContentCase: Sendable, CustomTestStringConvertible {
+  enum Answer: Sendable {
+    case http(status: Int, body: String)
+    case notHTTP
+    case error(URLError.Code)
+  }
+
+  let testDescription: String
+  let answer: Answer
+  let expected: Result<String, ExtractedContentFailure>
+
+  func send(_ request: URLRequest) throws -> (Data, URLResponse) {
+    guard let url = request.url else { throw URLError(.badURL) }
+    switch answer {
+    case .http(let status, let body):
+      guard let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)
+      else { throw URLError(.badURL) }
+      return (Data(body.utf8), response)
+    case .notHTTP:
+      return (Data(), URLResponse(url: url, mimeType: nil, expectedContentLength: 0, textEncodingName: nil))
+    case .error(let code):
+      throw URLError(code)
+    }
+  }
+}
+
 /// Answers every request with HTTP 200 and `body`.
 private actor FeedbinRequestRecorder {
   private(set) var requests: [URLRequest] = []
@@ -63,9 +89,31 @@ struct FeedbinClientRequestTests {
       url: "https://api.feedbin.com/v2/unread_entries.json", authorization: basicAuthorization,
       call: { try await $0.deleteUnreadEntries([1, 2]) }),
     FeedbinRequestCase(
-      testDescription: "fetchExtractedContent", responseBody: "{}", method: "GET",
+      testDescription: "fetchExtractedContent", responseBody: #"{"content":"<p>Full</p>"}"#, method: "GET",
       url: extractURL, authorization: nil,
       call: { _ = try await $0.fetchExtractedContent(from: extractURL) }),
+  ]
+
+  nonisolated private static let extractCases: [ExtractedContentCase] = [
+    ExtractedContentCase(
+      testDescription: "200 with content", answer: .http(status: 200, body: #"{"content":"<p>Full</p>"}"#),
+      expected: .success("<p>Full</p>")),
+    ExtractedContentCase(
+      testDescription: "404", answer: .http(status: 404, body: ""), expected: .failure(.http(status: 404))),
+    ExtractedContentCase(
+      testDescription: "503", answer: .http(status: 503, body: ""), expected: .failure(.http(status: 503))),
+    ExtractedContentCase(
+      testDescription: "broken JSON", answer: .http(status: 200, body: "{"), expected: .failure(.undecodable)),
+    ExtractedContentCase(testDescription: "not HTTP", answer: .notHTTP, expected: .failure(.undecodable)),
+    ExtractedContentCase(
+      testDescription: "null content", answer: .http(status: 200, body: #"{"content":null}"#),
+      expected: .failure(.noContent)),
+    ExtractedContentCase(
+      testDescription: "empty content", answer: .http(status: 200, body: #"{"content":""}"#),
+      expected: .failure(.noContent)),
+    ExtractedContentCase(
+      testDescription: "timeout", answer: .error(.timedOut), expected: .failure(.transport(.timedOut))),
+    ExtractedContentCase(testDescription: "cancelled", answer: .error(.cancelled), expected: .failure(.cancelled)),
   ]
 
   private static func client(sendingTo recorder: FeedbinRequestRecorder) -> FeedbinClient {
@@ -82,6 +130,37 @@ struct FeedbinClientRequestTests {
     #expect(request.httpMethod == requestCase.method)
     #expect(request.url?.absoluteString == requestCase.url)
     #expect(request.value(forHTTPHeaderField: "Authorization") == requestCase.authorization)
+  }
+
+  private static func extractedContent(from client: FeedbinClient) async -> Result<String, ExtractedContentFailure> {
+    do throws(ExtractedContentFailure) {
+      return .success(try await client.fetchExtractedContent(from: extractURL))
+    } catch {
+      return .failure(error)
+    }
+  }
+
+  @Test(arguments: FeedbinClientRequestTests.extractCases)
+  func extractedContentMapsEachAnswer(_ extractCase: ExtractedContentCase) async {
+    let client = FeedbinClient(username: "user@example.com", password: "fake-password", send: { try extractCase.send($0) })
+    #expect(await Self.extractedContent(from: client) == extractCase.expected)
+  }
+
+  @Test
+  func sendErrorAfterCancellationMapsToCancelled() async {
+    let gate = AsyncGate()
+    let client = FeedbinClient(
+      username: "user@example.com", password: "fake-password",
+      send: { _ in
+        await gate.wait()
+        throw URLError(.networkConnectionLost)
+      })
+    let fetch = Task { await Self.extractedContent(from: client) }
+
+    fetch.cancel()
+    gate.open()
+
+    #expect(await fetch.value == .failure(.cancelled))
   }
 
   @Test

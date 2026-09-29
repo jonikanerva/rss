@@ -15,7 +15,7 @@ protocol FeedbinClientProtocol: Actor {
   func fetchUnreadEntryIDs() async throws -> [Int]
   func deleteUnreadEntries(_ ids: [Int]) async throws
   func verifyCredentials() async throws -> Bool
-  func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent?
+  func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String
 
   /// Page-by-page entry fetch as an async sequence. `nonisolated` so callers
   /// can iterate the stream without hopping back onto the actor for every
