@@ -201,7 +201,8 @@ nonisolated private struct ExtractedContentTally {
 
 /// Orchestrates Feedbin sync. Every SwiftData write is delegated to
 /// `DataWriter`; this type is `@MainActor @Observable` for progress and account
-/// display only, and processes no data on MainActor.
+/// display only. It decodes no response and parses no article HTML on
+/// MainActor.
 @MainActor
 @Observable
 final class SyncEngine {
