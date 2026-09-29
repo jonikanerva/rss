@@ -13,6 +13,9 @@ nonisolated let syncIntervalUserDefaultsKey = "sync_interval"
 nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
 /// Timestamp of the last successful sync completion.
 nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
+/// Entry IDs queued to push to Feedbin as read. `FeederApp.openStore` keeps
+/// this key when it resets the store.
+nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
 
 /// Maximum age for articles, in days. Nothing older is fetched or persisted,
 /// and an older row is purged.
@@ -270,15 +273,14 @@ final class SyncEngine {
   private var extractedContentRetry = ExtractedContentRetrySchedule()
   private var lastProgressUpdate: ContinuousClock.Instant = .now
 
-  private static let pendingReadKey = "pendingReadIDsToSync"
   private static let extractedContentChunkSize = 64
 
   private var pendingReadIDsToSync: Set<Int> {
     get {
-      Set(defaults.array(forKey: Self.pendingReadKey) as? [Int] ?? [])
+      Set(defaults.array(forKey: pendingReadIDsUserDefaultsKey) as? [Int] ?? [])
     }
     set {
-      defaults.set(Array(newValue), forKey: Self.pendingReadKey)
+      defaults.set(Array(newValue), forKey: pendingReadIDsUserDefaultsKey)
     }
   }
 

@@ -40,31 +40,22 @@ struct FeederApp: App {
     let schema = Schema(versionedSchema: FeederSchemaV2.self)
     let config = ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: useInMemoryStore)
 
-    // The fallback below covers non-schema corruption only, such as an
-    // unreadable store file or a locked WAL. This is the one synchronous
-    // `ModelContainer` open on MainActor; `DataWriter.bootstrap()` handles
-    // everything past this line on the background actor.
+    // This is the one synchronous `ModelContainer` open on MainActor;
+    // `DataWriter.bootstrap()` handles everything past this line on the
+    // background actor. The on-disk reset in `openStore` runs for each open
+    // error, so a failed migration also resets the store: `STACK.md § 5`
+    // states this known gap.
     do {
-      modelContainer = try ModelContainer(
-        for: schema,
-        migrationPlan: FeederMigrationPlan.self,
-        configurations: config
+      modelContainer = try Self.openStore(
+        isStoredInMemoryOnly: useInMemoryStore,
+        defaults: .standard,
+        open: { try ModelContainer(for: schema, migrationPlan: FeederMigrationPlan.self, configurations: config) },
+        deleteStoreFiles: Self.deleteStoreFiles
       )
     } catch {
-      logger.error(
-        "ModelContainer failed: \(error.localizedDescription, privacy: .private). Deleting store and retrying."
-      )
-      Self.deleteStoreFiles()
-      UserDefaults.standard.removeObject(forKey: lastSyncDateUserDefaultsKey)
-      do {
-        modelContainer = try ModelContainer(
-          for: schema,
-          migrationPlan: FeederMigrationPlan.self,
-          configurations: config
-        )
-      } catch {
-        fatalError("Failed to create ModelContainer after reset: \(error)")
-      }
+      let failedOpen = useInMemoryStore ? "In-memory ModelContainer open" : "ModelContainer open after the store reset"
+      logger.error("\(failedOpen, privacy: .public) failed: \(error.localizedDescription, privacy: .private)")
+      fatalError("\(failedOpen) failed: \(error)")
     }
   }
 
@@ -198,6 +189,29 @@ struct FeederApp: App {
   }
 
   // MARK: - Disk fallback
+
+  /// An in-memory open that fails throws at once, and it deletes no file and
+  /// changes no `defaults` key. An on-disk open that fails removes
+  /// `lastSyncDate` and the seeded flag, calls `deleteStoreFiles`, and opens
+  /// once more. Remove the keys before the delete: a stop between the two steps
+  /// must not leave an empty store with the seeded flag set.
+  static func openStore(
+    isStoredInMemoryOnly: Bool,
+    defaults: UserDefaults,
+    open: () throws -> ModelContainer,
+    deleteStoreFiles: () -> Void
+  ) throws -> ModelContainer {
+    do {
+      return try open()
+    } catch {
+      guard !isStoredInMemoryOnly else { throw error }
+      logger.error("ModelContainer failed: \(error.localizedDescription, privacy: .private). Resetting the store and retrying.")
+      defaults.removeObject(forKey: lastSyncDateUserDefaultsKey)
+      defaults.removeObject(forKey: defaultsSeededUserDefaultsKey)
+      deleteStoreFiles()
+      return try open()
+    }
+  }
 
   /// Delete the SwiftData store files. The fallback for a store that cannot be
   /// opened at all.
