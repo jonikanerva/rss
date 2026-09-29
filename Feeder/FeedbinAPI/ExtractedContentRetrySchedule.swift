@@ -1,8 +1,9 @@
 import Foundation
 
 extension ExtractedContentFailure {
-  /// True for a failure of the extract host, not of one entry. The batch
-  /// stops before its next chunk, and the schedule records nothing.
+  /// True for a failure of the extract host, not of one entry. `SyncEngine`
+  /// stops the extracted-content batch before its next chunk of requests, and
+  /// `ExtractedContentRetrySchedule` records nothing.
   nonisolated var stopsBatch: Bool {
     switch self {
     case .http(let status):
@@ -22,8 +23,8 @@ nonisolated struct ExtractedContentRetrySchedule: Sendable {
   private static let longestDelay: TimeInterval = 6 * 60 * 60
 
   private struct Failures: Sendable {
-    var count: Int
-    var retryAt: Date
+    let count: Int
+    let retryAt: Date
   }
 
   private var failuresByEntryID: [Int: Failures] = [:]
