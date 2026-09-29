@@ -116,45 +116,96 @@ nonisolated enum FeedbinAccountPhase: Equatable, Sendable {
   }
 }
 
-/// Fetch extracted content for a batch of entries with a concurrency limit of 8.
+// MARK: - Extracted content
+
+typealias ExtractedContentResult = (entryID: Int, result: Result<String, ExtractedContentFailure>)
+
+/// Sends at most 8 requests at a time. After a cancellation it starts no new
+/// request, so the result has no element for an entry that it did not send.
 nonisolated func fetchExtractedContentBatch(
   requests: [(entryID: Int, url: String)],
   using client: any FeedbinClientProtocol
-) async -> [(entryID: Int, content: String)] {
-  await withTaskGroup(
-    of: (Int, String?).self,
-    returning: [(entryID: Int, content: String)].self
-  ) { group in
+) async -> [ExtractedContentResult] {
+  await withTaskGroup(of: ExtractedContentResult.self) { group in
     var active = 0
-    var collected: [(entryID: Int, content: String)] = []
+    var collected: [ExtractedContentResult] = []
 
     for request in requests {
-      if active >= 8 {
-        if let result = await group.next(), let content = result.1 {
-          collected.append((entryID: result.0, content: content))
-        }
+      if active >= 8, let result = await group.next() {
+        collected.append(result)
         active -= 1
       }
-      group.addTask {
-        let content = try? await client.fetchExtractedContent(from: request.url)
-        return (request.entryID, content?.content)
+      let isAdded = group.addTaskUnlessCancelled {
+        do throws(ExtractedContentFailure) {
+          return (request.entryID, .success(try await client.fetchExtractedContent(from: request.url)))
+        } catch {
+          return (request.entryID, .failure(error))
+        }
       }
+      guard isAdded else { break }
       active += 1
     }
 
     for await result in group {
-      if let content = result.1 {
-        collected.append((entryID: result.0, content: content))
-      }
+      collected.append(result)
     }
 
     return collected
   }
 }
 
+/// The summary log line is public, so it holds only the outcome names and the
+/// counts.
+nonisolated private struct ExtractedContentTally {
+  private enum Outcome: String, CaseIterable {
+    case fetched, http4xx, rateLimited, http5xx, httpOther, undecodable, noContent
+    case transport, unreachable, cancelled
+  }
+
+  private var counts: [Outcome: Int] = [:]
+  private var sent = 0
+  private let due: Int
+
+  init(due: Int) {
+    self.due = due
+  }
+
+  mutating func add(_ results: [ExtractedContentResult]) {
+    sent += results.count
+    for item in results {
+      counts[Self.outcome(of: item.result), default: 0] += 1
+    }
+  }
+
+  var summary: String {
+    let parts = Outcome.allCases.compactMap { outcome in
+      counts[outcome].map { "\(outcome.rawValue) \($0)" }
+    }
+    return (parts + ["notSent \(due - sent)"]).joined(separator: ", ")
+  }
+
+  private static func outcome(of result: Result<String, ExtractedContentFailure>) -> Outcome {
+    switch result {
+    case .success: .fetched
+    case .failure(.http(status: 429)): .rateLimited
+    case .failure(.http(let status)) where (400...499).contains(status): .http4xx
+    case .failure(.http(let status)) where (500...599).contains(status): .http5xx
+    case .failure(.http): .httpOther
+    case .failure(.undecodable): .undecodable
+    case .failure(.noContent): .noContent
+    case .failure(let failure) where failure.stopsBatch: .unreachable
+    case .failure(.transport): .transport
+    case .failure(.cancelled): .cancelled
+    }
+  }
+}
+
+// MARK: - SyncEngine
+
 /// Orchestrates Feedbin sync. Every SwiftData write is delegated to
 /// `DataWriter`; this type is `@MainActor @Observable` for progress and account
-/// display only, and processes no data on MainActor.
+/// display only. It decodes no response and parses no article HTML on
+/// MainActor.
 @MainActor
 @Observable
 final class SyncEngine {
@@ -165,7 +216,6 @@ final class SyncEngine {
   /// Keeps `sync()` and `refetchHistory()` from overlapping: either acquires
   /// the flag at the start and releases it before returning.
   private(set) var isSyncing = false
-  private(set) var isFetchingContent = false
   /// The last categorised failure, or `nil` after a successful sync. Views
   /// read it to render the inline error banner and its recovery action.
   private(set) var lastError: SyncError?
@@ -218,7 +268,12 @@ final class SyncEngine {
   private var periodicSyncTask: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
   private var extractedContentTask: Task<Void, Never>?
+  private var extractedContentTaskID: UUID?
+  @ObservationIgnored
+  private var extractedContentRetry = ExtractedContentRetrySchedule()
   private var lastProgressUpdate: ContinuousClock.Instant = .now
+
+  private static let extractedContentChunkSize = 64
 
   private var pendingReadIDsToSync: Set<Int> {
     get {
@@ -468,6 +523,7 @@ final class SyncEngine {
     backfillTask = nil
     extractedContentTask?.cancel()
     extractedContentTask = nil
+    extractedContentTaskID = nil
   }
 
   /// Pull subscriptions and icons, then fetch entries since the last
@@ -580,34 +636,57 @@ final class SyncEngine {
   // MARK: - Background: Extracted content fetching
 
   private func startExtractedContentFetch() {
-    extractedContentTask?.cancel()
+    guard extractedContentTask == nil, let client, let writer else { return }
+    let id = UUID()
+    extractedContentTaskID = id
     extractedContentTask = Task(priority: .utility) {
-      guard let client, let writer else { return }
-
-      isFetchingContent = true
-      logger.info("Starting background extracted content fetch")
-
+      defer { finishExtractedContentFetch(id) }
       do {
-        let requests = try await writer.fetchExtractedContentRequests()
-        guard !requests.isEmpty else {
-          isFetchingContent = false
-          return
-        }
-
-        logger.info("Fetching extracted content for \(requests.count) entries")
-
-        let results = await fetchExtractedContentBatch(requests: requests, using: client)
-
-        if !results.isEmpty {
-          try await writer.applyExtractedContent(results: results)
-        }
-
-        logger.info("Extracted content: \(results.count) fetched")
+        try await fetchDueExtractedContent(using: client, writer: writer)
       } catch {
         logger.error("Extracted content fetch failed: \(error.localizedDescription)")
       }
+    }
+  }
 
-      isFetchingContent = false
+  private func finishExtractedContentFetch(_ id: UUID) {
+    guard extractedContentTaskID == id else { return }
+    extractedContentTask = nil
+    extractedContentTaskID = nil
+  }
+
+  private func fetchDueExtractedContent(using client: any FeedbinClientProtocol, writer: DataWriter) async throws {
+    let pending = try await writer.fetchExtractedContentRequests()
+    guard !pending.isEmpty else { return }
+    let now = Date()
+    let due = pending.filter { extractedContentRetry.isDue($0.entryID, now: now) }
+    let waiting = pending.count - due.count
+    logger.info("Fetching extracted content for \(due.count, privacy: .public) entries (\(waiting, privacy: .public) wait for a retry)")
+
+    var tally = ExtractedContentTally(due: due.count)
+    defer { logger.info("Extracted content: \(tally.summary, privacy: .public)") }
+    for start in stride(from: 0, to: due.count, by: Self.extractedContentChunkSize) {
+      guard !Task.isCancelled else { return }
+      let chunk = Array(due[start..<min(start + Self.extractedContentChunkSize, due.count)])
+      let results = await fetchExtractedContentBatch(requests: chunk, using: client)
+      tally.add(results)
+      let recordedAt = Date()
+      for item in results {
+        extractedContentRetry.record(item.result.map { _ in }, for: item.entryID, now: recordedAt)
+      }
+      let fetched = results.compactMap { item in
+        (try? item.result.get()).map { (entryID: item.entryID, content: $0) }
+      }
+      // Do not add a cancellation check before this write: a stopped batch
+      // still writes the content that already arrived.
+      if !fetched.isEmpty {
+        try await writer.applyExtractedContent(results: fetched)
+      }
+      let stopsBatch = results.contains { item in
+        guard case .failure(let failure) = item.result else { return false }
+        return failure.stopsBatch
+      }
+      if stopsBatch { return }
     }
   }
 

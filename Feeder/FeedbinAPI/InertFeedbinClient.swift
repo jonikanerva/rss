@@ -21,7 +21,9 @@ actor InertFeedbinClient: FeedbinClientProtocol {
 
   func verifyCredentials() async throws -> Bool { true }
 
-  func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? { nil }
+  func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String {
+    throw .transport(.notConnectedToInternet)
+  }
 
   nonisolated func fetchAllEntryPages(since: Date?) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
     AsyncThrowingStream { continuation in

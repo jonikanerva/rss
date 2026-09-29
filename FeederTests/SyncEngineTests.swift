@@ -357,4 +357,188 @@ struct SyncEngineTests {
     await engine.pushPendingReads()
     #expect(await client.deleteUnreadEntriesCallLog == [[1]])
   }
+
+  // MARK: - 8. Extracted content
+
+  private static func extractURL(_ id: Int) -> String {
+    "https://extract.feedbin.com/parser/feedbin/\(id)"
+  }
+
+  /// A client whose entry pages hold one entry with an extract URL per ID.
+  private func extractClient(entryIDs: [Int]) async throws -> FakeFeedbinClient {
+    let client = FakeFeedbinClient()
+    await client.setSubscriptionsResponse([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    try await setEntries(entryIDs, on: client)
+    return client
+  }
+
+  private func setEntries(_ ids: [Int], on client: FakeFeedbinClient) async throws {
+    let entries = try ids.map { try FeedbinFixtures.entry(id: $0, feedId: 100, extractedContentURL: Self.extractURL($0)) }
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
+  }
+
+  /// Runs one sync and waits until its extracted-content batch ends.
+  private func syncAndWaitForBatch(_ engine: SyncEngine) async throws {
+    await engine.sync()
+    try await waitUntil("the extracted-content batch ends") { await !engine.hasScheduledSyncWork }
+  }
+
+  private static func requestCount(_ id: Int, on client: FakeFeedbinClient) async -> Int {
+    await client.extractedContentCallLog.filter { $0 == Self.extractURL(id) }.count
+  }
+
+  private static func pendingExtractIDs(in writer: DataWriter) async throws -> Set<Int> {
+    Set(try await writer.fetchExtractedContentRequests().map(\.entryID))
+  }
+
+  @Test(arguments: [ExtractedContentFailure.http(status: 404), .transport(.timedOut)])
+  func failedEntriesWaitAndTheBatchContinues(_ failure: ExtractedContentFailure) async throws {
+    let ids = Array(1...65)
+    let client = try await extractClient(entryIDs: ids)
+    await client.setDefaultExtractedContentResult(.failure(failure))
+    let (engine, _) = try await makeEngine(with: client)
+
+    try await syncAndWaitForBatch(engine)
+    #expect(await client.extractedContentCallLog.count == ids.count)
+
+    try await syncAndWaitForBatch(engine)
+    #expect(await client.extractedContentCallLog.count == ids.count)
+  }
+
+  @Test
+  func newEntryIsRequestedWhileAFailedEntryWaits() async throws {
+    let client = try await extractClient(entryIDs: [1])
+    await client.setExtractedContentResult(.failure(.http(status: 404)), for: Self.extractURL(1))
+    await client.setExtractedContentResult(.success("<p>Two</p>"), for: Self.extractURL(2))
+    let (engine, writer) = try await makeEngine(with: client)
+    try await syncAndWaitForBatch(engine)
+
+    try await setEntries([1, 2], on: client)
+    try await syncAndWaitForBatch(engine)
+
+    #expect(await client.extractedContentCallLog == [Self.extractURL(1), Self.extractURL(2)])
+    #expect(try await Self.pendingExtractIDs(in: writer) == [1])
+  }
+
+  @Test(arguments: [ExtractedContentFailure.http(status: 429), .transport(.notConnectedToInternet)])
+  func hostFailureStopsTheBatchAndRecordsNothing(_ failure: ExtractedContentFailure) async throws {
+    let ids = Array(1...65)
+    let client = try await extractClient(entryIDs: ids)
+    await client.setDefaultExtractedContentResult(.failure(failure))
+    let (engine, writer) = try await makeEngine(with: client)
+
+    try await syncAndWaitForBatch(engine)
+    #expect(await client.extractedContentCallLog.count == 64)
+
+    await client.setDefaultExtractedContentResult(.success("<p>Full</p>"))
+    try await syncAndWaitForBatch(engine)
+    #expect(await client.extractedContentCallLog.count == 64 + ids.count)
+    #expect(try await Self.pendingExtractIDs(in: writer).isEmpty)
+  }
+
+  @Test
+  func syncDoesNotRestartARunningBatch() async throws {
+    let client = try await extractClient(entryIDs: [1])
+    await client.setExtractedContentResult(.success("<p>One</p>"), for: Self.extractURL(1))
+    let gate = AsyncGate()
+    defer { gate.open() }
+    await client.holdExtractedContent(for: Self.extractURL(1), until: gate)
+    let (engine, writer) = try await makeEngine(with: client)
+    await engine.sync()
+    try await waitUntil("the batch sends the request") { await Self.requestCount(1, on: client) == 1 }
+
+    await engine.sync()
+    gate.open()
+    try await waitUntil("the batch ends") { await !engine.hasScheduledSyncWork }
+
+    #expect(await Self.requestCount(1, on: client) == 1)
+    #expect(try await Self.pendingExtractIDs(in: writer).isEmpty)
+  }
+
+  @Test
+  func stoppedBatchWritesArrivedContentAndRequestsTheCancelledEntryAgain() async throws {
+    let client = try await extractClient(entryIDs: [1, 2])
+    await client.setExtractedContentResult(.success("<p>One</p>"), for: Self.extractURL(1))
+    await client.setExtractedContentResult(.success("<p>Two</p>"), for: Self.extractURL(2))
+    let gate = AsyncGate()
+    defer { gate.open() }
+    await client.holdExtractedContent(for: Self.extractURL(2), until: gate)
+    let (engine, writer) = try await makeEngine(with: client)
+    await engine.sync()
+    try await waitUntil("the batch sends both requests") { await client.extractedContentCallLog.count == 2 }
+
+    engine.stopPeriodicSync()
+    gate.open()
+    try await waitUntil("the arrived content is written") { await (try? Self.pendingExtractIDs(in: writer)) == [2] }
+
+    await client.holdExtractedContent(for: Self.extractURL(2), until: nil)
+    await engine.sync()
+    try await waitUntil("the cancelled entry is written") { await (try? Self.pendingExtractIDs(in: writer)) == [] }
+    #expect(await Self.requestCount(1, on: client) == 1)
+    #expect(await Self.requestCount(2, on: client) == 2)
+  }
+
+  @Test
+  func batchSendsAtMostEightRequestsAndNoneAfterCancellation() async throws {
+    let client = FakeFeedbinClient()
+    let gate = AsyncGate()
+    defer { gate.open() }
+    await client.holdExtractedContentCalls(after: 0, until: gate)
+    let requests = (1...10).map { (entryID: $0, url: Self.extractURL($0)) }
+    let batch = Task { await fetchExtractedContentBatch(requests: requests, using: client) }
+    try await waitUntil("8 requests are sent") { await client.extractedContentCallLog.count >= 8 }
+
+    batch.cancel()
+    gate.open()
+    let results = await batch.value
+
+    #expect(await client.extractedContentCallLog.count == 8)
+    #expect(results.map(\.result) == Array(repeating: .failure(.cancelled), count: 8))
+  }
+
+  @Test
+  func batchWritesEachChunkBeforeTheNextChunkEnds() async throws {
+    let ids = Array(1...65)
+    let client = try await extractClient(entryIDs: ids)
+    await client.setDefaultExtractedContentResult(.success("<p>Full</p>"))
+    let gate = AsyncGate()
+    defer { gate.open() }
+    await client.holdExtractedContentCalls(after: 64, until: gate)
+    let (engine, writer) = try await makeEngine(with: client)
+    await engine.sync()
+
+    try await waitUntil("the first chunk is written while its next request waits") {
+      await (try? Self.pendingExtractIDs(in: writer).count) == 1
+    }
+    gate.open()
+    try await waitUntil("the second chunk is written") { await (try? Self.pendingExtractIDs(in: writer)) == [] }
+    #expect(await client.extractedContentCallLog.count == ids.count)
+  }
+
+  @Test
+  func stopKeepsTheRetryDelayOfAFailedEntry() async throws {
+    let client = try await extractClient(entryIDs: [1])
+    await client.setExtractedContentResult(.failure(.http(status: 404)), for: Self.extractURL(1))
+    let (engine, _) = try await makeEngine(with: client)
+    try await syncAndWaitForBatch(engine)
+
+    engine.stopPeriodicSync()
+    try await syncAndWaitForBatch(engine)
+
+    #expect(await Self.requestCount(1, on: client) == 1)
+  }
+
+  @Test
+  func batchWithNothingPendingLetsTheNextSyncStartABatch() async throws {
+    let client = try await extractClient(entryIDs: [])
+    await client.setExtractedContentResult(.success("<p>One</p>"), for: Self.extractURL(1))
+    let (engine, writer) = try await makeEngine(with: client)
+    try await syncAndWaitForBatch(engine)
+
+    try await setEntries([1], on: client)
+    await engine.sync()
+
+    try await waitUntil("the new entry is written") { await (try? Self.pendingExtractIDs(in: writer)) == [] }
+    #expect(await Self.requestCount(1, on: client) == 1)
+  }
 }

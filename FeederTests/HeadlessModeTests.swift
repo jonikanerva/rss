@@ -68,19 +68,21 @@ struct HeadlessModeTests {
 
   // MARK: - Seam 1: the sync client can never reach the network
 
-  /// The inert client performs no I/O and returns empties, so a headless launch
-  /// that (defensively) attaches it can never contact Feedbin.
-  @Test("Inert Feedbin client performs no I/O and returns empties")
-  func inertClientReturnsEmpties() async throws {
+  /// The inert client performs no I/O: each fetch returns an empty value or
+  /// throws, so a headless launch that (defensively) attaches it can never
+  /// contact Feedbin.
+  @Test("Inert Feedbin client performs no I/O")
+  func inertClientPerformsNoIO() async throws {
     let client = InertFeedbinClient()
     let subscriptions = try await client.fetchSubscriptions()
     let icons = try await client.fetchIcons()
     let unreadIDs = try await client.fetchUnreadEntryIDs()
-    let extracted = try await client.fetchExtractedContent(from: "https://example.com")
     #expect(subscriptions.isEmpty)
     #expect(icons.isEmpty)
     #expect(unreadIDs.isEmpty)
-    #expect(extracted == nil)
+    await #expect(throws: ExtractedContentFailure.transport(.notConnectedToInternet)) {
+      try await client.fetchExtractedContent(from: "https://example.com")
+    }
 
     var pageCount = 0
     for try await _ in client.fetchAllEntryPages(since: nil) { pageCount += 1 }

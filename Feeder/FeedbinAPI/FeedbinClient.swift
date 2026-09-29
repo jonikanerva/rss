@@ -187,15 +187,25 @@ actor FeedbinClient {
 
   // MARK: - Extracted Content
 
-  /// Fetch extracted full content from Feedbin's Mercury Parser.
-  /// The `extractedContentURL` comes from the entry's `extracted_content_url` field.
-  func fetchExtractedContent(from extractedContentURL: String) async throws -> FeedbinExtractedContent? {
-    guard let url = URL(string: extractedContentURL) else { return nil }
-    let (data, response) = try await send(URLRequest(url: url))
-    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-      return nil
+  /// `extractedContentURL` is the entry's `extracted_content_url`. A null or
+  /// empty `content` throws `.noContent`, and a send error after cancellation
+  /// throws `.cancelled`.
+  func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String {
+    guard let url = URL(string: extractedContentURL) else { throw .transport(.badURL) }
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await send(URLRequest(url: url))
+    } catch {
+      throw ExtractedContentFailure(sendError: error, isCancelled: Task.isCancelled)
     }
-    return try decoder.decode(FeedbinExtractedContent.self, from: data)
+    guard let http = response as? HTTPURLResponse else { throw .undecodable }
+    guard http.statusCode == 200 else { throw .http(status: http.statusCode) }
+    guard let extracted = try? decoder.decode(FeedbinExtractedContent.self, from: data) else {
+      throw .undecodable
+    }
+    guard let content = extracted.content, !content.isEmpty else { throw .noContent }
+    return content
   }
 
   // MARK: - Helpers
@@ -261,6 +271,24 @@ nonisolated enum FeedbinError: Error, LocalizedError {
     case .notFound: "Resource not found"
     case .rateLimited: "Rate limited by Feedbin"
     case .httpError(let code): "HTTP error \(code)"
+    }
+  }
+}
+
+nonisolated enum ExtractedContentFailure: Error, Sendable, Equatable {
+  case http(status: Int)
+  case undecodable
+  case noContent
+  case transport(URLError.Code)
+  case cancelled
+
+  init(sendError: any Error, isCancelled: Bool) {
+    if isCancelled || sendError is CancellationError {
+      self = .cancelled
+    } else if let urlError = sendError as? URLError {
+      self = urlError.code == .cancelled ? .cancelled : .transport(urlError.code)
+    } else {
+      self = .transport(.unknown)
     }
   }
 }
