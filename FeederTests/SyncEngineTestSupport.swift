@@ -45,6 +45,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// until the gate opens. A request that is cancelled before the gate opens
   /// throws `.cancelled`.
   private var extractedContentGates: [String: AsyncGate] = [:]
+  /// While set, each extract request after the first `count` calls logs the
+  /// call and then waits until the gate opens. A gate for its URL replaces this
+  /// gate. Both gates have the same cancellation rule.
+  private var laterExtractedContentCallsGate: (count: Int, gate: AsyncGate)?
 
   // MARK: Call logs
 
@@ -89,8 +93,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String {
+    let callIndex = extractedContentCallLog.count
     extractedContentCallLog.append(extractedContentURL)
-    if let gate = extractedContentGates[extractedContentURL] {
+    let laterCallsGate = laterExtractedContentCallsGate.flatMap { callIndex >= $0.count ? $0.gate : nil }
+    if let gate = extractedContentGates[extractedContentURL] ?? laterCallsGate {
       await gate.wait()
       if Task.isCancelled { throw .cancelled }
     }
@@ -136,6 +142,9 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     extractedContentResults[url] = value
   }
   func holdExtractedContent(for url: String, until gate: AsyncGate?) { extractedContentGates[url] = gate }
+  func holdExtractedContentCalls(after count: Int, until gate: AsyncGate) {
+    laterExtractedContentCallsGate = (count, gate)
+  }
 
   // MARK: - Internal
 

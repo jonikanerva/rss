@@ -60,6 +60,7 @@ struct ExtractedContentRetryScheduleTests {
 
     schedule.record(.failure(.http(status: 404)), for: 1, now: Self.start)
     schedule.record(.failure(failure), for: 1, now: Self.start)
+    #expect(!schedule.isDue(1, now: Self.start.addingTimeInterval(15 * Self.minute - 1)))
     #expect(schedule.isDue(1, now: Self.start.addingTimeInterval(15 * Self.minute)))
   }
 
