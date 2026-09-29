@@ -192,7 +192,9 @@ struct FeederApp: App {
 
   /// An in-memory open that fails throws at once, and it deletes no file and
   /// changes no `defaults` key. An on-disk open that fails removes
-  /// `lastSyncDate`, calls `deleteStoreFiles`, and opens once more.
+  /// `lastSyncDate` and the seeded flag, calls `deleteStoreFiles`, and opens
+  /// once more. Remove the keys before the delete: a stop between the two steps
+  /// must not leave an empty store with the seeded flag set.
   static func openStore(
     isStoredInMemoryOnly: Bool,
     defaults: UserDefaults,
@@ -205,6 +207,7 @@ struct FeederApp: App {
       guard !isStoredInMemoryOnly else { throw error }
       logger.error("ModelContainer failed: \(error.localizedDescription, privacy: .private). Resetting the store and retrying.")
       defaults.removeObject(forKey: lastSyncDateUserDefaultsKey)
+      defaults.removeObject(forKey: defaultsSeededUserDefaultsKey)
       deleteStoreFiles()
       return try open()
     }
