@@ -16,6 +16,19 @@ extension ExtractedContentFailure {
   }
 }
 
+extension ExtractedContentFailure {
+  /// True when the extract host rejects the request of one entry on every
+  /// attempt. `SyncEngine` clears the `extractedContentURL` of that entry.
+  nonisolated var isPermanent: Bool {
+    switch self {
+    case .http(let status):
+      status == 400 || status == 410
+    case .transport, .undecodable, .noContent, .cancelled:
+      false
+    }
+  }
+}
+
 /// Keep the schedule in memory only: Feeder persists nothing about a failed
 /// extracted-content request.
 nonisolated struct ExtractedContentRetrySchedule: Sendable {

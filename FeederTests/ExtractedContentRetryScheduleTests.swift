@@ -79,4 +79,17 @@ struct ExtractedContentRetryScheduleTests {
   func entryFailuresDoNotStopTheBatch(_ failure: ExtractedContentFailure) {
     #expect(!failure.stopsBatch)
   }
+
+  @Test(arguments: [ExtractedContentFailure.http(status: 400), .http(status: 410)])
+  func rejectedRequestsArePermanent(_ failure: ExtractedContentFailure) {
+    #expect(failure.isPermanent)
+  }
+
+  @Test(arguments: [
+    ExtractedContentFailure.http(status: 404), .http(status: 429), .http(status: 503), .undecodable, .noContent,
+    .cancelled, .transport(.timedOut), .transport(.notConnectedToInternet),
+  ])
+  func otherFailuresArePossiblyTemporary(_ failure: ExtractedContentFailure) {
+    #expect(!failure.isPermanent)
+  }
 }
