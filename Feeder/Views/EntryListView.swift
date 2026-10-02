@@ -119,19 +119,8 @@ struct EntryListView: View {
   /// version is already consumed.
   @State
   private var consumedRefreshVersion = 0
-  /// Carries the anchor row and alignment from the pre-diff inspection to the
-  /// post-diff `proxy.scrollTo` call. State, because producer and consumer sit
-  /// in one async function but bracket the `sections` assignment.
   @State
-  private var pendingAnchorRestore: AnchorRestore?
-
-  /// Anchor and alignment pair for `ScrollViewReader.scrollTo`. `.center`
-  /// keeps a still-selected row visible after a filter flip or a reshuffle;
-  /// `.top` keeps the first row pinned when a sync page lands rows above it.
-  private struct AnchorRestore: Equatable {
-    let id: PersistentIdentifier
-    let anchor: UnitPoint
-  }
+  private var scrollAnchorKeeper = ScrollAnchorKeeper()
 
   /// Debounce window for a structural navigation change. Coalesces a rapid
   /// J/K burst into one reload: an intermediate keypress cancels the prior
@@ -150,181 +139,181 @@ struct EntryListView: View {
   private static let appendTriggerMargin = 20
 
   var body: some View {
-    // `ScrollViewReader` lives OUTSIDE the conditional `Group`, so the `.task`
-    // modifiers attach to its body and stay mounted for the view's lifetime,
-    // not for whichever branch is selected. `proxy.scrollTo(_:anchor:)`
-    // resolves `.id(...)` tags anywhere in its subtree, so the rows below
-    // stay reachable.
-    ScrollViewReader { proxy in
-      Group {
-        // The empty family renders only when a resolved or failed fetch left
-        // zero sections; every other state renders the same mounted `List`.
-        // `.blank` shares the `List` branch on purpose — a separate branch
-        // would remount the `List` on every structural reload.
-        switch displayState {
-        case .authFailed:
-          ContentUnavailableView {
-            Label(
-              "Signed out of Feedbin",
-              systemImage: "person.crop.circle.badge.exclamationmark")
-          } description: {
-            Text("Sign in again to resume syncing your feeds.")
-          } actions: {
-            Button("Sign In Again") {
-              SettingsPane.persist(.account)
-              openSettings()
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("timeline.authError.signIn")
+    // The modifiers below sit on a `ZStack`, not on a `Group`: a `Group`
+    // applies its modifiers to each branch, so a branch swap would restart
+    // the tasks.
+    ZStack {
+      // The empty family renders only when a resolved or failed fetch left
+      // zero sections; every other state renders the same mounted `List`.
+      // `.blank` shares the `List` branch on purpose — a separate branch
+      // would remount the `List` on every structural reload.
+      switch displayState {
+      case .authFailed:
+        ContentUnavailableView {
+          Label(
+            "Signed out of Feedbin",
+            systemImage: "person.crop.circle.badge.exclamationmark")
+        } description: {
+          Text("Sign in again to resume syncing your feeds.")
+        } actions: {
+          Button("Sign In Again") {
+            SettingsPane.persist(.account)
+            openSettings()
           }
-        case .offline:
-          ContentUnavailableView(
-            "Offline",
-            systemImage: "wifi.slash",
-            description: Text("Connect to the internet to sync new articles.")
+          .buttonStyle(.borderedProminent)
+          .accessibilityIdentifier("timeline.authError.signIn")
+        }
+      case .offline:
+        ContentUnavailableView(
+          "Offline",
+          systemImage: "wifi.slash",
+          description: Text("Connect to the internet to sync new articles.")
+        )
+      case .error:
+        EntryListFetchErrorView()
+      case .noArticles:
+        ContentUnavailableView {
+          Label("No Articles", systemImage: "newspaper")
+        } description: {
+          Text(
+            filter == .unread
+              ? "No unread articles in this category."
+              : "No read articles in this category."
           )
-        case .error:
-          EntryListFetchErrorView()
-        case .noArticles:
-          ContentUnavailableView {
-            Label("No Articles", systemImage: "newspaper")
-          } description: {
-            Text(
-              filter == .unread
-                ? "No unread articles in this category."
-                : "No read articles in this category."
-            )
-          }
-        case .blank, .list:
-          List(selection: $selectedEntryID) {
-            ForEach(sections) { section in
-              Section {
-                // Rows render straight from their DTO snapshots: zero store
-                // access on MainActor. The favicon is a dictionary lookup;
-                // the decode happened once in `FaviconStore`.
-                ForEach(section.rows) { row in
-                  EntryRowView(
-                    row: row,
-                    faviconImage: faviconStore.image(for: row.feedFeedbinID)
-                  )
-                  .tag(row.persistentID)
-                  .id(row.persistentID)
-                  .modifier(EntryListRowModifiers())
-                  // The trigger row's appearance fires for scroll and for
-                  // J/K navigation alike. Keep this a plain id comparison —
-                  // no per-row math in `body` (`STACK.md § 0 / § 4`).
-                  .onAppear {
-                    if row.persistentID == appendTriggerID { requestAppend() }
-                  }
+        }
+      case .blank, .list:
+        List(selection: $selectedEntryID) {
+          ForEach(sections) { section in
+            Section {
+              // Rows render straight from their DTO snapshots: zero store
+              // access on MainActor. The favicon is a dictionary lookup;
+              // the decode happened once in `FaviconStore`.
+              ForEach(section.rows) { row in
+                EntryRowView(
+                  row: row,
+                  faviconImage: faviconStore.image(for: row.feedFeedbinID)
+                )
+                .tag(row.persistentID)
+                .modifier(EntryListRowModifiers())
+                // The trigger row's appearance fires for scroll and for
+                // J/K navigation alike. Keep this a plain id comparison —
+                // no per-row math in `body` (`STACK.md § 0 / § 4`).
+                .onAppear {
+                  if row.persistentID == appendTriggerID { requestAppend() }
                 }
-              } header: {
-                Text(section.label)
-                  .font(fontSettings.sectionLabel)
-                  .foregroundStyle(.tertiary)
-                  .textCase(nil)
               }
+            } header: {
+              Text(section.label)
+                .font(fontSettings.sectionLabel)
+                .foregroundStyle(.tertiary)
+                .textCase(nil)
+                .background {
+                  ScrollAnchorProbe(keeper: scrollAnchorKeeper)
+                    .accessibilityHidden(true)
+                }
             }
           }
-          .modifier(EntryListModifiers(rowHeight: fontSettings.entryRowHeight))
-          // No `primaryAction`: on macOS it binds the row double-click.
-          .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
-            entryLinkMenu(for: ids)
-          }
-          .modifier(BareKeyHandler())
-          .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
-          .preference(key: VisibleEntriesKey.self, value: visibleEntries)
-          .accessibilityIdentifier("timeline.list")
         }
+        .modifier(EntryListModifiers(rowHeight: fontSettings.entryRowHeight))
+        // No `primaryAction`: on macOS it binds the row double-click.
+        .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
+          entryLinkMenu(for: ids)
+        }
+        .modifier(BareKeyHandler())
+        .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+        .preference(key: VisibleEntriesKey.self, value: visibleEntries)
+        .accessibilityIdentifier("timeline.list")
       }
-      // Two tasks, so a refresh-only tick does not re-run the structural path
-      // and drop the rows to a blank pane. `structuralKey` captures the
-      // inputs whose change means the user is looking at a different list;
-      // only those clear the previous rows.
-      .task(id: structuralKey) {
-        // Keep the debounce at the very top — before the signpost, the
-        // `.pending` prefix, and the fetch — so an intermediate keypress
-        // exits here during the cheap sleep: no blanked pane and no fetch
-        // queued on the serial `DataReader` actor. `try?` swallows the
-        // sleep's `CancellationError`, so the explicit `Task.isCancelled`
-        // re-check is what makes a cancelled burst step a no-op.
-        try? await Task.sleep(for: Self.navDebounce)
-        guard !Task.isCancelled else { return }
-        // Bracket the blank window, from the end of the debounce to the
-        // replaced sections. `defer` closes the interval even when a
-        // structural-key change cancels the task mid-reload.
-        let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
-        // Read at `defer` time, after `reload` has assigned `visibleEntries`.
-        // Row count and category label only; no PII (`STACK.md § 8`).
-        defer {
-          perfSignposter.endInterval(
-            PerformanceSignpostName.structuralReload, signpost,
-            "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .private)"
-          )
-        }
-        // Synchronous prefix: enter the pending phase and drop the previous
-        // context's rows before the first await, so the pane never shows the
-        // old category's rows while the new fetch runs. Clearing
-        // `resolvedStructuralKey` hands window ownership to this task, and the
-        // refresh gate stands down until resolve or failure flips it back.
-        fetchPhase = .pending
-        sections = []
-        visibleEntries = .empty
-        hasMore = false
-        appendTriggerID = nil
-        appendVersion = 0
-        isAppending = false
-        resolvedStructuralKey = ""
-        // Snapshot before the fetch: a bump landing above this line is
-        // covered by the first-page fetch below, and a bump landing after it
-        // stays owed and re-fires on the resolve flip. A bump racing the
-        // fetch costs one redundant refresh, never a dropped update.
-        let preFetchRefreshVersion = refreshVersion
-        if await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy) {
-          fetchPhase = .resolved
-          consumedRefreshVersion = preFetchRefreshVersion
-          resolvedStructuralKey = structuralKey
-          return
-        }
-        guard !Task.isCancelled else { return }
-        // No retry: the shared coordinator blocks rather than throws under
-        // contention (`STACK.md § 14`), so a fetch throw is almost certainly
-        // persistent. Healing is free — any refresh bump re-fetches, and the
-        // gate deliberately lets `.failed` pass.
-        fetchPhase = .failed
+    }
+    // Two tasks, so a refresh-only tick does not re-run the structural path
+    // and drop the rows to a blank pane. `structuralKey` captures the
+    // inputs whose change means the user is looking at a different list;
+    // only those clear the previous rows.
+    .task(id: structuralKey) {
+      // Keep the debounce at the very top — before the signpost, the
+      // `.pending` prefix, and the fetch — so an intermediate keypress
+      // exits here during the cheap sleep: no blanked pane and no fetch
+      // queued on the serial `DataReader` actor. `try?` swallows the
+      // sleep's `CancellationError`, so the explicit `Task.isCancelled`
+      // re-check is what makes a cancelled burst step a no-op.
+      try? await Task.sleep(for: Self.navDebounce)
+      guard !Task.isCancelled else { return }
+      // Bracket the blank window, from the end of the debounce to the
+      // replaced sections. `defer` closes the interval even when a
+      // structural-key change cancels the task mid-reload.
+      let signpost = perfSignposter.beginInterval(PerformanceSignpostName.structuralReload)
+      // Read at `defer` time, after `reload` has assigned `visibleEntries`.
+      // Row count and category label only; no PII (`STACK.md § 8`).
+      defer {
+        perfSignposter.endInterval(
+          PerformanceSignpostName.structuralReload, signpost,
+          "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .private)"
+        )
+      }
+      // Synchronous prefix: enter the pending phase and drop the previous
+      // context's rows before the first await, so the pane never shows the
+      // old category's rows while the new fetch runs. Clearing
+      // `resolvedStructuralKey` hands window ownership to this task, and the
+      // refresh gate stands down until resolve or failure flips it back.
+      fetchPhase = .pending
+      scrollAnchorKeeper.cancel()
+      sections = []
+      visibleEntries = .empty
+      hasMore = false
+      appendTriggerID = nil
+      appendVersion = 0
+      isAppending = false
+      resolvedStructuralKey = ""
+      // Snapshot before the fetch: a bump landing above this line is
+      // covered by the first-page fetch below, and a bump landing after it
+      // stays owed and re-fires on the resolve flip. A bump racing the
+      // fetch costs one redundant refresh, never a dropped update.
+      let preFetchRefreshVersion = refreshVersion
+      if await reload(window: .firstPage(limit: Self.pageSize)) {
+        fetchPhase = .resolved
         consumedRefreshVersion = preFetchRefreshVersion
         resolvedStructuralKey = structuralKey
+        return
       }
-      .task(id: refreshTaskKey) {
-        // Skip when the structural task owns the window, or when a fetch
-        // already covered this version. A successful refresh records the
-        // version it consumed; a failed or cancelled refresh leaves it owed.
-        guard
-          shouldRunWindowRefresh(
-            resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
-            phase: fetchPhase, refreshVersion: refreshVersion,
-            consumedVersion: consumedRefreshVersion)
-        else { return }
-        let version = refreshVersion
-        if await refresh(proxy: proxy) {
-          fetchPhase = .resolved
-          consumedRefreshVersion = version
-        }
+      guard !Task.isCancelled else { return }
+      // No retry: the shared coordinator blocks rather than throws under
+      // contention (`STACK.md § 14`), so a fetch throw is almost certainly
+      // persistent. Healing is free — any refresh bump re-fetches, and the
+      // gate deliberately lets `.failed` pass.
+      fetchPhase = .failed
+      consumedRefreshVersion = preFetchRefreshVersion
+      resolvedStructuralKey = structuralKey
+    }
+    .task(id: refreshTaskKey) {
+      // Skip when the structural task owns the window, or when a fetch
+      // already covered this version. A successful refresh records the
+      // version it consumed; a failed or cancelled refresh leaves it owed.
+      guard
+        shouldRunWindowRefresh(
+          resolvedKey: resolvedStructuralKey, currentKey: structuralKey,
+          phase: fetchPhase, refreshVersion: refreshVersion,
+          consumedVersion: consumedRefreshVersion)
+      else { return }
+      let version = refreshVersion
+      if await refresh() {
+        fetchPhase = .resolved
+        consumedRefreshVersion = version
       }
-      // Its own task, so an append neither debounces like the structural path
-      // nor replaces the window like the refresh path. The id embeds
-      // `structuralKey`, so a category switch cancels an in-flight append.
-      .task(id: appendTaskKey) {
-        guard isAppending else { return }
-        await appendNextPage()
-        isAppending = false
-      }
-      // End and Page-Down can land the selection on the last loaded row
-      // without the trigger row's `onAppear` ever firing, because `List` may
-      // skip materialising the rows in between.
-      .onChange(of: selectedEntryID) { _, newValue in
-        if let newValue, newValue == visibleEntries.ids.last {
-          requestAppend()
-        }
+    }
+    // Its own task, so an append neither debounces like the structural path
+    // nor replaces the window like the refresh path. The id embeds
+    // `structuralKey`, so a category switch cancels an in-flight append.
+    .task(id: appendTaskKey) {
+      guard isAppending else { return }
+      await appendNextPage()
+      isAppending = false
+    }
+    // End and Page-Down can land the selection on the last loaded row
+    // without the trigger row's `onAppear` ever firing, because `List` may
+    // skip materialising the rows in between.
+    .onChange(of: selectedEntryID) { _, newValue in
+      if let newValue, newValue == visibleEntries.ids.last {
+        requestAppend()
       }
     }
   }
@@ -380,10 +369,10 @@ struct EntryListView: View {
   /// Fetch and apply the sections for the current context. Returns `true`
   /// when the fetch resolved and its result was applied (or was identical, so
   /// no apply was needed); `false` on failure or cancellation.
-  private func reload(window: EntryListWindow, proxy: ScrollViewProxy) async -> Bool {
+  private func reload(window: EntryListWindow) async -> Bool {
     guard let result = await fetchResult(window: window) else { return false }
     guard !Task.isCancelled else { return false }
-    return await apply(result, proxy: proxy)
+    return await apply(result)
   }
 
   /// Whole-window refresh: refetch everything at or above the loaded window's
@@ -394,7 +383,7 @@ struct EntryListView: View {
   /// cursor the fetch started from; otherwise an append landing mid-refresh
   /// would be wiped by the older snapshot. On mismatch the result is discarded
   /// and the refresh re-fires against the current cursor.
-  private func refresh(proxy: ScrollViewProxy) async -> Bool {
+  private func refresh() async -> Bool {
     while !Task.isCancelled {
       // Re-gate on every iteration: the cursor-mismatch `continue` below can
       // loop while a structural prefix has already cleared the window, and
@@ -409,7 +398,7 @@ struct EntryListView: View {
       guard let fetchStartCursor = entryListCursor(of: sections) else {
         // Nothing loaded: a refresh from an empty window is just a first
         // page, so the category's first row appears without user action.
-        return await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy)
+        return await reload(window: .firstPage(limit: Self.pageSize))
       }
       let window = EntryListWindow.atOrAbove(fetchStartCursor)
       guard let result = await fetchResult(window: window) else { return false }
@@ -418,18 +407,17 @@ struct EntryListView: View {
       // Every loaded row left the filter, so run one first-page fetch and
       // surface the rows below the window instead of a false "No Articles".
       if refreshRequiresFirstPageFallback(window: window, result: result) {
-        return await reload(window: .firstPage(limit: Self.pageSize), proxy: proxy)
+        return await reload(window: .firstPage(limit: Self.pageSize))
       }
-      return await apply(result, proxy: proxy)
+      return await apply(result)
     }
     return false
   }
 
-  /// Apply a fetched first-page or refresh snapshot: diff-skip, anchor
-  /// restore, state assignment, favicon warm, paging-state update. Appends go
-  /// through `appendNextPage`, which extends the tail and never restores an
-  /// anchor.
-  private func apply(_ result: EntryListFetchResult, proxy: ScrollViewProxy) async -> Bool {
+  /// Apply a fetched first-page or refresh snapshot: diff-skip, scroll-anchor
+  /// capture, state assignment, favicon warm, paging-state update. Appends go
+  /// through `appendNextPage`.
+  private func apply(_ result: EntryListFetchResult) async -> Bool {
     let diffSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadDiff)
     let sectionsUnchanged = result.sections == sections
     perfSignposter.endInterval(PerformanceSignpostName.reloadDiff, diffSignpost)
@@ -443,26 +431,7 @@ struct EntryListView: View {
       }
       return true
     }
-    // Pin an anchor only where a restore is warranted: the selected row still
-    // appears, so keep it centred through a row-height shift; or the
-    // selection is clear and the previously-first row still appears, so keep
-    // the top stable when a sync page lands rows above it. A structural
-    // reload pins nothing, so no anchor comes from the previous list.
-    let setSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadSetBuild)
-    let newIDs = Set(result.allEntryIDs)
-    perfSignposter.endInterval(PerformanceSignpostName.reloadSetBuild, setSignpost)
-    let restore: AnchorRestore?
-    if let selectedID = selectedEntryID, newIDs.contains(selectedID) {
-      restore = AnchorRestore(id: selectedID, anchor: .center)
-    } else if selectedEntryID == nil, fetchPhase == .resolved,
-      let firstID = visibleEntries.ids.first,
-      newIDs.contains(firstID)
-    {
-      restore = AnchorRestore(id: firstID, anchor: .top)
-    } else {
-      restore = nil
-    }
-    pendingAnchorRestore = restore
+    scrollAnchorKeeper.prepareForUpdate(from: sections, to: result.sections)
     let assignSignpost = perfSignposter.beginInterval(PerformanceSignpostName.reloadStateAssign)
     sections = result.sections
     visibleEntries = VisibleEntriesPayload(
@@ -472,14 +441,6 @@ struct EntryListView: View {
     hasMore = result.hasMore
     updateAppendTrigger(allIDs: result.allEntryIDs, hasMore: result.hasMore)
     perfSignposter.endInterval(PerformanceSignpostName.reloadStateAssign, assignSignpost)
-    // Yield one tick so SwiftUI applies the diff before the proxy scrolls:
-    // without it `scrollTo` runs against the old layout. Instant scroll, no
-    // `withAnimation`, so the restore respects Reduce Motion.
-    if let restore = pendingAnchorRestore {
-      pendingAnchorRestore = nil
-      await Task.yield()
-      proxy.scrollTo(restore.id, anchor: restore.anchor)
-    }
     // Warm the favicon cache after the rows are applied and in the same
     // SwiftUI task, so a structural-key change cancels the warm with the
     // reload. Best-effort: a warm failure never fails the reload.
@@ -500,8 +461,7 @@ struct EntryListView: View {
   /// Fetch one `after(cursor, limit:)` page below the window's bottom edge and
   /// extend the window with it. Pure tail insertion: row identity is untouched
   /// and a same-day section extends under its existing id, so the `List` diff
-  /// never moves a rendered row and the append needs no anchor restore, scroll,
-  /// or animation.
+  /// never moves a rendered row and the append needs no animation.
   private func appendNextPage() async {
     guard let fetchStartCursor = entryListCursor(of: sections) else { return }
     guard let page = await fetchResult(window: .after(fetchStartCursor, limit: Self.pageSize))

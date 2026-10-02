@@ -45,9 +45,8 @@ extension EntryListFetchResult {
   /// Merge an `after(cursor, limit:)` page onto this loaded window, as a pure
   /// tail extension. A page section sharing the window's last section id
   /// extends that section under its existing id, so the `List` diff stays a
-  /// tail insertion and no append restores an anchor; any other section
-  /// concatenates after it. The aggregates union from the appended rows, and
-  /// `hasMore` adopts the page's.
+  /// tail insertion; any other section concatenates after it. The aggregates
+  /// union from the appended rows, and `hasMore` adopts the page's.
   ///
   /// A page row whose `feedbinEntryID` already exists in the window is dropped,
   /// so a violation of the `persistEntries` immutability invariant degrades to
