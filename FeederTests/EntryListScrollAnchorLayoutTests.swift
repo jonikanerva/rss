@@ -5,9 +5,8 @@ import Testing
 
 @testable import Feeder
 
-/// Offscreen check that a refresh keeps the visible rows of the article list
-/// in place. It hosts the article-list shape with the scroll-anchor probe in
-/// each section header, calls `ScrollAnchorKeeper.prepareForUpdate(from:to:)`,
+/// Offscreen checks of `ScrollAnchorKeeper` on the article-list shape, with the
+/// probe in each section header. Each test calls `prepareForUpdate(from:to:)`,
 /// assigns the new sections, and reads the backing table through public API.
 /// Each host window opens far offscreen, at the origin (-6000, -6000).
 @Suite("Entry list scroll anchor layout", .serialized)
@@ -82,6 +81,7 @@ private final class Host {
   private static let dayZero = Date(timeIntervalSince1970: 1_750_032_000)
 
   let settings: AppFontSettings
+  private let isolatedDefaults: IsolatedDefaults
   let model: ScrollAnchorLayoutModel
   let keeper: ScrollAnchorKeeper
   let hosting: NSHostingView<ScrollAnchorLayoutList>
@@ -89,9 +89,11 @@ private final class Host {
   private var spareIDs: ArraySlice<PersistentIdentifier>
   private var nextNumber = 1
 
-  private init(settings: AppFontSettings, ids: [PersistentIdentifier]) {
+  private init(isolatedDefaults: IsolatedDefaults, ids: [PersistentIdentifier]) {
+    let settings = AppFontSettings(textSize: .medium, userDefaults: isolatedDefaults.defaults)
     let model = ScrollAnchorLayoutModel()
     let keeper = ScrollAnchorKeeper()
+    self.isolatedDefaults = isolatedDefaults
     self.settings = settings
     self.model = model
     self.keeper = keeper
@@ -104,11 +106,8 @@ private final class Host {
 
   /// Three days of 40, 30, and 30 rows, settled at the top.
   static func make() async throws -> Host {
-    let name = "EntryListScrollAnchorLayoutTests"
-    let defaults = try #require(UserDefaults(suiteName: name))
-    defaults.removePersistentDomain(forName: name)
     let host = Host(
-      settings: AppFontSettings(textSize: .medium, userDefaults: defaults),
+      isolatedDefaults: try IsolatedDefaults("EntryListScrollAnchorLayout"),
       ids: PreviewSupport.mintEntryIdentifiers(count: 110))
     host.model.sections = [
       host.section(day: 0, rows: try host.makeRows(40)),
