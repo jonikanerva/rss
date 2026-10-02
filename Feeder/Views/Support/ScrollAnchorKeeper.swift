@@ -4,8 +4,9 @@ import os
 
 /// Keeps the visible rows of the article list in place when a refresh changes
 /// rows above them. Call `prepareForUpdate(from:to:)` immediately before the
-/// new sections are assigned. When no probe has entered a window, or the table
-/// does not match the section layout, the native `List` behaviour applies.
+/// new sections are assigned. An arm ends at the next display pass at the
+/// latest. Without a probe in the window of the list, or when the table does
+/// not match the section layout, the native `List` behaviour applies.
 final class ScrollAnchorKeeper: NSObject {
   private struct Pending {
     weak var table: NSTableView?
@@ -16,8 +17,8 @@ final class ScrollAnchorKeeper: NSObject {
   }
 
   private weak var scrollView: NSScrollView?
-  /// Ends a pending arm at the next display pass. Without it, an arm whose
-  /// update posts no frame notification can stay armed after that update.
+  /// Ends an arm at the next display pass at the latest. The keeper arms only
+  /// when this probe is in the window of the list.
   private weak var probe: NSView?
   private var pending: Pending?
   private var isCompensating = false
@@ -54,6 +55,7 @@ final class ScrollAnchorKeeper: NSObject {
     guard let scrollView, scrollView.window != nil, let table = scrollView.documentView as? NSTableView else {
       return "noScrollView"
     }
+    guard let probe, probe.window === scrollView.window else { return "noProbe" }
     guard table.numberOfRows == EntryListTableLayout.rowCount(of: oldSections) else { return "countMismatch" }
     let clip = scrollView.contentView
     let origin = clip.bounds.origin.y
@@ -81,7 +83,7 @@ final class ScrollAnchorKeeper: NSObject {
     }
     center.addObserver(
       self, selector: #selector(clipBoundsDidChange(_:)), name: NSView.boundsDidChangeNotification, object: clip)
-    probe?.needsDisplay = true
+    probe.needsDisplay = true
     return "armed"
   }
 
