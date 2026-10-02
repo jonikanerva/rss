@@ -670,6 +670,12 @@ final class SyncEngine {
       let chunk = Array(due[start..<min(start + Self.extractedContentChunkSize, due.count)])
       let results = await fetchExtractedContentBatch(requests: chunk, using: client)
       tally.add(results)
+      var chunkTally = ExtractedContentTally(due: chunk.count)
+      chunkTally.add(results)
+      let chunkNumber = start / Self.extractedContentChunkSize + 1
+      let chunkCount = (due.count + Self.extractedContentChunkSize - 1) / Self.extractedContentChunkSize
+      logger.info(
+        "Extracted content chunk \(chunkNumber, privacy: .public)/\(chunkCount, privacy: .public): \(chunkTally.summary, privacy: .public)")
       let recordedAt = Date()
       for item in results {
         extractedContentRetry.record(item.result.map { _ in }, for: item.entryID, now: recordedAt)
