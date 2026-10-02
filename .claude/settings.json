@@ -15,9 +15,9 @@
       "Bash(gh issue view:*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue comment:*)",
-      "Bash(gh api repos/*/issues/comments:*)",
-      "Bash(gh api repos/*/pulls/*/reviews:*)",
-      "Bash(gh api repos/*/pulls/*/comments:*)",
+      "Bash(gh api repos/*/issues/comments*)",
+      "Bash(gh api repos/*/pulls/*/reviews*)",
+      "Bash(gh api repos/*/pulls/*/comments*)",
       "Bash(gh auth status)",
       "Bash(gh repo view:*)",
       "Bash(git status:*)",
@@ -75,7 +75,7 @@
       "Bash(git reset --hard:*)",
       "Bash(git clean -fd:*)",
       "Bash(git clean -fdx:*)",
-      "Bash(gh api repos/*/merges:*)"
+      "Bash(gh api repos/*/merges*)"
     ]
   },
   "hooks": {
@@ -118,10 +118,7 @@
   "sandbox": {
     "excludedCommands": ["open"],
     "filesystem": {
-      "allowWrite": [
-        "~/.gnupg",
-        "~/.npm"
-      ]
+      "allowWrite": ["~/.gnupg", "~/.npm"]
     }
   },
   "env": {
