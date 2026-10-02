@@ -679,8 +679,12 @@ final class SyncEngine {
       }
       // Do not add a cancellation check before this write: a stopped batch
       // still writes the content that already arrived.
-      if !fetched.isEmpty {
-        try await writer.applyExtractedContent(results: fetched)
+      let unavailable = results.compactMap { item -> Int? in
+        guard case .failure(let failure) = item.result, failure.isPermanent else { return nil }
+        return item.entryID
+      }
+      if !fetched.isEmpty || !unavailable.isEmpty {
+        try await writer.applyExtractedContent(results: fetched, unavailableEntryIDs: unavailable)
       }
       let stopsBatch = results.contains { item in
         guard case .failure(let failure) = item.result else { return false }

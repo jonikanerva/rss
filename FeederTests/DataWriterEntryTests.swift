@@ -25,6 +25,26 @@ struct DataWriterEntryTests {
     try await writer.syncFeeds([sub])
   }
 
+  // MARK: - applyExtractedContent
+
+  @Test
+  func unavailableEntriesLeaveTheExtractedContentRequests() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+    let entries = [
+      try FeedbinFixtures.entry(id: 1001, extractedContentURL: "https://extract.example.com/1"),
+      try FeedbinFixtures.entry(id: 1002, extractedContentURL: "https://extract.example.com/2"),
+      try FeedbinFixtures.entry(id: 1003, extractedContentURL: "https://extract.example.com/3"),
+    ]
+    _ = try await writer.persistEntries(entries, unreadIDs: [])
+
+    try await writer.applyExtractedContent(
+      results: [(entryID: 1001, content: "<p>Full</p>")], unavailableEntryIDs: [1002])
+
+    let remaining = try await writer.fetchExtractedContentRequests().map(\.entryID)
+    #expect(remaining == [1003])
+  }
+
   // MARK: - persistEntries
 
   @Test

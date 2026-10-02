@@ -412,11 +412,15 @@ actor DataWriter: ModelActor {
     }
   }
 
-  func applyExtractedContent(results: [(entryID: Int, content: String)]) throws {
+  /// `unavailableEntryIDs` lose their `extractedContentURL`, so
+  /// `fetchExtractedContentRequests` never returns them again. The one save
+  /// covers both lists.
+  func applyExtractedContent(results: [(entryID: Int, content: String)], unavailableEntryIDs: [Int] = []) throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
-    guard !results.isEmpty else { return }
+    guard !results.isEmpty || !unavailableEntryIDs.isEmpty else { return }
     let resultsByID = Dictionary(uniqueKeysWithValues: results.map { ($0.entryID, $0.content) })
-    let ids = results.map(\.entryID)
+    let unavailableIDs = Set(unavailableEntryIDs)
+    let ids = results.map(\.entryID) + unavailableEntryIDs
 
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { entry in ids.contains(entry.feedbinEntryID) }
@@ -431,6 +435,8 @@ actor DataWriter: ModelActor {
         entry.plainText = parseHTMLToBlocks(content).classificationText
         // `EntryDetailView` decodes via `.task(id: entry.articleBlocksData)`,
         // so this write needs no view-level cache invalidation.
+      } else if unavailableIDs.contains(entry.feedbinEntryID) {
+        entry.extractedContentURL = nil
       }
     }
     try modelContext.save()
