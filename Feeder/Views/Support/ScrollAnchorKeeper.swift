@@ -17,7 +17,7 @@ final class ScrollAnchorKeeper: NSObject {
 
   private weak var scrollView: NSScrollView?
   /// Ends a pending arm at the next display pass. Without it, an arm whose
-  /// update posts no frame notification never ends.
+  /// update posts no frame notification can stay armed after that update.
   private weak var probe: NSView?
   private var pending: Pending?
   private var isCompensating = false

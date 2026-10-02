@@ -94,8 +94,7 @@ struct ContentView: View {
   @State
   private var owedListBumpOnResume = false
   /// Set when a classification batch finishes and a refresh is owed.
-  /// `DeferredBumpDrainTrigger` drains it once the selection has been stable
-  /// for `classificationBumpDwell`.
+  /// `DeferredBumpDrainTrigger` drains it.
   @State
   private var pendingClassificationBump = false
   /// Sync-page sibling of `pendingClassificationBump`, drained on a shorter
