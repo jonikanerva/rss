@@ -158,7 +158,7 @@ nonisolated func fetchExtractedContentBatch(
 /// counts.
 nonisolated private struct ExtractedContentTally {
   private enum Outcome: String, CaseIterable {
-    case fetched, http4xx, rateLimited, http5xx, httpOther, undecodable, noContent
+    case fetched, http401, http403, http404, http410, http4xx, rateLimited, http5xx, httpOther, undecodable, noContent
     case transport, unreachable, cancelled
   }
 
@@ -188,6 +188,10 @@ nonisolated private struct ExtractedContentTally {
     switch result {
     case .success: .fetched
     case .failure(.http(status: 429)): .rateLimited
+    case .failure(.http(status: 401)): .http401
+    case .failure(.http(status: 403)): .http403
+    case .failure(.http(status: 404)): .http404
+    case .failure(.http(status: 410)): .http410
     case .failure(.http(let status)) where (400...499).contains(status): .http4xx
     case .failure(.http(let status)) where (500...599).contains(status): .http5xx
     case .failure(.http): .httpOther
