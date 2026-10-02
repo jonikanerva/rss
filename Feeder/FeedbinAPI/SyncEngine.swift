@@ -163,6 +163,7 @@ nonisolated private struct ExtractedContentTally {
   }
 
   private var counts: [Outcome: Int] = [:]
+  private var otherClientStatuses: [Int: Int] = [:]
   private var sent = 0
   private let due: Int
 
@@ -173,15 +174,26 @@ nonisolated private struct ExtractedContentTally {
   mutating func add(_ results: [ExtractedContentResult]) {
     sent += results.count
     for item in results {
-      counts[Self.outcome(of: item.result), default: 0] += 1
+      let outcome = Self.outcome(of: item.result)
+      counts[outcome, default: 0] += 1
+      if outcome == .http4xx, case .failure(.http(let status)) = item.result {
+        otherClientStatuses[status, default: 0] += 1
+      }
     }
   }
 
   var summary: String {
     let parts = Outcome.allCases.compactMap { outcome in
-      counts[outcome].map { "\(outcome.rawValue) \($0)" }
+      counts[outcome].map { count in
+        outcome == .http4xx ? "\(outcome.rawValue) \(count) \(statusDetail)" : "\(outcome.rawValue) \(count)"
+      }
     }
     return (parts + ["notSent \(due - sent)"]).joined(separator: ", ")
+  }
+
+  private var statusDetail: String {
+    let parts = otherClientStatuses.sorted { $0.key < $1.key }.map { "\($0.key)x\($0.value)" }
+    return "(\(parts.joined(separator: " ")))"
   }
 
   private static func outcome(of result: Result<String, ExtractedContentFailure>) -> Outcome {
