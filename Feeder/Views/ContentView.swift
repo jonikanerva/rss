@@ -7,16 +7,15 @@ import os.signpost
 
 struct ContentView: View {
   /// Hold time before a finished classification batch may refresh the article
-  /// list. The refresh rebuilds the `List` and can reseat the scroll anchor
-  /// around the selected row, so it waits until the selection has been stable
+  /// list while a row is selected. A batch can add or remove rows between the
+  /// visible rows, so the refresh waits until the selection has been stable
   /// for this long.
   fileprivate static let classificationBumpDwell: Duration = .seconds(4)
   /// Coalescing window for classification bumps when no row is selected. Each
   /// progress tick would otherwise trigger a full re-fetch.
   fileprivate static let classificationIdleThrottle: Duration = .seconds(1)
-  /// Coalescing window for sync-page bumps, with and without a selection. New
-  /// rows land at the top and `List` keeps the scroll anchor, so this dwell
-  /// only collapses a burst of pages into one re-fetch.
+  /// Coalescing window for sync-page bumps, with and without a selection: it
+  /// collapses a burst of pages into one re-fetch.
   fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
 
   @Environment(SyncEngine.self)
@@ -94,9 +93,9 @@ struct ContentView: View {
   /// transition consumes it, so a suppressed update is delayed, never dropped.
   @State
   private var owedListBumpOnResume = false
-  /// Set when a classification batch finishes and a refresh is owed. Drained by
-  /// `DeferredBumpDrainTrigger` once the selection has been stable, so a
-  /// background refresh never yanks the list under the user.
+  /// Set when a classification batch finishes and a refresh is owed.
+  /// `DeferredBumpDrainTrigger` drains it once the selection has been stable
+  /// for `classificationBumpDwell`.
   @State
   private var pendingClassificationBump = false
   /// Sync-page sibling of `pendingClassificationBump`, drained on a shorter

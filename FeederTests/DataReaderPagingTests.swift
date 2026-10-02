@@ -253,8 +253,8 @@ struct DataReaderPagingTests {
   // MARK: - Pin coverage
 
   /// A pinned (selected) row deeper than the first page grows the page to the
-  /// pin's sort position — selection and anchor-restore never point outside
-  /// the loaded window.
+  /// pin's sort position, so the selection never points outside the loaded
+  /// window.
   @Test
   func pinCoverageGrowsFirstPageToThePinnedRow() async throws {
     // 30 unread rows one minute apart; one READ row pinned between ages 24
