@@ -6,7 +6,7 @@ import Testing
 
 /// The pure scroll-anchor math: the table layout of the sections, the
 /// on-screen candidates, the target after an update, and the compensated clip
-/// origin. The table of the article list has one header row per section.
+/// origin.
 @Suite("Entry list scroll anchor")
 @MainActor
 struct EntryListScrollAnchorTests {

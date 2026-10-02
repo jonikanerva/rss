@@ -461,8 +461,7 @@ struct EntryListView: View {
   /// Fetch one `after(cursor, limit:)` page below the window's bottom edge and
   /// extend the window with it. Pure tail insertion: row identity is untouched
   /// and a same-day section extends under its existing id, so the `List` diff
-  /// never moves a rendered row and the append needs no scroll-anchor capture
-  /// or animation.
+  /// never moves a rendered row and the append needs no animation.
   private func appendNextPage() async {
     guard let fetchStartCursor = entryListCursor(of: sections) else { return }
     guard let page = await fetchResult(window: .after(fetchStartCursor, limit: Self.pageSize))

@@ -5,8 +5,8 @@ import os
 /// Keeps the visible rows of the article list in place when a refresh changes
 /// rows above them. Call `prepareForUpdate(from:to:)` immediately before the
 /// new sections are assigned. An arm ends at the next display pass at the
-/// latest. Without a probe in the window of the list, or when the table does
-/// not match the section layout, the native `List` behaviour applies.
+/// latest. When the keeper does not arm, the native `List` behaviour applies
+/// (`STACK.md § 14`).
 final class ScrollAnchorKeeper: NSObject {
   private struct Pending {
     weak var table: NSTableView?
@@ -17,8 +17,7 @@ final class ScrollAnchorKeeper: NSObject {
   }
 
   private weak var scrollView: NSScrollView?
-  /// Ends an arm at the next display pass at the latest. The keeper arms only
-  /// when this probe is in the window of the list.
+  /// The keeper arms only when this probe is in the window of the list.
   private weak var probe: NSView?
   private var pending: Pending?
   private var isCompensating = false
@@ -151,7 +150,7 @@ struct ScrollAnchorProbe: NSViewRepresentable {
 }
 
 /// Gives the keeper the scroll view of the list from inside a section header,
-/// and ends a pending arm at the next display pass. It takes no mouse events.
+/// and tells the keeper when the header draws. It takes no mouse events.
 final class ScrollAnchorProbeView: NSView {
   let keeper: ScrollAnchorKeeper
 
@@ -185,8 +184,7 @@ final class ScrollAnchorProbeView: NSView {
 
   private func surroundingScrollView() -> NSScrollView? {
     if let enclosingScrollView { return enclosingScrollView }
-    // The floating copy of a section header sits outside the clip view, so its
-    // `enclosingScrollView` is nil.
+    // The floating header copy needs this walk (`STACK.md § 14`).
     var view = superview
     while let current = view {
       if let scrollView = current as? NSScrollView { return scrollView }

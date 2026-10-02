@@ -66,9 +66,8 @@ nonisolated enum EntryListScrollAnchor {
   }
 
   /// The first candidate that is still in `newSections`, mapped to its new
-  /// table row. `nil` when no candidate survives, or when the table rows from
-  /// row 0 through that candidate are the same in both layouts: no row above
-  /// it moved, so there is nothing to compensate.
+  /// table row. `nil` when no candidate survives, or when `rowsMatch` finds
+  /// the rows through that candidate unchanged: there is nothing to compensate.
   static func target(
     candidates: [ScrollAnchorCandidate],
     oldSections: [EntryListSection], newSections: [EntryListSection]

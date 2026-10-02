@@ -66,8 +66,7 @@ nonisolated enum PerformanceSignpostName {
   /// layout that follow are the `structuralReload` residual once the named
   /// sub-intervals are subtracted.
   static let reloadStateAssign: StaticString = "reload-state-assign"
-  /// The capture of the on-screen rows before a refresh assignment, and the
-  /// compensating scroll after the table update. The end message holds the phase.
+  /// The scroll-anchor capture and compensation (`STACK.md § 4 → Signposts`).
   static let scrollAnchor: StaticString = "scroll-anchor"
   /// Preference change → the next `ContentView` render pass. Isolates the
   /// whole-split-view re-evaluation one reload triggers.
