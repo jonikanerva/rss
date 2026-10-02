@@ -145,7 +145,7 @@ Valid but deliberate: measurable need, clear benefit, isolated exception, docume
 
 ## Safeguards
 
-Enforce these rules with Claude user or project settings when available: block force-push and pushes to `main`; deny recursive deletion and hard reset; refuse `.env` reads; block direct `claude` CLI calls from Bash; and allow `gh pr merge` only after an explicit user request. `template/.claude/settings.json` is the reference configuration. These doctrine rules remain mandatory when the reference settings are not installed. Never open `.env` files through another channel. Never put secrets, credentials, or tokens in the repository or logs.
+Enforce these rules with Claude user or project settings when available: block force-push and pushes to `main`; deny recursive deletion and hard reset; refuse `.env` reads; block direct `claude` CLI calls from Bash; and allow `gh pr merge` only after an explicit user request. `.claude/settings.json` is the project configuration. These doctrine rules remain mandatory when that configuration does not enforce them. Never open `.env` files through another channel. Never put secrets, credentials, or tokens in the repository or logs.
 
 ## Decision rights
 
