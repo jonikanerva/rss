@@ -1,5 +1,7 @@
 # STACK.md — Feeder (Swift 6 / SwiftUI / macOS)
 
+Policy revision: 2
+
 > Strict Swift 6 + SwiftUI macOS app. SwiftData persistence behind a background actor, Feedbin sync, on-device or user-chosen cloud classification. Apple frameworks only.
 
 ---
@@ -137,7 +139,7 @@ Hygiene for a new or changed test:
 | ---- | --- | ----- |
 | Each commit | dev | `$FORMAT_CMD`, `$LINT_CMD`, `$BUILD_CMD` |
 | Each push | dev | `$VERIFY_CMD` once, on the committed tree to push. The hand-off quotes the `verify:` line and the pushed head. |
-| Review | qa | `$VERIFY_CMD` once per PR, last, on the head that qa passes. No run in a FAIL round. |
+| Review | qa | `$VERIFY_CMD` once per PR, last, on the head that qa passes, integrated with the current `main` in a linked worktree. No run in a FAIL round. |
 | Mutation check | dev | `make test UNIT_TEST=FeederTests/<Suite>`, one suite per run, in a detached worktree. |
 | A change to the `DataReader` or `DataWriter` container or executor (§ 14) | dev | `make test-stress-tsan` |
 | Focus trigger | owner | `make test-focus` |
@@ -145,11 +147,11 @@ Hygiene for a new or changed test:
 | Hot-path trigger (§ 4) | dev | The § 4 evidence, or "no new hot-path work" and the reason |
 | After-trace trigger | owner | An owner trace of the slow action after the fix (§ 4 → Owner trace) |
 
-`make test-all` ends with one stamp line: `verify: head=<sha> tree=clean|dirty result=<result> tests=<n>`. `tree=clean` means that HEAD did not move, and that `git status` showed no change and no untracked file at the start and at the end of the run. `tests` counts the passed tests. Only a `tree=clean` line with `result=Passed` whose head is the PR head is gate evidence. The PM compares the line with the pushed head before qa starts. `make test-all` refuses a `UNIT_TEST` selection.
+`make test-all` ends with one stamp line: `verify: head=<sha> tree=clean|dirty result=<result> tests=<n>`. `tree=clean` means that HEAD did not move, and that `git status` showed no change and no untracked file at the start and at the end of the run. `tests` counts the passed tests. Only a `tree=clean` line with `result=Passed` is gate evidence. Its head is the PR head. For the review run, its head is the PR head or the local integration commit of the PR head and the current `main`. The lead compares the line with the pushed head before qa starts. `make test-all` refuses a `UNIT_TEST` selection.
 
 A run with `UNIT_TEST` or `UI_TEST` fails when fewer tests pass than there are selectors. The guard counts passed tests. The guard proves that a selector matched a test only when the run has one selector, or when each selector names one test method. A mutation check therefore selects one suite per run. A Swift Testing single-test selector can match no test, so select the suite. Use the suite type name, not the file name.
 
-Owner-run checks take over the screen or need the owner's real data, so the owner runs them. Quit the installed Feeder before an owner-run UI check. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
+Owner-run checks take over the screen or need the owner's real data, so the owner runs them. Quit the installed Feeder before an owner-run UI check. An agent runs one only when the owner asks in that task, in the foreground, and never detached. When a trigger matches the diff, the PR and the qa review list the check as `ran on <SHA>: PASS` or `triggered, pending owner run`. A pending owner-run check does not block a PASS. The owner merges, so the owner decides whether a pending owner-run check must pass before the merge (§ 16). A PASS stays valid until a later commit matches the trigger again. After a failure, fix the cause, then rerun only the failed method.
 
 - **Focus trigger:** the diff changes `ContentView.swift`, `ArticleWebView.swift`, `FeederCommands.swift`, `SidebarView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, `Support/KeyHandling.swift`, or `Support/SidebarSelection.swift` under `Feeder/Views/`, `FeederUITests/FeederUITests.swift`, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe or the `test-focus` target in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`. The trigger also matches when the diff adds or changes `@FocusState`, `.focused(`, `.focusable(`, `defaultFocus`, `FocusedValue`, `focusedSceneValue`, `onKeyPress`, `keyDown`, or `makeFirstResponder` in another file under `Feeder/Views/` that the settings trigger does not name.
 - **Settings trigger:** the diff changes `SettingsView.swift`, `SettingsPane.swift`, or `ClassificationSettingsView.swift` under `Feeder/Views/`, `Feeder/Classification/ClassificationSettingsModel.swift`, `testVercelSettingsKeyboardSmoke` or a helper that it calls, `Feeder/Data/UITestDataSeeder.swift`, the `test-ui` recipe in the `Makefile` (with the helpers that the recipe calls), or a file under `Tools/UITestRunner/`.
@@ -269,7 +271,7 @@ Hard rules for this stack; `/codereview` enforces every entry on every PR.
 - Force-unwraps (`!`) and `try!` outside tests and `#Preview`.
 - `var` where `let` suffices.
 - `TODO`, `FIXME`, `HACK`, or commented-out code in a shipped diff.
-- A comment that narrates history — "previously", "used to", "the old …", "before the fix", "replaces", "retired", "now supports" — or that describes a design the diff removes (`CLAUDE.md → Code conventions → Comments`).
+- A comment that narrates history — "previously", "used to", "the old …", "before the fix", "replaces", "retired", "now supports" — or that describes a design the diff removes (§ 15 → Comments).
 - A comment whose meaning depends on an issue number, a PR number, or a commit reference. Delete the reference: the comment must still read correctly. A named `STACK.md` section is a valid reference; a bare `#170` is not.
 - A comment citing a line number, a file offset, or a count of things elsewhere in the tree — a later edit invalidates it silently.
 - A comment over 5 lines. This one is a smell, not an automatic FAIL: the reviewer clears it by naming the constraint each line carries. A block that cannot be defended line by line is rationale and moves to the issue, the PR, or §14. Never cut a contract to reach the number.
@@ -315,7 +317,7 @@ actor FeedbinClient {
 
 ## 10. Time & timezones
 
-UTC everywhere internally, converted only at the boundary (`CLAUDE.md → Time`). Concrete mechanics:
+UTC everywhere internally, converted only at the boundary (§ 15 → Time). Concrete mechanics:
 
 - **Internal representation:** all timestamps in logic, SwiftData persistence, caches, and logs are `Date` instants. Canonical timeline ordering (`VISION.md → Core Principles`) sorts on `Date`, never on formatted strings.
 - **Boundary conversion:** inbound Feedbin timestamps parse to `Date` immediately (`ISO8601DateFormatter`, GMT by default); user-facing values convert at the last moment via `Text(date, format:)` / `.formatted(...)` or a `DateFormatter` / `Calendar` with an explicit `timeZone`.
@@ -353,7 +355,7 @@ Training-data memory is not an acceptable source for API syntax or HIG specifics
 
 ## 13. Code conventions (Swift specifics)
 
-Universal conventions (value types, immutability, composition, comments, dead code) live in `CLAUDE.md → Code conventions`. Feeder pins these Swift specifics on top:
+Universal conventions (value types, immutability, composition, comments, dead code) live in § 15 → Code conventions. Feeder pins these Swift specifics on top:
 
 ### Change discipline
 
@@ -380,7 +382,7 @@ Universal conventions (value types, immutability, composition, comments, dead co
 
 Mechanical formatting is enforced by `swift-format` (§2). Beyond it: blank line between methods and between MARK sections; no blank lines between grouped property declarations.
 
-Comment rules live in `CLAUDE.md → Code conventions → Comments`. Swift specifics on top: doc comments use `///` (`swift-format` `UseTripleSlashForDocumentationComments`); `// MARK:` lines are navigation, not prose, and sit outside the 5-line comment budget. Keep `.swift-format` `AllPublicDeclarationsHaveDocumentation` **off** — it mandates a doc comment on every public declaration, which is the mandate the comment policy removed.
+Comment rules live in § 15 → Comments. Swift specifics on top: doc comments use `///` (`swift-format` `UseTripleSlashForDocumentationComments`); `// MARK:` lines are navigation, not prose, and sit outside the 5-line comment budget. Keep `.swift-format` `AllPublicDeclarationsHaveDocumentation` **off** — it mandates a doc comment on every public declaration, which is the mandate the comment policy removed.
 
 ### Access control
 
@@ -425,16 +427,123 @@ Button("Sync") {
 
 ## 14. Intentional Divergences
 
-A divergence requires a measurement-backed reason, a clear benefit, and an isolated exception. Document it here when you take it.
+A divergence requires a measurement-backed reason, a clear benefit, and an isolated exception. Document it here when you take it. A divergence from `VISION.md` needs the product owner.
+
+This table is also the exception record of `DOCTRINE.md → Exceptions`. A new entry states the scope, the reason and consequences, the compensating evidence, the responsible lead, the approving independent reviewer, and the reassessment condition. The implementer never approves its own exception.
 
 | Date | Rule | Divergence | Reason |
 | ---- | ---- | ---------- | ------ |
-| 2026-05-14 | Remote CI (`CLAUDE.md → Verification`) | No GitHub Actions; `make test-all` is the contracted local gate. | Single-developer project, PR template enforces verification. Revisit if contributor count > 1 or verification is skipped in any merged PR. |
-| 2026-05-14 | MainActor must not perform synchronous IO (`CLAUDE.md → Responsiveness & resource budget`) | `SyncEngine.lastSyncDate` and `pendingReadIDsToSync` accessors keep synchronous `UserDefaults` reads/writes on MainActor. This includes the queue write in `FeederAppDelegate.applicationWillTerminate(_:)` and the queue read in `SyncEngine.applyQueuedReads()` at launch. | Reads and writes occur at human-event frequency (sync completion, mark-read, app quit, app launch), are `CFPreferences`-cached in-process, and benchmark below 100 µs — well inside the 16 ms / 8.3 ms frame budget. Wrapping in an actor adds Task-hop latency on the very path it would protect and forces `ContentView` mark-read handlers to become async. The quit write must be synchronous: the process exits when `applicationWillTerminate(_:)` returns, so a Task or an actor hop that the method starts can be lost. Revisit if Instruments shows MainActor hang attributable to these accessors, or if call frequency rises (e.g., per-scroll persistence). |
+| 2026-05-14 | Remote CI (`DOCTRINE.md → P6`, § 3 → Gates) | No GitHub Actions; `make test-all` is the contracted local gate. | Single-developer project, PR template enforces verification. Revisit if contributor count > 1 or verification is skipped in any merged PR. |
+| 2026-05-14 | MainActor must not perform synchronous IO (§ 15 → Responsiveness & resource budget) | `SyncEngine.lastSyncDate` and `pendingReadIDsToSync` accessors keep synchronous `UserDefaults` reads/writes on MainActor. This includes the queue write in `FeederAppDelegate.applicationWillTerminate(_:)` and the queue read in `SyncEngine.applyQueuedReads()` at launch. | Reads and writes occur at human-event frequency (sync completion, mark-read, app quit, app launch), are `CFPreferences`-cached in-process, and benchmark below 100 µs — well inside the 16 ms / 8.3 ms frame budget. Wrapping in an actor adds Task-hop latency on the very path it would protect and forces `ContentView` mark-read handlers to become async. The quit write must be synchronous: the process exits when `applicationWillTerminate(_:)` returns, so a Task or an actor hop that the method starts can be lost. Revisit if Instruments shows MainActor hang attributable to these accessors, or if call frequency rises (e.g., per-scroll persistence). |
 | 2026-05-15 | Evidence over opinion (`VISION.md → Core Principles`) | `ClassificationEngine` heuristics — `applyConfidenceGate` (threshold 0.3), `keywordMatchConfidence` weights (title 0.8 / body 0.4), `keywordOverrideThreshold` (0.8), and language-gating — ship as calibrated values without precision/recall measurement. | MVP has one user (the developer); synthetic 30-fixture evals lack statistical power (95% CI ±10–15%) and risk confirmation bias when written by the same person tuning the gates. `VISION.md → Success Definition` frames classification correctness as human-verifiable, not benchmark-driven. Revisit when: (a) real user base produces a labeled-by-third-party corpus of ≥100 entries per major category, OR (b) production evidence shows user-facing miscategorisation > 10%. |
 | 2026-05-19 | Persistence shape — "Never write migrations" (lifted) | Previous rule was: bump `currentSchemaVersion`, let the store auto-reset on mismatch. This was always destructive — folders, categories, classifications, and feeds were wiped on every schema bump even though articles re-sync from Feedbin. Lifted in favour of SwiftData `VersionedSchema` + `SchemaMigrationPlan` (`FeederSchemaV1` + `FeederMigrationPlan`). User data is now durable across schema changes per `VISION.md → Core Principles` (every ingested article keeps its category assignment). | Revisit only if the migration framework itself becomes a maintenance burden disproportionate to the value of preserved user data. |
-| 2026-07-07 | Time (`CLAUDE.md → Time`, §10) | `DataWriter` persists `formattedDate` and `formattedPublishedTime` — display-formatted local-time strings pre-computed at write time. | Render-time date formatting is banned on the hot path (§0, §4: no Calendar work in `body`); these fields exist precisely to keep that work off the frame. They are display artifacts only — ordering and logic always use the `Date` instant. Staleness after a timezone change is bounded: fields recompute on the next write and in every custom migration stage (§5). Revisit if timezone-change staleness becomes user-visible, or if profiling shows render-time formatting fits the frame budget. |
+| 2026-07-07 | Time (§ 15 → Time, §10) | `DataWriter` persists `formattedDate` and `formattedPublishedTime` — display-formatted local-time strings pre-computed at write time. | Render-time date formatting is banned on the hot path (§0, §4: no Calendar work in `body`); these fields exist precisely to keep that work off the frame. They are display artifacts only — ordering and logic always use the `Date` instant. Staleness after a timezone change is bounded: fields recompute on the next write and in every custom migration stage (§5). Revisit if timezone-change staleness becomes user-visible, or if profiling shows render-time formatting fits the frame budget. |
 | 2026-07-08 | §0/§5 single writer-context (multiple `ModelContext` per container) | `DataReader` runs a SECOND **read-only** `ModelContext` on the SAME app container as `DataWriter` + the SwiftUI main context — the supported SwiftData multi-context pattern (one coordinator serialises store access; a concurrent op briefly blocks, never throws). Reads decouple onto their own actor to end the panel-2 spinner starvation. | A SEPARATE reader container on the same store URL was evaluated and REJECTED — its coordinator mints `PersistentIdentifier`s that do NOT resolve via `model(for:)` in the app container (hard crash on the selection path). The Core Data `NSException` seen with a shared context was a TEST-PARALLELISM artifact (dozens of concurrent containers/coordinators in the parallel test target), NOT a production hazard: an isolated 1+1 production-shape stress test (`DataReaderConcurrencyTests`, clean under Thread Sanitizer) proves it. The gate caps that test-only concurrency by running the unit target SERIALLY — `make test` passes `-parallel-testing-enabled NO`. This is the load-bearing cap: `@Suite(.serialized)` only serialises WITHIN a suite (Apple's docs: "This trait doesn't affect the execution of a test relative to its peers or to unrelated tests."), so it does NOT stop the many container-creating suites running in parallel with each other; the reader-using suites keep the trait only for intra-suite ordering and single-suite Xcode (Cmd-U) runs. Revisit if Apple ships first-party read-replica support, or if a SwiftData release makes cross-container `PersistentIdentifier` resolution reliable (a separate reader container could then further decouple store access). |
 | 2026-07-13 | §7 GCD ban (`DispatchQueue` / GCD → `Task` / actors) | `BackgroundSerialModelExecutor` (a custom `SerialModelExecutor` shared by `DataReader` AND `DataWriter`, one instance — one queue — per actor) backs each actor's serial executor with a dedicated background `DispatchQueue` (SE-0392 custom actor executor; `enqueue` → `UnownedJob.runSynchronously(on:)`). | `DefaultSerialModelExecutor` guarantees only SERIALISED context access, NOT off-main execution — Instruments per-thread attribution proved `DataReader`'s reads ran on the MAIN thread (18.85 s main vs 0.99 s background; issue #135), the felt category-nav lag; `DataWriter` shared the identical code shape and defect (issue #159). SE-0392 custom actor executors REQUIRE a `SerialExecutor`; a background `DispatchQueue` (which the actor never touches directly) is the stdlib primitive for a dedicated off-main serial context, and no pure-`Task` primitive binds a serial actor executor to a fixed `ModelContext`. This is an ACTOR EXECUTOR, not app-level GCD scheduling — the §7 ban targets ad-hoc `DispatchQueue.async` concurrency, which this is not. `DispatchSerialQueue` vends no public `asUnownedSerialExecutor()` in the macOS 26 SDK, hence the wrap-a-`DispatchQueue` form. A `dispatchPrecondition(.notOnQueue(.main))` at the top of every `DataReader` fetch and every `DataWriter` fetch/write fails loudly if a regression returns them to main. The two actors NEVER share one executor instance — that would re-serialise reads behind writes and reintroduce the panel-2 starvation. Revisit if SwiftData ships a first-party off-main model-actor executor. |
-| 2026-09-17 | Undocumented behaviour / public API only (`CLAUDE.md → Reject changes`, `STACK.md § 7`) | `SplitViewAutosaveReset` removes every `UserDefaults.standard` key prefixed `NSSplitView Subview Frames` in `FeederApp.init`, before any window exists; Feeder persists both leading column widths itself (`ColumnWidthSetting`, `ColumnWidthRecorder`). | On macOS 27 the `NavigationSplitView` bridge autosaves the content frame with `x = sidebar width` and restores `width − x` (five-launch log, issue #170: stored 586 → restored `ideal` 586 → settled 348 = 586 − 238; a value below the column minimum lands at the ~200-pt default), overriding the launch `ideal` ~0.5 s after creation; a late `ideal` change is ignored, `min = max` is honoured (headless spike). AppKit `autosaveName` is documented, the key NAME is not. Fails safe: a renamed key makes the removal a no-op and the recorder's launch-layout skip protects the stored widths (the settled log line then shows `skippedLaunchLayout`). FB pending (owner files). Revisit: remove when the Feedback resolves or a macOS release restores the content frame correctly (verify with a diagnostic build that logs the autosave frames). |
-| 2026-10-02 | Undocumented behaviour / public API only (`CLAUDE.md → Reject changes`, `STACK.md § 7`) | `ScrollAnchorKeeper` depends on four undocumented facts of the `List` bridge. `List` is an `NSTableView` in an `NSScrollView`. Each section header is one table row. The section header floats (`floatsGroupRows`), and its floating copy sits outside the clip view. The table posts `NSView.frameDidChangeNotification` when it applies a row update, before the frame is drawn. Immediately before `EntryListView.apply` assigns new sections, the keeper records the top on-screen data rows. When the table or a recorded row view posts the notification, the keeper scrolls the `NSClipView`, so the first surviving row keeps its offset from the top edge. A probe view in each section header gives the scroll view through `enclosingScrollView` or, for the floating copy, through the first `NSScrollView` in its superview chain. There is no window search. | Measured 2026-10-02 on macOS 27.0.1 (spikes for issue #265). The `List` keeps the clip origin when rows land above the visible rows, so the content moves down by the inserted height, also at the top. `.defaultScrollAnchor(.bottom, for: .sizeChanges)` gave identical readings, `.scrollPosition(id:anchor:)` never wrote an id, and `onScrollTargetVisibilityChange` never fired on `List`. Rows that were never on screen use an estimated height (106.65 pt against a 109-pt row), so the keeper reads the table geometry after the update and never uses row arithmetic. With the keeper, no drawn frame showed a moved anchor row (0.00 pt in every case). Benefit: a background refresh does not move the rows that the user reads. Isolation: one keeper per article list. Only a refresh apply that changes the rows above the anchor arms it, for one update, and an arm ends at the next display pass at the latest: the keeper arms only when its probe is in the window of the list. The keeper fails safe to the native behaviour in these cases: no section header floats, so no probe resolves a scroll view; no probe is in the window of the list; the table row count does not match the section layout, also after two applies before one display cycle; no on-screen row survives; or a scroll happens that the keeper cannot attribute. Revisit: remove the keeper when a macOS release documents content anchoring for `List`, or when an owner trace shows `scroll-anchor` compensate intervals with `delta=0`. |
+| 2026-09-17 | Undocumented behaviour / public API only (§ 15 → Reject changes, § 7) | `SplitViewAutosaveReset` removes every `UserDefaults.standard` key prefixed `NSSplitView Subview Frames` in `FeederApp.init`, before any window exists; Feeder persists both leading column widths itself (`ColumnWidthSetting`, `ColumnWidthRecorder`). | On macOS 27 the `NavigationSplitView` bridge autosaves the content frame with `x = sidebar width` and restores `width − x` (five-launch log, issue #170: stored 586 → restored `ideal` 586 → settled 348 = 586 − 238; a value below the column minimum lands at the ~200-pt default), overriding the launch `ideal` ~0.5 s after creation; a late `ideal` change is ignored, `min = max` is honoured (headless spike). AppKit `autosaveName` is documented, the key NAME is not. Fails safe: a renamed key makes the removal a no-op and the recorder's launch-layout skip protects the stored widths (the settled log line then shows `skippedLaunchLayout`). FB pending (owner files). Revisit: remove when the Feedback resolves or a macOS release restores the content frame correctly (verify with a diagnostic build that logs the autosave frames). |
+| 2026-10-02 | Undocumented behaviour / public API only (§ 15 → Reject changes, § 7) | `ScrollAnchorKeeper` depends on four undocumented facts of the `List` bridge. `List` is an `NSTableView` in an `NSScrollView`. Each section header is one table row. The section header floats (`floatsGroupRows`), and its floating copy sits outside the clip view. The table posts `NSView.frameDidChangeNotification` when it applies a row update, before the frame is drawn. Immediately before `EntryListView.apply` assigns new sections, the keeper records the top on-screen data rows. When the table or a recorded row view posts the notification, the keeper scrolls the `NSClipView`, so the first surviving row keeps its offset from the top edge. A probe view in each section header gives the scroll view through `enclosingScrollView` or, for the floating copy, through the first `NSScrollView` in its superview chain. There is no window search. | Measured 2026-10-02 on macOS 27.0.1 (spikes for issue #265). The `List` keeps the clip origin when rows land above the visible rows, so the content moves down by the inserted height, also at the top. `.defaultScrollAnchor(.bottom, for: .sizeChanges)` gave identical readings, `.scrollPosition(id:anchor:)` never wrote an id, and `onScrollTargetVisibilityChange` never fired on `List`. Rows that were never on screen use an estimated height (106.65 pt against a 109-pt row), so the keeper reads the table geometry after the update and never uses row arithmetic. With the keeper, no drawn frame showed a moved anchor row (0.00 pt in every case). Benefit: a background refresh does not move the rows that the user reads. Isolation: one keeper per article list. Only a refresh apply that changes the rows above the anchor arms it, for one update, and an arm ends at the next display pass at the latest: the keeper arms only when its probe is in the window of the list. The keeper fails safe to the native behaviour in these cases: no section header floats, so no probe resolves a scroll view; no probe is in the window of the list; the table row count does not match the section layout, also after two applies before one display cycle; no on-screen row survives; or a scroll happens that the keeper cannot attribute. Revisit: remove the keeper when a macOS release documents content anchoring for `List`, or when an owner trace shows `scroll-anchor` compensate intervals with `delta=0`. |
+
+---
+
+## 15. Engineering rules
+
+These rules apply `DOCTRINE.md` P2–P8 to Feeder for every host. The sections above pin the concrete technology. Treat every rule as MUST unless marked otherwise.
+
+### Mission
+
+Build the product in `VISION.md` on this stack: idiomatic (platform standard library and first-party frameworks first; prefer newer platform features over older ones); responsive under failure and load; strictly typed and concurrency-safe in the strictest mode (§ 1), no new warnings, no data races; resource-conscious within the budgets (§ 4); privacy-respecting (collect only what's needed; no silent telemetry or third-party analytics); easy to evolve (no custom app frameworks, no architecture astronautics).
+
+### Product guardrails
+
+Before accepting any feature, run `VISION.md → Decision Filter`. If any answer is "no", reject it, record the rejection in the PR (or the issue if no PR yet), and propose the smallest alternative that passes. Read the filter dynamically; never silently violate `VISION.md`.
+
+### Architecture
+
+Keep the layered shape in § 0: **interface** (SwiftUI views, the outward surface), **domain** (pure transforms, state machines, business rules; no framework imports), **infrastructure** (network, storage, external systems, reached only through narrow interfaces). Domain code is pure and testable.
+
+Right-size state ownership — no controller / service per trivial unit:
+
+- local state → a primitive owned by that surface;
+- shared stateful surface → one state owner;
+- shared mutable non-UI state → a thread-safe primitive;
+- app-wide dependency → explicit injection;
+- durable data → the persistence layer (§ 5).
+
+Name owners by responsibility, not mechanical suffix. Model phases as tagged unions, not parallel booleans.
+
+### Concurrency
+
+Strictest async-safety mode (§ 1), no new warnings. Isolate critical-path state explicitly. Shared mutable non-UI state lives behind a thread-safe primitive; services expose async methods or streams. Prefer structured concurrency; use detached work only when it must outlive its caller, with a why comment. **Cancellation is mandatory** — work stops when its surface goes away. Types crossing concurrency boundaries are thread-safe; never pass mutable reference graphs across them. The critical path never blocks on async work. Escape hatches are a last resort, each needing an inline justification naming the underlying-API constraint; § 7 lists the banned ones.
+
+### Responsiveness & resource budget
+
+On the critical execution path (§ 0): keep synchronous work within the budget; run anything slower off-path with a placeholder, last-known-good value, stream, or pagination; give every external call a timeout and graceful fallback; render large collections lazily with stable ids; load assets via async loader or thread-safe cache; do no expensive work in code that runs on every event — cache derived results; never make navigation or input wait on I/O. Prefer continuity over blankness. Back a hot-path change with the evidence in § 4. Pause background work when the surface is inactive.
+
+### States handled
+
+Every visible surface handles the states that `VISION.md` and § 0 declare. Previews and fixtures exercise each applicable state.
+
+### Time
+
+Treat time like any other external input: work in one absolute reference (UTC) everywhere internally — logic, domain values, persistence, caches, and logs — and convert to or from a zoned/local representation only at the boundary (normalise inbound values on parse; convert outbound values when rendering a user-facing value). Nothing between the edges holds local time. Never hand-roll timezone-offset arithmetic. Instants crossing a persistence or wire boundary are serialised in UTC. § 10 pins the concrete types and calls.
+
+### Side effects
+
+- **External systems / networking** — through the clients in § 2; request building, decoding, retries, backoff live in the service layer, never inline in the interface. Wrap every side-effecting system behind a service with explicit degraded phases; start work when needed, stop when not; request the narrowest permission scope.
+- **Persistence** — only the shape in § 5; never persist data the product doesn't require; handle decode/migration failures gracefully.
+- **Caching** — framework-native where available; long-lived caches behind a thread-safe primitive; never cache PII or tokens beyond their lifetime.
+- **Background work** — only what § 9 allows.
+
+### Privacy & security
+
+Maintain the platform's privacy declaration accurately. Never log PII or sensitive derived values — use the redaction in § 8; release builds must not leak. No silent telemetry or third-party analytics. Encrypted transport only. Secrets stay out of the repo (Keychain / ignored files).
+
+### Testing
+
+Use the framework in § 2; tests run clean in the strictest mode. Test pure domain code first (transforms, transitions, edge cases). Test the state owner that drives a surface, not the surface, using a fake/in-memory service boundary and asserting the timeline. Prefer interface-backed services with live/preview/fake implementations over heavyweight mocking. § 3 → Testing strategy is the concrete rule.
+
+### Code conventions
+
+Value types and immutable bindings by default; reference types/mutation only when identity or shared mutation is needed. Composition over inheritance; small purpose-driven types; files named for their primary type. No unsafe unwraps/coercions outside tests; no broad type erasure without a measured benefit; no global mutable state or singletons unless an API requires one. Delete dead code; comment per **Comments** below. No debug output in shipped code — use the logger in § 8. Run `$FORMAT_CMD` before committing. § 13 pins the Swift specifics.
+
+### Comments
+
+A comment earns its place by stating a **constraint a reader would otherwise break** — units, ownership, failure behaviour, an actor or thread requirement, what a caller must not do. It does not describe the code. Default to none: code that needs explaining is a naming or structure defect, so fix the code first. Doc-comment an exported symbol only when the name and the signature leave a contract unstated.
+
+The list below is the rule. The budget is a smell that points at it: a comment runs to at most 5 lines. Past that the content is usually rationale, not a constraint — move it to the issue, the PR, or this file, and leave a pointer. A comment carrying two distinct constraints splits into two comments; it is not cut to fit. A comment over 5 lines that holds only constraints stays, and the reviewer says so. Never cut a contract to reach a number.
+
+Never write:
+
+- **History.** What the code used to be, what a fix changed, what a design replaced, what a measurement was. The commit, the PR, and the issue hold that record. A comment describes the present only.
+- **Rationale and rejected alternatives.** Why an option lost, notes from a design session, measured numbers. These go to the issue, the PR, or § 14.
+- **A reference that does not resolve inside the repository.** Delete every issue number, PR number, and commit reference from the comment: it must still read correctly. A bare `#170` or "the previous shape" is not a reference; a named `STACK.md` section is.
+- **The same explanation twice** — in a type doc and again at the call site, or in the source and again in a `STACK.md` section. Name the section instead of restating it.
+- **Anything answering the current task or its author.** Tell the user instead.
+- **A line number, a file offset, or a count of things elsewhere** — a later edit invalidates it silently.
+
+Write for a reader who has this file and nothing else: no issue, no chat, no external schema. Read each comment back cold, as a standalone sentence — an unclear referent is a defect even when the content is right. Do this while writing: a later pruning pass tests redundancy, not clarity. A note about an implementation choice sits at the line that makes it, not in the doc comment.
+
+Keep an existing comment unless the change makes it wrong. A comment that breaks this policy is already wrong: prune it when you touch that code.
+
+### Dependencies
+
+Default to no — especially for what the platform already solves. A genuinely needed one uses the package manager in § 1, compiles clean in the strictest mode, and is added to § 6 with rationale, approver, and date.
+
+### Reject changes that…
+
+violate a decision-filter question or add a `VISION.md → Non-Goals` feature; add a competing framework or boilerplate where a smaller owner suffices; put heavy work on the critical path or in per-event code; couple the interface layer to network/storage/sensor internals; store or compute in local time (or hand-roll timezone-offset math) instead of UTC-internally with conversion only at the boundary; hide failure behind infinite spinners or use parallel booleans for a state machine; suppress warnings with escape hatches; spawn fire-and-forget async with no ownership or cancellation; add a dependency for what the platform solves or lower the minimum version in § 1; introduce debug output, stubs, or commented-out code, or log PII; narrate history, rationale, or an unresolvable issue/PR reference in a comment instead of the issue or the PR (Comments above); add singletons/DI containers without approval in this file; or break any § 7 rule.
+
+### Definition of done
+
+Responsive under slow network / denied permissions / degraded data / load; every applicable state handled; no heavy work on the critical path; every async path cancellation-safe; no new persisted/transmitted data violating `VISION.md` or this file, no PII in logs; tests cover new domain logic and run clean in the strictest mode; accessibility considered for user-facing surfaces; `$VERIFY_CMD` green; privacy declarations and docs updated when relevant.
+
+---
+
+## 16. Release, recovery, and evidence
+
+- **Release:** the owner builds and installs the app locally with `make install` after the owner merges the PR. Feeder has no App Store, TestFlight, or notarised distribution. No merge triggers a deployment.
+- **Observe:** the owner uses the installed build daily. A slow or failing action follows § 4 → Owner trace.
+- **Recover:** the owner checks out the previous merge commit on `main` and runs `make install` again. A schema change cannot roll back a migrated store (§ 5); a migration test in `FeederMigrationPlan` is the pre-merge evidence.
+- **Data:** `VISION.md → Persistence and Privacy Posture` declares each stored field. § 5 owns migrations and their limits.
+- **Evidence matrix:** § 3 → Gates lists each check, its phase, and its runner. Pre-merge evidence is `$VERIFY_CMD`, the triggered gates, and the independent review when `DOCTRINE.md → P9` requires one. Post-release evidence is the owner's use of the installed build; agents report it as pending.
+- **Known gaps:** no automated check measures the § 4 budgets; no secret or dependency scanner runs, because Feeder has no third-party packages (§ 6) and keeps secrets in the Keychain (§ 8). Owner-run checks (§ 3) cover focus and the settings keyboard path.
