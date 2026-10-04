@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -q \"gh pr create\"; then echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PostToolUse\\\",\\\"additionalContext\\\":\\\"PR created. The /codereview gate is next: in the team flow qa-enforcer runs it (lead-dev does not). If you opened this PR by hand, run /codereview yourself.\\\"}}\"; fi'"
+            "command": "bash -c 'cmd=$(jq -r \".tool_input.command\"); if echo \"$cmd\" | grep -q \"gh pr create\"; then echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PostToolUse\\\",\\\"additionalContext\\\":\\\"PR created. Material changes require independent review: the lead invokes /codereview, which starts qa-enforcer in an isolated context. Missing required evidence blocks acceptance. The owner merges.\\\"}}\"; fi'"
           }
         ]
       }

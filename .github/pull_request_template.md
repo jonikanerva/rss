@@ -1,66 +1,52 @@
-<!--
-Fill every section. Remove this comment before saving.
-The /implement skill drafts this for you. Verify, then ship.
--->
+<!-- Keep this proportional to the change. Use short, active English sentences.
+Remove instructions and replace placeholders before saving. -->
 
-## Why
+## Purpose and scope
 
-`<One-paragraph motivation. What problem is this PR solving and which VISION.md / CLAUDE.md / STACK.md rule is at play.>`
+<Problem, intended outcome, and what this change delivers.>
+<Put any decisive unresolved owner decision or product blocker first.>
+<Link a fully resolved issue with Closes #N when applicable.>
 
-Closes #`<issue number, if this PR resolves a GitHub issue>`
+## Acceptance criteria
 
-## What
+<Observable behaviour, important failure cases, and the evidence for each.>
+<Trace criteria to the original request or source evidence. Separate material
+assumptions from requirements and observed facts; state unresolved user-visible effects.>
 
-`<Bulleted technical summary of the changes. Files added / removed / changed.>`
+## Decisions and authority
 
-- `<change 1>`
-- `<change 2>`
-- `<change 3>`
+<Material choices and the `VISION.md` / `STACK.md` rules at play.>
+<A decision that binds future work, also stated in the linked issue.>
 
-## VISION decision filter
+VISION decision filter (`VISION.md → Decision Filter`):
 
-The four questions in `VISION.md → Decision Filter`:
+1. Exactly one main category per article — **<yes / no>**. <Reason.>
+2. Timeline order stays canonical timestamp descending — **<yes / no>**. <Reason.>
+3. Calm, keyboard-operable, vanilla macOS — **<yes / no>**. <Reason.>
+4. Smallest polished capability, reversible — **<yes / no>**. <Reason.>
 
-1. `<Question 1 verbatim>` — **`<yes / no>`**. `<one-line rationale>`.
-2. `<Question 2 verbatim>` — **`<yes / no>`**. `<one-line rationale>`.
-3. `<Question 3 verbatim>` — **`<yes / no>`**. `<one-line rationale>`.
-4. `<Question 4 verbatim>` — **`<yes / no>`**. `<one-line rationale>`.
-
-If any answer is `no`, this PR documents the conflict in the **Why** section above and proposes the smallest idiomatic alternative — and, if the rejection establishes a binding constraint for future work, also states it in the linked issue. Otherwise: all four are `yes`.
-
-## Rules involved
-
-- `CLAUDE.md → <rule by name>` — `<one-line how this PR honours it>`
-- `STACK.md → <section>` — `<one-line>`
+The owner merges this PR (`CLAUDE.md → Owner reservations`).
 
 ## Verification
 
-- [ ] `make test-all` (`$VERIFY_CMD`) ran once on the pushed head: `verify: head=<sha> tree=clean result=Passed tests=<n>`.
-- [ ] `make lint-fix` (`$FORMAT_CMD`) is idempotent (re-running produces no diff).
-- [ ] Tests added or updated for new logic.
-- [ ] Previews / fixtures cover the new states.
-- [ ] Privacy declaration (`PrivacyInfo.xcprivacy`) updated if a new required-reason / required-data API was adopted.
-- [ ] If the schema changed: a new `VersionedSchema` is added and `FeederMigrationPlan` updated with a stage; custom stages recompute the denormalized display fields they touch (`STACK.md → Persistence shape`).
-- [ ] Hot-path gate (STACK.md → Performance budgets): not triggered, no new hot-path work and the reason, or the test and the signpost interval for each unit of new hot-path work.
-- [ ] Owner-run checks (`STACK.md → Gates`): `none triggered`, or each triggered check as `ran on <SHA>: PASS` or `triggered, pending owner run`.
-- [ ] The issue this PR resolves is linked with `Closes #<N>` above. Any binding decision introduced (if any) is stated in plain language in this description and the issue.
+- Version and integration base: <head SHA and base SHA>
+- `$VERIFY_CMD`: `verify: head=<sha> tree=clean result=Passed tests=<n>`
+- Hot-path gate (`STACK.md § 4`): <not triggered / no new hot-path work and why / test and signpost per unit>
+- Owner-run checks (`STACK.md § 3 → Gates`): <none triggered / `ran on <SHA>: PASS` / `triggered, pending owner run`>
+- Other triggered gates: <`make test-stress-tsan`, schema migration test, or none>
+- States handled (user-facing surfaces): <each applicable state and its preview, or not applicable>
+- Privacy declaration (`PrivacyInfo.xcprivacy`): <updated, or no new required-reason API>
+- Reproduction: <procedure, safe inputs or reconstruction, expected outcomes and sources>
+- Independent review: <required or not, reason, and review link when complete>
 
-## States handled
+## Unverified work and exceptions
 
-For changes that affect a user-facing surface, list every state it renders:
+<Lead with any decisive unresolved risk. State what was not verified and its
+effect on acceptance. Unrepeatable claims are limitations, not passed checks.
+Use none with a reason when all applicable evidence is present. Link each
+approved exception in `STACK.md § 14`.>
 
-- [ ] loading / awaiting first data
-- [ ] success
-- [ ] empty
-- [ ] degraded
-- [ ] permission-blocked
-- [ ] offline / error
-- [ ] unclassified / fallback category (product-specific, when classification is touched)
+## Release and recovery
 
-## Notes for reviewer
-
-`<Anything the reviewer should know that the diff alone does not surface — e.g. an autonomy-fallback default taken, a deferred decision, an open risk.>`
-
----
-
-**Next step:** run `/codereview` on this branch. The autonomous flow runs it automatically; if you opened this PR by hand, run it yourself before requesting merge.
+<Schema migration and compatibility evidence, or not applicable with a reason.
+The owner releases with `make install` after the merge (`STACK.md § 16`).>
