@@ -12,15 +12,15 @@ Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-fir
 - Three classification providers:
   - **Apple Foundation Models** — zero-config and fully on-device.
   - **OpenAI API** — bring your own API key.
-  - **Vercel AI Gateway** — use Typesafe JEV with your AI Gateway key.
-    Article titles, text, and category definitions go through Vercel to Typesafe.
+  - **Vercel AI Gateway** — use Typesafe JEV or Microsoft Decision-1 with your AI Gateway key.
+    Article titles, text, and category definitions go through Vercel to the provider of the selected model.
 - Full keyboard navigation
 - Native macOS look and feel
 
 ## Stack
 
 - SwiftUI + SwiftData
-- Apple Foundation Models / OpenAI API / Vercel AI Gateway (JEV)
+- Apple Foundation Models / OpenAI API / Vercel AI Gateway (JEV, Decision-1)
 - Swift 6, strict concurrency
 - macOS 26.2+
 

@@ -157,4 +157,26 @@ struct ClassificationProviderResolutionTests {
     let openAIProvider = provider as? OpenAIClassificationProvider
     #expect(openAIProvider?.model == "gpt-5.6-luna")
   }
+
+  // MARK: - Vercel decision model resolution
+
+  @Test
+  func buildProviderPassesStoredDecisionModelToVercelProvider() {
+    ClassificationProviderKind.persist(.vercel, in: defaults)
+    VercelDecisionModel.persist(.decision1, in: defaults)
+
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "vercel-test-not-real" }
+
+    #expect((provider as? VercelClassificationProvider)?.model == .decision1)
+  }
+
+  @Test
+  func buildProviderDefaultsToJEVWhenNoDecisionModelStored() {
+    ClassificationProviderKind.persist(.vercel, in: defaults)
+    #expect(defaults.string(forKey: VercelDecisionModel.userDefaultsKey) == nil)
+
+    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "vercel-test-not-real" }
+
+    #expect((provider as? VercelClassificationProvider)?.model == .jev)
+  }
 }

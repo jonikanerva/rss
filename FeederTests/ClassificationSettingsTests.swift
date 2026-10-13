@@ -210,6 +210,27 @@ struct ReclassificationPromptTests {
   }
 
   @Test
+  func vercelModelPickWithASavedKeyAsksWithTheModelTarget() async {
+    let store = MemoryClassificationKeyStore(values: [.vercel: "vercel-test"])
+    let settings = ClassificationSettingsModel(provider: .vercel, store: store, isInert: true)
+    await settings.refreshKey()
+    #expect(settings.vercelModel == .jev)
+    #expect(!settings.selectVercelModel(.jev))
+    #expect(settings.reclassificationPrompt == .idle)
+    #expect(settings.selectVercelModel(.decision1))
+    #expect(settings.vercelModel == .decision1)
+    #expect(settings.reclassificationTarget == "Decision-1 through Vercel AI Gateway")
+  }
+
+  @Test
+  func vercelModelPickWithoutASavedKeyNeverAsks() async {
+    let settings = ClassificationSettingsModel(provider: .vercel, store: MemoryClassificationKeyStore(), isInert: true)
+    await settings.refreshKey()
+    #expect(settings.selectVercelModel(.decision1))
+    #expect(settings.reclassificationPrompt == .idle)
+  }
+
+  @Test
   func failedProbeAsks() async {
     let store = MemoryClassificationKeyStore()
     await store.configureProbe(.failure(.osStatus(errSecInteractionNotAllowed)))

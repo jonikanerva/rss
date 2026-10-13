@@ -261,7 +261,7 @@ final class ClassificationEngine {
     case .openAI:
       return OpenAIClassificationProvider(apiKey: apiKey, model: OpenAIModelSetting.current(in: defaults))
     case .vercel:
-      return VercelClassificationProvider(apiKey: apiKey)
+      return VercelClassificationProvider(apiKey: apiKey, model: VercelDecisionModel.current(in: defaults))
     case .appleFM:
       return AppleFMClassificationProvider()
     }

@@ -55,9 +55,9 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .providerUnavailable: "Categorizing paused — provider unavailable"
     case .needsKey: "Add an API key to start categorizing"
     case .keyUnreadable: "Could not read the API key from Keychain"
-    case .invalidCategories: "JEV needs unique category labels and at most 255 categories"
-    case .inputTooLarge: "Category definitions are too large for JEV"
-    case .invalidResponse: "JEV returned an invalid result"
+    case .invalidCategories: "The selected model needs unique category labels and at most 255 categories"
+    case .inputTooLarge: "Category definitions are too large for the selected model"
+    case .invalidResponse: "The selected model returned an invalid result"
     case .rateLimited: "Categorizing paused — service limit reached"
     case .quotaExhausted:
       // No `default:`: a new provider kind must choose its own billing copy.

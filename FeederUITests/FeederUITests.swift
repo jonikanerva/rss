@@ -95,9 +95,11 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(provider.exists || provider.waitForExistence(timeout: 5), app.debugDescription)
     provider.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).click()
     XCTAssertTrue(provider.isSelected)
-    XCTAssertTrue(
-      nativeText("JEV (Typesafe)", in: app).exists || nativeText("JEV (Typesafe)", in: app).waitForExistence(timeout: 5),
-      app.debugDescription)
+    let jev = app.radioButtons.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "classification.vercel.model.typesafe-ai/jev")
+    ).firstMatch
+    XCTAssertTrue(jev.exists || jev.waitForExistence(timeout: 5), app.debugDescription)
+    XCTAssertTrue(jev.isSelected)
     let edit = app.buttons["classification.key.edit"]
     edit.click()
     let field = app.secureTextFields["classification.key.field"]

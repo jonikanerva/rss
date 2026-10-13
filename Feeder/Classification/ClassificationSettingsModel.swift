@@ -86,6 +86,7 @@ final class ClassificationSettingsModel {
   private(set) var keyState: KeyState
   private(set) var keyRevision = 0
   private(set) var openAIModel: String
+  private(set) var vercelModel: VercelDecisionModel
   private(set) var reclassificationPrompt: ReclassificationPrompt = .idle
   let isInert: Bool
   private let store: any ClassificationKeyStore
@@ -102,13 +103,15 @@ final class ClassificationSettingsModel {
     provider: ClassificationProviderKind? = nil,
     store: (any ClassificationKeyStore)? = nil,
     isInert: Bool = HeadlessMode.isEnabled,
-    openAIModel: String? = nil
+    openAIModel: String? = nil,
+    vercelModel: VercelDecisionModel? = nil
   ) {
     self.isInert = isInert
     let selected = provider ?? (isInert ? .appleFM : .current)
     self.provider = selected
     self.store = store ?? (isInert ? MemoryClassificationKeyStore() : KeychainClassificationKeyStore())
     self.openAIModel = openAIModel ?? (isInert ? OpenAIModelSetting.defaultModel : OpenAIModelSetting.current())
+    self.vercelModel = vercelModel ?? (isInert ? .default : .current())
     keyState = selected == .appleFM ? .missing : .loading
   }
 
@@ -129,6 +132,15 @@ final class ClassificationSettingsModel {
     openAIModel = model
     if !isInert { OpenAIModelSetting.persist(model) }
     if hasStoredKey { reclassificationPrompt = .showing(target: targetName(for: .openAI)) }
+    return true
+  }
+
+  /// Returns false, and changes nothing, for the model that is already selected.
+  func selectVercelModel(_ model: VercelDecisionModel) -> Bool {
+    guard model != vercelModel else { return false }
+    vercelModel = model
+    if !isInert { VercelDecisionModel.persist(model) }
+    if hasStoredKey { reclassificationPrompt = .showing(target: targetName(for: .vercel)) }
     return true
   }
 
@@ -195,7 +207,7 @@ final class ClassificationSettingsModel {
     switch provider {
     case .appleFM: provider.displayName
     case .openAI: "OpenAI (\(openAIModel))"
-    case .vercel: "JEV through Vercel AI Gateway"
+    case .vercel: "\(vercelModel.shortName) through Vercel AI Gateway"
     }
   }
 }
