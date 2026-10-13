@@ -4,9 +4,9 @@ import OSLog
 nonisolated struct VercelClassificationProvider: ClassificationProvider {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "Vercel")
   let name = "Vercel AI Gateway"
-  static let model = "typesafe-ai/jev"
   static let maximumRequestBytes = 24_000
   private static let requestTimeout: TimeInterval = 30
+  let model: VercelDecisionModel
   private let apiKey: String
   private let send: @Sendable (URLRequest) async throws -> ClassificationHTTPResponse
   private let sleep: @Sendable (Duration) async throws -> Void
@@ -14,12 +14,14 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
 
   init(
     apiKey: String,
+    model: VercelDecisionModel = .default,
     send: @escaping @Sendable (URLRequest) async throws -> ClassificationHTTPResponse =
       CloudSession(requestTimeout: Self.requestTimeout).send,
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.apiKey = apiKey
+    self.model = model
     self.send = send
     self.sleep = sleep
     self.now = now
@@ -30,7 +32,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
 
   func validate(categories: [CategoryDefinition]) async throws {
     guard await isAvailable else { throw VercelClassificationError.needsKey }
-    _ = try Self.requestBody(title: "", body: "", categories: categories)
+    _ = try Self.requestBody(model: model, title: "", body: "", categories: categories)
   }
 
   func classify(
@@ -45,7 +47,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     request.httpMethod = "POST"
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try Self.requestBody(title: title, body: body, categories: categories)
+    request.httpBody = try Self.requestBody(model: model, title: title, body: body, categories: categories)
     let response = try await CloudSession.sendWithRetry(
       request, provider: name, logger: Self.logger, send: send, sleep: sleep, now: now,
       httpFailure: { VercelClassificationError.http($0.statusCode, retryAfter: retryAfterDelay($0.retryAfter, now: $1)) },
@@ -55,7 +57,9 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     return try Self.decode(response.data, categories: categories)
   }
 
-  static func requestBody(title: String, body: String, categories: [CategoryDefinition]) throws -> Data {
+  static func requestBody(
+    model: VercelDecisionModel, title: String, body: String, categories: [CategoryDefinition]
+  ) throws -> Data {
     let criteria = try makeCriteria(categories)
     let question = Question(
       type: "choice",
@@ -63,7 +67,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       criteria: criteria)
     let encoder = JSONEncoder()
     func encode(_ title: String, _ body: String) throws -> Data {
-      try encoder.encode(Request(model: model, state: .init(title: title, content: body), questions: ["category": question]))
+      try encoder.encode(Request(model: model.rawValue, state: .init(title: title, content: body), questions: ["category": question]))
     }
     guard try encode("", "").count <= maximumRequestBytes else {
       throw VercelClassificationError.inputTooLarge

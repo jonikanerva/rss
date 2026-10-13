@@ -3,7 +3,7 @@ import Testing
 
 @testable import Feeder
 
-@Suite("Vercel JEV wire and limits")
+@Suite("Vercel decision model wire and limits")
 struct VercelClassificationTests {
   private let categories = [
     CategoryDefinition(label: "tech", description: "Technology news", folderLabel: "private-folder", keywords: ["Swift", "Apple"]),
@@ -45,6 +45,28 @@ struct VercelClassificationTests {
   }
 
   @Test
+  func decision1PickSendsItsModelIDAndTheSameAllowedData() async throws {
+    let recorder = ClassificationTransportRecorder(data: success)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake-vercel-key", model: .decision1, send: { try await recorder.send($0) })
+    let result = try await provider.classify(
+      title: "Title", body: "Article text", url: "https://private.invalid/read-history", categories: categories)
+    #expect(result == .choice(category: "tech"))
+    let request = try #require(await recorder.requests.first)
+    #expect(request.url?.absoluteString == "https://ai-gateway.vercel.sh/v1/evaluate")
+    let data = try #require(request.httpBody)
+    let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(Set(root.keys) == ["model", "state", "questions"])
+    #expect(root["model"] as? String == "microsoft/microsoft-decision-1")
+    let state = try #require(root["state"] as? [String: String])
+    #expect(state == ["title": "Title", "content": "Article text"])
+    let text = String(decoding: data, as: UTF8.self)
+    #expect(!text.contains("private-folder"))
+    #expect(!text.contains("private.invalid"))
+    #expect(!text.contains("fake-vercel-key"))
+  }
+
+  @Test
   func choiceLimitIncludesOneFallback() throws {
     let definitions = (0..<254).map { CategoryDefinition(label: "c\($0)", description: "Category \($0)") }
     #expect(try VercelClassificationProvider.makeCriteria(definitions).count == 255)
@@ -63,10 +85,11 @@ struct VercelClassificationTests {
     }
   }
 
-  @Test
-  func byteLimitKeepsUnicodeAndCompleteMetadata() throws {
+  @Test(arguments: VercelDecisionModel.allCases)
+  func byteLimitKeepsUnicodeAndCompleteMetadata(model: VercelDecisionModel) throws {
     let body = String(repeating: "🧑🏽‍💻Å漢字\n\"\\", count: 5000)
-    let data = try VercelClassificationProvider.requestBody(title: String(repeating: "界", count: 900), body: body, categories: categories)
+    let data = try VercelClassificationProvider.requestBody(
+      model: model, title: String(repeating: "界", count: 900), body: body, categories: categories)
     #expect(data.count <= VercelClassificationProvider.maximumRequestBytes)
     #expect(data.count > 23_900)
     let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -80,7 +103,7 @@ struct VercelClassificationTests {
   func oversizedTaxonomyFailsWithoutTruncation() {
     let large = [CategoryDefinition(label: "large", description: String(repeating: "x", count: 24_000))]
     #expect(throws: VercelClassificationError.self) {
-      try VercelClassificationProvider.requestBody(title: "", body: "", categories: large)
+      try VercelClassificationProvider.requestBody(model: .jev, title: "", body: "", categories: large)
     }
   }
 

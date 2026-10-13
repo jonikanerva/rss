@@ -934,9 +934,9 @@ struct ClassificationAbortReasonCopyTests {
     (.providerUnavailable, "Categorizing paused — provider unavailable"),
     (.needsKey, "Add an API key to start categorizing"),
     (.keyUnreadable, "Could not read the API key from Keychain"),
-    (.invalidCategories, "JEV needs unique category labels and at most 255 categories"),
-    (.inputTooLarge, "Category definitions are too large for JEV"),
-    (.invalidResponse, "JEV returned an invalid result"),
+    (.invalidCategories, "The selected model needs unique category labels and at most 255 categories"),
+    (.inputTooLarge, "Category definitions are too large for the selected model"),
+    (.invalidResponse, "The selected model returned an invalid result"),
     (.rateLimited, "Categorizing paused — service limit reached"),
   ]
 

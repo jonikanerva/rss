@@ -48,10 +48,19 @@ struct ClassificationSettingsView: View {
           if settings.provider == .openAI {
             OpenAIModelPickerRow(selection: Binding(get: { settings.openAIModel }, set: selectModel), state: modelListState)
           } else {
-            LabeledContent("Model", value: "JEV (Typesafe)")
-            Text("Article titles, text, and category definitions are sent to Vercel AI Gateway and Typesafe for classification.")
-              .font(fontSettings.caption)
-              .foregroundStyle(.secondary)
+            Picker("Model", selection: Binding(get: { settings.vercelModel }, set: selectVercelModel)) {
+              ForEach(VercelDecisionModel.allCases, id: \.self) { model in
+                Text(model.displayName)
+                  .accessibilityIdentifier("classification.vercel.model.\(model.rawValue)")
+                  .tag(model)
+              }
+            }
+            .pickerStyle(.radioGroup)
+            Text(
+              "Article titles, text, and category definitions are sent to Vercel AI Gateway and \(settings.vercelModel.recipientName) for classification."
+            )
+            .font(fontSettings.caption)
+            .foregroundStyle(.secondary)
           }
           if let abort = classificationEngine.lastAbort, classificationEngine.lastAbortProvider == settings.provider {
             HStack {
@@ -101,6 +110,10 @@ struct ClassificationSettingsView: View {
 
   private func selectModel(_ model: String) {
     if settings.selectOpenAIModel(model) { configurationChanged() }
+  }
+
+  private func selectVercelModel(_ model: VercelDecisionModel) {
+    if settings.selectVercelModel(model) { configurationChanged() }
   }
 
   private func configurationChanged() {
@@ -250,6 +263,16 @@ private struct APIKeyEditSheet: View {
       provider: .vercel, store: MemoryClassificationKeyStore(values: [.vercel: "preview"]), isInert: true)
   )
   .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings())
+  .frame(width: 550, height: 550)
+}
+
+#Preview("Vercel — Decision-1") {
+  ClassificationSettingsView(
+    settings: ClassificationSettingsModel(
+      provider: .vercel, store: MemoryClassificationKeyStore(values: [.vercel: "preview"]), isInert: true,
+      vercelModel: .decision1)
+  )
+  .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings(textSize: .xxLarge))
   .frame(width: 550, height: 550)
 }
 
