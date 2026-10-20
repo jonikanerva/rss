@@ -16,8 +16,8 @@ nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
 nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
 /// `EntryCoverageCursor.newestCreatedAt` of the incremental entry fetch.
 nonisolated let entryCoverageCursorUserDefaultsKey = "entryCoverageCursor"
-/// Entry IDs queued to push to Feedbin as read. `FeederApp.openStore` keeps
-/// this key when it resets the store.
+/// Entry IDs queued to push to Feedbin as read. Start Over
+/// (`StoreRecovery.startOver`) keeps this key.
 nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
 
 /// Maximum age for articles, in days. Nothing older is fetched or persisted,

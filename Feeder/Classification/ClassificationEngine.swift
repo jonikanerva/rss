@@ -95,7 +95,8 @@ final class ClassificationEngine {
     apply(.terminal, provider: lastAbortProvider)
   }
 
-  /// Call synchronously after a committed provider, model, or key change.
+  /// Call synchronously after a committed provider, model, key, or category
+  /// definition change.
   func configurationChanged(writer: DataWriter) {
     classificationTask?.cancel()
     lastAbort = nil

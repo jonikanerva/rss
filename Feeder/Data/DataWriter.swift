@@ -24,8 +24,8 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
 
 /// `UserDefaults` key that marks the default taxonomy as seeded for this
 /// install. It lives outside the SwiftData store so a custom migration stage
-/// that empties the categories table cannot drop or hide it. Only the
-/// catastrophic-reopen fallback in `FeederApp.init` clears it.
+/// that empties the categories table cannot drop or hide it. Only Start Over
+/// (`StoreRecovery.startOver`) clears it.
 nonisolated let defaultsSeededUserDefaultsKey = "feeder.defaultsSeeded"
 
 /// Minimal `Sendable` flag store behind the seeded-defaults sentinel.
@@ -366,23 +366,27 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  /// Mark all unread classified entries in a folder or category as read.
-  /// Returns the feedbin entry IDs that were flipped from unread → read.
-  func markAllAsRead(target: MarkReadTarget, cutoffDate: Date) throws -> Set<Int> {
+  /// Mark all unread entries in `target` as read. Returns the feedbin entry
+  /// IDs that were flipped from unread → read.
+  func markAllAsRead(target: EntryScope, cutoffDate: Date) throws -> Set<Int> {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor: FetchDescriptor<Entry>
     switch target {
+    case .all:
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> { !$0.isRead && $0.publishedAt >= cutoffDate }
+      )
     case .folder(let label):
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryFolder == label && !$0.isRead
+          $0.primaryFolder == label && !$0.isRead
             && $0.publishedAt >= cutoffDate
         }
       )
     case .category(let label):
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryCategory == label && !$0.isRead
+          $0.primaryCategory == label && !$0.isRead
             && $0.publishedAt >= cutoffDate
         }
       )
@@ -526,16 +530,17 @@ actor DataWriter: ModelActor {
     }
   }
 
+  /// Mark every entry as pending a new result. Must keep `primaryCategory`
+  /// and `primaryFolder` until `applyClassification` replaces them
+  /// (`STACK.md § 2 → Cloud classification`).
   func resetClassification() throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
-    let descriptor = FetchDescriptor<Entry>()
+    let descriptor = FetchDescriptor<Entry>(predicate: #Predicate<Entry> { $0.isClassified })
     let entries = try modelContext.fetch(descriptor)
     // The reset is atomic with respect to cancellation once mutations start.
     try Task.checkCancellation()
     for entry in entries {
       entry.isClassified = false
-      entry.primaryCategory = ""
-      entry.primaryFolder = ""
     }
     do {
       try modelContext.save()

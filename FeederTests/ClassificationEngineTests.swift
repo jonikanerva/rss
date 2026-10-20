@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Synchronization
 import Testing
 
@@ -442,36 +443,61 @@ struct ClassificationEngineTests {
     #expect(techCount == entryIDs.count - 1)
   }
 
-  /// A full reclassify resets every category first, so an always-aborting
-  /// provider must leave the corpus unclassified and never misclassified. The
-  /// next poll recovers it once the configuration is fixed.
-  @Test
-  func reclassifyAllWithAlwaysAbortingProviderLeavesEverythingUnclassified() async throws {
-    let (engine, writer, provider) = try await makeEngineAndWriter()
-    let entryIDs = try await seedEntries(writer, count: 3)
+  /// The category timeline and its unread badge, as the article list and the
+  /// sidebar read them.
+  private func categoryTimeline(
+    _ reader: DataReader, _ category: String
+  ) async throws -> (ids: [PersistentIdentifier], unread: Int) {
+    let result = try await reader.fetchEntrySections(
+      scope: .category(category), showRead: false, cutoffDate: .distantPast,
+      window: .firstPage(limit: 100))
+    let counts = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    return (result.allEntryIDs, counts.categoryCounts[category] ?? 0)
+  }
 
-    // Classify successfully first, so every entry holds a real category.
+  /// A reclassification keeps the previous category until a new result
+  /// commits. An always-aborting provider leaves every article pending, in its
+  /// old timeline and badge, and never misclassified. The fixed provider then
+  /// replaces each assignment and keeps the timeline order.
+  @Test
+  func reclassifyAllAbortKeepsArticlesReadableUntilRecovery() async throws {
+    let (engine, writer, provider) = try await makeEngineAndWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let entryIDs = try await seedEntries(writer, count: 3)
     await engine.classifyUnclassified(writer: writer)
+    let before = try await categoryTimeline(reader, "tech")
+    #expect(before.ids.count == entryIDs.count)
+    #expect(before.unread == entryIDs.count)
+
+    await provider.configureErrors(
+      FakeClassificationFailure(batchAbort: .modelRejected), count: Int.max)
+    await engine.reclassifyAll(writer: writer)
+
+    #expect(await provider.callCount == entryIDs.count + 1)
+    #expect(engine.lastAbort == .modelRejected)
+    for id in entryIDs {
+      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
+      #expect(snapshot?.isClassified == false, "Entry \(id) must stay pending a new result")
+      #expect(snapshot?.primaryCategory == "tech", "Entry \(id) must keep its previous category")
+    }
+    let during = try await categoryTimeline(reader, "tech")
+    #expect(during.ids == before.ids)
+    #expect(during.unread == before.unread)
+
+    await provider.configureErrors(FakeClassificationFailure(batchAbort: nil), count: 0)
+    await provider.configureCategory("world")
+    await engine.classifyUnclassified(writer: writer)
+
     for id in entryIDs {
       let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
       #expect(snapshot?.isClassified == true)
-      #expect(snapshot?.primaryCategory == "tech")
+      #expect(snapshot?.primaryCategory == "world")
     }
-
-    // Now every call aborts: the worst case for a bad model selection.
-    await provider.configureErrors(
-      FakeClassificationFailure(batchAbort: .modelRejected), count: Int.max)
-
-    await engine.reclassifyAll(writer: writer)
-
-    // The reset ran, the batch aborted on its first call, and nothing was
-    // misclassified: every entry awaits the next poll.
-    #expect(await provider.callCount == entryIDs.count + 1)
-    for id in entryIDs {
-      let snapshot = try await writer.fetchEntrySnapshot(feedbinEntryID: id)
-      #expect(snapshot?.isClassified == false)
-      #expect(snapshot?.primaryCategory != "tech", "Aborted reclassify must not persist a category")
-    }
+    #expect(try await categoryTimeline(reader, "tech").ids.isEmpty)
+    let after = try await categoryTimeline(reader, "world")
+    #expect(after.ids == before.ids, "Recovery must not change the timeline order")
+    #expect(after.unread == entryIDs.count)
+    #expect(engine.lastAbort == nil)
     #expect(engine.isClassifying == false)
   }
 
@@ -752,12 +778,6 @@ struct OpenAIErrorBatchAbortMappingTests {
   }
 
   @Test
-  func networkUnavailableMapsToOffline() {
-    let error = OpenAIError.networkUnavailable(underlying: URLError(.notConnectedToInternet))
-    #expect(error.batchAbort == .offline)
-  }
-
-  @Test
   func perEntryOutputDefectsDoNotAbort() {
     #expect(OpenAIError.emptyResponse.batchAbort == nil)
     #expect(OpenAIError.invalidResponse.batchAbort == nil)
@@ -855,6 +875,26 @@ struct OpenAIErrorRetryDispositionTests {
   }
 }
 
+// MARK: - Cloud transport failure mapping
+
+@Suite("Cloud transport failure mapping")
+struct CloudTransportFailureMappingTests {
+  @Test(arguments: [
+    (URLError.Code.timedOut, ClassificationAbortReason.providerUnavailable),
+    (.notConnectedToInternet, .offline), (.networkConnectionLost, .offline), (.cannotFindHost, .offline),
+  ])
+  func transportFailureMapsToItsAbortReason(code: URLError.Code, expected: ClassificationAbortReason) {
+    #expect(OpenAIError.networkUnavailable(underlying: URLError(code)).batchAbort == expected)
+    #expect(VercelClassificationError.network(code).batchAbort == expected)
+  }
+
+  @Test
+  func transportFailureWithoutAURLErrorMapsToOffline() {
+    #expect(OpenAIError.networkUnavailable(underlying: FakeProviderError()).batchAbort == .offline)
+    #expect(VercelClassificationError.network(nil).batchAbort == .offline)
+  }
+}
+
 // MARK: - Shared disposition and abort-reason pairing
 
 /// The banner contract in `STACK.md → Cloud classification`: a blocked
@@ -901,10 +941,12 @@ struct CloudFailureDispositionPairingTests {
     let openAI: [OpenAIError] = [
       .needsKey, .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
       .quotaExhausted(code: "credit_balance_exhausted"), .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
+      .networkUnavailable(underlying: URLError(.timedOut)),
     ]
     for failure in openAI { expectPairing(failure) }
     let vercel: [VercelClassificationError] = [
-      .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network,
+      .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network(.notConnectedToInternet), .network(.timedOut),
+      .network(nil),
     ]
     for failure in vercel { expectPairing(failure) }
     expectPairing(UnreadableKeyFailure())

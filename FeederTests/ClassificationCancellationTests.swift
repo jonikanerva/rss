@@ -154,6 +154,61 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
+  enum BrokenDefinition: CaseIterable {
+    case blankLabel
+    case oversizedDescription
+
+    var abort: ClassificationAbortReason {
+      switch self {
+      case .blankLabel: .invalidCategories
+      case .oversizedDescription: .inputTooLarge
+      }
+    }
+
+    func apply(_ writer: DataWriter) async throws {
+      switch self {
+      case .blankLabel:
+        try await writer.addCategory(label: " ", displayName: "Blank", description: "Blank label", sortOrder: 2)
+      case .oversizedDescription:
+        try await writer.updateCategoryFields(
+          label: "tech", displayName: "Tech", description: String(repeating: "x", count: 30_000))
+      }
+    }
+
+    func fix(_ writer: DataWriter) async throws {
+      switch self {
+      case .blankLabel: try await writer.deleteCategory(label: " ")
+      case .oversizedDescription:
+        try await writer.updateCategoryFields(label: "tech", displayName: "Tech", description: "Technology")
+      }
+    }
+  }
+
+  @Test(arguments: BrokenDefinition.allCases)
+  func categoryFixEndsTheBlockedDefinitionWait(_ broken: BrokenDefinition) async throws {
+    let writer = try await fixture()
+    try await broken.apply(writer)
+    let answer = #"{"answers":{"category":{"type":"choice","choice":"tech","probabilities":{"tech":0.9,"uncategorized":0.1}}}}"#
+    let transport = ClassificationTransportRecorder(data: Data(answer.utf8))
+    let provider = VercelClassificationProvider(apiKey: "fake", send: { try await transport.send($0) })
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == broken.abort)
+    #expect(await transport.requests.isEmpty)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+    try await broken.fix(writer)
+    engine.configurationChanged(writer: writer)
+    try await waitUntil("replacement drain completes") { await clock.delays.count == 2 }
+    #expect(await clock.delays == [.seconds(3600), .seconds(2)])
+    #expect(engine.lastAbort == nil)
+    #expect(await transport.requests.count == 3)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+    engine.stopContinuousClassification()
+  }
+
   // MARK: - Unreadable keys
 
   @Test
@@ -208,6 +263,78 @@ struct ClassificationCancellationTests {
     try await Task.sleep(for: .milliseconds(20))
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == false) }
     #expect(!engine.isClassifying)
+  }
+
+  /// While classification waits on a missing key, an exhausted budget, or a
+  /// service failure, every new article shows in All Articles newest first and
+  /// in no category. The fixed provider then assigns each article, and All
+  /// Articles keeps its order.
+  @Test(arguments: [
+    VercelClassificationError.needsKey, .http(402, retryAfter: nil), .http(503, retryAfter: nil),
+  ])
+  func newArticlesStayReadableInAllArticlesWhileClassificationWaits(_ failure: VercelClassificationError) async throws {
+    let writer = try await fixture()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let provider = FakeClassificationProvider()
+    if case .needsKey = failure {
+      await provider.configureValidation(failure)
+    } else {
+      await provider.configureErrors(failure, count: Int.max)
+    }
+    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == failure.batchAbort)
+    let timeline = { (scope: EntryScope) in
+      try await reader.fetchEntrySections(
+        scope: scope, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 100)
+      ).sections.flatMap(\.rows).map(\.feedbinEntryID)
+    }
+    #expect(try await timeline(.all) == [1003, 1002, 1001])
+    #expect(try await timeline(.category("tech")).isEmpty)
+    #expect(try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast).totalUnread == 3)
+
+    await provider.configureValidation(nil)
+    await provider.configureErrors(failure, count: 0)
+    await engine.classifyUnclassified(writer: writer)
+    #expect(try await timeline(.category("tech")) == [1003, 1002, 1001])
+    #expect(try await timeline(.all) == [1003, 1002, 1001])
+  }
+
+  /// A cancelled reclassification keeps every previous category, so the
+  /// category timeline stays readable. The next drain replaces the results.
+  @Test
+  func cancelledReclassificationKeepsPreviousCategoriesReadable() async throws {
+    let writer = try await fixture()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let provider = FakeClassificationProvider()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    await engine.classifyUnclassified(writer: writer)
+    let timeline = {
+      try await reader.fetchEntrySections(
+        scope: .category("tech"), showRead: false, cutoffDate: .distantPast,
+        window: .firstPage(limit: 100)
+      ).allEntryIDs
+    }
+    let before = try await timeline()
+    #expect(before.count == 3)
+
+    await provider.configureDelay(.seconds(5))
+    let reclassify = Task { await engine.reclassifyAll(writer: writer) }
+    try await waitUntil("reclassification request starts") { await provider.callCount == 4 }
+    reclassify.cancel()
+    await reclassify.value
+
+    for id in 1001...1003 {
+      let entry = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: id))
+      #expect(!entry.isClassified)
+      #expect(entry.primaryCategory == "tech")
+    }
+    #expect(try await timeline() == before)
+
+    await provider.configureDelay(.zero)
+    await engine.classifyUnclassified(writer: writer)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true) }
+    #expect(try await timeline() == before)
   }
 
   @Test
@@ -332,7 +459,7 @@ struct ClassificationCancellationTests {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
     // Each failed batch skips one article and stops at the second failure.
-    await provider.configureErrors(VercelClassificationError.network, count: 14)
+    await provider.configureErrors(VercelClassificationError.network(.notConnectedToInternet), count: 14)
     let clock = ClassificationSleepRecorder(immediateDelays: 7)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
@@ -350,7 +477,7 @@ struct ClassificationCancellationTests {
   func configurationChangeInterruptsBackoff() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
-    await provider.configureErrors(VercelClassificationError.network, count: 2)
+    await provider.configureErrors(VercelClassificationError.network(.notConnectedToInternet), count: 2)
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
@@ -440,7 +567,7 @@ struct ClassificationCancellationTests {
     let (provider, transport) = cloudProvider(cloud, [.failure(URLError(.timedOut))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
-    #expect(snapshots.last?.abort == .offline)
+    #expect(snapshots.last?.abort == .providerUnavailable)
     #expect(await transport.requests.count == 2)
     #expect(await retryClock.delays == [.seconds(2)])
     try await expectPending(writer)

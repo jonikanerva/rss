@@ -52,7 +52,8 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       request, provider: name, logger: Self.logger, send: send, sleep: sleep, now: now,
       httpFailure: { VercelClassificationError.http($0.statusCode, retryAfter: retryAfterDelay($0.retryAfter, now: $1)) },
       transportFailure: {
-        $0 is CloudSession.NonHTTPResponse ? VercelClassificationError.invalidResponse : VercelClassificationError.network
+        $0 is CloudSession.NonHTTPResponse
+          ? VercelClassificationError.invalidResponse : VercelClassificationError.network(($0 as? URLError)?.code)
       })
     return try Self.decode(response.data, categories: categories)
   }
@@ -158,7 +159,7 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
   case invalidCategories
   case inputTooLarge
   case invalidResponse
-  case network
+  case network(URLError.Code?)
   case http(Int, retryAfter: TimeInterval?)
 
   var batchAbort: ClassificationAbortReason? {
@@ -167,7 +168,7 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     case .invalidCategories: .invalidCategories
     case .inputTooLarge: .inputTooLarge
     case .invalidResponse: .invalidResponse
-    case .network: .offline
+    case .network(let code): .transportFailure(code)
     case .http(let status, _):
       switch status {
       case 401, 403: .keyRejected
@@ -182,10 +183,9 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
 
   var retryDisposition: ClassificationRetry {
     switch self {
-    case .invalidCategories, .inputTooLarge: .poll
     case .network: .transient(retryAfter: nil)
     case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
-    case .needsKey, .invalidResponse: .blocked
+    case .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: .blocked
     }
   }
 }

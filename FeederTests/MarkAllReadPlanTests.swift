@@ -8,13 +8,14 @@ import Testing
 @Suite("Mark-all-read plan (pure)")
 struct MarkAllReadPlanTests {
   /// Folder `tech` holds `apple` and `google`. `world` is a root category.
+  /// Entry 6 has no category yet.
   private static let snapshot = UnreadCountsSnapshot(
     categoryCounts: ["apple": 2, "google": 1, "world": 2],
     folderCounts: ["tech": 3],
-    unreadFeedbinEntryIDs: [1, 2, 3, 4, 5],
+    unreadFeedbinEntryIDs: [1, 2, 3, 4, 5, 6],
     unreadIDByCategory: ["apple": [1, 2], "google": [3], "world": [4, 5]],
     unreadIDByFolder: ["tech": [1, 2, 3]],
-    totalUnread: 5
+    totalUnread: 6
   )
 
   private func plan(
@@ -24,6 +25,14 @@ struct MarkAllReadPlanTests {
   }
 
   // MARK: - Target is the current selection
+
+  @Test("All Articles marks every unread article, also one with no category")
+  func allArticlesMarksEveryUnreadArticle() {
+    #expect(
+      plan(for: .allArticles, currentSelection: .allArticles)
+        == MarkAllReadPlan(markTarget: .all, optimisticIDs: [1, 2, 3, 4, 5, 6], clearsArticleSelection: true))
+    #expect(plan(for: .allArticles, currentSelection: .category("apple")).clearsArticleSelection == false)
+  }
 
   @Test("the selected category as the target clears the article selection, like ⇧A")
   func selectedCategoryClearsArticleSelection() {
@@ -67,7 +76,7 @@ struct MarkAllReadPlanTests {
       folderGroups: [(folderLabel: "tech", categoryLabels: ["apple", "google"])],
       rootCategoryLabels: ["world"],
       collapsedFolderLabels: ["tech"])
-    try #require(visibleRows == [.folder("tech"), .category("world")])
+    try #require(visibleRows == [.allArticles, .folder("tech"), .category("world")])
 
     #expect(
       plan(for: .folder("tech"), currentSelection: .category("world"))

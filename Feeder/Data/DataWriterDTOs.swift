@@ -173,8 +173,10 @@ nonisolated enum CategoryReassignError: Error, Sendable, Equatable, LocalizedErr
   }
 }
 
-/// Cached aggregation over the classified-unread universe behind the sidebar
-/// badges, computed off MainActor so `body` never materialises the unread rows.
+/// Cached aggregation over the unread universe behind the sidebar badges,
+/// computed off MainActor so `body` never materialises the unread rows.
+/// `totalUnread` and `unreadFeedbinEntryIDs` cover every unread article, also
+/// one with no assignment; the per-axis values cover assigned articles only.
 /// The dictionaries are read as direct lookups; the ID sets back the
 /// optimistic-overlay subtraction and the mark-all-read fast path.
 nonisolated struct UnreadCountsSnapshot: Sendable, Equatable {
