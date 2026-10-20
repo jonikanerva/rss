@@ -3,7 +3,8 @@ import Foundation
 // MARK: - Video Iframe → Thumbnail Replacement
 
 /// Replace known video platform iframes with clickable thumbnail images.
-/// Unknown iframes are left untouched (stripped later by HTMLToBlocks or ignored by disabled JS).
+/// Unknown iframes are left untouched. `DataWriter` stores the result of this
+/// transform, so a change here needs a migration stage (`STACK.md § 5`).
 nonisolated func replaceVideoIframes(_ html: String) -> String {
   guard html.range(of: "<iframe", options: .caseInsensitive) != nil else { return html }
   let pattern = /(?i)<iframe[^>]+src=["']([^"']+)["'][^>]*(?:\/>|>(?:.|[\n\r])*?<\/iframe>|>)/
@@ -14,6 +15,28 @@ nonisolated func replaceVideoIframes(_ html: String) -> String {
     }
     return String(match.output.0)
   }
+}
+
+// MARK: - Unknown iframes
+
+/// Replace every remaining iframe with a link to its source, so the web reader
+/// loads no frame. A source that is not http or https leaves no link.
+nonisolated func replaceUnknownIframesWithLinks(_ html: String) -> String {
+  guard html.range(of: "<iframe", options: .caseInsensitive) != nil else { return html }
+  let pattern = /(?i)<iframe\b[^>]*(?:\/>|>(?:.|[\n\r])*?<\/iframe>|>)/
+  return html.replacing(pattern) { match in
+    embedLinkHTML(fromIframeTag: String(match.output))
+  }
+}
+
+nonisolated private func embedLinkHTML(fromIframeTag tag: String) -> String {
+  guard let src = tag.firstMatch(of: /(?i)\ssrc\s*=\s*["']([^"']+)["']/)?.output.1,
+    let url = URL(string: String(src)),
+    ArticleResourcePolicy.allowsLinkOpen(url),
+    let host = url.host(percentEncoded: false), !host.isEmpty
+  else { return "" }
+  let href = url.absoluteString.htmlEscaped
+  return "<p class=\"embed-link\"><a href=\"\(href)\">Open embedded content from \(host.htmlEscaped)</a></p>"
 }
 
 // MARK: - YouTube

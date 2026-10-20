@@ -19,6 +19,11 @@ struct ArticleBlockView: View {
     }
     .onAppear { rebuildCache() }
     .onChange(of: blocks) { rebuildCache() }
+    .environment(
+      \.openURL,
+      OpenURLAction { url in
+        ArticleResourcePolicy.allowsLinkOpen(url) ? .systemAction : .discarded
+      })
   }
 
   private func rebuildCache() {
@@ -102,35 +107,10 @@ struct ArticleBlockView: View {
 
   // MARK: - Images
 
-  private static let allowedImageSchemes: Set<String> = ["https", "http"]
-
+  @ViewBuilder
   private func articleImage(url: String, alt: String) -> some View {
-    Group {
-      if let imageURL = URL(string: url),
-        let scheme = imageURL.scheme?.lowercased(),
-        Self.allowedImageSchemes.contains(scheme)
-      {
-        AsyncImage(url: imageURL) { phase in
-          switch phase {
-          case .success(let image):
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fit)
-              .frame(maxWidth: 620)
-              .clipShape(RoundedRectangle(cornerRadius: 6))
-          case .failure:
-            EmptyView()
-          case .empty:
-            RoundedRectangle(cornerRadius: 6)
-              .fill(Color.secondary.opacity(0.08))
-              .frame(height: 200)
-              .frame(maxWidth: 620)
-              .overlay { ProgressView() }
-          @unknown default:
-            EmptyView()
-          }
-        }
-      }
+    if ArticleResourcePolicy.imageURL(url) != nil {
+      ArticleImageView(source: url, alt: alt)
     }
   }
 
@@ -164,6 +144,53 @@ struct ArticleBlockView: View {
   private func attributedInline(_ markdown: String) -> AttributedString {
     if let cached = attributedCache[markdown] { return cached }
     return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+  }
+}
+
+// MARK: - Article image
+
+/// One article image, loaded through `ArticleImageSession`. `AsyncImage`
+/// cannot take a session, and the shared session stores cookies and a disk
+/// cache.
+private struct ArticleImageView: View {
+  let source: String
+  let alt: String
+
+  @State
+  private var phase: Phase = .loading
+
+  private enum Phase {
+    case loading
+    case loaded(NSImage)
+    case failed
+  }
+
+  var body: some View {
+    Group {
+      switch phase {
+      case .loaded(let image):
+        Image(nsImage: image)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(maxWidth: 620)
+          .clipShape(RoundedRectangle(cornerRadius: 6))
+          .accessibilityLabel(alt)
+      case .failed:
+        EmptyView()
+      case .loading:
+        RoundedRectangle(cornerRadius: 6)
+          .fill(Color.secondary.opacity(0.08))
+          .frame(height: 200)
+          .frame(maxWidth: 620)
+          .overlay { ProgressView() }
+      }
+    }
+    .task(id: source) {
+      phase = .loading
+      let data = await ArticleImageSession.reader.imageData(from: source)
+      guard !Task.isCancelled else { return }
+      phase = data.flatMap(NSImage.init(data:)).map(Phase.loaded) ?? .failed
+    }
   }
 }
 

@@ -98,10 +98,7 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   func makeNSView(context: Context) -> WKWebView {
-    let config = WKWebViewConfiguration()
-    // JavaScript stays disabled: the Swift-side stripping is the only defence.
-    config.defaultWebpagePreferences.allowsContentJavaScript = false
-
+    let config = ArticleWebConfiguration.make()
     let webView = BareKeyForwardingWebView(frame: .zero, configuration: config)
     webView.bareKeyActions = bareKeyActions
     webView.navigationDelegate = context.coordinator
@@ -126,33 +123,100 @@ struct ArticleWebView: NSViewRepresentable {
     context.coordinator.currentEntryID = entryID
     context.coordinator.currentHTMLHash = htmlHash
 
-    let baseURL = URL(string: entry.url)
-    webView.loadHTMLString(renderedHTML, baseURL: baseURL)
+    context.coordinator.load(renderedHTML, baseURL: URL(string: entry.url))
   }
 
   // MARK: - Coordinator
 
+  /// Loads the article HTML and enforces `articleNavigationDecision`. A load
+  /// waits until the shared cookie policy applies, so no request of the
+  /// article can store or send a cookie.
   final class Coordinator: NSObject, WKNavigationDelegate {
     weak var webView: WKWebView?
     var currentEntryID: Int?
     var currentHTMLHash: Int?
+    /// One-shot: set immediately before `loadHTMLString`, cleared by the first
+    /// main-frame decision. A later navigation without a user click is a meta
+    /// refresh or a redirect, and the policy cancels it.
+    private var isPendingProgrammaticLoad = false
+    private var loadTask: Task<Void, Never>?
+
+    func load(_ html: String, baseURL: URL?) {
+      loadTask?.cancel()
+      loadTask = nil
+      guard ArticleWebConfiguration.isCookiePolicyApplied else {
+        loadTask = Task {
+          await ArticleWebConfiguration.applyCookiePolicy()
+          guard !Task.isCancelled else { return }
+          startLoad(html, baseURL: baseURL)
+        }
+        return
+      }
+      startLoad(html, baseURL: baseURL)
+    }
+
+    private func startLoad(_ html: String, baseURL: URL?) {
+      isPendingProgrammaticLoad = true
+      webView?.loadHTMLString(html, baseURL: baseURL)
+    }
 
     func webView(
       _ webView: WKWebView,
       decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-      // Allow the initial HTML load and in-page fragment navigation.
-      if navigationAction.navigationType == .other {
+      let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? false
+      let decision = articleNavigationDecision(
+        isUserClick: navigationAction.navigationType == .linkActivated,
+        isMainFrame: isMainFrame,
+        url: navigationAction.request.url,
+        isPendingProgrammaticLoad: isPendingProgrammaticLoad
+      )
+      if isMainFrame { isPendingProgrammaticLoad = false }
+      switch decision {
+      case .allow:
         return .allow
-      }
-
-      // Every link click opens in the system browser.
-      if let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
+      case .cancel:
+        return .cancel
+      case .openInBrowser(let url):
         NSWorkspace.shared.open(url)
         return .cancel
       }
-
-      return .allow
     }
+  }
+}
+
+// MARK: - Configuration
+
+/// The web view configuration that the article reader and `WebKitPreheat`
+/// share (`STACK.md § 8`): JavaScript off, and one in-memory website data
+/// store that refuses cookies.
+@MainActor
+enum ArticleWebConfiguration {
+  static let dataStore = WKWebsiteDataStore.nonPersistent()
+  private(set) static var isCookiePolicyApplied = false
+  private static var cookiePolicyTask: Task<Void, Never>?
+
+  static func make() -> WKWebViewConfiguration {
+    let config = WKWebViewConfiguration()
+    config.defaultWebpagePreferences.allowsContentJavaScript = false
+    config.websiteDataStore = dataStore
+    startCookiePolicy()
+    return config
+  }
+
+  /// Returns when the cookie policy of `dataStore` is `.disallow`.
+  static func applyCookiePolicy() async {
+    await startCookiePolicy().value
+  }
+
+  @discardableResult
+  private static func startCookiePolicy() -> Task<Void, Never> {
+    if let cookiePolicyTask { return cookiePolicyTask }
+    let task = Task {
+      await dataStore.httpCookieStore.setCookiePolicy(.disallow)
+      isCookiePolicyApplied = true
+    }
+    cookiePolicyTask = task
+    return task
   }
 }
