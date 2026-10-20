@@ -34,11 +34,11 @@ struct HeadlessModeTests {
   /// a bare Cmd-U without the flag skips them, and `LaunchGateTests` still
   /// cover the gates.
   @Test(
-    "Under FEEDER_HEADLESS the store gate yields an in-memory container",
+    "Under FEEDER_HEADLESS the store gate yields an in-memory store",
     .enabled(if: HeadlessMode.isEnabled))
   func headlessForcesInMemoryStore() {
     let app = FeederApp()
-    #expect(app.modelContainer.configurations.first?.isStoredInMemoryOnly == true)
+    #expect(app.storeConfiguration.isStoredInMemoryOnly)
   }
 
   @Test(
