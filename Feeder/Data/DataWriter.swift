@@ -24,8 +24,8 @@ nonisolated struct BootstrapOutcome: Sendable, Equatable {
 
 /// `UserDefaults` key that marks the default taxonomy as seeded for this
 /// install. It lives outside the SwiftData store so a custom migration stage
-/// that empties the categories table cannot drop or hide it. Only the
-/// catastrophic-reopen fallback in `FeederApp.init` clears it.
+/// that empties the categories table cannot drop or hide it. Only Start Over
+/// (`StoreRecovery.startOver`) clears it.
 nonisolated let defaultsSeededUserDefaultsKey = "feeder.defaultsSeeded"
 
 /// Minimal `Sendable` flag store behind the seeded-defaults sentinel.
