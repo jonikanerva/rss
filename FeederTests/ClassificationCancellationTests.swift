@@ -154,6 +154,61 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
+  enum BrokenDefinition: CaseIterable {
+    case blankLabel
+    case oversizedDescription
+
+    var abort: ClassificationAbortReason {
+      switch self {
+      case .blankLabel: .invalidCategories
+      case .oversizedDescription: .inputTooLarge
+      }
+    }
+
+    func apply(_ writer: DataWriter) async throws {
+      switch self {
+      case .blankLabel:
+        try await writer.addCategory(label: " ", displayName: "Blank", description: "Blank label", sortOrder: 2)
+      case .oversizedDescription:
+        try await writer.updateCategoryFields(
+          label: "tech", displayName: "Tech", description: String(repeating: "x", count: 30_000))
+      }
+    }
+
+    func fix(_ writer: DataWriter) async throws {
+      switch self {
+      case .blankLabel: try await writer.deleteCategory(label: " ")
+      case .oversizedDescription:
+        try await writer.updateCategoryFields(label: "tech", displayName: "Tech", description: "Technology")
+      }
+    }
+  }
+
+  @Test(arguments: BrokenDefinition.allCases)
+  func categoryFixEndsTheBlockedDefinitionWait(_ broken: BrokenDefinition) async throws {
+    let writer = try await fixture()
+    try await broken.apply(writer)
+    let answer = #"{"answers":{"category":{"type":"choice","choice":"tech","probabilities":{"tech":0.9,"uncategorized":0.1}}}}"#
+    let transport = ClassificationTransportRecorder(data: Data(answer.utf8))
+    let provider = VercelClassificationProvider(apiKey: "fake", send: { try await transport.send($0) })
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    #expect(await clock.delays == [.seconds(3600)])
+    #expect(engine.lastAbort == broken.abort)
+    #expect(await transport.requests.isEmpty)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+    try await broken.fix(writer)
+    engine.configurationChanged(writer: writer)
+    try await waitUntil("replacement drain completes") { await clock.delays.count == 2 }
+    #expect(await clock.delays == [.seconds(3600), .seconds(2)])
+    #expect(engine.lastAbort == nil)
+    #expect(await transport.requests.count == 3)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+    engine.stopContinuousClassification()
+  }
+
   // MARK: - Unreadable keys
 
   @Test
