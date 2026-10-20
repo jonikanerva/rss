@@ -40,8 +40,8 @@ struct FeederApp: App {
     let configuration = Self.makeStoreConfiguration(isStoredInMemoryOnly: useInMemoryStore)
     storeConfiguration = configuration
 
-    // This is the one synchronous `ModelContainer` open on MainActor;
-    // `DataWriter.bootstrap()` handles everything past this line on the
+    // The `ModelContainer` open runs synchronously on MainActor, here and in
+    // Start Over. `DataWriter.bootstrap()` handles everything after it on the
     // background actor.
     do {
       _storePhase = State(
@@ -140,12 +140,7 @@ struct FeederApp: App {
       SettingsView()
         .modelContainer(container)
     case .failed:
-      ContentUnavailableView(
-        "Settings are not available",
-        systemImage: "externaldrive.badge.xmark",
-        description: Text("Feeder could not open its database.")
-      )
-      .frame(width: 360, height: 220)
+      StoreUnavailableSettingsView()
     }
   }
 

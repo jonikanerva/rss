@@ -79,6 +79,26 @@ struct StoreRecoveryView: View {
   }
 }
 
+/// The Settings window content while the app store is not open.
+struct StoreUnavailableSettingsView: View {
+  @Environment(AppFontSettings.self)
+  private var fontSettings
+
+  var body: some View {
+    VStack(spacing: 8) {
+      Text("Settings are not available")
+        .font(fontSettings.headline)
+        .accessibilityAddTraits(.isHeader)
+      Text("Feeder could not open its database.")
+        .font(fontSettings.body)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+    }
+    .padding(32)
+    .frame(minWidth: 360)
+  }
+}
+
 // MARK: - Preview
 
 #Preview("Store Recovery — Open Failed") {
@@ -101,5 +121,10 @@ struct StoreRecoveryView: View {
   // `.dynamicTypeSize(_:)` would render identically to `.medium` on macOS, so
   // the preview injects the font settings the shipped code uses.
   StoreRecoveryView(failure: .openFailed(detail: "The file “Feeder.store” could not be opened."), startOver: {})
+    .environment(AppFontSettings(textSize: .xxLarge))
+}
+
+#Preview("Settings Unavailable — Huge Text") {
+  StoreUnavailableSettingsView()
     .environment(AppFontSettings(textSize: .xxLarge))
 }
