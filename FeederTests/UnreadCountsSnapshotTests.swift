@@ -69,6 +69,43 @@ struct UnreadCountsSnapshotFetchTests {
     #expect(snapshot.unreadFeedbinEntryIDs.isEmpty)
   }
 
+  /// A reset entry keeps its previous assignment on both axes until a new
+  /// result commits. A new entry has no assignment, so an empty label matches
+  /// no timeline.
+  @Test
+  func pendingReclassificationKeepsItsAssignment() async throws {
+    let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    try await seedFeed(writer)
+    try await seedTaxonomy(writer)
+    let assigned = try FeedbinFixtures.entry(id: 1201, title: "Assigned")
+    let fresh = try FeedbinFixtures.entry(id: 1202, title: "Fresh")
+    _ = try await writer.persistEntries([assigned], unreadIDs: Set([1201]))
+    try await classify(writer, id: 1201, category: "apple")
+    try await writer.resetClassification()
+    _ = try await writer.persistEntries([fresh], unreadIDs: Set([1202]))
+
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    #expect(snapshot.totalUnread == 1)
+    #expect(snapshot.categoryCounts == ["apple": 1])
+    #expect(snapshot.folderCounts == ["tech": 1])
+    #expect(snapshot.unreadFeedbinEntryIDs == [1201])
+    let pending = try await writer.fetchEntrySnapshot(feedbinEntryID: 1201)
+    #expect(pending?.isClassified == false)
+    for (category, folder) in [("apple", nil), (nil, "tech")] as [(String?, String?)] {
+      let rows = try await reader.fetchEntrySections(
+        category: category, folder: folder, showRead: false, cutoffDate: .distantPast,
+        pinnedFeedbinEntryID: 1201, window: .firstPage(limit: 10))
+      #expect(rows.allEntryIDs == [pending?.persistentModelID].compactMap { $0 })
+    }
+    for (category, folder) in [("", nil), (nil, "")] as [(String?, String?)] {
+      let rows = try await reader.fetchEntrySections(
+        category: category, folder: folder, showRead: false, cutoffDate: .distantPast,
+        window: .firstPage(limit: 10))
+      #expect(rows == .empty)
+    }
+  }
+
   @Test
   func readEntriesDoNotContribute() async throws {
     let writer = try await makeWriter()

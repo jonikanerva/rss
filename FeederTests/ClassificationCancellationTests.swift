@@ -210,6 +210,43 @@ struct ClassificationCancellationTests {
     #expect(!engine.isClassifying)
   }
 
+  /// A cancelled reclassification keeps every previous category, so the
+  /// category timeline stays readable. The next drain replaces the results.
+  @Test
+  func cancelledReclassificationKeepsPreviousCategoriesReadable() async throws {
+    let writer = try await fixture()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let provider = FakeClassificationProvider()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    await engine.classifyUnclassified(writer: writer)
+    let timeline = {
+      try await reader.fetchEntrySections(
+        category: "tech", folder: nil, showRead: false, cutoffDate: .distantPast,
+        window: .firstPage(limit: 100)
+      ).allEntryIDs
+    }
+    let before = try await timeline()
+    #expect(before.count == 3)
+
+    await provider.configureDelay(.seconds(5))
+    let reclassify = Task { await engine.reclassifyAll(writer: writer) }
+    try await waitUntil("reclassification request starts") { await provider.callCount == 4 }
+    reclassify.cancel()
+    await reclassify.value
+
+    for id in 1001...1003 {
+      let entry = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: id))
+      #expect(!entry.isClassified)
+      #expect(entry.primaryCategory == "tech")
+    }
+    #expect(try await timeline() == before)
+
+    await provider.configureDelay(.zero)
+    await engine.classifyUnclassified(writer: writer)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true) }
+    #expect(try await timeline() == before)
+  }
+
   @Test
   func rapidConfigurationChangesOnlyRunTheLatestReplacement() async throws {
     let writer = try await fixture()

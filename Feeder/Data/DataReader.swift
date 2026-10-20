@@ -46,7 +46,9 @@ actor DataReader: ModelActor {
   // MARK: - Article list (background-fetched section snapshots)
 
   /// The shared eligibility rule for the unread sidebar badges and the unread
-  /// article list: classified, unread, published on or after `cutoffDate`.
+  /// article list: assigned to a category, unread, published on or after
+  /// `cutoffDate`. Membership keys on the stored assignment, never on
+  /// `isClassified` (`STACK.md § 2 → Cloud classification`).
   ///
   /// `fetchUnreadCountsSnapshot` uses it verbatim; `fetchEntrySections`
   /// composes the same three clauses alongside its per-axis, `showRead`, and
@@ -54,7 +56,7 @@ actor DataReader: ModelActor {
   /// whenever `showRead == false`, which is the only shape the sidebar counts.
   static func unreadEligiblePredicate(cutoffDate: Date) -> Predicate<Entry> {
     #Predicate<Entry> {
-      $0.isClassified && $0.isRead == false && $0.publishedAt >= cutoffDate
+      $0.primaryCategory != "" && $0.isRead == false && $0.publishedAt >= cutoffDate
     }
   }
 
@@ -214,13 +216,15 @@ actor DataReader: ModelActor {
       SortDescriptor(\Entry.publishedAt, order: .reverse),
       SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
     ]
+    // An empty label is the unassigned state, never a sidebar selection.
+    guard category?.isEmpty != true, folder?.isEmpty != true else { return nil }
     let cursorDate = cursor.publishedAt
     let cursorID = cursor.feedbinEntryID
     if let category {
       if usesAfterClause {
         return FetchDescriptor<Entry>(
           predicate: #Predicate<Entry> {
-            $0.isClassified && $0.primaryCategory == category
+            $0.primaryCategory == category
               && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
               && $0.publishedAt >= cutoffDate
               && ($0.publishedAt < cursorDate
@@ -231,7 +235,7 @@ actor DataReader: ModelActor {
       }
       return FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryCategory == category
+          $0.primaryCategory == category
             && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
             && $0.publishedAt >= cutoffDate
             && ($0.publishedAt > cursorDate
@@ -244,7 +248,7 @@ actor DataReader: ModelActor {
       if usesAfterClause {
         return FetchDescriptor<Entry>(
           predicate: #Predicate<Entry> {
-            $0.isClassified && $0.primaryFolder == folder
+            $0.primaryFolder == folder
               && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
               && $0.publishedAt >= cutoffDate
               && ($0.publishedAt < cursorDate
@@ -255,7 +259,7 @@ actor DataReader: ModelActor {
       }
       return FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {
-          $0.isClassified && $0.primaryFolder == folder
+          $0.primaryFolder == folder
             && ($0.isRead == showRead || $0.feedbinEntryID == pinned)
             && $0.publishedAt >= cutoffDate
             && ($0.publishedAt > cursorDate
@@ -301,10 +305,10 @@ actor DataReader: ModelActor {
       predicate: #Predicate<Entry> { $0.feedbinEntryID == pinned })
     pinDescriptor.fetchLimit = 1
     pinDescriptor.propertiesToFetch = [
-      \.feedbinEntryID, \.publishedAt, \.isClassified, \.primaryCategory, \.primaryFolder,
+      \.feedbinEntryID, \.publishedAt, \.primaryCategory, \.primaryFolder,
     ]
     guard let pin = try modelContext.fetch(pinDescriptor).first else { return nil }
-    guard pin.isClassified, pin.publishedAt >= cutoffDate else { return nil }
+    guard pin.publishedAt >= cutoffDate else { return nil }
     if let category, pin.primaryCategory != category { return nil }
     if let folder, pin.primaryFolder != folder { return nil }
     guard
