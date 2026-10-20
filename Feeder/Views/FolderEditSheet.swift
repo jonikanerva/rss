@@ -17,6 +17,15 @@ struct FolderEditSheet: View {
   private var name: String = ""
   @State
   private var showDeleteConfirmation = false
+  /// Owns the one writer call that the sheet waits for. A running call
+  /// disables every submit button, so a second Return cannot submit twice.
+  @State
+  private var operation: TaxonomyOperation
+
+  init(folder: Folder?, operation: TaxonomyOperation = TaxonomyOperation()) {
+    self.folder = folder
+    self._operation = State(initialValue: operation)
+  }
 
   private var isNew: Bool { folder == nil }
 
@@ -43,6 +52,8 @@ struct FolderEditSheet: View {
     } message: {
       Text("Categories in this folder will be moved to root level.")
     }
+    .onDisappear { operation.cancel() }
+    .taxonomyFailureAlert(operation)
   }
 
   // MARK: - Header
@@ -78,8 +89,14 @@ struct FolderEditSheet: View {
         Button("Delete Folder", role: .destructive) {
           showDeleteConfirmation = true
         }
+        .disabled(operation.isRunning)
       }
       Spacer()
+      if operation.isRunning {
+        ProgressView()
+          .controlSize(.small)
+          .accessibilityLabel("Saving")
+      }
       Button("Cancel") {
         dismiss()
       }
@@ -88,7 +105,7 @@ struct FolderEditSheet: View {
         save()
       }
       .keyboardShortcut(.defaultAction)
-      .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+      .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || operation.isRunning)
     }
     .padding()
   }
@@ -101,26 +118,30 @@ struct FolderEditSheet: View {
 
     if let folder {
       let label = folder.label
-      Task {
-        try? await writer.updateFolderFields(label: label, displayName: trimmedName)
-        dismiss()
-      }
+      operation.submit(
+        failure: .save("folder"),
+        work: { try await writer.updateFolderFields(label: label, displayName: trimmedName) },
+        onSuccess: { dismiss() }
+      )
     } else {
       let label = makeUniqueLabel(from: trimmedName, fallbackPrefix: "folder")
-      Task {
-        try? await writer.addFolder(label: label, displayName: trimmedName, sortOrder: allFolders.count)
-        dismiss()
-      }
+      let sortOrder = allFolders.count
+      operation.submit(
+        failure: .create("folder"),
+        work: { try await writer.addFolder(label: label, displayName: trimmedName, sortOrder: sortOrder) },
+        onSuccess: { dismiss() }
+      )
     }
   }
 
   private func performDelete() {
     guard let writer = syncEngine.writer, let folder else { return }
     let label = folder.label
-    Task {
-      try? await writer.deleteFolder(label: label)
-      dismiss()
-    }
+    operation.submit(
+      failure: .remove("folder"),
+      work: { try await writer.deleteFolder(label: label) },
+      onSuccess: { dismiss() }
+    )
   }
 }
 
@@ -130,11 +151,19 @@ struct FolderEditSheet: View {
   folderEditNewPreview()
 }
 
+#Preview("New Folder — Creating") {
+  folderEditNewPreview(operation: TaxonomyOperation(phase: .running))
+}
+
+#Preview("New Folder — Create failed") {
+  folderEditNewPreview(operation: TaxonomyOperation(phase: .failed(.create("folder"))))
+}
+
 @MainActor
-private func folderEditNewPreview() -> some View {
+private func folderEditNewPreview(operation: TaxonomyOperation = TaxonomyOperation()) -> some View {
   let container = PreviewSupport.makeContainer()
 
-  return FolderEditSheet(folder: nil)
+  return FolderEditSheet(folder: nil, operation: operation)
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
