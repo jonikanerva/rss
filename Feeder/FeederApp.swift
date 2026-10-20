@@ -20,6 +20,10 @@ struct FeederApp: App {
   private var classificationEngine = FeederApp.makeClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
+  /// A Dock reopen during `.pending` creates a new window and a new bootstrap
+  /// task. This flag keeps one bootstrap run per store open.
+  @State
+  private var isBootstrapRunning = false
   /// App-wide font settings, injected into both scenes. A size change
   /// re-renders only the views that read a font alias, so `ContentView`'s
   /// selection, focus, and scroll anchor survive it.
@@ -203,6 +207,9 @@ struct FeederApp: App {
   /// inside the `ModelContainer` open in `init`; bootstrap only seeds taxonomy
   /// on a freshly created store.
   private func runBootstrap(container: ModelContainer) async {
+    guard !isBootstrapRunning else { return }
+    isBootstrapRunning = true
+    defer { isBootstrapRunning = false }
     appDelegate.syncEngine = syncEngine
     let writer = await DataWriter.makeDetached(modelContainer: container)
     do {
@@ -235,6 +242,14 @@ struct FeederApp: App {
 final class FeederAppDelegate: NSObject, NSApplicationDelegate {
   /// `FeederApp` owns the engine and sets this reference in its bootstrap.
   weak var syncEngine: SyncEngine?
+
+  // MARK: - Launch
+
+  func applicationWillFinishLaunching(_ notification: Notification) {
+    // Feeder has one main window. A window tab is a second window, so remove
+    // the tab commands and the tab bar's new-tab button.
+    NSWindow.allowsAutomaticWindowTabbing = false
+  }
 
   // MARK: - Quit
 
