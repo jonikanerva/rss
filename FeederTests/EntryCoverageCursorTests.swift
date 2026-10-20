@@ -152,6 +152,36 @@ struct EntryCoverageCursorSyncTests {
   }
 
   @Test
+  func cancelledSyncAdvancesNeitherTheCursorNorTheLastSyncDate() async throws {
+    let client = FakeFeedbinClient()
+    let covered = try entry(1, createdAfterBase: 0)
+    await client.setServerEntries([covered])
+    let clock = MacClock(serverBase)
+    let (engine, writer) = try await makeEngine(with: client, clock: clock)
+    await engine.sync()
+
+    await client.setServerEntries(nil)
+    await client.setEntryPagesResponse([
+      FeedbinFixtures.entriesPage([try entry(3, createdAfterBase: 600)], hasNextPage: true),
+      FeedbinFixtures.entriesPage([try entry(2, createdAfterBase: 300)]),
+    ])
+    let laterPageGate = AsyncGate()
+    defer { laterPageGate.open() }
+    await client.holdLaterEntryPages(until: laterPageGate)
+    clock.now = serverBase.addingTimeInterval(900)
+    let syncHandle = Task { await engine.sync() }
+    try await waitUntil("the first page is persisted") { await (try? writer.entryCount()) == 2 }
+    syncHandle.cancel()
+    laterPageGate.open()
+    await syncHandle.value
+
+    #expect(engine.isSyncing == false)
+    #expect(engine.lastError == nil)
+    #expect(engine.entryCoverageCursor?.newestCreatedAt == covered.createdAt)
+    #expect(engine.lastSyncDate == serverBase)
+  }
+
+  @Test
   func emptyResponseKeepsTheCursorAndRecordsTheSync() async throws {
     let client = FakeFeedbinClient()
     await client.setEntryPagesResponse([FeedbinFixtures.entriesPage([])])

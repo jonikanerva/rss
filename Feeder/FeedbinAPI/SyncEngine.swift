@@ -561,6 +561,7 @@ final class SyncEngine {
     guard let client, let writer, !isSyncing else { return }
 
     isSyncing = true
+    let errorBeforeSync = lastError
     lastError = nil
     fetchedCount = 0
     totalToFetch = 0
@@ -591,6 +592,9 @@ final class SyncEngine {
       let since = EntryCoverageCursor.since(after: entryCoverageCursor, cutoff: queryCutoffDate)
       let fetch = try await fetchEntriesSince(since, using: client, writer: writer)
       let changed = fetch.changedCount
+      // A cancelled page stream ends without an error, so a cancelled sync can
+      // reach this point with pages missing.
+      try Task.checkCancellation()
 
       entryCoverageCursor = EntryCoverageCursor.advanced(entryCoverageCursor, by: fetch.newestCreatedAt)
       lastSyncDate = now()
@@ -602,6 +606,15 @@ final class SyncEngine {
       startExtractedContentFetch()
 
       logger.info("Primary sync complete")
+    } catch is CancellationError {
+      // A cancellation is a stop, not a failure: no banner, and the cursor and
+      // `lastSyncDate` keep their earlier values.
+      logger.info("Sync cancelled")
+      lastError = errorBeforeSync
+      fetchedCount = 0
+      totalToFetch = 0
+      lastSyncChangedEntryCount = 0
+      isSyncing = false
     } catch {
       lastError = categorizeSyncError(error)
 
