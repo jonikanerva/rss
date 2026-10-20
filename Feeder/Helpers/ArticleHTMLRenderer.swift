@@ -19,13 +19,14 @@ nonisolated func renderArticleHTML(
   feedTitleInitial: Character?,
   scaleFactor: CGFloat,
   template: String,
-  css: String
+  css: String,
+  contentSecurityPolicy: String = ArticleResourcePolicy.contentSecurityPolicy()
 ) -> String {
   let dateStr = DetailDateFormatting.formatDate(publishedAt)
   let escapedTitle = (title ?? "Untitled").htmlEscaped
   let escapedAuthor = (author ?? "").htmlEscaped
   let escapedDomain = (displayDomain ?? "").lowercased().htmlEscaped
-  let body = stripFeedStyles(replaceVideoIframes(feedHTMLBody))
+  let body = stripFeedStyles(replaceUnknownIframesWithLinks(replaceVideoIframes(feedHTMLBody)))
   let favicon = renderFaviconHTML(base64: faviconBase64, fallbackInitial: feedTitleInitial)
   // Four decimal places match the scale factors' own precision, and the
   // C locale keeps the CSS decimal separator a point in every locale.
@@ -33,6 +34,7 @@ nonisolated func renderArticleHTML(
 
   return
     template
+    .replacingOccurrences(of: "[[csp]]", with: contentSecurityPolicy.htmlEscaped)
     .replacingOccurrences(of: "[[scale]]", with: scaleCSS)
     .replacingOccurrences(of: "[[style]]", with: css)
     .replacingOccurrences(of: "[[date]]", with: dateStr)
@@ -61,11 +63,15 @@ nonisolated private func renderFaviconHTML(
 
 // MARK: - Feed style stripping
 
-/// Patterns that strip feed CSS, scripts, event handlers and typing surfaces
-/// from feed HTML. JavaScript is disabled in the web view, so this stripping is
-/// the only defence. The pairs apply in order, case-insensitively, so uppercase
-/// markup cannot slip through; most templates delete the match, and the
-/// `contenteditable` rule keeps its captured tag prefix.
+/// Patterns that strip feed CSS, scripts, event handlers, `link`, `meta` and
+/// `base` tags, and typing surfaces from feed HTML. The pairs apply in order,
+/// case-insensitively, so uppercase markup cannot slip through; most templates
+/// delete the match, and the `contenteditable` rule keeps its captured tag
+/// prefix.
+///
+/// A feed `meta` or `base` tag must not refresh the page, add a second policy,
+/// or move the base URL. A `link` tag can prefetch a host. The template CSP and
+/// the navigation policy of the web view also block these.
 ///
 /// A plain HTML form control stays focusable and editable with JavaScript off,
 /// and a click into one would put the in-page caret behind the bare-key routing
@@ -73,7 +79,9 @@ nonisolated private func renderFaviconHTML(
 /// makes "bare keys never fire while typing" true by construction.
 nonisolated private let articleHTMLSanitizerPatterns: [(pattern: String, template: String)] = [
   ("<style[^>]*>[\\s\\S]*?</style>", ""),
-  ("<link[^>]*rel=[\"']stylesheet[\"'][^>]*/?>", ""),
+  ("<link[^>]*>", ""),
+  ("<meta[^>]*>", ""),
+  ("<base[^>]*>", ""),
   ("<script[^>]*>[\\s\\S]*?</script>", ""),
   ("<input[^>]*>", ""),
   ("<textarea[^>]*>[\\s\\S]*?</textarea>", ""),

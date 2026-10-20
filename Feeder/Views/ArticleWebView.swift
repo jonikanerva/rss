@@ -98,10 +98,7 @@ struct ArticleWebView: NSViewRepresentable {
   }
 
   func makeNSView(context: Context) -> WKWebView {
-    let config = WKWebViewConfiguration()
-    // JavaScript stays disabled: the Swift-side stripping is the only defence.
-    config.defaultWebpagePreferences.allowsContentJavaScript = false
-
+    let config = ArticleWebConfiguration.make()
     let webView = BareKeyForwardingWebView(frame: .zero, configuration: config)
     webView.bareKeyActions = bareKeyActions
     webView.navigationDelegate = context.coordinator
@@ -126,33 +123,148 @@ struct ArticleWebView: NSViewRepresentable {
     context.coordinator.currentEntryID = entryID
     context.coordinator.currentHTMLHash = htmlHash
 
-    let baseURL = URL(string: entry.url)
-    webView.loadHTMLString(renderedHTML, baseURL: baseURL)
+    context.coordinator.load(renderedHTML, baseURL: URL(string: entry.url))
   }
 
   // MARK: - Coordinator
 
+  /// Loads the article HTML and enforces `articleNavigationDecision`. A load
+  /// waits until the shared cookie policy applies, so no request of the
+  /// article can store or send a cookie.
   final class Coordinator: NSObject, WKNavigationDelegate {
+    private struct ArticleLoad {
+      let html: String
+      let baseURL: URL?
+    }
+
     weak var webView: WKWebView?
     var currentEntryID: Int?
     var currentHTMLHash: Int?
+    /// True from `loadHTMLString` until its main-frame decision. Feeder starts
+    /// no other load in that time, so the next main-frame decision without a
+    /// user click belongs to this load. Any later one is a meta refresh or a
+    /// redirect, and the policy cancels it.
+    private var isAwaitingLoadDecision = false
+    /// The newest load that arrived while a decision was pending. It replaces
+    /// an older queued load, and starts after that decision.
+    private var queuedLoad: ArticleLoad?
+    private var loadTask: Task<Void, Never>?
+    private var queuedStartTask: Task<Void, Never>?
+
+    func load(_ html: String, baseURL: URL?) {
+      loadTask?.cancel()
+      loadTask = nil
+      let load = ArticleLoad(html: html, baseURL: baseURL)
+      guard ArticleWebConfiguration.isCookiePolicyApplied else {
+        loadTask = Task {
+          await ArticleWebConfiguration.applyCookiePolicy()
+          guard !Task.isCancelled else { return }
+          request(load)
+        }
+        return
+      }
+      request(load)
+    }
+
+    private func request(_ load: ArticleLoad) {
+      guard !isAwaitingLoadDecision else {
+        queuedLoad = load
+        return
+      }
+      start(load)
+    }
+
+    /// The stale-load branch of the decision sets the flag before this call, so
+    /// a load in that gap queues. A missing web view clears the flag again.
+    private func start(_ load: ArticleLoad) {
+      guard let webView else {
+        isAwaitingLoadDecision = false
+        return
+      }
+      isAwaitingLoadDecision = true
+      webView.loadHTMLString(load.html, baseURL: load.baseURL)
+    }
 
     func webView(
       _ webView: WKWebView,
       decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-      // Allow the initial HTML load and in-page fragment navigation.
-      if navigationAction.navigationType == .other {
-        return .allow
+      let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? false
+      let isUserClick = navigationAction.navigationType == .linkActivated
+      let isLoadDecision = isMainFrame && !isUserClick && isAwaitingLoadDecision
+      if isLoadDecision {
+        isAwaitingLoadDecision = false
+        if let queuedLoad {
+          // The queued load is newer, so this load is stale. It starts after
+          // this decision returns: a load started inside the decision would
+          // replace the navigation that the decision is for.
+          self.queuedLoad = nil
+          isAwaitingLoadDecision = true
+          queuedStartTask = Task { start(queuedLoad) }
+          return .cancel
+        }
       }
-
-      // Every link click opens in the system browser.
-      if let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated {
+      let decision = articleNavigationDecision(
+        isUserClick: isUserClick,
+        isMainFrame: isMainFrame,
+        url: navigationAction.request.url,
+        isPendingProgrammaticLoad: isLoadDecision
+      )
+      switch decision {
+      case .allow:
+        return .allow
+      case .cancel:
+        return .cancel
+      case .openInBrowser(let url):
         NSWorkspace.shared.open(url)
         return .cancel
       }
-
-      return .allow
     }
+
+    /// A terminated web content process drops a pending decision, so the queued
+    /// load starts now. The terminated load does not restart: an article that
+    /// ends the process each time would loop.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+      isAwaitingLoadDecision = false
+      guard let queuedLoad else { return }
+      self.queuedLoad = nil
+      start(queuedLoad)
+    }
+  }
+}
+
+// MARK: - Configuration
+
+/// The web view configuration that the article reader and `WebKitPreheat`
+/// share (`STACK.md § 8`): JavaScript off, and one in-memory website data
+/// store that refuses cookies.
+@MainActor
+enum ArticleWebConfiguration {
+  static let dataStore = WKWebsiteDataStore.nonPersistent()
+  private(set) static var isCookiePolicyApplied = false
+  private static var cookiePolicyTask: Task<Void, Never>?
+
+  static func make() -> WKWebViewConfiguration {
+    let config = WKWebViewConfiguration()
+    config.defaultWebpagePreferences.allowsContentJavaScript = false
+    config.websiteDataStore = dataStore
+    startCookiePolicy()
+    return config
+  }
+
+  /// Returns when the cookie policy of `dataStore` is `.disallow`.
+  static func applyCookiePolicy() async {
+    await startCookiePolicy().value
+  }
+
+  @discardableResult
+  private static func startCookiePolicy() -> Task<Void, Never> {
+    if let cookiePolicyTask { return cookiePolicyTask }
+    let task = Task {
+      await dataStore.httpCookieStore.setCookiePolicy(.disallow)
+      isCookiePolicyApplied = true
+    }
+    cookiePolicyTask = task
+    return task
   }
 }

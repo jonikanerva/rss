@@ -37,7 +37,7 @@ enum WebKitPreheat {
   private(set) static var primingWebView: WKWebView?
 
   /// Warm the Web Content process machinery. Idempotent: a second call returns
-  /// at once. The configuration must match `ArticleWebView`'s, so the warm
+  /// at once. The configuration is `ArticleWebConfiguration`, so the warm
   /// process inherits the same content-process preferences. Best-effort — a
   /// caller never awaits it before rendering articles.
   static func warmIfNeeded() {
@@ -45,9 +45,7 @@ enum WebKitPreheat {
     phase = .warming
     logger.info("WebKit preheat starting")
 
-    let config = WKWebViewConfiguration()
-    config.defaultWebpagePreferences.allowsContentJavaScript = false
-    let webView = WKWebView(frame: .zero, configuration: config)
+    let webView = WKWebView(frame: .zero, configuration: ArticleWebConfiguration.make())
     primingWebView = webView
     // Just enough HTML to force a parse and paint cycle, so the Web Content
     // Process is fully resident and not merely spawned. A `nil` base URL keeps
