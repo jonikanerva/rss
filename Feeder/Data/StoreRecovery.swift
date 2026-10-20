@@ -72,6 +72,7 @@ enum StoreRecovery {
     open: () throws -> ModelContainer
   ) -> StorePhase {
     defaults.removeObject(forKey: lastSyncDateUserDefaultsKey)
+    defaults.removeObject(forKey: entryCoverageCursorUserDefaultsKey)
     defaults.removeObject(forKey: defaultsSeededUserDefaultsKey)
     let backupFolder = storeURL.deletingLastPathComponent().appending(path: backupFolderName, directoryHint: .isDirectory)
     do {

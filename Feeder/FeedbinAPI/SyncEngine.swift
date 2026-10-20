@@ -11,8 +11,11 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 nonisolated let syncIntervalUserDefaultsKey = "sync_interval"
 /// Number of days of article history the app retains on device.
 nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
-/// Timestamp of the last successful sync completion.
+/// Timestamp of the last successful sync completion, on the Mac clock. The
+/// entry fetch never reads it.
 nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
+/// `EntryCoverageCursor.newestCreatedAt` of the incremental entry fetch.
+nonisolated let entryCoverageCursorUserDefaultsKey = "entryCoverageCursor"
 /// Entry IDs queued to push to Feedbin as read. Start Over
 /// (`StoreRecovery.startOver`) keeps this key.
 nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
@@ -200,6 +203,14 @@ nonisolated private struct ExtractedContentTally {
   }
 }
 
+// MARK: - Entry fetch result
+
+private nonisolated struct EntryFetchResult: Sendable {
+  let changedCount: Int
+  /// `nil` when the fetch returned no entry.
+  let newestCreatedAt: Date?
+}
+
 // MARK: - SyncEngine
 
 /// Orchestrates Feedbin sync. Every SwiftData write is delegated to
@@ -242,15 +253,27 @@ final class SyncEngine {
     queryCutoffDate = articleCutoffDate()
   }
 
-  /// Last sync date, persisted so incremental sync survives a restart.
+  /// Last successful sync completion, shown to the user.
   private(set) var lastSyncDate: Date? {
     get { defaults.object(forKey: lastSyncDateUserDefaultsKey) as? Date }
     set { defaults.set(newValue, forKey: lastSyncDateUserDefaultsKey) }
   }
 
-  /// `UserDefaults` behind `lastSyncDate` and `pendingReadIDsToSync`. A test
-  /// passes an isolated suite, or parallel suites race on the shared keys.
+  /// Persisted so the incremental entry fetch survives a restart. Write it only
+  /// after every page, every persist, and the read-state update succeed.
+  private(set) var entryCoverageCursor: EntryCoverageCursor? {
+    get {
+      (defaults.object(forKey: entryCoverageCursorUserDefaultsKey) as? Date).map(EntryCoverageCursor.init)
+    }
+    set { defaults.set(newValue?.newestCreatedAt, forKey: entryCoverageCursorUserDefaultsKey) }
+  }
+
+  /// `UserDefaults` behind `lastSyncDate`, `entryCoverageCursor`, and
+  /// `pendingReadIDsToSync`. A test passes an isolated suite, or parallel
+  /// suites race on the shared keys.
   private let defaults: UserDefaults
+  /// The Mac clock behind `lastSyncDate`.
+  private let now: @MainActor () -> Date
 
   /// Call it only through the account methods, so the phase matches the store.
   let credentialStore: any FeedbinCredentialStore
@@ -297,9 +320,11 @@ final class SyncEngine {
     account: FeedbinAccountPhase = .checking,
     makeClient: @escaping @MainActor (FeedbinCredentials) -> any FeedbinClientProtocol = {
       FeedbinClient(username: $0.username, password: $0.password)
-    }
+    },
+    now: @escaping @MainActor () -> Date = { Date() }
   ) {
     self.defaults = defaults
+    self.now = now
     self.credentialStore = credentialStore
     self.account = account
     self.makeClient = makeClient
@@ -529,9 +554,9 @@ final class SyncEngine {
     extractedContentTaskID = nil
   }
 
-  /// Pull subscriptions and icons, then fetch entries since the last
-  /// successful sync. On the first run `since` falls back to the keep-days
-  /// cutoff, so the first call already covers the full window. In the
+  /// Pull subscriptions and icons, then fetch the entries that the coverage
+  /// cursor does not cover (`EntryCoverageCursor`). Without a cursor the fetch
+  /// covers the full keep-days window. In the
   /// `.unreadable` phase the call first reads the Keychain again, which can
   /// show the access dialog.
   func sync() async {
@@ -539,6 +564,7 @@ final class SyncEngine {
     guard let client, let writer, !isSyncing else { return }
 
     isSyncing = true
+    let errorBeforeSync = lastError
     lastError = nil
     fetchedCount = 0
     totalToFetch = 0
@@ -566,13 +592,15 @@ final class SyncEngine {
       // fetched below reflects them.
       await pushQueuedReads()
 
-      // The `max` keeps a stale `lastSyncDate` from reaching further back than
-      // the retention window allows. On the first sync it falls back to the
-      // cutoff directly.
-      let since = max(lastSyncDate ?? queryCutoffDate, queryCutoffDate)
-      let changed = try await fetchEntriesSince(since, using: client, writer: writer)
+      let since = EntryCoverageCursor.since(after: entryCoverageCursor, cutoff: queryCutoffDate)
+      let fetch = try await fetchEntriesSince(since, using: client, writer: writer)
+      let changed = fetch.changedCount
+      // A cancelled page stream ends without an error, so a cancelled sync can
+      // reach this point with pages missing.
+      try Task.checkCancellation()
 
-      lastSyncDate = Date()
+      entryCoverageCursor = EntryCoverageCursor.advanced(entryCoverageCursor, by: fetch.newestCreatedAt)
+      lastSyncDate = now()
       fetchedCount = 0
       totalToFetch = 0
       lastSyncChangedEntryCount = changed
@@ -581,6 +609,16 @@ final class SyncEngine {
       startExtractedContentFetch()
 
       logger.info("Primary sync complete")
+    } catch let error where error is CancellationError || Task.isCancelled {
+      // A cancellation is a stop, not a failure: no banner, and the cursor and
+      // `lastSyncDate` keep their earlier values. A cancelled request can throw
+      // `URLError.cancelled` instead of `CancellationError`.
+      logger.info("Sync cancelled")
+      lastError = errorBeforeSync
+      fetchedCount = 0
+      totalToFetch = 0
+      lastSyncChangedEntryCount = 0
+      isSyncing = false
     } catch {
       lastError = categorizeSyncError(error)
 
@@ -596,8 +634,11 @@ final class SyncEngine {
   /// the caller picks `since`. Each page persists with the server's current
   /// unread-IDs set, and the full read-state map syncs afterwards so rows
   /// outside the paged window converge too. Returns the changed-row count —
-  /// inserts plus read-state flips — so a caller can gate a UI refresh on it.
-  private func fetchEntriesSince(_ since: Date, using client: any FeedbinClientProtocol, writer: DataWriter) async throws -> Int {
+  /// inserts plus read-state flips — so a caller can gate a UI refresh on it,
+  /// and the newest `created_at` of all fetched entries.
+  private func fetchEntriesSince(
+    _ since: Date, using client: any FeedbinClientProtocol, writer: DataWriter
+  ) async throws -> EntryFetchResult {
     let unreadIDs = try await client.fetchUnreadEntryIDs()
     let unreadIDSet = Set(unreadIDs)
 
@@ -605,6 +646,7 @@ final class SyncEngine {
 
     var totalNew = 0
     var totalFetched = 0
+    var newestCreatedAt: Date?
     for try await page in client.fetchAllEntryPages(since: since) {
       if let total = page.totalCount { totalToFetch = total }
       // Back-to-back persist intervals with no fetch gap between them show
@@ -614,6 +656,9 @@ final class SyncEngine {
       perfSignposter.endInterval(PerformanceSignpostName.writePersistPage, persistSignpost)
       totalNew += newCount
       totalFetched += page.entries.count
+      if let pageNewest = page.entries.lazy.map(\.createdAt).max() {
+        newestCreatedAt = max(newestCreatedAt ?? pageNewest, pageNewest)
+      }
       // Bumped per persisted page even when the page inserted nothing: the
       // counter's contract is "a page was processed". The downstream deferred
       // refresh channel coalesces the bumps.
@@ -633,7 +678,7 @@ final class SyncEngine {
       logger.info("Entry fetch: \(totalNew) new + \(readStateFlips) read-state flips")
     }
 
-    return totalNew + readStateFlips
+    return EntryFetchResult(changedCount: totalNew + readStateFlips, newestCreatedAt: newestCreatedAt)
   }
 
   // MARK: - Background: Extracted content fetching
@@ -699,9 +744,9 @@ final class SyncEngine {
 
   // MARK: - Background backfill
 
-  /// Full-window re-fetch, called from Settings when keep-days rises, so the
-  /// newly included older window fills without waiting for `lastSyncDate` to
-  /// age out.
+  /// Full-window re-fetch, called from Settings when keep-days rises. The
+  /// incremental fetch starts at the coverage cursor and never reaches the
+  /// newly included older window. The backfill does not change the cursor.
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
@@ -725,7 +770,7 @@ final class SyncEngine {
       logger.info("Starting keepDays-window backfill")
 
       do {
-        changed = try await fetchEntriesSince(queryCutoffDate, using: client, writer: writer)
+        changed = try await fetchEntriesSince(queryCutoffDate, using: client, writer: writer).changedCount
         logger.info("Backfill complete (\(changed) changed entries)")
       } catch {
         logger.error("Backfill failed: \(error.localizedDescription)")
