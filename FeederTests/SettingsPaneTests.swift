@@ -8,16 +8,12 @@ import Testing
 /// writes `UserDefaults.standard`: the test host runs in the owner's real app
 /// container.
 @Suite("Settings pane")
-final class SettingsPaneTests {
-  private let suiteName = "FeederTests.SettingsPane.\(UUID().uuidString)"
-  private let defaults: UserDefaults
+struct SettingsPaneTests {
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
 
   init() throws {
-    defaults = try #require(UserDefaults(suiteName: suiteName))
-  }
-
-  deinit {
-    defaults.removePersistentDomain(forName: suiteName)
+    isolatedDefaults = try IsolatedDefaults("SettingsPane")
   }
 
   /// Must match the `@AppStorage` declaration in `SettingsView`: the same key
