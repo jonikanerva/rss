@@ -752,12 +752,6 @@ struct OpenAIErrorBatchAbortMappingTests {
   }
 
   @Test
-  func networkUnavailableMapsToOffline() {
-    let error = OpenAIError.networkUnavailable(underlying: URLError(.notConnectedToInternet))
-    #expect(error.batchAbort == .offline)
-  }
-
-  @Test
   func perEntryOutputDefectsDoNotAbort() {
     #expect(OpenAIError.emptyResponse.batchAbort == nil)
     #expect(OpenAIError.invalidResponse.batchAbort == nil)
@@ -855,6 +849,26 @@ struct OpenAIErrorRetryDispositionTests {
   }
 }
 
+// MARK: - Cloud transport failure mapping
+
+@Suite("Cloud transport failure mapping")
+struct CloudTransportFailureMappingTests {
+  @Test(arguments: [
+    (URLError.Code.timedOut, ClassificationAbortReason.providerUnavailable),
+    (.notConnectedToInternet, .offline), (.networkConnectionLost, .offline), (.cannotFindHost, .offline),
+  ])
+  func transportFailureMapsToItsAbortReason(code: URLError.Code, expected: ClassificationAbortReason) {
+    #expect(OpenAIError.networkUnavailable(underlying: URLError(code)).batchAbort == expected)
+    #expect(VercelClassificationError.network(code).batchAbort == expected)
+  }
+
+  @Test
+  func transportFailureWithoutAURLErrorMapsToOffline() {
+    #expect(OpenAIError.networkUnavailable(underlying: FakeProviderError()).batchAbort == .offline)
+    #expect(VercelClassificationError.network(nil).batchAbort == .offline)
+  }
+}
+
 // MARK: - Shared disposition and abort-reason pairing
 
 /// The banner contract in `STACK.md → Cloud classification`: a blocked
@@ -901,10 +915,12 @@ struct CloudFailureDispositionPairingTests {
     let openAI: [OpenAIError] = [
       .needsKey, .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
       .quotaExhausted(code: "credit_balance_exhausted"), .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
+      .networkUnavailable(underlying: URLError(.timedOut)),
     ]
     for failure in openAI { expectPairing(failure) }
     let vercel: [VercelClassificationError] = [
-      .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network,
+      .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network(.notConnectedToInternet), .network(.timedOut),
+      .network(nil),
     ]
     for failure in vercel { expectPairing(failure) }
     expectPairing(UnreadableKeyFailure())
