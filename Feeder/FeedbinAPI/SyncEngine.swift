@@ -11,8 +11,8 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "SyncEngine")
 nonisolated let syncIntervalUserDefaultsKey = "sync_interval"
 /// Number of days of article history the app retains on device.
 nonisolated let articleKeepDaysUserDefaultsKey = "article_keep_days"
-/// Timestamp of the last successful sync completion, on the Mac clock. Only
-/// the UI shows it; the entry fetch never uses it.
+/// Timestamp of the last successful sync completion, on the Mac clock. The
+/// entry fetch never reads it.
 nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
 /// `EntryCoverageCursor.newestCreatedAt` of the incremental entry fetch.
 nonisolated let entryCoverageCursorUserDefaultsKey = "entryCoverageCursor"
@@ -727,9 +727,9 @@ final class SyncEngine {
 
   // MARK: - Background backfill
 
-  /// Full-window re-fetch, called from Settings when keep-days rises, so the
-  /// newly included older window fills without waiting for `lastSyncDate` to
-  /// age out.
+  /// Full-window re-fetch, called from Settings when keep-days rises. The
+  /// incremental fetch starts at the coverage cursor and never reaches the
+  /// newly included older window. The backfill does not change the cursor.
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
