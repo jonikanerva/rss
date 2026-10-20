@@ -366,12 +366,16 @@ actor DataWriter: ModelActor {
     try modelContext.save()
   }
 
-  /// Mark all unread entries assigned to a folder or category as read.
-  /// Returns the feedbin entry IDs that were flipped from unread → read.
-  func markAllAsRead(target: MarkReadTarget, cutoffDate: Date) throws -> Set<Int> {
+  /// Mark all unread entries in `target` as read. Returns the feedbin entry
+  /// IDs that were flipped from unread → read.
+  func markAllAsRead(target: EntryScope, cutoffDate: Date) throws -> Set<Int> {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor: FetchDescriptor<Entry>
     switch target {
+    case .all:
+      descriptor = FetchDescriptor<Entry>(
+        predicate: #Predicate<Entry> { !$0.isRead && $0.publishedAt >= cutoffDate }
+      )
     case .folder(let label):
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> {

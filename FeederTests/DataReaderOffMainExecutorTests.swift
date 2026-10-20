@@ -20,7 +20,7 @@ struct DataReaderOffMainExecutorTests {
     try #require(!runsOnMainThread)
 
     let result = try await reader.fetchEntrySections(
-      category: "any", folder: nil, showRead: false, cutoffDate: .distantPast,
+      scope: .category("any"), showRead: false, cutoffDate: .distantPast,
       window: .firstPage(limit: 10))
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     let favicons = try await reader.fetchFaviconData(feedbinFeedIDs: [1])

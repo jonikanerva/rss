@@ -521,13 +521,8 @@ struct ContentView: View {
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     if let reader = syncEngine.reader {
-      let (category, folder): (String?, String?) =
-        switch sel {
-        case .category(let label): (label, nil)
-        case .folder(let label): (nil, label)
-        }
       EntryListView(
-        category: category, folder: folder, filter: articleFilter,
+        scope: sel.entryScope, filter: articleFilter,
         cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
@@ -751,12 +746,15 @@ struct ContentView: View {
       .subtractingPendingCounts(pendingByCategory)
     let folderUnreadCounts = unreadSnapshot.folderCounts
       .subtractingPendingCounts(pendingByFolder)
+    let allArticlesUnreadCount = max(
+      0, unreadSnapshot.totalUnread - pendingReadCountAll(snapshot: unreadSnapshot, pending: pendingReadIDs))
     // `EquatableView` short-circuits the sidebar body whenever the structural
     // inputs match the previous render, so overlay flips and detail-pane state
     // never reach the sidebar's render path. Toolbar and key handlers stay
     // outside the wrap so they keep observing the engines.
     EquatableView(
       content: SidebarView(
+        allArticlesUnreadCount: allArticlesUnreadCount,
         visibleFolderGroups: sidebarFolderGroupSnapshots,
         rootCategories: sidebarRootCategorySnapshots,
         categoryUnreadCounts: categoryUnreadCounts,
@@ -792,6 +790,8 @@ struct ContentView: View {
 
   private var navigationTitle: String {
     switch selection {
+    case .allArticles:
+      return "All Articles"
     case .folder(let label):
       return folders.first { $0.label == label }?.displayName ?? "Articles"
     case .category(let label):

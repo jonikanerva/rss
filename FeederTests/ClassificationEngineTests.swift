@@ -449,7 +449,7 @@ struct ClassificationEngineTests {
     _ reader: DataReader, _ category: String
   ) async throws -> (ids: [PersistentIdentifier], unread: Int) {
     let result = try await reader.fetchEntrySections(
-      category: category, folder: nil, showRead: false, cutoffDate: .distantPast,
+      scope: .category(category), showRead: false, cutoffDate: .distantPast,
       window: .firstPage(limit: 100))
     let counts = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
     return (result.allEntryIDs, counts.categoryCounts[category] ?? 0)

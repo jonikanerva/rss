@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Mark-all-read plan (pure)
 
 nonisolated struct MarkAllReadPlan: Sendable, Equatable {
-  let markTarget: MarkReadTarget
+  let markTarget: EntryScope
   /// The target's unread IDs in the cached snapshot. The caller adds them to
   /// the optimistic overlay, so the badges drop in the same frame, before the
   /// writer commits.
@@ -19,6 +19,11 @@ nonisolated func markAllReadPlan(
 ) -> MarkAllReadPlan {
   let clearsArticleSelection = target == currentSelection
   switch target {
+  case .allArticles:
+    return MarkAllReadPlan(
+      markTarget: .all,
+      optimisticIDs: snapshot.unreadFeedbinEntryIDs,
+      clearsArticleSelection: clearsArticleSelection)
   case .folder(let label):
     return MarkAllReadPlan(
       markTarget: .folder(label),

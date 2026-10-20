@@ -78,6 +78,14 @@ nonisolated func pendingReadCountsByFolder(
   return result
 }
 
+/// How many of the snapshot's unread entries, assigned or not, the user has
+/// marked read optimistically. The All Articles badge subtracts this count.
+/// Same intersection contract as `pendingReadCountsByCategory`.
+nonisolated func pendingReadCountAll(snapshot: UnreadCountsSnapshot, pending: Set<Int>) -> Int {
+  guard !pending.isEmpty else { return 0 }
+  return pending.intersection(snapshot.unreadFeedbinEntryIDs).count
+}
+
 extension [String: Int] {
   /// Subtract `other` from self, floored at zero, into a new dictionary. Used
   /// to overlay the pending-read counts on a cached snapshot without mutating
