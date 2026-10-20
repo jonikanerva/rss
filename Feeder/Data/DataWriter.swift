@@ -828,10 +828,11 @@ actor DataWriter: ModelActor {
   /// The day count is the parameter, not a `Date`, so no call site recomputes
   /// retention math. Production callers pass the fixed 30-day ceiling, the
   /// largest value the keep-days picker offers, so changing that setting never
-  /// needs a refetch and recategorise round-trip.
-  func purgeEntriesOlderThan(_ days: Int) throws -> PurgeOutcome {
+  /// needs a refetch and recategorise round-trip. The cutoff counts back from
+  /// `now`; production callers keep the default, and tests pass a fixed instant.
+  func purgeEntriesOlderThan(_ days: Int, now: Date = .now) throws -> PurgeOutcome {
     dispatchPrecondition(condition: .notOnQueue(.main))
-    let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
+    let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
     let descriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.publishedAt < cutoff }
     )
