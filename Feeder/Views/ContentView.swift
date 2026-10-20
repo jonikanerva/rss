@@ -197,8 +197,8 @@ struct ContentView: View {
       contentReevalIntervalState = nil
     }
     .onAppear {
-      // The root view appears once per launch, so each column's launch width
-      // is logged exactly once.
+      // Runs for each new main window: at launch, and after a Dock click
+      // reopens a closed window. Every step here is safe to repeat.
       ColumnWidthDiagnostics.logRestoredIdeal(sidebarIdealWidth, for: .sidebar)
       ColumnWidthDiagnostics.logRestoredIdeal(contentColumnIdealWidth, for: .content)
       bootLaunchMode()
@@ -890,6 +890,10 @@ struct ContentView: View {
   }
 
   private func startSync() {
+    // Start the periodic sync before the first suspension: the start is the
+    // claim that `startsSignedInSession` reads for every other main window.
+    let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
+    syncEngine.startPeriodicSync(interval: syncInterval)
     Task {
       // The reads already filter on `publishedAt >= cutoffDate`, so this purge
       // only stops the store growing without bound. Passing the ceiling
@@ -898,11 +902,6 @@ struct ContentView: View {
       if let writer = syncEngine.writer {
         let days = Int(maxRetentionAge / 86_400)
         _ = try? await writer.purgeEntriesOlderThan(days)
-      }
-
-      let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
-      syncEngine.startPeriodicSync(interval: syncInterval)
-      if let writer = syncEngine.writer {
         classificationEngine.startContinuousClassification(writer: writer)
       }
     }

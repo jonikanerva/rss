@@ -49,9 +49,9 @@ struct FeederCommands: Commands {
   private var context
 
   var body: some Commands {
-    CommandGroup(after: .newItem) {
-      Divider()
-
+    // Feeder has one main window: replacing this group removes File → New
+    // Window. Closing the window and clicking the Dock icon reopens it.
+    CommandGroup(replacing: .newItem) {
       Button("Sync") {
         context?.syncAction()
       }

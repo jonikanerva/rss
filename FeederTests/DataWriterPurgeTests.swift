@@ -5,13 +5,14 @@ import Testing
 
 // MARK: - DataWriter Purge Tests
 
-/// Exercises `DataWriter.purgeEntriesOlderThan(_:)`. The purge is a pure
-/// runtime delete keyed on `publishedAt` and `Date.now`; tests seed entries
-/// at deterministic offsets relative to the call site's "now" so the
-/// boundary semantics (`<` strict) stay verifiable without freezing the
-/// clock. See `STACK.md` § Persistence shape — purge is NOT a schema
-/// migration and lives alongside the other `DataWriter` write paths.
+/// Exercises `DataWriter.purgeEntriesOlderThan(_:now:)`. The purge is a
+/// runtime delete keyed on `publishedAt` and the `now` instant. Every test
+/// passes the same fixed whole-second `now`, so an entry can sit exactly at
+/// the cutoff. Purge is NOT a schema migration (`STACK.md § 5`).
 struct DataWriterPurgeTests {
+  /// Whole seconds, so the millisecond wire format round-trips it exactly.
+  private static let now = Date(timeIntervalSince1970: 1_700_000_000)
+
   // MARK: - Helpers
 
   private func makeWriter() async throws -> DataWriter {
@@ -50,15 +51,14 @@ struct DataWriterPurgeTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let now = Date()
-    let old = try makeEntry(id: 1001, daysAgo: 31, from: now)
-    let recent = try makeEntry(id: 1002, daysAgo: 29, from: now)
-    let today = try makeEntry(id: 1003, daysAgo: 0, from: now)
+    let old = try makeEntry(id: 1001, daysAgo: 31, from: Self.now)
+    let recent = try makeEntry(id: 1002, daysAgo: 29, from: Self.now)
+    let today = try makeEntry(id: 1003, daysAgo: 0, from: Self.now)
 
     _ = try await writer.persistEntries(
       [old, recent, today], unreadIDs: Set([1001, 1002, 1003]))
 
-    let outcome = try await writer.purgeEntriesOlderThan(30)
+    let outcome = try await writer.purgeEntriesOlderThan(30, now: Self.now)
 
     #expect(outcome.purgedCount == 1)
 
@@ -69,41 +69,31 @@ struct DataWriterPurgeTests {
 
   // MARK: - Boundary
 
-  /// An entry published *exactly* at the cutoff (`Date.now - days * 86_400`)
-  /// must be retained — the predicate uses strict `<`. Seeding with a tiny
-  /// sub-second offset on either side keeps the assertion deterministic
-  /// despite the elapsed time between fixture build and purge call.
+  /// The predicate is strict `<` on raw seconds: an entry 1 s before the
+  /// cutoff goes, and entries at the cutoff and 1 s after it stay.
   @Test
   func purgeBoundaryIsStrictLessThan() async throws {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let now = Date()
-    // 30 days + 1 second old → must be purged (strictly older than cutoff).
-    let justOver = try FeedbinFixtures.entry(
-      id: 2001,
-      title: "Just over the boundary",
-      published: formatDateForFeedbin(now.addingTimeInterval(-30 * 86_400 - 1))
-    )
-    // 30 days - 5 seconds old → must remain (newer than cutoff). The 5s
-    // headroom absorbs the wall-clock drift between fixture construction
-    // and the purge's own `Date()` read.
-    let justUnder = try FeedbinFixtures.entry(
-      id: 2002,
-      title: "Just under the boundary",
-      published: formatDateForFeedbin(now.addingTimeInterval(-30 * 86_400 + 5))
-    )
+    let cutoff = Self.now.addingTimeInterval(-30 * 86_400)
+    let entries = try [(2001, -1.0), (2002, 0.0), (2003, 1.0)].map { id, offset in
+      try FeedbinFixtures.entry(
+        id: id,
+        title: "Entry \(id)",
+        published: formatDateForFeedbin(cutoff.addingTimeInterval(offset))
+      )
+    }
 
-    _ = try await writer.persistEntries(
-      [justOver, justUnder], unreadIDs: Set([2001, 2002]))
+    _ = try await writer.persistEntries(entries, unreadIDs: Set([2001, 2002, 2003]))
 
-    let outcome = try await writer.purgeEntriesOlderThan(30)
+    let outcome = try await writer.purgeEntriesOlderThan(30, now: Self.now)
 
     #expect(outcome.purgedCount == 1)
 
     let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
     let remainingIDs = Set(remaining.map(\.entryID))
-    #expect(remainingIDs == [2002])
+    #expect(remainingIDs == [2002, 2003])
   }
 
   // MARK: - No-op
@@ -115,7 +105,7 @@ struct DataWriterPurgeTests {
   func purgeOnEmptyStoreIsNoOp() async throws {
     let writer = try await makeWriter()
 
-    let outcome = try await writer.purgeEntriesOlderThan(30)
+    let outcome = try await writer.purgeEntriesOlderThan(30, now: Self.now)
     #expect(outcome.purgedCount == 0)
   }
 
@@ -126,14 +116,13 @@ struct DataWriterPurgeTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let now = Date()
-    let recent1 = try makeEntry(id: 3001, daysAgo: 1, from: now)
-    let recent2 = try makeEntry(id: 3002, daysAgo: 15, from: now)
-    let recent3 = try makeEntry(id: 3003, daysAgo: 29, from: now)
+    let recent1 = try makeEntry(id: 3001, daysAgo: 1, from: Self.now)
+    let recent2 = try makeEntry(id: 3002, daysAgo: 15, from: Self.now)
+    let recent3 = try makeEntry(id: 3003, daysAgo: 29, from: Self.now)
     _ = try await writer.persistEntries(
       [recent1, recent2, recent3], unreadIDs: Set([3001, 3002, 3003]))
 
-    let outcome = try await writer.purgeEntriesOlderThan(30)
+    let outcome = try await writer.purgeEntriesOlderThan(30, now: Self.now)
     #expect(outcome.purgedCount == 0)
 
     let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
@@ -152,13 +141,12 @@ struct DataWriterPurgeTests {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
-    let now = Date()
-    let twoDaysOld = try makeEntry(id: 4001, daysAgo: 2, from: now)
-    let today = try makeEntry(id: 4002, daysAgo: 0, from: now)
+    let twoDaysOld = try makeEntry(id: 4001, daysAgo: 2, from: Self.now)
+    let today = try makeEntry(id: 4002, daysAgo: 0, from: Self.now)
     _ = try await writer.persistEntries(
       [twoDaysOld, today], unreadIDs: Set([4001, 4002]))
 
-    let outcome = try await writer.purgeEntriesOlderThan(1)
+    let outcome = try await writer.purgeEntriesOlderThan(1, now: Self.now)
     #expect(outcome.purgedCount == 1)
 
     let remaining = try await writer.fetchUnclassifiedInputs(cutoffDate: .distantPast, limit: .max)
