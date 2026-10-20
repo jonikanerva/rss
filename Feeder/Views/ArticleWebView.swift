@@ -132,32 +132,53 @@ struct ArticleWebView: NSViewRepresentable {
   /// waits until the shared cookie policy applies, so no request of the
   /// article can store or send a cookie.
   final class Coordinator: NSObject, WKNavigationDelegate {
+    private struct ArticleLoad {
+      let html: String
+      let baseURL: URL?
+    }
+
     weak var webView: WKWebView?
     var currentEntryID: Int?
     var currentHTMLHash: Int?
-    /// One-shot: set immediately before `loadHTMLString`, cleared by the first
-    /// main-frame decision. A later navigation without a user click is a meta
-    /// refresh or a redirect, and the policy cancels it.
-    private var isPendingProgrammaticLoad = false
+    /// True from `loadHTMLString` until its main-frame decision. Feeder starts
+    /// no other load in that time, so the next main-frame decision without a
+    /// user click belongs to this load. Any later one is a meta refresh or a
+    /// redirect, and the policy cancels it.
+    private var isAwaitingLoadDecision = false
+    /// The newest load that arrived while a decision was pending. It replaces
+    /// an older queued load, and starts after that decision.
+    private var queuedLoad: ArticleLoad?
+    private var lastStartedLoad: ArticleLoad?
     private var loadTask: Task<Void, Never>?
+    private var queuedStartTask: Task<Void, Never>?
 
     func load(_ html: String, baseURL: URL?) {
       loadTask?.cancel()
       loadTask = nil
+      let load = ArticleLoad(html: html, baseURL: baseURL)
       guard ArticleWebConfiguration.isCookiePolicyApplied else {
         loadTask = Task {
           await ArticleWebConfiguration.applyCookiePolicy()
           guard !Task.isCancelled else { return }
-          startLoad(html, baseURL: baseURL)
+          request(load)
         }
         return
       }
-      startLoad(html, baseURL: baseURL)
+      request(load)
     }
 
-    private func startLoad(_ html: String, baseURL: URL?) {
-      isPendingProgrammaticLoad = true
-      webView?.loadHTMLString(html, baseURL: baseURL)
+    private func request(_ load: ArticleLoad) {
+      guard !isAwaitingLoadDecision else {
+        queuedLoad = load
+        return
+      }
+      start(load)
+    }
+
+    private func start(_ load: ArticleLoad) {
+      isAwaitingLoadDecision = true
+      lastStartedLoad = load
+      webView?.loadHTMLString(load.html, baseURL: load.baseURL)
     }
 
     func webView(
@@ -165,13 +186,26 @@ struct ArticleWebView: NSViewRepresentable {
       decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
       let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? false
+      let isUserClick = navigationAction.navigationType == .linkActivated
+      let isLoadDecision = isMainFrame && !isUserClick && isAwaitingLoadDecision
+      if isLoadDecision {
+        isAwaitingLoadDecision = false
+        if let queuedLoad {
+          // The queued load is newer, so this load is stale. It starts after
+          // this decision returns: a load started inside the decision would
+          // replace the navigation that the decision is for.
+          self.queuedLoad = nil
+          isAwaitingLoadDecision = true
+          queuedStartTask = Task { start(queuedLoad) }
+          return .cancel
+        }
+      }
       let decision = articleNavigationDecision(
-        isUserClick: navigationAction.navigationType == .linkActivated,
+        isUserClick: isUserClick,
         isMainFrame: isMainFrame,
         url: navigationAction.request.url,
-        isPendingProgrammaticLoad: isPendingProgrammaticLoad
+        isPendingProgrammaticLoad: isLoadDecision
       )
-      if isMainFrame { isPendingProgrammaticLoad = false }
       switch decision {
       case .allow:
         return .allow
@@ -181,6 +215,15 @@ struct ArticleWebView: NSViewRepresentable {
         NSWorkspace.shared.open(url)
         return .cancel
       }
+    }
+
+    /// A terminated web content process drops a pending decision. Without a
+    /// restart, every later load would wait in the queue.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+      isAwaitingLoadDecision = false
+      guard let load = queuedLoad ?? lastStartedLoad else { return }
+      queuedLoad = nil
+      start(load)
     }
   }
 }

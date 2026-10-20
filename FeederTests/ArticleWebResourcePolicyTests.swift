@@ -216,6 +216,30 @@ struct ArticleWebResourcePolicyTests {
     #expect(harness.webView.url == ArticleWebPolicyFixture.baseURL)
   }
 
+  /// Loads that start before WebKit decides the previous load end on the
+  /// newest article, on a new web view with a cold web content process.
+  @Test
+  func overlappingLoadsShowTheNewestArticle() async throws {
+    let harness = makeHarness()
+    let policy = ArticleResourcePolicy.contentSecurityPolicy()
+    let urls = try ["a", "b", "c"].map { try #require(URL(string: "feeder-fixture://site.example/\($0)")) }
+    for (index, url) in urls.enumerated() {
+      harness.delegate.coordinator.load(render("<p>Article \(index)</p>", policy: policy), baseURL: url)
+    }
+    let delegate = harness.delegate
+    let webView = harness.webView
+    let newest = urls[2]
+    try await waitUntil("the newest article finishes", timeout: .seconds(10)) {
+      await MainActor.run { delegate.finishedLoads > 0 && webView.url == newest && !webView.isLoading }
+    }
+    #expect(webView.url == newest)
+    let text =
+      try await webView.callAsyncJavaScript(
+        "return document.body.innerText", contentWorld: .defaultClient) as? String
+    #expect(text?.contains("Article 2") == true)
+    #expect(delegate.decisions.contains { $0.url == newest && $0.policy == .allow })
+  }
+
   /// A second programmatic load is allowed again: the one-shot flag resets on
   /// each `load`, not once per web view.
   @Test
