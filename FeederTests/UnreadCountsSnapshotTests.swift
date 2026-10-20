@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 
 @testable import Feeder
@@ -55,18 +56,61 @@ struct UnreadCountsSnapshotFetchTests {
   }
 
   @Test
-  func unclassifiedEntriesDoNotContribute() async throws {
+  func unassignedEntriesCountOnlyInAllArticles() async throws {
     let writer = try await makeWriter()
     let reader = await DataWriterTestSupport.makeReader(sharing: writer)
     try await seedFeed(writer)
     let entry = try FeedbinFixtures.entry(id: 9001)
     _ = try await writer.persistEntries([entry], unreadIDs: Set([9001]))
-    // No applyClassification — entry stays `isClassified == false`.
+    // No applyClassification: the entry has no category assignment.
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
-    #expect(snapshot.totalUnread == 0)
+    #expect(snapshot.totalUnread == 1)
+    #expect(snapshot.unreadFeedbinEntryIDs == [9001])
     #expect(snapshot.categoryCounts.isEmpty)
     #expect(snapshot.folderCounts.isEmpty)
-    #expect(snapshot.unreadFeedbinEntryIDs.isEmpty)
+    #expect(snapshot.unreadIDByCategory.isEmpty)
+    #expect(snapshot.unreadIDByFolder.isEmpty)
+  }
+
+  /// A reset entry keeps its previous assignment on both axes until a new
+  /// result commits. A new entry has no assignment: All Articles lists and
+  /// counts it, and no folder or category does. An empty label matches no
+  /// timeline.
+  @Test
+  func pendingAndUnassignedEntriesStayReadable() async throws {
+    let writer = try await makeWriter()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    try await seedFeed(writer)
+    try await seedTaxonomy(writer)
+    let assigned = try FeedbinFixtures.entry(id: 1201, title: "Assigned", published: "2026-01-01T10:00:00Z")
+    let fresh = try FeedbinFixtures.entry(id: 1202, title: "Fresh", published: "2026-01-01T11:00:00Z")
+    _ = try await writer.persistEntries([assigned], unreadIDs: Set([1201]))
+    try await classify(writer, id: 1201, category: "apple")
+    try await writer.resetClassification()
+    _ = try await writer.persistEntries([fresh], unreadIDs: Set([1202]))
+
+    let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast)
+    #expect(snapshot.totalUnread == 2)
+    #expect(snapshot.unreadFeedbinEntryIDs == [1201, 1202])
+    #expect(snapshot.categoryCounts == ["apple": 1])
+    #expect(snapshot.folderCounts == ["tech": 1])
+    let pending = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: 1201))
+    let unassigned = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: 1202))
+    #expect(!pending.isClassified)
+    #expect(unassigned.primaryCategory.isEmpty)
+    let expected: [(EntryScope, [PersistentIdentifier])] = [
+      (.all, [unassigned.persistentModelID, pending.persistentModelID]),
+      (.category("apple"), [pending.persistentModelID]),
+      (.folder("tech"), [pending.persistentModelID]),
+      (.category(""), []),
+      (.folder(""), []),
+    ]
+    for (scope, ids) in expected {
+      let rows = try await reader.fetchEntrySections(
+        scope: scope, showRead: false, cutoffDate: .distantPast,
+        pinnedFeedbinEntryID: 1202, window: .firstPage(limit: 10))
+      #expect(rows.allEntryIDs == ids, "scope \(scope)")
+    }
   }
 
   @Test
@@ -212,7 +256,7 @@ struct UnreadCountsSnapshotFetchTests {
 
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
     let result = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false,
+      scope: .category("apple"), showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
     let sectionRowCount = result.allEntryIDs.count
@@ -268,13 +312,18 @@ struct UnreadCountsSnapshotFetchTests {
       entries.append(entry)
     }
     _ = try await writer.persistEntries(entries, unreadIDs: Set(seedDates.map(\.id)))
-    for (id, _) in seedDates {
+    // Entry 7003 stays unassigned, so the All Articles parity covers a row
+    // that no category counts.
+    for (id, _) in seedDates where id != 7003 {
       try await classify(writer, id: id, category: "apple")
     }
 
     let snapshot = try await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoff)
+    let allRows = try await reader.fetchEntrySections(
+      scope: .all, showRead: false, cutoffDate: cutoff, window: .firstPage(limit: 10_000))
+    #expect(snapshot.totalUnread == allRows.allEntryIDs.count, "All Articles disagreed for cutoff \(cutoff)")
     let result = try await reader.fetchEntrySections(
-      category: "apple", folder: nil, showRead: false,
+      scope: .category("apple"), showRead: false,
       cutoffDate: cutoff, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000)
     )
     let sectionRowCount = result.allEntryIDs.count

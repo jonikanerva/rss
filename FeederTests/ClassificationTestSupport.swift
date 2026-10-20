@@ -35,6 +35,8 @@ actor FakeClassificationProvider {
     confidence: 1.0
   )
 
+  private var response = defaultResponse
+
   /// How many further calls must throw before the default response returns.
   /// Decremented on each thrown call, so a test models "fail the first calls,
   /// succeed for the rest" with no per-call state machinery.
@@ -88,7 +90,7 @@ actor FakeClassificationProvider {
       throw error
     }
 
-    return Self.defaultResponse
+    return response
   }
 
   func validate(categories: [CategoryDefinition]) async throws {
@@ -117,6 +119,12 @@ actor FakeClassificationProvider {
   /// loop suspended long enough for a control event to land.
   func configureDelay(_ value: Duration) {
     perCallDelay = value
+  }
+
+  /// Return `category` from every later successful call, so a test can tell a
+  /// replacement result from the previous assignment.
+  func configureCategory(_ category: String) {
+    response = .generative(category: category, confidence: 1.0)
   }
 
   /// Flip the availability the runner's guard reads.

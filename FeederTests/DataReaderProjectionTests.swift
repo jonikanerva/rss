@@ -28,7 +28,7 @@ struct DataReaderProjectionTests {
     try await writer.applyClassification(
       entryID: 1, result: ClassificationResult(entryID: 1, categoryLabel: "tech"))
     let result = try await reader.fetchEntrySections(
-      category: "tech", folder: nil, showRead: false,
+      scope: .category("tech"), showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10))
     return try #require(result.sections.first?.rows.first)
   }

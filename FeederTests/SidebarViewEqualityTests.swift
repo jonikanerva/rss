@@ -9,10 +9,12 @@ import Testing
 @Suite("SidebarView equality")
 struct SidebarViewEqualityTests {
   private func sidebar(
+    allArticlesUnreadCount: Int = 3,
     canMarkAllRead: Bool = true,
     onMarkAllRead: @escaping (SidebarSelection) -> Void = { _ in }
   ) -> SidebarView {
     SidebarView(
+      allArticlesUnreadCount: allArticlesUnreadCount,
       visibleFolderGroups: [
         SidebarFolderGroup(
           label: "tech", displayName: "Technology",
@@ -27,6 +29,11 @@ struct SidebarViewEqualityTests {
       selection: .constant(.category("apple")),
       collapsedFolders: .constant(SidebarCollapsedFolders())
     )
+  }
+
+  @Test("a change of the All Articles count alone makes the views unequal")
+  func allArticlesCountChangeIsUnequal() {
+    #expect(sidebar(allArticlesUnreadCount: 3) != sidebar(allArticlesUnreadCount: 4))
   }
 
   @Test("a change of canMarkAllRead alone makes the views unequal")

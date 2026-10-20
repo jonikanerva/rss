@@ -151,6 +151,12 @@ struct PendingReadCountsFromSnapshotTests {
   }
 
   @Test
+  func allArticlesOverlayCountsOnlyStillUnreadPendingIDs() {
+    #expect(pendingReadCountAll(snapshot: Self.snapshot, pending: []) == 0)
+    #expect(pendingReadCountAll(snapshot: Self.snapshot, pending: [1, 4, 999]) == 2)
+  }
+
+  @Test
   func pendingIDNotInSnapshotIsIgnored() {
     // Cross-device sync flipped the entry to read on disk and the snapshot
     // was refreshed before `pendingReadIDs` got pruned — the lingering ID
@@ -274,6 +280,7 @@ struct SidebarNavigationItemsTests {
     )
     #expect(
       items == [
+        .allArticles,
         .folder("technology"), .category("apple"), .category("playstation"),
         .folder("media"), .category("movies"),
         .category("world_news"),
@@ -292,6 +299,7 @@ struct SidebarNavigationItemsTests {
     )
     #expect(
       items == [
+        .allArticles,
         .folder("technology"),
         .folder("media"), .category("movies"),
         .category("world_news"),
@@ -307,7 +315,7 @@ struct SidebarNavigationItemsTests {
       rootCategoryLabels: ["world_news", "uncategorized"],
       collapsedFolderLabels: ["technology"]
     )
-    #expect(items == [.category("world_news"), .category("uncategorized")])
+    #expect(items == [.allArticles, .category("world_news"), .category("uncategorized")])
   }
 }
 

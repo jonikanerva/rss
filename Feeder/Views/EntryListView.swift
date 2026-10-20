@@ -54,8 +54,7 @@ struct VisibleEntriesKey: PreferenceKey {
 /// result, so nothing is reordered or hidden
 /// (`VISION.md → Core Principles`).
 struct EntryListView: View {
-  let category: String?
-  let folder: String?
+  let scope: EntryScope
   let filter: ArticleFilter
   let cutoffDate: Date
   let reader: DataReader
@@ -175,11 +174,7 @@ struct EntryListView: View {
         ContentUnavailableView {
           Label("No Articles", systemImage: "newspaper")
         } description: {
-          Text(
-            filter == .unread
-              ? "No unread articles in this category."
-              : "No read articles in this category."
-          )
+          Text(emptyListMessage)
         }
       case .blank, .list:
         List(selection: $selectedEntryID) {
@@ -247,7 +242,7 @@ struct EntryListView: View {
       defer {
         perfSignposter.endInterval(
           PerformanceSignpostName.structuralReload, signpost,
-          "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(category ?? folder ?? "unified", privacy: .private)"
+          "rows=\(visibleEntries.ids.count, privacy: .public) cat=\(scope.logDescription, privacy: .private)"
         )
       }
       // Synchronous prefix: enter the pending phase and drop the previous
@@ -348,7 +343,7 @@ struct EntryListView: View {
   private func fetchResult(window: EntryListWindow) async -> EntryListFetchResult? {
     do {
       return try await reader.fetchEntrySections(
-        category: category, folder: folder, showRead: filter == .read,
+        scope: scope, showRead: filter == .read,
         cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID,
         window: window
       )
@@ -360,7 +355,7 @@ struct EntryListView: View {
     } catch {
       // Logged once per failure, here, so every caller shares the line.
       logger.error(
-        "Article-list fetch failed for \(category ?? folder ?? "none", privacy: .private)"
+        "Article-list fetch failed for \(scope.logDescription, privacy: .private)"
       )
       return nil
     }
@@ -538,7 +533,12 @@ struct EntryListView: View {
   /// which rides on a separate task so an in-place refresh does not tear down
   /// the `List` and drop the scroll position.
   private var structuralKey: String {
-    "\(category ?? "")|\(folder ?? "")|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+    "\(String(describing: scope))|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+  }
+
+  private var emptyListMessage: String {
+    let place = scope == .all ? "" : " in this category"
+    return filter == .unread ? "No unread articles\(place)." : "No read articles\(place)."
   }
 }
 
@@ -592,11 +592,12 @@ private struct EntryListFetchErrorView: View {
 
 // MARK: - Previews
 
-/// Renders `EntryListView` for the `apple` category: a fixture row shows only
-/// when it carries that category.
+/// Renders `EntryListView` for `scope`, the `apple` category by default: a
+/// fixture row shows there only when it carries that category.
 @MainActor
 private struct EntryListPreviewHost: View {
   let container: ModelContainer
+  var scope: EntryScope = .category("apple")
   var filter: ArticleFilter = .unread
   var cutoffDate: Date = .now.addingTimeInterval(-7 * 86_400)
   var fontSettings = AppFontSettings()
@@ -613,8 +614,7 @@ private struct EntryListPreviewHost: View {
     Group {
       if let reader {
         EntryListView(
-          category: "apple",
-          folder: nil,
+          scope: scope,
           filter: filter,
           cutoffDate: cutoffDate,
           reader: reader,
@@ -736,6 +736,26 @@ private enum EntryListPreviewFixtures {
     return container
   }
 
+  /// `otherCategoryRow` plus one newer article that has no category yet. The
+  /// All Articles list shows both rows; no category list shows the new one.
+  static func unassignedAndOtherCategoryRows() -> ModelContainer {
+    let container = otherCategoryRow()
+    let context = container.mainContext
+    let published = Date.now.addingTimeInterval(60)
+    let entry = Entry(
+      feedbinEntryID: 2, title: "A New Story Awaiting Its Category", author: "Bot",
+      url: "https://world.example.com/2", content: "<p>New story.</p>", summary: "New story",
+      extractedContentURL: nil, publishedAt: published, createdAt: published)
+    entry.feed = try? context.fetch(FetchDescriptor<Feed>()).first
+    entry.formattedDate = formatEntryDate(published)
+    entry.formattedPublishedTime = formatEntryTime(published)
+    entry.plainText = "New story."
+    entry.summaryPlainText = "New story."
+    context.insert(entry)
+    try? context.save()
+    return container
+  }
+
   static func midBatchClassificationEngine() -> ClassificationEngine {
     let engine = ClassificationEngine()
     engine.applyPreviewState(
@@ -838,6 +858,10 @@ private enum EntryListPreviewFixtures {
   // does not change the "No Articles" outcome.
   EntryListPreviewHost(container: EntryListPreviewFixtures.otherCategoryRow())
     .environment(EntryListPreviewFixtures.midBatchClassificationEngine())
+}
+
+#Preview("All Articles - Article Awaiting Its Category") {
+  EntryListPreviewHost(container: EntryListPreviewFixtures.unassignedAndOtherCategoryRows(), scope: .all)
 }
 
 #Preview("Empty - No Articles (at rest)") {

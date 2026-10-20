@@ -40,6 +40,7 @@ nonisolated struct SidebarCategorySnapshot: Sendable, Equatable, Identifiable {
 /// toolbar stays at the call site, outside the wrap, so it keeps observing the
 /// engines.
 struct SidebarView: View, Equatable {
+  let allArticlesUnreadCount: Int
   let visibleFolderGroups: [SidebarFolderGroup]
   let rootCategories: [SidebarCategorySnapshot]
   let categoryUnreadCounts: [String: Int]
@@ -65,7 +66,8 @@ struct SidebarView: View, Equatable {
     // `onMarkAllRead` stays out of the comparison. A skipped body keeps the
     // closure of an earlier value, so the closure must read the owner's state
     // when it runs, never a value captured when the body was built.
-    lhs.visibleFolderGroups == rhs.visibleFolderGroups
+    lhs.allArticlesUnreadCount == rhs.allArticlesUnreadCount
+      && lhs.visibleFolderGroups == rhs.visibleFolderGroups
       && lhs.rootCategories == rhs.rootCategories
       && lhs.categoryUnreadCounts == rhs.categoryUnreadCounts
       && lhs.folderUnreadCounts == rhs.folderUnreadCounts
@@ -78,6 +80,7 @@ struct SidebarView: View, Equatable {
   var body: some View {
     List(selection: $selection) {
       Section {
+        allArticlesRow
         ForEach(visibleFolderGroups) { group in
           folderGroup(group)
         }
@@ -92,6 +95,26 @@ struct SidebarView: View, Equatable {
   }
 
   // MARK: - Row builders
+
+  /// The All Articles row: every article newest first, also an article that
+  /// has no category yet. The identifier sits on the title `Text` for the same
+  /// reason as in `folderGroup`.
+  private var allArticlesRow: some View {
+    HStack(spacing: 6) {
+      Label {
+        Text("All Articles")
+          .font(fontBody)
+          .lineLimit(1)
+          .accessibilityIdentifier("sidebar.allArticles")
+      } icon: {
+        Image(systemName: "tray.full")
+      }
+      Spacer(minLength: 4)
+      SidebarUnreadBadge(count: allArticlesUnreadCount)
+    }
+    .tag(SidebarSelection.allArticles)
+    .contextMenu { markAllReadMenu(for: .allArticles) }
+  }
 
   /// A folder row and its child categories, as a `DisclosureGroup`. The label
   /// carries the folder selection tag, so the folder aggregate stays selectable
@@ -186,6 +209,7 @@ private enum SidebarPreviewFixtures {
   ) -> some View {
     let fontSettings = AppFontSettings(textSize: textSize)
     return SidebarView(
+      allArticlesUnreadCount: 1290,
       visibleFolderGroups: folderGroups,
       rootCategories: rootCategories,
       categoryUnreadCounts: categoryUnreadCounts,
@@ -210,6 +234,16 @@ private enum SidebarPreviewFixtures {
   @Previewable
   @State
   var collapsed = SidebarCollapsedFolders(labels: ["gaming"])
+  SidebarPreviewFixtures.sidebar(textSize: .medium, selection: $selection, collapsedFolders: $collapsed)
+}
+
+#Preview("Sidebar - All Articles") {
+  @Previewable
+  @State
+  var selection: SidebarSelection? = .allArticles
+  @Previewable
+  @State
+  var collapsed = SidebarCollapsedFolders()
   SidebarPreviewFixtures.sidebar(textSize: .medium, selection: $selection, collapsedFolders: $collapsed)
 }
 
