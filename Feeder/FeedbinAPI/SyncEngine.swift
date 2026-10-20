@@ -500,6 +500,9 @@ final class SyncEngine {
 
   // MARK: - Sync
 
+  /// True from `startPeriodicSync(interval:)` until `stopPeriodicSync()`.
+  var isPeriodicSyncActive: Bool { periodicSyncTask != nil }
+
   /// Start periodic background sync using structured concurrency.
   func startPeriodicSync(interval: TimeInterval = 300) {
     stopPeriodicSync()
