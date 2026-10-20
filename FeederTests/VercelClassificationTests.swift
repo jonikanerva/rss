@@ -314,7 +314,8 @@ struct ClassificationRetryTests {
   @Test
   func onlyATransientFailureWithoutRetryAfterOrServiceLimitIsSkippable() {
     let skippable: [any ClassificationFailure] = [
-      VercelClassificationError.network, VercelClassificationError.http(503, retryAfter: nil),
+      VercelClassificationError.network(.notConnectedToInternet), VercelClassificationError.network(.timedOut),
+      VercelClassificationError.http(503, retryAfter: nil),
       VercelClassificationError.http(408, retryAfter: nil), OpenAIError.networkUnavailable(underlying: URLError(.timedOut)),
       OpenAIError.apiError(statusCode: 500, message: "x", retryAfter: nil),
     ]

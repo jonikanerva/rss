@@ -332,7 +332,7 @@ struct ClassificationCancellationTests {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
     // Each failed batch skips one article and stops at the second failure.
-    await provider.configureErrors(VercelClassificationError.network, count: 14)
+    await provider.configureErrors(VercelClassificationError.network(.notConnectedToInternet), count: 14)
     let clock = ClassificationSleepRecorder(immediateDelays: 7)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
@@ -350,7 +350,7 @@ struct ClassificationCancellationTests {
   func configurationChangeInterruptsBackoff() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
-    await provider.configureErrors(VercelClassificationError.network, count: 2)
+    await provider.configureErrors(VercelClassificationError.network(.notConnectedToInternet), count: 2)
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
@@ -440,7 +440,7 @@ struct ClassificationCancellationTests {
     let (provider, transport) = cloudProvider(cloud, [.failure(URLError(.timedOut))], retryClock: retryClock)
     let (outcome, snapshots) = await runOneBatch(writer, provider: provider)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
-    #expect(snapshots.last?.abort == .offline)
+    #expect(snapshots.last?.abort == .providerUnavailable)
     #expect(await transport.requests.count == 2)
     #expect(await retryClock.delays == [.seconds(2)])
     try await expectPending(writer)

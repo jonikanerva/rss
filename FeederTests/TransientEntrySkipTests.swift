@@ -103,7 +103,7 @@ struct TransientEntrySkipTests {
     let outcome = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures)
     #expect(outcome.abortDisposition == .transient(retryAfter: nil))
     #expect(await provider.callCount == 2)
-    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.offline])
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.providerUnavailable])
     for _ in 2...4 { _ = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures) }
     #expect(await provider.callCount == 8)
     for id in ids {
@@ -371,7 +371,7 @@ struct TransientEntrySkipTests {
     try await waitUntil("second loop wait reached") { await clock.delays.count == 2 }
     #expect(await clock.delays == [.seconds(10), .seconds(20)])
     #expect(await provider.callCount == 2)
-    #expect(engine.lastAbort == .offline)
+    #expect(engine.lastAbort == .providerUnavailable)
     #expect(engine.currentEntryFailures.sendsLast(stuck))
     #expect(engine.currentEntryFailures.strikes(for: stuck) == 0)
     try await expectPending(writer, id: stuck)
@@ -391,7 +391,7 @@ struct TransientEntrySkipTests {
     #expect(await clock.delays == [.seconds(2), .seconds(10)])
     #expect(await provider.requestedTitles == ["Stuck", "Healthy", "Stuck"])
     #expect(engine.currentEntryFailures.strikes(for: ids[0]) == 1)
-    #expect(engine.lastAbort == .offline)
+    #expect(engine.lastAbort == .providerUnavailable)
     try await expectCategory(writer, id: ids[1], "tech")
     engine.stopContinuousClassification()
   }
