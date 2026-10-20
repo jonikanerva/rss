@@ -68,6 +68,12 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     }
   }
 
+  /// A timeout on a working network is not an offline Mac, so the banner names
+  /// the provider instead. `nil` means a failure without a `URLError` code.
+  static func transportFailure(_ code: URLError.Code?) -> ClassificationAbortReason {
+    code == .timedOut ? .providerUnavailable : .offline
+  }
+
   var symbolName: String {
     self == .offline ? "wifi.slash" : "exclamationmark.triangle"
   }

@@ -253,8 +253,8 @@ extension OpenAIError: ClassificationFailure {
       }
     case .quotaExhausted:
       return .quotaExhausted
-    case .networkUnavailable:
-      return .offline
+    case .networkUnavailable(let underlying):
+      return .transportFailure((underlying as? URLError)?.code)
     case .invalidResponse, .emptyResponse, .entryRejected:
       return nil
     }
