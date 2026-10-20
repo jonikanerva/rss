@@ -24,9 +24,8 @@ struct PersistedColumnWidthTests {
   private static let contentIdeal: CGFloat = 500
   private static let tolerance: CGFloat = 1
   private static let autosaveKeyPrefix = "NSSplitView Subview Frames"
-  private static let settleDelay: Duration = .milliseconds(20)
-  /// Five settle periods: the recorder's first settle runs before the
-  /// autosave keys are read again.
+  /// How long after the stable layout the autosave-key check can still catch
+  /// a write by the split-view bridge. The `STACK.md § 3` sleep limit caps it.
   private static let quietWindow: Duration = .milliseconds(100)
   /// Upper bound for the split view to appear with a stable layout.
   private static let layoutDeadline: Duration = .seconds(2)
@@ -46,12 +45,12 @@ struct PersistedColumnWidthTests {
           Text("A")
           Text("B")
         }
-        .persistedColumnWidth(column: .sidebar, ideal: sidebarIdeal, defaults: defaults, settleDelay: settleDelay)
+        .persistedColumnWidth(column: .sidebar, ideal: sidebarIdeal, defaults: defaults)
       } content: {
         ZStack {
           Color.clear
         }
-        .persistedColumnWidth(column: .content, ideal: contentIdeal, defaults: defaults, settleDelay: settleDelay)
+        .persistedColumnWidth(column: .content, ideal: contentIdeal, defaults: defaults)
       } detail: {
         Color.clear
       }
@@ -68,13 +67,13 @@ struct PersistedColumnWidthTests {
           Text("A")
           Text("B")
         }
-        .persistedColumnWidth(column: .sidebar, ideal: sidebarIdeal, defaults: defaults, settleDelay: settleDelay)
+        .persistedColumnWidth(column: .sidebar, ideal: sidebarIdeal, defaults: defaults)
       } content: {
         ZStack {
           Color.clear
         }
         .navigationSplitViewColumnWidth(ideal: contentIdeal)
-        .modifier(ColumnWidthRecorder(column: .content, defaults: defaults, settleDelay: settleDelay))
+        .modifier(ColumnWidthRecorder(column: .content, defaults: defaults))
       } detail: {
         Color.clear
       }
@@ -82,7 +81,6 @@ struct PersistedColumnWidthTests {
   }
 
   @Test("the extension keeps both ideals: sidebar 300, content 500")
-  @MainActor
   func extensionAppliesBothIdeals() async throws {
     let widths = try await Self.hostAndMeasure(OrderedSplit(defaults: isolatedDefaults.defaults))
     #expect(abs(widths.sidebar - Self.sidebarIdeal) <= Self.tolerance, "\(widths)")
@@ -90,7 +88,6 @@ struct PersistedColumnWidthTests {
   }
 
   @Test("negative control: a recorder outside the preference hides it and the content falls to the default")
-  @MainActor
   func recorderOutsideHidesPreference() async throws {
     let widths = try await Self.hostAndMeasure(RecorderOutsideSplit(defaults: isolatedDefaults.defaults))
     #expect(abs(widths.sidebar - Self.sidebarIdeal) <= Self.tolerance, "\(widths)")
@@ -109,7 +106,6 @@ struct PersistedColumnWidthTests {
   /// layout and then for `quietWindow`, and reads the sidebar and content
   /// widths from the `NSSplitView`. The arranged subviews' frames run from
   /// x = 0: the content width is its `maxX` minus the sidebar's `maxX`.
-  @MainActor
   private static func hostAndMeasure(_ root: some View) async throws -> ColumnWidths {
     let autosaveKeysBefore = autosaveKeys()
     let hosting = NSHostingView(rootView: root)
@@ -152,7 +148,6 @@ struct PersistedColumnWidthTests {
     Set(UserDefaults.standard.dictionaryRepresentation().keys.filter { $0.hasPrefix(autosaveKeyPrefix) })
   }
 
-  @MainActor
   private static func findSplitViews(in view: NSView) -> [NSSplitView] {
     var result: [NSSplitView] = []
     if let split = view as? NSSplitView { result.append(split) }
