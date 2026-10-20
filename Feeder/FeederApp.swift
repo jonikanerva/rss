@@ -7,7 +7,10 @@ private let logger = Logger(subsystem: "com.feeder.app", category: "App")
 
 @main
 struct FeederApp: App {
-  let modelContainer: ModelContainer
+  let storeConfiguration: ModelConfiguration
+  /// `StoreRecovery` sets this phase. A failed open keeps every store file.
+  @State
+  private var storePhase: StorePhase
 
   @State
   private var syncEngine = FeederApp.makeSyncEngine(environment: ProcessInfo.processInfo.environment)
@@ -34,29 +37,34 @@ struct FeederApp: App {
     SplitViewAutosaveReset.removeStaleFrames()
 
     let useInMemoryStore = Self.usesInMemoryStores(in: ProcessInfo.processInfo.environment)
-
-    // `FeederMigrationPlan` carries a V1 store forward with a lightweight
-    // stage, so it migrates up on the first launch.
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
-    let config = ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: useInMemoryStore)
+    let configuration = Self.makeStoreConfiguration(isStoredInMemoryOnly: useInMemoryStore)
+    storeConfiguration = configuration
 
     // This is the one synchronous `ModelContainer` open on MainActor;
     // `DataWriter.bootstrap()` handles everything past this line on the
-    // background actor. The on-disk reset in `openStore` runs for each open
-    // error, so a failed migration also resets the store: `STACK.md § 5`
-    // states this known gap.
+    // background actor.
     do {
-      modelContainer = try Self.openStore(
-        isStoredInMemoryOnly: useInMemoryStore,
-        defaults: .standard,
-        open: { try ModelContainer(for: schema, migrationPlan: FeederMigrationPlan.self, configurations: config) },
-        deleteStoreFiles: Self.deleteStoreFiles
-      )
+      _storePhase = State(
+        initialValue: try StoreRecovery.openStore(
+          isStoredInMemoryOnly: useInMemoryStore,
+          open: { try Self.openContainer(configuration) }
+        ))
     } catch {
-      let failedOpen = useInMemoryStore ? "In-memory ModelContainer open" : "ModelContainer open after the store reset"
-      logger.error("\(failedOpen, privacy: .public) failed: \(error.localizedDescription, privacy: .private)")
-      fatalError("\(failedOpen) failed: \(error)")
+      logger.error("In-memory ModelContainer open failed: \(error.localizedDescription, privacy: .private)")
+      fatalError("In-memory ModelContainer open failed: \(error)")
     }
+  }
+
+  /// `FeederMigrationPlan` carries a V1 store forward with a lightweight
+  /// stage, so it migrates up on the first launch.
+  private static func makeStoreConfiguration(isStoredInMemoryOnly: Bool) -> ModelConfiguration {
+    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    return ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: isStoredInMemoryOnly)
+  }
+
+  private static func openContainer(_ configuration: ModelConfiguration) throws -> ModelContainer {
+    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    return try ModelContainer(for: schema, migrationPlan: FeederMigrationPlan.self, configurations: configuration)
   }
 
   /// Build the classification engine, injecting the headless no-op provider
@@ -96,22 +104,61 @@ struct FeederApp: App {
 
   var body: some Scene {
     WindowGroup {
-      bootstrapGate
+      mainWindowContent
         .environment(syncEngine)
         .environment(classificationEngine)
         .environment(fontSettings)
     }
-    .modelContainer(modelContainer)
     .commands { FeederCommands() }
 
     Settings {
-      SettingsView()
+      settingsContent
         .environment(syncEngine)
         .environment(classificationEngine)
         .environment(fontSettings)
-        .modelContainer(modelContainer)
     }
     .windowResizability(.contentSize)
+  }
+
+  // MARK: - Store gate
+
+  @ViewBuilder
+  private var mainWindowContent: some View {
+    switch storePhase {
+    case .ready(let container):
+      bootstrapGate(container: container)
+        .modelContainer(container)
+    case .failed(let failure):
+      StoreRecoveryView(failure: failure, startOver: startOver)
+    }
+  }
+
+  @ViewBuilder
+  private var settingsContent: some View {
+    switch storePhase {
+    case .ready(let container):
+      SettingsView()
+        .modelContainer(container)
+    case .failed:
+      ContentUnavailableView(
+        "Settings are not available",
+        systemImage: "externaldrive.badge.xmark",
+        description: Text("Feeder could not open its database.")
+      )
+      .frame(width: 360, height: 220)
+    }
+  }
+
+  private func startOver() {
+    let configuration = storeConfiguration
+    bootstrapPhase = .pending
+    storePhase = StoreRecovery.startOver(
+      storeURL: configuration.url,
+      backupFolderName: StoreRecovery.backupFolderName(at: .now, id: UUID()),
+      defaults: .standard,
+      fileSystem: .live,
+      open: { try Self.openContainer(configuration) }
+    )
   }
 
   // MARK: - Bootstrap gate
@@ -123,11 +170,11 @@ struct FeederApp: App {
   }
 
   @ViewBuilder
-  private var bootstrapGate: some View {
+  private func bootstrapGate(container: ModelContainer) -> some View {
     switch bootstrapPhase {
     case .pending:
       bootstrapPendingView
-        .task { await runBootstrap() }
+        .task { await runBootstrap(container: container) }
     case .ready:
       ContentView()
     case .failed(let message):
@@ -150,9 +197,7 @@ struct FeederApp: App {
       Text(message)
     } actions: {
       Button("Show in Finder") {
-        if let url = Self.storeDirectoryURL() {
-          NSWorkspace.shared.activateFileViewerSelecting([url])
-        }
+        NSWorkspace.shared.activateFileViewerSelecting([storeConfiguration.url.deletingLastPathComponent()])
       }
       Button("Quit Feeder") { NSApp.terminate(nil) }
     }
@@ -162,9 +207,9 @@ struct FeederApp: App {
   /// actor, then inject the writer into `SyncEngine`. Schema migration runs
   /// inside the `ModelContainer` open in `init`; bootstrap only seeds taxonomy
   /// on a freshly created store.
-  private func runBootstrap() async {
+  private func runBootstrap(container: ModelContainer) async {
     appDelegate.syncEngine = syncEngine
-    let writer = await DataWriter.makeDetached(modelContainer: modelContainer)
+    let writer = await DataWriter.makeDetached(modelContainer: container)
     do {
       let outcome = try await writer.bootstrap()
       let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
@@ -177,56 +222,14 @@ struct FeederApp: App {
       await syncEngine.applyQueuedReads()
       // The read-only companion is created only once the container is up and
       // bootstrapped. It is a second context on that same container, so there
-      // is no separate store to migrate and no connection held across the
-      // destructive-reset fallback in `init`.
-      let reader = await DataReader.makeDetached(modelContainer: modelContainer)
+      // is no separate store to migrate.
+      let reader = await DataReader.makeDetached(modelContainer: container)
       syncEngine.attachReader(reader)
       bootstrapPhase = .ready
     } catch {
       logger.error("Bootstrap failed: \(error.localizedDescription, privacy: .private)")
       bootstrapPhase = .failed(error.localizedDescription)
     }
-  }
-
-  // MARK: - Disk fallback
-
-  /// An in-memory open that fails throws at once, and it deletes no file and
-  /// changes no `defaults` key. An on-disk open that fails removes
-  /// `lastSyncDate` and the seeded flag, calls `deleteStoreFiles`, and opens
-  /// once more. Remove the keys before the delete: a stop between the two steps
-  /// must not leave an empty store with the seeded flag set.
-  static func openStore(
-    isStoredInMemoryOnly: Bool,
-    defaults: UserDefaults,
-    open: () throws -> ModelContainer,
-    deleteStoreFiles: () -> Void
-  ) throws -> ModelContainer {
-    do {
-      return try open()
-    } catch {
-      guard !isStoredInMemoryOnly else { throw error }
-      logger.error("ModelContainer failed: \(error.localizedDescription, privacy: .private). Resetting the store and retrying.")
-      defaults.removeObject(forKey: lastSyncDateUserDefaultsKey)
-      defaults.removeObject(forKey: defaultsSeededUserDefaultsKey)
-      deleteStoreFiles()
-      return try open()
-    }
-  }
-
-  /// Delete the SwiftData store files. The fallback for a store that cannot be
-  /// opened at all.
-  private static func deleteStoreFiles() {
-    guard let appSupport = storeDirectoryURL() else { return }
-    for suffix in ["store", "store-shm", "store-wal"] {
-      let url = appSupport.appendingPathComponent("Feeder.\(suffix)")
-      try? FileManager.default.removeItem(at: url)
-    }
-  }
-
-  /// Directory that holds the SwiftData store files. Shared by
-  /// `deleteStoreFiles()` and the "Show in Finder" recovery action.
-  private static func storeDirectoryURL() -> URL? {
-    FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
   }
 }
 
