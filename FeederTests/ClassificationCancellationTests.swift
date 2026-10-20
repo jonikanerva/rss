@@ -210,6 +210,78 @@ struct ClassificationCancellationTests {
     #expect(!engine.isClassifying)
   }
 
+  /// While classification waits on a missing key, an exhausted budget, or a
+  /// service failure, every new article shows in All Articles newest first and
+  /// in no category. The fixed provider then assigns each article, and All
+  /// Articles keeps its order.
+  @Test(arguments: [
+    VercelClassificationError.needsKey, .http(402, retryAfter: nil), .http(503, retryAfter: nil),
+  ])
+  func newArticlesStayReadableInAllArticlesWhileClassificationWaits(_ failure: VercelClassificationError) async throws {
+    let writer = try await fixture()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let provider = FakeClassificationProvider()
+    if case .needsKey = failure {
+      await provider.configureValidation(failure)
+    } else {
+      await provider.configureErrors(failure, count: Int.max)
+    }
+    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    await engine.classifyUnclassified(writer: writer)
+    #expect(engine.lastAbort == failure.batchAbort)
+    let timeline = { (scope: EntryScope) in
+      try await reader.fetchEntrySections(
+        scope: scope, showRead: false, cutoffDate: .distantPast, window: .firstPage(limit: 100)
+      ).sections.flatMap(\.rows).map(\.feedbinEntryID)
+    }
+    #expect(try await timeline(.all) == [1003, 1002, 1001])
+    #expect(try await timeline(.category("tech")).isEmpty)
+    #expect(try await reader.fetchUnreadCountsSnapshot(cutoffDate: .distantPast).totalUnread == 3)
+
+    await provider.configureValidation(nil)
+    await provider.configureErrors(failure, count: 0)
+    await engine.classifyUnclassified(writer: writer)
+    #expect(try await timeline(.category("tech")) == [1003, 1002, 1001])
+    #expect(try await timeline(.all) == [1003, 1002, 1001])
+  }
+
+  /// A cancelled reclassification keeps every previous category, so the
+  /// category timeline stays readable. The next drain replaces the results.
+  @Test
+  func cancelledReclassificationKeepsPreviousCategoriesReadable() async throws {
+    let writer = try await fixture()
+    let reader = await DataWriterTestSupport.makeReader(sharing: writer)
+    let provider = FakeClassificationProvider()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    await engine.classifyUnclassified(writer: writer)
+    let timeline = {
+      try await reader.fetchEntrySections(
+        scope: .category("tech"), showRead: false, cutoffDate: .distantPast,
+        window: .firstPage(limit: 100)
+      ).allEntryIDs
+    }
+    let before = try await timeline()
+    #expect(before.count == 3)
+
+    await provider.configureDelay(.seconds(5))
+    let reclassify = Task { await engine.reclassifyAll(writer: writer) }
+    try await waitUntil("reclassification request starts") { await provider.callCount == 4 }
+    reclassify.cancel()
+    await reclassify.value
+
+    for id in 1001...1003 {
+      let entry = try #require(await writer.fetchEntrySnapshot(feedbinEntryID: id))
+      #expect(!entry.isClassified)
+      #expect(entry.primaryCategory == "tech")
+    }
+    #expect(try await timeline() == before)
+
+    await provider.configureDelay(.zero)
+    await engine.classifyUnclassified(writer: writer)
+    for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true) }
+    #expect(try await timeline() == before)
+  }
+
   @Test
   func rapidConfigurationChangesOnlyRunTheLatestReplacement() async throws {
     let writer = try await fixture()

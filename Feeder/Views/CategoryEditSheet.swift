@@ -1,8 +1,5 @@
-import OSLog
 import SwiftData
 import SwiftUI
-
-private let logger = Logger(subsystem: "com.feeder.app", category: "CategoryEditSheet")
 
 struct CategoryEditSheet: View {
   @Environment(SyncEngine.self)
@@ -38,15 +35,16 @@ struct CategoryEditSheet: View {
   /// choose any other target.
   @State
   private var reassignTarget: String = uncategorizedLabel
-  /// Disables the destructive button while its writer task is in flight, so a
-  /// second Return cannot fire the call twice. The writer is atomic, but a
-  /// second call after the source is gone surfaces a confusing error.
+  /// Owns the one writer call that the sheet waits for. A running call
+  /// disables every submit button, so a second Return cannot submit twice.
   @State
-  private var isReassigning = false
-  /// Surfaces `CategoryReassignError` cases (target missing mid-flight,
-  /// system-category guard tripped, etc.) to the user.
-  @State
-  private var errorMessage: String?
+  private var operation: TaxonomyOperation
+
+  init(category: Category?, folders: [Folder], operation: TaxonomyOperation = TaxonomyOperation()) {
+    self.category = category
+    self.folders = folders
+    self._operation = State(initialValue: operation)
+  }
 
   private var isNew: Bool { category == nil }
 
@@ -77,24 +75,13 @@ struct CategoryEditSheet: View {
         orphanCount: orphanCount ?? 0,
         targets: reassignTargets,
         selectedTarget: $reassignTarget,
-        isReassigning: isReassigning,
+        isReassigning: operation.isRunning,
         onCancel: { reassignSheetIsPresented = false },
         onConfirm: { performReassignAndDelete(targetLabel: reassignTarget) }
       )
     }
-    .alert(
-      "Couldn't remove category",
-      isPresented: Binding(
-        get: { errorMessage != nil },
-        set: { if !$0 { errorMessage = nil } }
-      ),
-      actions: {
-        Button("OK", role: .cancel) { errorMessage = nil }
-      },
-      message: {
-        Text(errorMessage ?? "")
-      }
-    )
+    .onDisappear { operation.cancel() }
+    .taxonomyFailureAlert(operation)
   }
 
   // MARK: - Header
@@ -161,8 +148,14 @@ struct CategoryEditSheet: View {
           beginDelete()
         }
         .accessibilityIdentifier("category.delete")
+        .disabled(operation.isRunning)
       }
       Spacer()
+      if operation.isRunning {
+        ProgressView()
+          .controlSize(.small)
+          .accessibilityLabel("Saving")
+      }
       Button("Cancel") {
         dismiss()
       }
@@ -171,7 +164,7 @@ struct CategoryEditSheet: View {
         save()
       }
       .keyboardShortcut(.defaultAction)
-      .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+      .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || operation.isRunning)
     }
     .padding()
   }
@@ -197,57 +190,68 @@ struct CategoryEditSheet: View {
 
   // MARK: - Actions
 
+  /// The edit path runs two writes. When the folder move fails after the field
+  /// update, the fields stay saved and the sheet stays open; a retry repeats
+  /// both writes, and the field update is idempotent.
   private func save() {
     guard let writer = syncEngine.writer else { return }
     let trimmedName = name.trimmingCharacters(in: .whitespaces)
     let trimmedDesc = description.trimmingCharacters(in: .whitespaces)
+    let folder = selectedFolderLabel
+    let sortOrder = categoriesInTarget(folder).count
 
     if let category {
       let label = category.label
-      let folder = selectedFolderLabel
-      Task {
-        try? await writer.updateCategoryFields(
-          label: label, displayName: trimmedName, description: trimmedDesc
-        )
-        if category.folderLabel != folder {
-          let sortOrder = categoriesInTarget(folder).count
-          try? await writer.moveCategoryToFolder(label: label, folderLabel: folder, sortOrder: sortOrder)
-        }
-        dismiss()
-      }
+      let movesFolder = category.folderLabel != folder
+      operation.submit(
+        failure: .save("category"),
+        work: {
+          try await writer.updateCategoryFields(
+            label: label, displayName: trimmedName, description: trimmedDesc
+          )
+          if movesFolder {
+            try await writer.moveCategoryToFolder(label: label, folderLabel: folder, sortOrder: sortOrder)
+          }
+        },
+        onSuccess: { dismiss() }
+      )
     } else {
       let label = makeUniqueLabel(from: trimmedName, fallbackPrefix: "category")
-      let sortOrder = categoriesInTarget(selectedFolderLabel).count
-      let folder = selectedFolderLabel
-      Task {
-        try? await writer.addCategory(
-          label: label, displayName: trimmedName,
-          description: trimmedDesc, sortOrder: sortOrder,
-          folderLabel: folder
-        )
-        dismiss()
-      }
+      operation.submit(
+        failure: .create("category"),
+        work: {
+          try await writer.addCategory(
+            label: label, displayName: trimmedName,
+            description: trimmedDesc, sortOrder: sortOrder,
+            folderLabel: folder
+          )
+        },
+        onSuccess: { dismiss() }
+      )
     }
   }
 
   /// Branch the delete flow on the orphan count: no orphans deletes at once,
   /// because there is nothing to confirm, and any orphans open the reassign
-  /// sheet. The count fetch runs off MainActor, so no row is iterated there.
+  /// sheet. A failed count stops the flow: it is no evidence of zero orphans.
   private func beginDelete() {
     guard let writer = syncEngine.writer, let category else { return }
     let label = category.label
-    Task {
-      let count = (try? await writer.countEntries(primaryCategoryLabel: label)) ?? 0
-      orphanCount = count
-      if count == 0 {
-        performDelete()
-      } else {
-        // Seed the picker to the system fallback, so accepting the safe
-        // default never means scrolling through the targets.
-        reassignTarget = uncategorizedLabel
-        reassignSheetIsPresented = true
+    operation.submit(
+      failure: .countArticles,
+      work: { try await writer.countEntries(primaryCategoryLabel: label) },
+      onSuccess: { count in
+        orphanCount = count
+        if count == 0 {
+          performDelete()
+        } else {
+          // Seed the picker to the system fallback, so accepting the safe
+          // default never means scrolling through the targets.
+          reassignTarget = uncategorizedLabel
+          reassignSheetIsPresented = true
+        }
       }
-    }
+    )
   }
 
   /// Delete path for a category with no orphaned entries: no article needs a
@@ -255,43 +259,35 @@ struct CategoryEditSheet: View {
   private func performDelete() {
     guard let writer = syncEngine.writer, let category else { return }
     let label = category.label
-    Task {
-      try? await writer.deleteCategory(label: label)
-      dismiss()
-    }
+    operation.submit(
+      failure: .remove("category"),
+      work: { try await writer.deleteCategory(label: label) },
+      onSuccess: { dismiss() }
+    )
   }
 
   /// Run the atomic reassign-and-delete on the writer: it either moves every
   /// orphan and deletes the source, or fails with a typed error. There is no
-  /// partial state. `isReassigning` disables the button for the duration.
+  /// partial state.
   private func performReassignAndDelete(targetLabel: String) {
     guard let writer = syncEngine.writer, let category else { return }
     let sourceLabel = category.label
-    isReassigning = true
-    Task {
-      defer { isReassigning = false }
-      do {
-        _ = try await writer.removeCategoryAndReassignArticles(
-          sourceLabel, to: targetLabel
-        )
+    operation.submit(
+      failure: { error in
+        guard let error = error as? CategoryReassignError else { return .remove("category") }
+        return TaxonomyEditFailure(title: "Couldn't remove category", message: error.localizedDescription)
+      },
+      work: {
+        _ = try await writer.removeCategoryAndReassignArticles(sourceLabel, to: targetLabel)
+      },
+      // Close the reassign sheet before the alert shows: stacking an alert on a
+      // sheet is undefined on macOS.
+      onFailure: { reassignSheetIsPresented = false },
+      onSuccess: {
         reassignSheetIsPresented = false
         dismiss()
-      } catch let error as CategoryReassignError {
-        // Dismiss the sheet first: stacking an alert on a sheet is undefined
-        // on macOS. Category labels are public taxonomy strings, so the typed
-        // description is safe to show (`STACK.md § 8`).
-        reassignSheetIsPresented = false
-        errorMessage = error.localizedDescription
-      } catch {
-        // A store error's own text would leak implementation detail, so log it
-        // privately and show the fallback copy.
-        logger.error(
-          "Category reassign failed: \(error.localizedDescription, privacy: .private)"
-        )
-        reassignSheetIsPresented = false
-        errorMessage = "Couldn't remove category. Please try again."
       }
-    }
+    )
   }
 }
 
@@ -371,6 +367,18 @@ private struct CategoryRecategorizeSheet: View {
   categoryEditNewPreview()
 }
 
+#Preview("Edit Category — Saving") {
+  categoryEditExistingPreview(operation: TaxonomyOperation(phase: .running))
+}
+
+#Preview("Edit Category — Save failed") {
+  categoryEditExistingPreview(operation: TaxonomyOperation(phase: .failed(.save("category"))))
+}
+
+#Preview("Edit Category — Article count failed") {
+  categoryEditExistingPreview(operation: TaxonomyOperation(phase: .failed(.countArticles)))
+}
+
 #Preview("Recategorize Sheet — Typical (collapsed)") {
   RecategorizeSheetPreviewHost(
     sourceDisplayName: "Apple",
@@ -437,7 +445,7 @@ private struct CategoryRecategorizeSheet: View {
     targets: PreviewCategoryFixtures.typicalSet(),
     isReassigning: false,
     initialSelection: uncategorizedLabel,
-    footnote: "After confirm: generic fallback — \u{201C}Couldn't remove category. Please try again.\u{201D}"
+    footnote: "After confirm: generic fallback — \(TaxonomyEditFailure.remove("category").message)"
   )
 }
 
@@ -453,7 +461,7 @@ private struct CategoryRecategorizeSheet: View {
 }
 
 @MainActor
-private func categoryEditExistingPreview() -> some View {
+private func categoryEditExistingPreview(operation: TaxonomyOperation = TaxonomyOperation()) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -468,7 +476,7 @@ private func categoryEditExistingPreview() -> some View {
   context.insert(apple)
   try? context.save()
 
-  return CategoryEditSheet(category: apple, folders: [techFolder])
+  return CategoryEditSheet(category: apple, folders: [techFolder], operation: operation)
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)

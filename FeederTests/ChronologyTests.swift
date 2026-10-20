@@ -59,7 +59,7 @@ struct ChronologyTests {
       try await writer.applyClassification(
         entryID: id, result: ClassificationResult(entryID: id, categoryLabel: "tech"))
     }
-    #expect(try await timeline(reader, folder: "news") == [1001, 1002])
+    #expect(try await timeline(reader, .folder("news")) == [1001, 1002])
 
     // The drain sends the rest to the fake, which answers "tech" and fails the
     // two titles below, so those rows take the explicit fallback.
@@ -81,17 +81,17 @@ struct ChronologyTests {
     try #require(drainOrder != [1006, 1005, 1004, 1003, 1007], "drain order \(drainOrder)")
 
     let newsTimeline = [1001, 1002, 1005, 1004, 1003]
-    #expect(try await timeline(reader, folder: "news") == newsTimeline)
-    #expect(try await timeline(reader, category: "tech") == newsTimeline)
-    #expect(try await timeline(reader, category: uncategorizedLabel) == [1006, 1007])
+    #expect(try await timeline(reader, .folder("news")) == newsTimeline)
+    #expect(try await timeline(reader, .category("tech")) == newsTimeline)
+    #expect(try await timeline(reader, .category(uncategorizedLabel)) == [1006, 1007])
     try await expectFixturePublishedAt(reader)
 
     // A move to another category of the same folder keeps the folder timeline.
     try await writer.applyClassification(
       entryID: 1005, result: ClassificationResult(entryID: 1005, categoryLabel: "science"))
-    #expect(try await timeline(reader, folder: "news") == newsTimeline)
-    #expect(try await timeline(reader, category: "tech") == [1001, 1002, 1004, 1003])
-    #expect(try await timeline(reader, category: "science") == [1005])
+    #expect(try await timeline(reader, .folder("news")) == newsTimeline)
+    #expect(try await timeline(reader, .category("tech")) == [1001, 1002, 1004, 1003])
+    #expect(try await timeline(reader, .category("science")) == [1005])
     try await expectFixturePublishedAt(reader)
   }
 
@@ -99,19 +99,19 @@ struct ChronologyTests {
 
   /// The rows of one timeline, flattened across its day sections, which depend
   /// on the local day boundaries.
-  private func rows(_ reader: DataReader, category: String? = nil, folder: String? = nil) async throws -> [EntryRowDTO] {
+  private func rows(_ reader: DataReader, _ scope: EntryScope) async throws -> [EntryRowDTO] {
     try await reader.fetchEntrySections(
-      category: category, folder: folder, showRead: false, cutoffDate: .distantPast,
+      scope: scope, showRead: false, cutoffDate: .distantPast,
       window: .firstPage(limit: 100)
     ).sections.flatMap(\.rows)
   }
 
-  private func timeline(_ reader: DataReader, category: String? = nil, folder: String? = nil) async throws -> [Int] {
-    try await rows(reader, category: category, folder: folder).map(\.feedbinEntryID)
+  private func timeline(_ reader: DataReader, _ scope: EntryScope) async throws -> [Int] {
+    try await rows(reader, scope).map(\.feedbinEntryID)
   }
 
   private func expectFixturePublishedAt(_ reader: DataReader) async throws {
-    let rows = try await rows(reader, folder: "news") + rows(reader, category: uncategorizedLabel)
+    let rows = try await rows(reader, .all)
     #expect(rows.count == Self.articles.count)
     for row in rows {
       let article = try #require(Self.articles.first { $0.id == row.feedbinEntryID })

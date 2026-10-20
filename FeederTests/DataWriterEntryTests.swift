@@ -392,6 +392,20 @@ struct DataWriterEntryTests {
     #expect(worldIDs == [2003])
   }
 
+  /// The All Articles scope also marks an article that has no category yet.
+  @Test
+  func markAllAsReadForAllArticlesIncludesUnassignedEntries() async throws {
+    let writer = try await makeWriter()
+    try await writer.syncFeeds([FeedbinFixtures.subscription()])
+    let entries = try [2101, 2102, 2103].map { try FeedbinFixtures.entry(id: $0) }
+    _ = try await writer.persistEntries(entries, unreadIDs: [2101, 2102])
+    try await writer.addCategory(label: "technology", displayName: "Technology", description: "Tech", sortOrder: 0)
+    try await writer.applyClassification(entryID: 2101, result: .init(entryID: 2101, categoryLabel: "technology"))
+
+    #expect(try await writer.markAllAsRead(target: .all, cutoffDate: .distantPast) == [2101, 2102])
+    #expect(try await writer.markAllAsRead(target: .all, cutoffDate: .distantPast).isEmpty)
+  }
+
   @Test
   func markAllAsReadWithNoUnreadReturnsEmpty() async throws {
     let writer = try await makeWriter()
@@ -433,7 +447,7 @@ struct DataWriterEntryTests {
     let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
     let result = try await reader.fetchEntrySections(
-      category: "technology", folder: nil, showRead: false,
+      scope: .category("technology"), showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: nil, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
@@ -449,7 +463,7 @@ struct DataWriterEntryTests {
     let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
     let result = try await reader.fetchEntrySections(
-      category: "technology", folder: nil, showRead: false,
+      scope: .category("technology"), showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
@@ -467,7 +481,7 @@ struct DataWriterEntryTests {
     let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
     let result = try await reader.fetchEntrySections(
-      category: "technology", folder: nil, showRead: false,
+      scope: .category("technology"), showRead: false,
       cutoffDate: .distantPast, window: .firstPage(limit: 10_000))
 
     let ids = result.allEntryIDs
@@ -484,7 +498,7 @@ struct DataWriterEntryTests {
     let reader = await DataWriterTestSupport.makeReader(sharing: writer)
 
     let result = try await reader.fetchEntrySections(
-      category: "technology", folder: nil, showRead: false,
+      scope: .category("technology"), showRead: false,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: 3002, window: .firstPage(limit: 10_000))
 
     #expect(result.allEntryIDs == result.sections.flatMap(\.rows).map(\.persistentID))

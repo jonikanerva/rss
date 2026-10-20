@@ -31,14 +31,15 @@ struct DataReaderPagingTests {
   }
 
   /// One seeded row: `id`, seconds before the base instant (bigger = older),
-  /// read state, and category. The fetches read the `tech` category.
+  /// read state, and category. A nil category leaves the row unassigned. The
+  /// fetches read the `tech` category unless a test names another scope.
   private struct RowSpec {
     let id: Int
     let age: Int
     let read: Bool
-    let category: String
+    let category: String?
 
-    init(id: Int, age: Int, read: Bool = false, category: String = "tech") {
+    init(id: Int, age: Int, read: Bool = false, category: String? = "tech") {
       self.id = id
       self.age = age
       self.read = read
@@ -64,18 +65,20 @@ struct DataReaderPagingTests {
     let unreadIDs = Set(specs.filter { !$0.read }.map(\.id))
     _ = try await writer.persistEntries(entries, unreadIDs: unreadIDs)
     for spec in specs {
+      guard let category = spec.category else { continue }
       try await writer.applyClassification(
         entryID: spec.id,
-        result: ClassificationResult(entryID: spec.id, categoryLabel: spec.category))
+        result: ClassificationResult(entryID: spec.id, categoryLabel: category))
     }
     return (writer, reader)
   }
 
   private func fetch(
-    _ reader: DataReader, window: EntryListWindow, pinned: Int? = nil, showRead: Bool = false
+    _ reader: DataReader, window: EntryListWindow, pinned: Int? = nil, showRead: Bool = false,
+    scope: EntryScope = .category("tech")
   ) async throws -> EntryListFetchResult {
     try await reader.fetchEntrySections(
-      category: "tech", folder: nil, showRead: showRead,
+      scope: scope, showRead: showRead,
       cutoffDate: .distantPast, pinnedFeedbinEntryID: pinned, window: window)
   }
 
@@ -114,6 +117,38 @@ struct DataReaderPagingTests {
       page1.allEntryIDs + page2.allEntryIDs + page3.allEntryIDs == unbounded.allEntryIDs)
     #expect(page1.hasMore && page2.hasMore && !page3.hasMore)
     #expect(!unbounded.hasMore)
+  }
+
+  /// The All Articles scope tiles every row, assigned or not, in canonical
+  /// order through an equal-timestamp run. The pin grows the first page to an
+  /// unassigned read row, and an `atOrAbove` refresh keeps `hasMore` exact.
+  @Test
+  func allArticlesPagesTileAcrossCategoriesAndUnassignedRows() async throws {
+    let categories: [String?] = ["tech", "other", nil]
+    var specs = (1...24).map { index in
+      RowSpec(
+        id: 1000 + index, age: (8...12).contains(index) ? 600 : index * 60,
+        category: categories[index % categories.count])
+    }
+    let pinnedID = 3001
+    specs.append(RowSpec(id: pinnedID, age: 20 * 60 + 30, read: true, category: nil))
+    let (_, reader) = try await makeSeededPair(specs)
+
+    let unbounded = try await fetch(reader, window: .firstPage(limit: 1000), scope: .all)
+    let page1 = try await fetch(reader, window: .firstPage(limit: 10), scope: .all)
+    let page2 = try await fetch(reader, window: .after(cursor(page1), limit: 10), scope: .all)
+    let page3 = try await fetch(reader, window: .after(cursor(page2), limit: 10), scope: .all)
+    #expect(unbounded.allEntryIDs.count == 24)
+    #expect(page1.allEntryIDs + page2.allEntryIDs + page3.allEntryIDs == unbounded.allEntryIDs)
+    #expect(page1.hasMore && page2.hasMore && !page3.hasMore)
+    #expect(rowIDs(unbounded) == specs.filter { !$0.read }.sorted { ($0.age, -$0.id) < ($1.age, -$1.id) }.map(\.id))
+
+    let pinned = try await fetch(reader, window: .firstPage(limit: 10), pinned: pinnedID, scope: .all)
+    #expect(rowIDs(pinned).last == pinnedID)
+    #expect(pinned.allEntryIDs.count == 21)
+    let refresh = try await fetch(reader, window: .atOrAbove(cursor(page1)), scope: .all)
+    #expect(refresh.allEntryIDs == page1.allEntryIDs)
+    #expect(refresh.hasMore)
   }
 
   /// A sync page landing NEWER rows must not shift an existing page seam:
