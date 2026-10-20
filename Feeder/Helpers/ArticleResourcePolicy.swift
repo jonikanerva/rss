@@ -2,13 +2,11 @@ import Foundation
 
 // MARK: - Article resource policy
 
-/// The one external-resource policy for both reader modes
-/// (`VISION.md → Persistence and Privacy Posture`, `STACK.md § 8`).
-///
-/// An article may load its images from their original hosts over https. An
-/// http image URL is upgraded to https. No other remote resource loads, no
-/// frame loads, and the page never navigates by itself. A link opens in the
-/// default browser only on a user click, and only for http and https.
+/// The one external-resource policy for both reader modes (`STACK.md § 8`).
+/// An article loads only its images, from their original hosts, over https; an
+/// http image URL is upgraded. No frame loads, and the page never navigates by
+/// itself. A link opens in the default browser only on a user click, and only
+/// for http and https.
 nonisolated enum ArticleResourcePolicy {
   static let imageSchemes: Set<String> = ["https"]
   static let linkSchemes: Set<String> = ["http", "https"]
