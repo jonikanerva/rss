@@ -16,6 +16,13 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var subscriptionsResponse: [FeedbinSubscription] = []
   var unreadIDsResponse: [Int] = []
   var entryPagesResponse: [FeedbinEntriesPage] = []
+  /// While set, the page stream models the Feedbin `since` filter: one page
+  /// with the entries whose `createdAt` is after `since`, newest first.
+  /// `entryPagesResponse` is then ignored.
+  var serverEntries: [FeedbinEntry]?
+  /// Thrown by the page stream after it yields every configured page, as a
+  /// failed request for the next page.
+  var entryPagesError: Error?
   var verifyResult: Result<Bool, any Error> = .success(true)
   /// The answer to an extract URL that `extractedContentResults` does not name.
   var defaultExtractedContentResult: Result<String, ExtractedContentFailure> = .failure(.noContent)
@@ -60,6 +67,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// actor hop that reads its configuration, before it yields a page, so a
   /// race-guard test gates on it.
   var fetchEntryPagesCallCount: Int = 0
+  /// Each `since` that the page stream was entered with.
+  var fetchEntryPagesSinceLog: [Date?] = []
   /// Bumped when `verifyCredentials()` is entered, before any gate wait.
   var verifyCallCount: Int = 0
 
@@ -107,7 +116,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     // One snapshot of the configuration, taken in a single hop, so the stream's
     // task holds no actor across a page yield and never captures `self`
     // (`STACK.md § 7`).
-    let snapshotTask = Task { await self.snapshotEntryPagesState() }
+    let snapshotTask = Task { await self.snapshotEntryPagesState(since: since) }
     return AsyncThrowingStream { continuation in
       let task = Task {
         let snapshot = await snapshotTask.value
@@ -117,7 +126,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
           if index > 0, let laterGate = snapshot.laterGate { await laterGate.wait() }
           continuation.yield(page)
         }
-        continuation.finish()
+        continuation.finish(throwing: snapshot.error)
       }
       continuation.onTermination = { _ in task.cancel() }
     }
@@ -128,6 +137,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setSubscriptionsResponse(_ value: [FeedbinSubscription]) { subscriptionsResponse = value }
   func setUnreadIDsResponse(_ value: [Int]) { unreadIDsResponse = value }
   func setEntryPagesResponse(_ value: [FeedbinEntriesPage]) { entryPagesResponse = value }
+  func setServerEntries(_ value: [FeedbinEntry]?) { serverEntries = value }
+  func setEntryPagesError(_ value: Error?) { entryPagesError = value }
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
   func setVerifyResult(_ value: Result<Bool, any Error>) { verifyResult = value }
   func holdVerification(until gate: AsyncGate) { verifyGate = gate }
@@ -151,11 +162,17 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// Read the snapshot and bump the call counter in one actor hop, so a moved
   /// counter means that the stream has read its configuration, gates included.
   /// The engine's own flag is no such signal: it flips before any client call.
-  private func snapshotEntryPagesState() -> (
-    pages: [FeedbinEntriesPage], gate: AsyncGate?, laterGate: AsyncGate?
+  private func snapshotEntryPagesState(since: Date?) -> (
+    pages: [FeedbinEntriesPage], gate: AsyncGate?, laterGate: AsyncGate?, error: Error?
   ) {
     fetchEntryPagesCallCount += 1
-    return (entryPagesResponse, entryPagesGate, laterEntryPagesGate)
+    fetchEntryPagesSinceLog.append(since)
+    let pages =
+      serverEntries.map { entries in
+        let created = entries.filter { entry in since.map { entry.createdAt > $0 } ?? true }
+        return [FeedbinFixtures.entriesPage(created.sorted { $0.createdAt > $1.createdAt })]
+      } ?? entryPagesResponse
+    return (pages, entryPagesGate, laterEntryPagesGate, entryPagesError)
   }
 }
 
