@@ -606,9 +606,10 @@ final class SyncEngine {
       startExtractedContentFetch()
 
       logger.info("Primary sync complete")
-    } catch is CancellationError {
+    } catch let error where error is CancellationError || Task.isCancelled {
       // A cancellation is a stop, not a failure: no banner, and the cursor and
-      // `lastSyncDate` keep their earlier values.
+      // `lastSyncDate` keep their earlier values. A cancelled request can throw
+      // `URLError.cancelled` instead of `CancellationError`.
       logger.info("Sync cancelled")
       lastError = errorBeforeSync
       fetchedCount = 0

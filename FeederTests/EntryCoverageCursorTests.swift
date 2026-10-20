@@ -182,6 +182,36 @@ struct EntryCoverageCursorSyncTests {
   }
 
   @Test
+  func requestCancelledAsURLErrorKeepsTheCursorAndTheEarlierError() async throws {
+    let client = FakeFeedbinClient()
+    let covered = try entry(1, createdAfterBase: 0)
+    await client.setServerEntries([covered])
+    let clock = MacClock(serverBase)
+    let (engine, _) = try await makeEngine(with: client, clock: clock)
+    await engine.sync()
+    await client.setSubscriptionsError(FeedbinError.unauthorized)
+    await engine.sync()
+    let earlierError = try #require(engine.lastError)
+
+    await client.setSubscriptionsError(nil)
+    await client.setUnreadIDsError(URLError(.cancelled))
+    let unreadIDsGate = AsyncGate()
+    defer { unreadIDsGate.open() }
+    await client.holdUnreadIDs(until: unreadIDsGate)
+    clock.now = serverBase.addingTimeInterval(900)
+    let syncHandle = Task { await engine.sync() }
+    try await waitUntil("the unread-IDs request waits") { await client.unreadIDsCallCount == 2 }
+    syncHandle.cancel()
+    unreadIDsGate.open()
+    await syncHandle.value
+
+    #expect(engine.isSyncing == false)
+    #expect(engine.lastError == earlierError)
+    #expect(engine.entryCoverageCursor?.newestCreatedAt == covered.createdAt)
+    #expect(engine.lastSyncDate == serverBase)
+  }
+
+  @Test
   func emptyResponseKeepsTheCursorAndRecordsTheSync() async throws {
     let client = FakeFeedbinClient()
     await client.setEntryPagesResponse([FeedbinFixtures.entriesPage([])])

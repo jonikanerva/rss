@@ -31,12 +31,16 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   // MARK: Configurable errors (non-nil → thrown instead of returning)
 
   var subscriptionsError: Error?
+  /// Thrown by `fetchUnreadEntryIDs()` after any gate wait.
+  var unreadIDsError: Error?
   /// Thrown after the call enters `deleteUnreadEntriesCallLog`, so the log
   /// also holds the batch of a failed push.
   var deleteUnreadEntriesError: Error?
 
   // MARK: Gates
 
+  /// While set, `fetchUnreadEntryIDs()` waits until the gate opens.
+  private var unreadIDsGate: AsyncGate?
   /// While set, `verifyCredentials()` waits until the gate opens.
   private var verifyGate: AsyncGate?
   /// While set, `deleteUnreadEntries` logs the call and then waits until the
@@ -69,6 +73,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   var fetchEntryPagesCallCount: Int = 0
   /// Each `since` that the page stream was entered with.
   var fetchEntryPagesSinceLog: [Date?] = []
+  /// Bumped when `fetchUnreadEntryIDs()` is entered, before any gate wait.
+  var unreadIDsCallCount: Int = 0
   /// Bumped when `verifyCredentials()` is entered, before any gate wait.
   var verifyCallCount: Int = 0
 
@@ -86,7 +92,10 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   }
 
   func fetchUnreadEntryIDs() async throws -> [Int] {
-    unreadIDsResponse
+    unreadIDsCallCount += 1
+    if let unreadIDsGate { await unreadIDsGate.wait() }
+    if let unreadIDsError { throw unreadIDsError }
+    return unreadIDsResponse
   }
 
   func deleteUnreadEntries(_ ids: [Int]) async throws {
@@ -140,6 +149,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func setServerEntries(_ value: [FeedbinEntry]?) { serverEntries = value }
   func setEntryPagesError(_ value: Error?) { entryPagesError = value }
   func setSubscriptionsError(_ value: Error?) { subscriptionsError = value }
+  func setUnreadIDsError(_ value: Error?) { unreadIDsError = value }
+  func holdUnreadIDs(until gate: AsyncGate) { unreadIDsGate = gate }
   func setVerifyResult(_ value: Result<Bool, any Error>) { verifyResult = value }
   func holdVerification(until gate: AsyncGate) { verifyGate = gate }
   func setDeleteUnreadEntriesError(_ value: Error?) { deleteUnreadEntriesError = value }
