@@ -34,6 +34,14 @@ struct CategoryManagementView: View {
   /// context-menu shortcuts, so a folder reorders without the mouse.
   @State
   private var selectedFolderLabel: String?
+  /// Owns the one reorder or move write in flight. A move that starts while
+  /// another runs is refused, because its order comes from a stale snapshot.
+  @State
+  private var operation: TaxonomyOperation
+
+  init(operation: TaxonomyOperation = TaxonomyOperation()) {
+    self._operation = State(initialValue: operation)
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -59,6 +67,8 @@ struct CategoryManagementView: View {
     .sheet(item: $editingFolder) { folder in
       FolderEditSheet(folder: folder)
     }
+    .onDisappear { operation.cancel() }
+    .taxonomyFailureAlert(operation)
   }
 
   // MARK: - List content
@@ -245,9 +255,10 @@ struct CategoryManagementView: View {
     guard let writer = syncEngine.writer else { return }
     var labels = children.map(\.label)
     labels.move(fromOffsets: source, toOffset: destination)
-    Task {
-      try? await writer.reorderCategories(inFolder: folderLabel, orderedLabels: labels)
-    }
+    operation.submit(
+      failure: .move("category"),
+      work: { try await writer.reorderCategories(inFolder: folderLabel, orderedLabels: labels) }
+    )
   }
 
   /// The folder-list sibling of the category reorder, shipping the folder label
@@ -257,8 +268,7 @@ struct CategoryManagementView: View {
     else { return }
     var labels = folders.map(\.label)
     labels.move(fromOffsets: source, toOffset: destination)
-    persistFolderOrder(labels)
-    announceFolderMoveInOrder(label: movedLabel, in: labels)
+    persistFolderOrder(labels, moved: movedLabel)
   }
 
   private enum FolderMoveDirection {
@@ -289,28 +299,23 @@ struct CategoryManagementView: View {
       labels.remove(at: currentIndex)
       labels.append(label)
     }
-    persistFolderOrder(labels)
     selectedFolderLabel = label
-    announceFolderMoveInOrder(label: label, in: labels)
+    persistFolderOrder(labels, moved: label)
   }
 
-  /// Ship a label order across the actor boundary. The writer owns the logging.
-  private func persistFolderOrder(_ orderedLabels: [String]) {
-    guard let writer = syncEngine.writer else { return }
-    Task {
-      try? await writer.reorderFolders(orderedLabels: orderedLabels)
-    }
-  }
-
-  /// Announce the new position after a programmatic move. It must read the
-  /// locally computed label order: the queried array refreshes only after the
-  /// write round-trips through the store.
-  private func announceFolderMoveInOrder(label: String, in orderedLabels: [String]) {
-    guard let folder = folders.first(where: { $0.label == label }),
+  /// Ship a label order across the actor boundary. The new position is
+  /// announced only after the write succeeds.
+  private func persistFolderOrder(_ orderedLabels: [String], moved label: String) {
+    guard let writer = syncEngine.writer,
+      let displayName = folders.first(where: { $0.label == label })?.displayName,
       let newIndex = orderedLabels.firstIndex(of: label)
     else { return }
-    let message = "Folder \(folder.displayName), moved to position \(newIndex + 1) of \(orderedLabels.count)"
-    AccessibilityNotification.Announcement(message).post()
+    let message = "Folder \(displayName), moved to position \(newIndex + 1) of \(orderedLabels.count)"
+    operation.submit(
+      failure: .move("folder"),
+      work: { try await writer.reorderFolders(orderedLabels: orderedLabels) },
+      onSuccess: { AccessibilityNotification.Announcement(message).post() }
+    )
   }
 
   /// 1-indexed position of a folder for accessibility strings.
@@ -339,9 +344,10 @@ struct CategoryManagementView: View {
       peerCount = rootCategories.count
     }
     let label = category.label
-    Task {
-      try? await writer.moveCategoryToFolder(label: label, folderLabel: folderLabel, sortOrder: peerCount)
-    }
+    operation.submit(
+      failure: .move("category"),
+      work: { try await writer.moveCategoryToFolder(label: label, folderLabel: folderLabel, sortOrder: peerCount) }
+    )
   }
 }
 
@@ -355,12 +361,16 @@ struct CategoryManagementView: View {
   categoryManagementEmptyPreview()
 }
 
+#Preview("Category Management - Move failed") {
+  categoryManagementPreview(operation: TaxonomyOperation(phase: .failed(.move("folder"))))
+}
+
 #Preview("Category Management - Multiple Folders") {
   categoryManagementMultipleFoldersPreview()
 }
 
 @MainActor
-private func categoryManagementPreview() -> some View {
+private func categoryManagementPreview(operation: TaxonomyOperation = TaxonomyOperation()) -> some View {
   let container = PreviewSupport.makeContainer()
   let context = container.mainContext
 
@@ -379,7 +389,7 @@ private func categoryManagementPreview() -> some View {
   context.insert(world)
   try? context.save()
 
-  return CategoryManagementView()
+  return CategoryManagementView(operation: operation)
     .environment(ClassificationEngine())
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
