@@ -131,7 +131,7 @@ nonisolated struct EntryListFetchResult: Sendable, Equatable {
     hasMore: false)
 }
 
-/// Result of `DataWriter.purgeEntriesOlderThan(_:)`, reported so the caller can
+/// Result of `DataWriter.purgeEntriesOlderThan(_:now:)`, reported so the caller can
 /// log the retention cleanup.
 nonisolated struct PurgeOutcome: Sendable, Equatable {
   let purgedCount: Int
