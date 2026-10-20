@@ -71,20 +71,19 @@ private enum ArticleWebPolicyFixture {
   static let testPolicy = ArticleResourcePolicy.contentSecurityPolicy(imageSources: ["https:", "\(scheme):"])
 }
 
-// MARK: - Web reader behaviour
+// MARK: - Harness
 
-/// Loads controlled fixtures through the production configuration and
-/// coordinator, and records which requests WebKit sends.
+/// One web view with the production configuration and coordinator, the fixture
+/// scheme handlers, and a recording navigation delegate.
 @MainActor
-@Suite(.serialized)
-struct ArticleWebResourcePolicyTests {
-  private struct Harness {
-    let webView: WKWebView
-    let handler: RecordingSchemeHandler
-    let delegate: RecordingNavigationDelegate
-  }
+private struct Harness {
+  let webView: WKWebView
+  let handler: RecordingSchemeHandler
+  let delegate: RecordingNavigationDelegate
 
-  private func makeHarness() -> Harness {
+  var coordinator: ArticleWebView.Coordinator { delegate.coordinator }
+
+  init() {
     let config = ArticleWebConfiguration.make()
     let handler = RecordingSchemeHandler()
     config.setURLSchemeHandler(handler, forURLScheme: ArticleWebPolicyFixture.scheme)
@@ -94,33 +93,48 @@ struct ArticleWebResourcePolicyTests {
     coordinator.webView = webView
     let delegate = RecordingNavigationDelegate(coordinator: coordinator)
     webView.navigationDelegate = delegate
-    return Harness(webView: webView, handler: handler, delegate: delegate)
+    self.webView = webView
+    self.handler = handler
+    self.delegate = delegate
   }
 
-  private func render(_ body: String, policy: String) -> String {
-    renderArticleHTML(
-      feedHTMLBody: body,
-      title: "Fixture",
-      author: nil,
-      publishedAt: Date(timeIntervalSince1970: 1_700_000_000),
-      displayDomain: "site.example",
-      faviconBase64: nil,
-      feedTitleInitial: Character("F"),
-      scaleFactor: 1,
-      template: loadStaticResource("article-template", ext: "html"),
-      css: "",
-      contentSecurityPolicy: policy
-    )
-  }
-
-  private func loadAndFinish(_ html: String, in harness: Harness) async throws {
-    harness.delegate.coordinator.load(html, baseURL: ArticleWebPolicyFixture.baseURL)
-    let delegate = harness.delegate
+  func loadAndFinish(_ html: String, baseURL: URL? = ArticleWebPolicyFixture.baseURL) async throws {
+    let finishedBefore = delegate.finishedLoads
+    coordinator.load(html, baseURL: baseURL)
+    let delegate = delegate
     try await waitUntil("the fixture load finishes", timeout: .seconds(10)) {
-      await MainActor.run { delegate.finishedLoads > 0 }
+      await MainActor.run { delegate.finishedLoads > finishedBefore }
     }
   }
 
+  func bodyText() async throws -> String? {
+    try await webView.callAsyncJavaScript("return document.body.innerText", contentWorld: .defaultClient) as? String
+  }
+}
+
+private func render(_ body: String, policy: String = ArticleResourcePolicy.contentSecurityPolicy()) -> String {
+  renderArticleHTML(
+    feedHTMLBody: body,
+    title: "Fixture",
+    author: nil,
+    publishedAt: Date(timeIntervalSince1970: 1_700_000_000),
+    displayDomain: "site.example",
+    faviconBase64: nil,
+    feedTitleInitial: Character("F"),
+    scaleFactor: 1,
+    template: loadStaticResource("article-template", ext: "html"),
+    css: "",
+    contentSecurityPolicy: policy
+  )
+}
+
+// MARK: - Web reader behaviour
+
+/// Loads controlled fixtures through the production configuration and
+/// coordinator, and records which requests WebKit sends.
+@MainActor
+@Suite(.serialized)
+struct ArticleWebResourcePolicyTests {
   @Test
   func templateCarriesThePolicy() {
     let template = loadStaticResource("article-template", ext: "html")
@@ -145,7 +159,7 @@ struct ArticleWebResourcePolicyTests {
   /// a link, and every other remote subresource is blocked.
   @Test
   func renderedArticleLoadsOnlyImages() async throws {
-    let harness = makeHarness()
+    let harness = Harness()
     let body = """
       <p>Text</p>
       <img src="feeder-fixture://images.example/allowed.png" alt="">
@@ -159,7 +173,7 @@ struct ArticleWebResourcePolicyTests {
       <link rel="stylesheet" href="feeder-fixture://styles.example/sheet.css">
       <link rel="prefetch" href="feeder-fixture://styles.example/prefetch.html">
       """
-    try await loadAndFinish(render(body, policy: ArticleWebPolicyFixture.testPolicy), in: harness)
+    try await harness.loadAndFinish(render(body, policy: ArticleWebPolicyFixture.testPolicy))
     let handler = harness.handler
     try await waitUntil("the allowed images load", timeout: .seconds(10)) {
       await MainActor.run { handler.paths().contains("/allowed.png") }
@@ -178,9 +192,9 @@ struct ArticleWebResourcePolicyTests {
   /// scheme is never requested.
   @Test
   func productionPolicyBlocksOtherImageSchemes() async throws {
-    let harness = makeHarness()
+    let harness = Harness()
     let body = #"<img src="feeder-fixture://images.example/allowed.png" alt="">"#
-    try await loadAndFinish(render(body, policy: ArticleResourcePolicy.contentSecurityPolicy()), in: harness)
+    try await harness.loadAndFinish(render(body))
     #expect(harness.handler.requestedURLs.isEmpty)
   }
 
@@ -188,7 +202,7 @@ struct ArticleWebResourcePolicyTests {
   /// reach WebKit. The CSP and the navigation policy must still block them.
   @Test
   func rawFramesStylesAndRefreshAreBlocked() async throws {
-    let harness = makeHarness()
+    let harness = Harness()
     let html = """
       <!DOCTYPE html><html><head>
       <meta http-equiv="Content-Security-Policy" content="\(ArticleWebPolicyFixture.testPolicy)">
@@ -200,7 +214,7 @@ struct ArticleWebResourcePolicyTests {
       <iframe src="feeder-fixture://embed.example/raw-frame.html"></iframe>
       </body></html>
       """
-    try await loadAndFinish(html, in: harness)
+    try await harness.loadAndFinish(html)
     let delegate = harness.delegate
     try await waitUntil("the meta refresh is decided", timeout: .seconds(10)) {
       await MainActor.run {
@@ -215,16 +229,33 @@ struct ArticleWebResourcePolicyTests {
     #expect(paths.isDisjoint(with: forbidden), "Sent: \(paths.intersection(forbidden))")
     #expect(harness.webView.url == ArticleWebPolicyFixture.baseURL)
   }
+}
+
+// MARK: - Load queue
+
+/// A test can run before any other test applies the cookie policy. A load that
+/// waits for the policy replaces the previous waiting load and would hide an
+/// overlap, so each test applies the policy first.
+@MainActor
+@Suite(.serialized)
+struct ArticleWebLoadQueueTests {
+  private static func url(_ name: String) throws -> URL {
+    try #require(URL(string: "feeder-fixture://site.example/\(name)"))
+  }
+
+  private func allowedURLs(_ delegate: RecordingNavigationDelegate) -> [URL?] {
+    delegate.decisions.filter { $0.policy == .allow }.map(\.url)
+  }
 
   /// Loads that start before WebKit decides the previous load end on the
   /// newest article, on a new web view with a cold web content process.
   @Test
   func overlappingLoadsShowTheNewestArticle() async throws {
-    let harness = makeHarness()
-    let policy = ArticleResourcePolicy.contentSecurityPolicy()
-    let urls = try ["a", "b", "c"].map { try #require(URL(string: "feeder-fixture://site.example/\($0)")) }
+    await ArticleWebConfiguration.applyCookiePolicy()
+    let harness = Harness()
+    let urls = try ["a", "b", "c"].map(Self.url)
     for (index, url) in urls.enumerated() {
-      harness.delegate.coordinator.load(render("<p>Article \(index)</p>", policy: policy), baseURL: url)
+      harness.coordinator.load(render("<p>Article \(index)</p>"), baseURL: url)
     }
     let delegate = harness.delegate
     let webView = harness.webView
@@ -233,26 +264,35 @@ struct ArticleWebResourcePolicyTests {
       await MainActor.run { delegate.finishedLoads > 0 && webView.url == newest && !webView.isLoading }
     }
     #expect(webView.url == newest)
-    let text =
-      try await webView.callAsyncJavaScript(
-        "return document.body.innerText", contentWorld: .defaultClient) as? String
-    #expect(text?.contains("Article 2") == true)
-    #expect(delegate.decisions.contains { $0.url == newest && $0.policy == .allow })
+    #expect(try await harness.bodyText()?.contains("Article 2") == true)
+    #expect(allowedURLs(delegate) == [newest])
+    #expect(!delegate.decisions.contains { $0.url == urls[1] })
   }
 
-  /// A second programmatic load is allowed again: the one-shot flag resets on
-  /// each `load`, not once per web view.
+  /// A load after a finished load gets its own decision.
   @Test
   func eachProgrammaticLoadIsAllowed() async throws {
-    let harness = makeHarness()
-    try await loadAndFinish(render("<p>One</p>", policy: ArticleResourcePolicy.contentSecurityPolicy()), in: harness)
-    harness.delegate.coordinator.load(
-      render("<p>Two</p>", policy: ArticleResourcePolicy.contentSecurityPolicy()),
-      baseURL: ArticleWebPolicyFixture.baseURL)
-    let delegate = harness.delegate
-    try await waitUntil("the second load finishes", timeout: .seconds(10)) {
-      await MainActor.run { delegate.finishedLoads > 1 }
-    }
-    #expect(delegate.decisions.allSatisfy { $0.policy == .allow })
+    await ArticleWebConfiguration.applyCookiePolicy()
+    let harness = Harness()
+    let urls = try ["one", "two"].map(Self.url)
+    try await harness.loadAndFinish(render("<p>One</p>"), baseURL: urls[0])
+    try await harness.loadAndFinish(render("<p>Two</p>"), baseURL: urls[1])
+    #expect(allowedURLs(harness.delegate) == urls)
+    #expect(try await harness.bodyText()?.contains("Two") == true)
+  }
+
+  /// A terminated web content process after a finished load starts no load.
+  /// The next article load then gets the only new decision.
+  @Test
+  func terminationAfterAFinishedLoadStartsNoLoad() async throws {
+    await ArticleWebConfiguration.applyCookiePolicy()
+    let harness = Harness()
+    let urls = try ["first", "next"].map(Self.url)
+    try await harness.loadAndFinish(render("<p>First</p>"), baseURL: urls[0])
+    harness.coordinator.webViewWebContentProcessDidTerminate(harness.webView)
+    harness.coordinator.webViewWebContentProcessDidTerminate(harness.webView)
+    try await harness.loadAndFinish(render("<p>Next</p>"), baseURL: urls[1])
+    #expect(harness.delegate.decisions.map(\.url) == urls)
+    #expect(allowedURLs(harness.delegate) == urls)
   }
 }

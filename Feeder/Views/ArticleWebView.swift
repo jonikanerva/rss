@@ -148,7 +148,6 @@ struct ArticleWebView: NSViewRepresentable {
     /// The newest load that arrived while a decision was pending. It replaces
     /// an older queued load, and starts after that decision.
     private var queuedLoad: ArticleLoad?
-    private var lastStartedLoad: ArticleLoad?
     private var loadTask: Task<Void, Never>?
     private var queuedStartTask: Task<Void, Never>?
 
@@ -175,10 +174,15 @@ struct ArticleWebView: NSViewRepresentable {
       start(load)
     }
 
+    /// The stale-load branch of the decision sets the flag before this call, so
+    /// a load in that gap queues. A missing web view clears the flag again.
     private func start(_ load: ArticleLoad) {
+      guard let webView else {
+        isAwaitingLoadDecision = false
+        return
+      }
       isAwaitingLoadDecision = true
-      lastStartedLoad = load
-      webView?.loadHTMLString(load.html, baseURL: load.baseURL)
+      webView.loadHTMLString(load.html, baseURL: load.baseURL)
     }
 
     func webView(
@@ -217,13 +221,14 @@ struct ArticleWebView: NSViewRepresentable {
       }
     }
 
-    /// A terminated web content process drops a pending decision. Without a
-    /// restart, every later load would wait in the queue.
+    /// A terminated web content process drops a pending decision, so the queued
+    /// load starts now. The terminated load does not restart: an article that
+    /// ends the process each time would loop.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
       isAwaitingLoadDecision = false
-      guard let load = queuedLoad ?? lastStartedLoad else { return }
-      queuedLoad = nil
-      start(load)
+      guard let queuedLoad else { return }
+      self.queuedLoad = nil
+      start(queuedLoad)
     }
   }
 }
