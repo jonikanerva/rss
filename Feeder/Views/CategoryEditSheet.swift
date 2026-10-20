@@ -2,6 +2,8 @@ import SwiftData
 import SwiftUI
 
 struct CategoryEditSheet: View {
+  @Environment(ClassificationEngine.self)
+  private var classificationEngine
   @Environment(SyncEngine.self)
   private var syncEngine
   @Environment(AppFontSettings.self)
@@ -213,7 +215,7 @@ struct CategoryEditSheet: View {
             try await writer.moveCategoryToFolder(label: label, folderLabel: folder, sortOrder: sortOrder)
           }
         },
-        onSuccess: { dismiss() }
+        onSuccess: { finishDefinitionChange(writer: writer) }
       )
     } else {
       let label = makeUniqueLabel(from: trimmedName, fallbackPrefix: "category")
@@ -226,7 +228,7 @@ struct CategoryEditSheet: View {
             folderLabel: folder
           )
         },
-        onSuccess: { dismiss() }
+        onSuccess: { finishDefinitionChange(writer: writer) }
       )
     }
   }
@@ -262,7 +264,7 @@ struct CategoryEditSheet: View {
     operation.submit(
       failure: .remove("category"),
       work: { try await writer.deleteCategory(label: label) },
-      onSuccess: { dismiss() }
+      onSuccess: { finishDefinitionChange(writer: writer) }
     )
   }
 
@@ -285,9 +287,17 @@ struct CategoryEditSheet: View {
       onFailure: { reassignSheetIsPresented = false },
       onSuccess: {
         reassignSheetIsPresented = false
-        dismiss()
+        finishDefinitionChange(writer: writer)
       }
     )
+  }
+
+  /// Call only after a committed write that can change the category
+  /// definitions. The restart lets a fix end a blocked drain at once
+  /// (`STACK.md → Cloud classification`).
+  private func finishDefinitionChange(writer: DataWriter) {
+    classificationEngine.configurationChanged(writer: writer)
+    dismiss()
   }
 }
 
@@ -477,6 +487,7 @@ private func categoryEditExistingPreview(operation: TaxonomyOperation = Taxonomy
   try? context.save()
 
   return CategoryEditSheet(category: apple, folders: [techFolder], operation: operation)
+    .environment(ClassificationEngine())
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
@@ -487,6 +498,7 @@ private func categoryEditNewPreview() -> some View {
   let container = PreviewSupport.makeContainer()
 
   return CategoryEditSheet(category: nil, folders: [])
+    .environment(ClassificationEngine())
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)
@@ -515,6 +527,7 @@ private func categoryEditReassignEmptyPreview() -> some View {
         .foregroundStyle(.secondary)
         .padding(6)
     }
+    .environment(ClassificationEngine())
     .environment(SyncEngine.preview())
     .environment(AppFontSettings())
     .modelContainer(container)

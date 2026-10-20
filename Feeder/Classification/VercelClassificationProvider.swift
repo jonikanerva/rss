@@ -183,10 +183,9 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
 
   var retryDisposition: ClassificationRetry {
     switch self {
-    case .invalidCategories, .inputTooLarge: .poll
     case .network: .transient(retryAfter: nil)
     case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
-    case .needsKey, .invalidResponse: .blocked
+    case .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: .blocked
     }
   }
 }
