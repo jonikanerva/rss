@@ -257,6 +257,36 @@ actor SnapshotRecorder {
   }
 }
 
+/// Counts `ClassificationRunner.reportCommittedResults` calls.
+actor CommitSignalCounter {
+  private(set) var count = 0
+
+  func increment() {
+    count += 1
+  }
+}
+
+/// Receives progress like the engine, which drops the reports of a replaced
+/// task. The first report with a committed result replaces the task: the
+/// receiver cancels it and drops the report.
+actor ReplacingProgressReceiver {
+  private var task: Task<ClassificationBatchOutcome, Never>?
+  private(set) var accepted: [ProgressSnapshot] = []
+
+  func attach(_ task: Task<ClassificationBatchOutcome, Never>) {
+    self.task = task
+  }
+
+  func receive(_ snapshot: ProgressSnapshot) {
+    if task?.isCancelled == true { return }
+    if snapshot.isClassifying, snapshot.classifiedCount >= 1 {
+      task?.cancel()
+      return
+    }
+    accepted.append(snapshot)
+  }
+}
+
 // MARK: - Test errors
 
 /// Stable error type for the error-recovery test, so it reaches into no

@@ -104,6 +104,32 @@ struct SyncEngineTests {
 
   // MARK: - 3. Race guard: refetchHistory bows out while sync is in-flight
 
+  /// A cancelled sync still commits its read-state update. The update gets a
+  /// refresh signal, although the sync reports no changed entries.
+  @Test
+  func cancelledSyncSignalsItsCommittedReadStateFlips() async throws {
+    let client = FakeFeedbinClient()
+    await client.setSubscriptionsResponse([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage([])])
+    await client.setUnreadIDsResponse([1])
+    let pageGate = AsyncGate()
+    defer { pageGate.open() }
+    await client.holdEntryPages(until: pageGate)
+    let (engine, writer) = try await makeEngine(with: client)
+    try await seedUnreadEntries([1, 2], in: writer)
+    let sync = Task { await engine.sync() }
+    try await waitUntil("the sync reaches the entry pages") { await client.fetchEntryPagesCallCount == 1 }
+    let baseline = engine.lastPersistedPageVersion
+
+    sync.cancel()
+    pageGate.open()
+    await sync.value
+
+    #expect(try await isRead(2, in: writer) == true)
+    #expect(engine.lastSyncChangedEntryCount == 0)
+    #expect(engine.lastPersistedPageVersion > baseline)
+  }
+
   @Test
   func refetchHistoryGuardedFromOverlappingPrimary() async throws {
     let client = FakeFeedbinClient()

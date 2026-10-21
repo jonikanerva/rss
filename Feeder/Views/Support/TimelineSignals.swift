@@ -29,6 +29,9 @@ struct TimelineSignalRouter: View {
       .onChange(of: classificationEngine.batchProgressVersion) {
         timeline.classificationProgressed(classifiedCount: classificationEngine.classifiedCount)
       }
+      .onChange(of: classificationEngine.unreportedCommitVersion) {
+        timeline.classificationResultsCommitted()
+      }
       .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
         if !isClassifying {
           timeline.classificationFinished(classifiedCount: classificationEngine.lastBatchClassifiedCount)

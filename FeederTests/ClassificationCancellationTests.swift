@@ -112,6 +112,79 @@ struct ClassificationCancellationTests {
     for id in 1002...1003 { try await expectPending(writer, id: id) }
   }
 
+  // MARK: - Committed results of a cancelled batch
+
+  /// Run one batch with a slow provider and cancel it after `calls` provider
+  /// calls started. Returns the committed-result signals and the progress
+  /// snapshots.
+  private func cancelBatch(afterCalls calls: Int) async throws -> (signals: Int, snapshots: [ProgressSnapshot], writer: DataWriter) {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureDelay(.milliseconds(50))
+    let recorder = SnapshotRecorder()
+    let signals = CommitSignalCounter()
+    let runner = ClassificationRunner(
+      writer: writer, providerFactory: { provider }, reportProgress: { await recorder.record($0) },
+      reportCommittedResults: { await signals.increment() })
+    let batch = Task { await runner.runOneBatch(cutoffDate: .distantPast) }
+    await provider.waitForCalls(calls)
+    batch.cancel()
+    _ = await batch.value
+    return (await signals.count, await recorder.snapshots, writer)
+  }
+
+  /// The batch commits one result and is cancelled during the next call. No
+  /// progress report or only an earlier one carried the result, so the
+  /// committed-result signal reports it.
+  @Test
+  func cancelledBatchSignalsAResultThatNoReportCarried() async throws {
+    let (signals, snapshots, writer) = try await cancelBatch(afterCalls: 2)
+
+    var classified = 0
+    for id in 1001...1003 where try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true {
+      classified += 1
+    }
+    #expect(classified == 1)
+    let reported = snapshots.filter(\.isClassifying).map(\.classifiedCount).max() ?? 0
+    #expect(signals == 1 || reported >= 1, "signals: \(signals), reported: \(reported)")
+    #expect(snapshots.last?.isClassifying == false)
+  }
+
+  /// The engine drops a report that arrives after its task was replaced. A
+  /// replacement during the first progress report hides that report, so the
+  /// committed-result signal must carry the result.
+  @Test
+  func droppedProgressReportStillSignalsTheCommittedResult() async throws {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureDelay(.milliseconds(300))
+    let engine = ReplacingProgressReceiver()
+    let signals = CommitSignalCounter()
+    let runner = ClassificationRunner(
+      writer: writer, providerFactory: { provider }, reportProgress: { await engine.receive($0) },
+      reportCommittedResults: { await signals.increment() })
+    let batch = Task { await runner.runOneBatch(cutoffDate: .distantPast) }
+    await engine.attach(batch)
+    _ = await batch.value
+
+    var classified = 0
+    for id in 1001...1003 where try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true {
+      classified += 1
+    }
+    let carried = await engine.accepted.filter(\.isClassifying).map(\.classifiedCount).max() ?? 0
+    #expect(classified >= 1)
+    #expect(carried == 0)
+    #expect(await signals.count == 1)
+  }
+
+  @Test
+  func cancelledBatchWithNoCommitSendsNoSignal() async throws {
+    let (signals, _, writer) = try await cancelBatch(afterCalls: 1)
+
+    #expect(signals == 0)
+    for id in 1001...1003 { try await expectPending(writer, id: id) }
+  }
+
   // MARK: - Missing keys
 
   @Test(arguments: CloudProviderFixture.allCases)

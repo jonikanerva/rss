@@ -62,6 +62,9 @@ final class ClassificationEngine {
   private(set) var lastAbort: ClassificationAbortReason?
   private(set) var lastAbortProvider: ClassificationProviderKind?
   private(set) var batchProgressVersion = 0
+  /// Bumps when a cancelled batch committed results that no progress report
+  /// carried. Every task bumps it, also a replaced or stopped task.
+  private(set) var unreportedCommitVersion = 0
 
   /// Every entry point routes work through this slot, so one runner is active
   /// at a time and no two runners send the same article to a provider.
@@ -200,7 +203,8 @@ final class ClassificationEngine {
       reportProgress: reporter,
       sleep: sleep,
       entryFailures: entryFailures,
-      reportEntryFailures: failureReporter)
+      reportEntryFailures: failureReporter,
+      reportCommittedResults: { await MainActor.run { self.unreportedCommitVersion &+= 1 } })
     // The engine owns this off-main task and waits for its predecessor before any work.
     let task = Task.detached(priority: .utility) {
       _ = await previous?.value
@@ -317,6 +321,10 @@ nonisolated struct ClassificationRunner: Sendable {
   var sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   var entryFailures = TransientEntryFailures()
   var reportEntryFailures: @Sendable (TransientEntryFailures) async -> Void = { _ in }
+  /// Reports committed results that no progress report carried. A cancelled
+  /// task's progress reports do not reach the engine, so this report must not
+  /// depend on the task.
+  var reportCommittedResults: @Sendable () async -> Void = {}
 
   func runContinuousLoop(initialOutcome: ClassificationBatchOutcome? = nil) async {
     var retryState = ClassificationRetryState()
@@ -391,6 +399,7 @@ nonisolated struct ClassificationRunner: Sendable {
     let supportedLanguages = await provider.supportedLanguageCodes
     var remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? firstChunk.count
     var completed = 0
+    var reportedCompleted = 0
     // An entry whose write fails stays unclassified and returns in the next
     // chunk fetch. Skip attempted IDs so the drain ends and the next poll retries.
     var attemptedIDs = Set<Int>()
@@ -433,8 +442,7 @@ nonisolated struct ClassificationRunner: Sendable {
               skippedFailure = nil
             } catch {
               if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-                await reportProgress(.terminal)
-                return .cancelled
+                return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
               }
               if let failure = error as? any ClassificationFailure, failure.batchAbort != nil {
                 if failure.isSkippable {
@@ -448,7 +456,7 @@ nonisolated struct ClassificationRunner: Sendable {
                   }
                 }
                 logBatchAbort(error, provider: provider.name, completed: completed)
-                return await abort(error, completed: completed)
+                return await abort(error, completed: completed, reportedCompleted: reportedCompleted)
               }
               let label = (error as? any ClassificationFailure)?.publicLogLabel ?? String(describing: type(of: error))
               Self.logger.notice(
@@ -461,20 +469,24 @@ nonisolated struct ClassificationRunner: Sendable {
         do {
           try Task.checkCancellation()
           try await writer.applyClassification(entryID: result.entryID, result: result)
-          try Task.checkCancellation()
         } catch {
           if Task.isCancelled || error is CancellationError {
-            await reportProgress(.terminal)
-            return .cancelled
+            return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
           }
           continue
         }
+        // Count the committed result before the cancellation check.
         completed += 1
         remaining = max(0, remaining - 1)
+        if Task.isCancelled {
+          return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
+        }
         let now = ContinuousClock.now
         // Report at most once per 200 ms: every report hops to MainActor.
         if now - lastProgress >= .milliseconds(200) {
           await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
+          // The engine drops the report of a cancelled task.
+          if !Task.isCancelled { reportedCompleted = completed }
           lastProgress = now
         }
       }
@@ -485,14 +497,16 @@ nonisolated struct ClassificationRunner: Sendable {
       remaining = (try? await writer.countUnclassifiedEntries(cutoffDate: cutoffDate)) ?? chunk.count
     }
     if Task.isCancelled {
-      await reportProgress(.terminal)
-      return .cancelled
+      return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
     }
     if let skippedFailure, !hasProviderSuccess {
       logBatchAbort(skippedFailure, provider: provider.name, completed: completed)
-      return await abort(skippedFailure, completed: completed)
+      return await abort(skippedFailure, completed: completed, reportedCompleted: reportedCompleted)
     }
     await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
+    if Task.isCancelled {
+      return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
+    }
     await reportProgress(.outcome(nil))
     return .completed(completed)
   }
@@ -503,16 +517,21 @@ nonisolated struct ClassificationRunner: Sendable {
       totalToClassify: completed + remaining)
   }
 
+  private func cancelledBatch(completed: Int, reportedCompleted: Int) async -> ClassificationBatchOutcome {
+    if completed > reportedCompleted { await reportCommittedResults() }
+    await reportProgress(.terminal)
+    return .cancelled
+  }
+
   private func logBatchAbort(_ error: any Error, provider: String, completed: Int) {
     Self.logger.error(
       "Classification provider '\(provider)' aborted the batch after \(completed) entries: \(String(describing: error), privacy: .private)"
     )
   }
 
-  private func abort(_ error: any Error, completed: Int) async -> ClassificationBatchOutcome {
+  private func abort(_ error: any Error, completed: Int, reportedCompleted: Int = 0) async -> ClassificationBatchOutcome {
     if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-      await reportProgress(.terminal)
-      return .cancelled
+      return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
     }
     let failure = error as? any ClassificationFailure
     if completed > 0 {
@@ -520,6 +539,9 @@ nonisolated struct ClassificationRunner: Sendable {
         ProgressSnapshot(
           isClassifying: true, progress: "Categorized \(completed) articles",
           classifiedCount: completed, totalToClassify: completed))
+      if Task.isCancelled {
+        return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
+      }
     }
     await reportProgress(.outcome(failure?.batchAbort ?? .providerUnavailable))
     return .aborted(failure?.retryDisposition ?? .poll, completed: completed)

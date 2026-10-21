@@ -219,6 +219,17 @@ struct TimelineStateTests {
     #expect(timeline.listVersion == 2)
   }
 
+  @Test
+  func unreportedCommittedResultsRequestARefresh() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    timeline.classificationResultsCommitted()
+    timeline.drainClassificationRefresh()
+
+    #expect(timeline.listVersion == 1)
+  }
+
   /// The next batch counts from 0 again.
   @Test
   func finishedBatchResetsTheClassificationBaseline() async throws {

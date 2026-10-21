@@ -248,9 +248,10 @@ final class SyncEngine {
   /// gates its refresh on this count.
   private(set) var lastSyncChangedEntryCount: Int = 0
 
-  /// Monotonic counter bumped after each persisted page and after an account
-  /// switch deletes the previous account's rows, so `ContentView` can route a
-  /// deferred article-list refresh while the sync still runs. Additive
+  /// Monotonic counter bumped after each persisted page, after a read-state
+  /// update that changed rows, and after an account switch deletes the
+  /// previous account's rows. `TimelineState` routes a deferred article-list
+  /// refresh from it, also when the sync fails or is cancelled later. Additive
   /// to the terminal `lastSyncChangedEntryCount` signal, never a replacement.
   private(set) var lastPersistedPageVersion: Int = 0
 
@@ -826,10 +827,8 @@ final class SyncEngine {
       if let pageNewest = page.entries.lazy.map(\.createdAt).max() {
         newestCreatedAt = max(newestCreatedAt ?? pageNewest, pageNewest)
       }
-      // Bumped per persisted page even when the page inserted nothing: the
-      // counter's contract is "a page was processed" or "an account switch
-      // deleted rows". The downstream deferred refresh channel coalesces the
-      // bumps.
+      // Bumped per persisted page even when the page inserted nothing. The
+      // downstream deferred refresh channel coalesces the bumps.
       lastPersistedPageVersion &+= 1
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
@@ -841,6 +840,7 @@ final class SyncEngine {
     fetchedCount = totalFetched
 
     let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet, queuedReadIDs: pendingReadIDsToSync)
+    if readStateFlips > 0 { lastPersistedPageVersion &+= 1 }
 
     if totalNew > 0 || readStateFlips > 0 {
       logger.info("Entry fetch: \(totalNew) new + \(readStateFlips) read-state flips")
