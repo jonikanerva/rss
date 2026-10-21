@@ -75,6 +75,10 @@ final class ClassificationEngine {
   private var isPausedForAccountSwitch = false
   @ObservationIgnored
   private var continuousWriter: DataWriter?
+  /// Set while a Sync or Reclassify All run owns the task. Its progress can
+  /// start late, so `isClassifying` alone does not show the run.
+  @ObservationIgnored
+  private var oneShotTaskID: UUID?
   /// Every reset must also replace the task: the task-ID guard in the reporter
   /// is what drops a late report from a replaced runner.
   @ObservationIgnored
@@ -125,7 +129,7 @@ final class ClassificationEngine {
   /// stop (`STACK.md → Cloud classification`). Keeps the strikes. Any other
   /// state returns without work, because this runs on every app activation.
   func applicationDidBecomeActive() {
-    guard isContinuousModeActive, !isClassifying, let writer = continuousWriter,
+    guard isContinuousModeActive, !isClassifying, oneShotTaskID == nil, let writer = continuousWriter,
       lastAbortProvider == .appleFM, let lastAbort, !lastAbort.offersSettings
     else { return }
     _ = replaceTask(writer: writer, operation: .continuous(nil))
@@ -154,11 +158,13 @@ final class ClassificationEngine {
     guard !isPausedForAccountSwitch else { return }
     if reset { entryFailures = TransientEntryFailures() }
     let (id, task) = replaceTask(writer: writer, operation: .once(reset: reset))
+    oneShotTaskID = id
     let outcome = await withTaskCancellationHandler {
       await task.value
     } onCancel: {
       task.cancel()
     }
+    if oneShotTaskID == id { oneShotTaskID = nil }
     guard classificationTaskID == id else { return }
     classificationTaskID = nil
     if isContinuousModeActive, !Task.isCancelled {
