@@ -350,10 +350,10 @@ struct DataWriterEntryTests {
     #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: readNotQueued)?.isRead == false)
   }
 
-  // MARK: - markAllAsRead
+  // MARK: - fetchUnreadEntryIDs
 
   @Test
-  func markAllAsReadMarksOnlyCategoryEntries() async throws {
+  func fetchUnreadEntryIDsReturnsOnlyUnreadCategoryEntries() async throws {
     let writer = try await makeWriter()
     try await seedFeed(writer)
 
@@ -369,32 +369,23 @@ struct DataWriterEntryTests {
       label: "world_news", displayName: "World News",
       description: "World news", sortOrder: 1)
 
-    // Classify entries into different categories
     for (id, cat) in [(2001, "technology"), (2002, "technology"), (2003, "world_news")] {
       let result = ClassificationResult(
         entryID: id, categoryLabel: cat)
       try await writer.applyClassification(entryID: id, result: result)
     }
 
-    let markedIDs = try await writer.markAllAsRead(
-      target: .category("technology"), cutoffDate: .distantPast)
+    let technologyIDs = try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast)
+    #expect(technologyIDs == [2001, 2002])
 
-    #expect(markedIDs == [2001, 2002])
-
-    // Verify technology entries are now all read — second pass should return empty
-    let secondPass = try await writer.markAllAsRead(
-      target: .category("technology"), cutoffDate: .distantPast)
-    #expect(secondPass.isEmpty)
-
-    // World entry should still be unread
-    let worldIDs = try await writer.markAllAsRead(
-      target: .category("world_news"), cutoffDate: .distantPast)
-    #expect(worldIDs == [2003])
+    try await writer.markEntriesRead(feedbinEntryIDs: technologyIDs)
+    #expect(try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast).isEmpty)
+    #expect(try await writer.fetchUnreadEntryIDs(in: .category("world_news"), cutoffDate: .distantPast) == [2003])
   }
 
-  /// The All Articles scope also marks an article that has no category yet.
+  /// The All Articles scope also returns an article that has no category yet.
   @Test
-  func markAllAsReadForAllArticlesIncludesUnassignedEntries() async throws {
+  func fetchUnreadEntryIDsForAllArticlesIncludesUnassignedEntries() async throws {
     let writer = try await makeWriter()
     try await writer.syncFeeds([FeedbinFixtures.subscription()])
     let entries = try [2101, 2102, 2103].map { try FeedbinFixtures.entry(id: $0) }
@@ -402,15 +393,13 @@ struct DataWriterEntryTests {
     try await writer.addCategory(label: "technology", displayName: "Technology", description: "Tech", sortOrder: 0)
     try await writer.applyClassification(entryID: 2101, result: .init(entryID: 2101, categoryLabel: "technology"))
 
-    #expect(try await writer.markAllAsRead(target: .all, cutoffDate: .distantPast) == [2101, 2102])
-    #expect(try await writer.markAllAsRead(target: .all, cutoffDate: .distantPast).isEmpty)
+    #expect(try await writer.fetchUnreadEntryIDs(in: .all, cutoffDate: .distantPast) == [2101, 2102])
   }
 
   @Test
-  func markAllAsReadWithNoUnreadReturnsEmpty() async throws {
+  func fetchUnreadEntryIDsWithNoUnreadReturnsEmpty() async throws {
     let writer = try await makeWriter()
-    let result = try await writer.markAllAsRead(
-      target: .category("technology"), cutoffDate: .distantPast)
+    let result = try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast)
     #expect(result.isEmpty)
   }
 
