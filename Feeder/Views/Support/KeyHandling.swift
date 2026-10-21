@@ -28,6 +28,32 @@ struct MarkAllReadKeyHandler: ViewModifier {
   }
 }
 
+// MARK: - Detail Page Key Handler
+
+/// The page direction for Space in the article list: Space pages down and
+/// Shift-Space pages up. Without a selected article, or with another
+/// modifier, the key is not a page key.
+func detailPageDirection(hasSelectedEntry: Bool, modifiers: EventModifiers) -> DetailPageDirection? {
+  guard hasSelectedEntry else { return nil }
+  switch modifiers.subtracting(.capsLock) {
+  case []: return .down
+  case .shift: return .up
+  default: return nil
+  }
+}
+
+/// Pages the detail pane with Space and Shift-Space. It must stay on the
+/// article list itself, so focus stays in the list, a text field keeps Space,
+/// and `List` type-to-select cannot consume the key.
+struct DetailPageKeyHandler: ViewModifier {
+  let action: (EventModifiers) -> KeyPress.Result
+
+  func body(content: Content) -> some View {
+    content
+      .onKeyPress(keys: [.space], phases: [.down, .repeat]) { press in action(press.modifiers) }
+  }
+}
+
 // MARK: - Bare Key Actions Environment
 
 /// Actions for bare-key shortcuts that must fire from any panel,
@@ -38,6 +64,7 @@ struct BareKeyActions {
   var onK: () -> KeyPress.Result = { .handled }
   var onR: () -> KeyPress.Result = { .handled }
   var onB: () -> KeyPress.Result = { .handled }
+  var onU: () -> KeyPress.Result = { .handled }
 }
 
 private struct BareKeyActionsKey: EnvironmentKey {
@@ -56,6 +83,9 @@ extension EnvironmentValues {
 /// fires only while that list has focus and never while the user types in a
 /// text field. `ContentView` documents the three routes together.
 struct BareKeyHandler: ViewModifier {
+  /// True on the sidebar and the article list. U switches the filter only
+  /// from these two panels.
+  var handlesFilterKey = false
   @Environment(\.bareKeyActions)
   private var actions
 
@@ -65,5 +95,8 @@ struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in
+        handlesFilterKey ? actions.onU() : .ignored
+      }
   }
 }

@@ -8,6 +8,7 @@ struct FeederCommandContext {
   let syncAction: () -> Void
   let markAllReadAction: () -> Void
   let toggleViewModeAction: () -> Void
+  let toggleFilterAction: () -> Void
   let openInBrowserAction: () -> Void
   let copyLinkAction: () -> Void
   let moveSelectionDownAction: () -> Void
@@ -17,6 +18,8 @@ struct FeederCommandContext {
   let hasSelectedEntry: Bool
   let isSyncing: Bool
   let currentViewMode: ArticleViewMode
+  let currentFilter: ArticleFilter
+  let hasSidebarSelection: Bool
 }
 
 private struct FeederCommandContextKey: FocusedValueKey {
@@ -70,6 +73,11 @@ struct FeederCommands: Commands {
         context?.markAllReadAction()
       }
       .disabled(context == nil || context?.canMarkAllRead != true)
+
+      Button((context?.currentFilter ?? .unread).toggleMenuTitle) {
+        context?.toggleFilterAction()
+      }
+      .disabled(context == nil || context?.hasSidebarSelection != true)
 
       Divider()
 

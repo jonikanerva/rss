@@ -52,6 +52,8 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "A", modifiers: .shift) == nil)
     #expect(bareKeyRoute(characters: "a", modifiers: []) == nil)
     #expect(bareKeyRoute(characters: "x", modifiers: []) == nil)
+    // U switches the filter only from the sidebar and the article list.
+    #expect(bareKeyRoute(characters: "u", modifiers: []) == nil)
   }
 
   @Test
