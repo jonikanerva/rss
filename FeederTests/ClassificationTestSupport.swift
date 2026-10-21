@@ -206,6 +206,25 @@ enum OpenAIErrorBodies {
 enum VercelErrorBodies {
   static let budgetExceeded =
     #"{"error":{"message":"Project budget exceeded. Current spend: $200.00, limit: $200.00. Please contact your administrator to increase the budget.","type":"quota_for_entity_exceeded"}}"#
+  /// No official Vercel example exists for these bodies: each follows a documented error shape.
+  static let forbiddenBilling: [String] = [
+    #"{"error":{"message":"A valid payment method is required to use free credits.","type":"customer_verification_required"}}"#,
+    #"{"error":"A valid payment method is required to use free credits.","type":"customer_verification_required","statusCode":403}"#,
+    #"{"error":{"message":"This model is not in the Free Tier. Purchase AI Gateway Credits to use it.","type":"forbidden"}}"#,
+    #"{"error":"Free-tier access does not include this model.","statusCode":403}"#,
+  ]
+  static let modelBlocked: [String] = [
+    #"{"error":"Your team has restricted access to this model. Contact the owner of the account for more details.","type":"no_providers_available","statusCode":403}"#,
+    #"{"error":"Your team has restricted access to this provider. Contact the owner of the account for more details.","type":"no_providers_available","statusCode":403}"#,
+    #"{"error":{"message":"Request denied by a routing rule.","param":{"ruleId":"rule_123"},"type":"forbidden"}}"#,
+  ]
+  static let otherForbidden: [String] = [
+    #"{"error":{"message":"Forbidden","type":"forbidden"}}"#,
+    #"{"error":{"message":"Forbidden","type":"access_denied"}}"#,
+    #"{"error":{"message":"This model requires purchased credits.","type":"forbidden"}}"#,
+    "Forbidden",
+    "",
+  ]
 }
 
 // MARK: - Snapshot recorder

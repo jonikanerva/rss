@@ -117,6 +117,10 @@ extension DataReader {
 // MARK: - Gated writer hooks (test-only concurrency probes)
 
 extension DataWriter {
+  /// Test-only: whether the writer's context holds unsaved changes. Every
+  /// operation must leave it `false`, also after a failed save.
+  var testHasPendingChanges: Bool { modelContext.hasChanges }
+
   /// Test-only: resolve an identifier the reader minted to an entry in this
   /// writer's context, returning its Feedbin id, or `nil` when it resolves to no
   /// live row. The production selection path resolves reader-returned ids the

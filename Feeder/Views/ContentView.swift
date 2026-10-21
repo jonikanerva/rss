@@ -672,7 +672,7 @@ struct ContentView: View {
   }
 
   private func markAllAsRead(target: SidebarSelection) {
-    guard articleFilter == .unread, let writer = syncEngine.writer else { return }
+    guard articleFilter == .unread, syncEngine.writer != nil else { return }
     let plan = markAllReadPlan(
       for: target, currentSelection: selection, snapshot: unreadSnapshot)
     if plan.clearsArticleSelection {
@@ -680,14 +680,10 @@ struct ContentView: View {
     }
     pendingReadIDs.formUnion(plan.optimisticIDs)
     Task {
-      let markedIDs = try? await writer.markAllAsRead(
-        target: plan.markTarget, cutoffDate: syncEngine.queryCutoffDate
-      )
+      await syncEngine.markAllAsRead(scope: plan.markTarget)
       // Post-commit. Unlike the flush, mark-all-read can change the visible
       // window itself, so the list must refetch immediately.
       bumpEntryList()
-      guard let ids = markedIDs, !ids.isEmpty else { return }
-      syncEngine.queueReadIDs(ids)
     }
   }
 
