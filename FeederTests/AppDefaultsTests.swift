@@ -23,9 +23,13 @@ struct AppDefaultsTests {
     let suite = try #require(UserDefaults(suiteName: AppDefaults.isolatedSuiteDomain))
     let settingKey = "AppDefaultsTests.setting.\(UUID().uuidString)"
     let flagKey = "AppDefaultsTests.flag.\(UUID().uuidString)"
+    // Also clean `AppDefaults.current`: a broken resolver writes to another
+    // domain.
     defer {
-      suite.removeObject(forKey: settingKey)
-      suite.removeObject(forKey: flagKey)
+      for defaults in [suite, AppDefaults.current] {
+        defaults.removeObject(forKey: settingKey)
+        defaults.removeObject(forKey: flagKey)
+      }
     }
 
     AppDefaults.current.set(42, forKey: settingKey)
