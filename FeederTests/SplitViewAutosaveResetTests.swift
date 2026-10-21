@@ -8,16 +8,15 @@ import Testing
 /// keys stay; the count is exact.
 @Suite("Split view autosave reset")
 struct SplitViewAutosaveResetTests {
-  private static func makeSuite(_ name: String) throws -> UserDefaults {
-    let suiteName = "SplitViewAutosaveResetTests.\(name)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defaults.removePersistentDomain(forName: suiteName)
-    return defaults
+  private let isolatedDefaults: IsolatedDefaults
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("SplitViewAutosaveReset")
   }
 
   @Test("removes only the prefixed key and reports 1")
   func removesOnlyPrefixedKey() throws {
-    let defaults = try Self.makeSuite("one")
+    let defaults = isolatedDefaults.defaults
     let frameKey = "NSSplitView Subview Frames SomeRootType-1-AppWindow-1, SidebarNavigationSplitView"
     defaults.set(["0.000000, 0.000000, 238.000000, 800.000000, NO, NO"], forKey: frameKey)
     defaults.set("100 100 1400 800 0 0 1728 1079", forKey: "NSWindow Frame Feeder")
@@ -31,13 +30,13 @@ struct SplitViewAutosaveResetTests {
 
   @Test("an empty suite reports 0")
   func emptySuiteReportsZero() throws {
-    let defaults = try Self.makeSuite("empty")
+    let defaults = isolatedDefaults.defaults
     #expect(SplitViewAutosaveReset.removeStaleFrames(in: defaults) == 0)
   }
 
   @Test("every prefixed key goes, whatever its suffix")
   func removesEveryPrefixedKey() throws {
-    let defaults = try Self.makeSuite("many")
+    let defaults = isolatedDefaults.defaults
     defaults.set(["a"], forKey: "NSSplitView Subview Frames A")
     defaults.set(["b"], forKey: "NSSplitView Subview Frames B-2-AppWindow-2, SidebarNavigationSplitView")
     defaults.set(["c"], forKey: "Other NSSplitView Subview Frames")

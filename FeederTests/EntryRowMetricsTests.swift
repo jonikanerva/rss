@@ -8,9 +8,10 @@ import Testing
 /// derivation and its precondition for the title / summary split, the
 /// stored `AppFontSettings.entryRowHeight` and `entryRowTextColumnHeight`
 /// at every text size, and the recompute on a text-size change.
+@MainActor
 @Suite("Entry row metrics")
 struct EntryRowMetricsTests {
-  private static let suiteName = "EntryRowMetricsTests"
+  private let isolatedDefaults: IsolatedDefaults
 
   /// Fixed text-column height per text size: 2 title lines + 3 + 1 domain
   /// line + 3 + 2 summary lines, from the `NSFont` line heights
@@ -19,11 +20,13 @@ struct EntryRowMetricsTests {
     .small: 73, .medium: 83, .large: 93, .xLarge: 103, .xxLarge: 118,
   ]
 
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("EntryRowMetrics")
+  }
+
   @MainActor
-  private func makeSettings(_ size: AppTextSize) throws -> AppFontSettings {
-    let defaults = try #require(UserDefaults(suiteName: Self.suiteName))
-    defaults.removePersistentDomain(forName: Self.suiteName)
-    return AppFontSettings(textSize: size, userDefaults: defaults)
+  private func makeSettings(_ size: AppTextSize) -> AppFontSettings {
+    AppFontSettings(textSize: size, userDefaults: isolatedDefaults.defaults)
   }
 
   // MARK: - Arithmetic
@@ -106,7 +109,7 @@ struct EntryRowMetricsTests {
   @Test("entryRowHeight is above the 34-point content minimum at every text size", arguments: AppTextSize.allCases)
   @MainActor
   func entryRowHeightAboveMinimum(size: AppTextSize) throws {
-    let settings = try makeSettings(size)
+    let settings = makeSettings(size)
     #expect(settings.entryRowHeight > 34)
     #expect(settings.entryRowHeight == settings.entryRowHeight.rounded(), "whole points only")
   }
@@ -114,7 +117,7 @@ struct EntryRowMetricsTests {
   @Test("entryRowHeight is strictly monotonic in text size")
   @MainActor
   func entryRowHeightMonotonic() throws {
-    let heights = try AppTextSize.allCases.map { try makeSettings($0).entryRowHeight }
+    let heights = AppTextSize.allCases.map { makeSettings($0).entryRowHeight }
     for (smaller, larger) in zip(heights, heights.dropFirst()) {
       #expect(smaller < larger, "\(heights)")
     }
@@ -123,7 +126,7 @@ struct EntryRowMetricsTests {
   @Test("entryRowHeight at medium matches the default-size row: 2x13pt + 12pt + 2x12pt lines")
   @MainActor
   func entryRowHeightMediumShape() throws {
-    let settings = try makeSettings(.medium)
+    let settings = makeSettings(.medium)
     // 13 pt and 12 pt system fonts: ascender - descender + leading rounds up to 16 pt and 15 pt.
     let expected = EntryRowMetrics.rowHeight(titleLineHeight: 16, metaLineHeight: 15, summaryLineHeight: 15)
     #expect(settings.entryRowHeight == expected)
@@ -132,13 +135,13 @@ struct EntryRowMetricsTests {
   @Test("entryRowHeight equals EntryRowMetrics.rowHeightFloor for the same scale", arguments: AppTextSize.allCases)
   @MainActor
   func entryRowHeightMatchesFloorDerivation(size: AppTextSize) throws {
-    #expect(try makeSettings(size).entryRowHeight == EntryRowMetrics.rowHeightFloor(scale: size.scaleFactor))
+    #expect(makeSettings(size).entryRowHeight == EntryRowMetrics.rowHeightFloor(scale: size.scaleFactor))
   }
 
   @Test("entryRowTextColumnHeight equals the pinned column height for the same scale", arguments: AppTextSize.allCases)
   @MainActor
   func entryRowTextColumnHeightPerSize(size: AppTextSize) throws {
-    let settings = try makeSettings(size)
+    let settings = makeSettings(size)
     #expect(settings.entryRowTextColumnHeight == EntryRowMetrics.textColumnHeight(scale: size.scaleFactor))
     #expect(settings.entryRowTextColumnHeight == (try #require(Self.textColumnHeights[size])))
     #expect(
@@ -151,13 +154,13 @@ struct EntryRowMetricsTests {
   @Test("both stored heights recompute when textSize changes and stay put otherwise")
   @MainActor
   func storedHeightsRecompute() throws {
-    let settings = try makeSettings(.medium)
+    let settings = makeSettings(.medium)
     let medium = (settings.entryRowHeight, settings.entryRowTextColumnHeight)
     settings.textSize = .xxLarge
     let huge = (settings.entryRowHeight, settings.entryRowTextColumnHeight)
     #expect(huge.0 > medium.0)
     #expect(huge.1 > medium.1)
-    let fresh = try makeSettings(.xxLarge)
+    let fresh = makeSettings(.xxLarge)
     #expect(huge == (fresh.entryRowHeight, fresh.entryRowTextColumnHeight))
     settings.textSize = .xxLarge
     #expect((settings.entryRowHeight, settings.entryRowTextColumnHeight) == huge)

@@ -4,7 +4,9 @@ import Testing
 @testable import Feeder
 
 @MainActor
-@Suite("Classification cancellation and retry timelines")
+/// The time limit only guards against a hang: `waitForDelays(_:)` has no
+/// wall-clock limit of its own.
+@Suite("Classification cancellation and retry timelines", .timeLimit(.minutes(1)))
 struct ClassificationCancellationTests {
   private func fixture(entryCount: Int = 3) async throws -> DataWriter {
     let writer = try await DataWriterTestSupport.makeWriter()
@@ -125,7 +127,7 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(engine.lastAbort == .needsKey)
     #expect(await transport.requests.isEmpty)
@@ -141,13 +143,13 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(engine.lastAbort == .needsKey)
     #expect(await provider.callCount == 0)
     await provider.configureValidation(nil)
     engine.configurationChanged(writer: writer)
-    try await waitUntil("replacement drain completes") { await clock.delays.count == 2 }
+    await clock.waitForDelays(2)
     #expect(await clock.delays == [.seconds(3600), .seconds(2)])
     #expect(engine.lastAbort == nil)
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
@@ -194,14 +196,14 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(engine.lastAbort == broken.abort)
     #expect(await transport.requests.isEmpty)
     for id in 1001...1003 { try await expectPending(writer, id: id) }
     try await broken.fix(writer)
     engine.configurationChanged(writer: writer)
-    try await waitUntil("replacement drain completes") { await clock.delays.count == 2 }
+    await clock.waitForDelays(2)
     #expect(await clock.delays == [.seconds(3600), .seconds(2)])
     #expect(engine.lastAbort == nil)
     #expect(await transport.requests.count == 3)
@@ -232,7 +234,7 @@ struct ClassificationCancellationTests {
     let engine = ClassificationEngine(
       providerFactoryOverride: { UnreadableKeyClassificationProvider(name: "OpenAI") }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(engine.lastAbort == .keyUnreadable)
     for id in 1001...1003 { try await expectPending(writer, id: id) }
@@ -393,7 +395,7 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await provider.callCount == 2)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(engine.lastAbort == .keyRejected)
@@ -413,7 +415,7 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("blocked wait reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(3600)])
     #expect(await provider.callCount == 2)
     #expect(engine.lastAbort == .keyRejected)
@@ -437,7 +439,7 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("drain finished") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await provider.callCount == 3)
     #expect(await clock.delays == [.seconds(2)])
     #expect(engine.lastAbort == nil)
@@ -454,9 +456,7 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
-  /// The time limit only guards against a hang. The test waits for the
-  /// recorded delays, not for the clock.
-  @Test(.timeLimit(.minutes(1)))
+  @Test
   func continuousLoopKeepsBackoffAcrossFailedBatches() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
@@ -466,7 +466,7 @@ struct ClassificationCancellationTests {
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
     // The eighth sleep blocks, so the loop stays parked while the test asserts.
-    for await _ in clock.recordedDelays.prefix(8) {}
+    await clock.waitForDelays(8)
     let expected: [Duration] = [
       .seconds(10), .seconds(20), .seconds(40), .seconds(80), .seconds(160), .seconds(300), .seconds(300), .seconds(2),
     ]
@@ -484,7 +484,7 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder()
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("backoff reached") { await clock.delays.count == 1 }
+    await clock.waitForDelays(1)
     #expect(await clock.delays == [.seconds(10)])
     #expect(await provider.callCount == 2)
     engine.configurationChanged(writer: writer)
@@ -589,7 +589,7 @@ struct ClassificationCancellationTests {
       cloud, [.success(.status(status, retryAfter: String(retryAfter)))], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("loop wait reached") { await loopClock.delays.count == 1 }
+    await loopClock.waitForDelays(1)
     #expect(await loopClock.delays == [.seconds(retryAfter)])
     #expect(await transport.requests.count == 1)
     #expect(await retryClock.delays.isEmpty)
@@ -612,7 +612,7 @@ struct ClassificationCancellationTests {
     let (provider, transport) = cloudProvider(cloud, [.success(failure), .success(cloud.success)], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("loop wait reached") { await loopClock.delays.count == 1 }
+    await loopClock.waitForDelays(1)
     #expect(await loopClock.delays == [.seconds(3600)])
     #expect(await transport.requests.count == 1)
     #expect(await retryClock.delays.isEmpty)
@@ -649,7 +649,7 @@ struct ClassificationCancellationTests {
     let recorder = SnapshotRecorder()
     let runner = ClassificationRunner(writer: writer, providerFactory: { provider }, reportProgress: { await recorder.record($0) })
     let batch = Task { await runner.runOneBatch(cutoffDate: .distantPast) }
-    try await waitUntil("retry wait starts") { await retryClock.delays.count == 1 }
+    await retryClock.waitForDelays(1)
     batch.cancel()
     #expect(await batch.value.isCancelled)
     #expect(await transport.requests.count == 1)
@@ -669,10 +669,10 @@ struct ClassificationCancellationTests {
       .vercel, [.success(.status(503)), .success(CloudProviderFixture.vercel.success)], retryClock: retryClock)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await loopClock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("retry wait starts") { await retryClock.delays.count == 1 }
+    await retryClock.waitForDelays(1)
     let writes = engine.lastAbortWriteCount
     engine.configurationChanged(writer: writer)
-    try await waitUntil("replacement drain completes") { await loopClock.delays.count == 1 }
+    await loopClock.waitForDelays(1)
     #expect(await loopClock.delays == [.seconds(2)])
     #expect(await retryClock.delays == [.seconds(2)])
     #expect(await transport.requests.count == 4)
@@ -756,14 +756,21 @@ extension ClassificationBatchOutcome {
 actor ClassificationSleepRecorder {
   private(set) var delays: [Duration] = []
   /// Yields each delay as soon as it is recorded, also a delay whose sleep
-  /// then blocks, so a test can wait for a delay count without a wall clock.
-  nonisolated let recordedDelays: AsyncStream<Duration>
+  /// then blocks. Only `waitForDelays(_:)` reads it.
+  private let recordedDelays: AsyncStream<Duration>
   private let recordedContinuation: AsyncStream<Duration>.Continuation
   private let immediateDelays: Int
 
   init(immediateDelays: Int = 0) {
     self.immediateDelays = immediateDelays
     (recordedDelays, recordedContinuation) = AsyncStream<Duration>.makeStream()
+  }
+
+  /// Returns when at least `count` delays are recorded. It has no wall-clock
+  /// limit: one caller at a time.
+  func waitForDelays(_ count: Int) async {
+    if delays.count >= count { return }
+    for await _ in recordedDelays where delays.count >= count { return }
   }
 
   func sleep(_ delay: Duration) async throws {

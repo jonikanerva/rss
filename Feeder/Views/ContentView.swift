@@ -68,6 +68,8 @@ struct ContentView: View {
   @State
   private var articleViewMode: ArticleViewMode = .web
   @State
+  private var detailPageCommand = DetailPageCommand.initial
+  @State
   private var pendingReadIDs: Set<Int> = []
   /// Rendered-entries payload bubbled up from `EntryListView`: the visible ids
   /// plus the rendered-unread ids, which are one side of the two-sided
@@ -139,6 +141,12 @@ struct ContentView: View {
         if let selection {
           entryListForSelection(selection)
             .focused($panelFocus, equals: .articleList)
+            // Only this column: the detail pane, the web view, and a text field
+            // keep their own Copy.
+            .onCommand(
+              #selector(NSText.copy(_:)),
+              perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
+            )
             .environment(\.pendingReadIDs, pendingReadIDs)
             .navigationTitle(navigationTitle)
             .toolbar {
@@ -413,6 +421,7 @@ struct ContentView: View {
         syncAction: { Task { await syncAndClassify() } },
         markAllReadAction: markAllAsRead,
         toggleViewModeAction: toggleArticleViewMode,
+        toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
         copyLinkAction: copySelectedLink,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
@@ -421,7 +430,9 @@ struct ContentView: View {
         canOpenInBrowser: selectedEntry != nil,
         hasSelectedEntry: selectedEntry != nil,
         isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
-        currentViewMode: articleViewMode
+        currentViewMode: articleViewMode,
+        currentFilter: articleFilter,
+        hasSidebarSelection: selection != nil
       )
     )
   }
@@ -464,8 +475,22 @@ struct ContentView: View {
     selection = items[newIndex]
   }
 
+  private func pageDetail(modifiers: EventModifiers) -> KeyPress.Result {
+    guard let direction = detailPageDirection(hasSelectedEntry: selectedEntry != nil, modifiers: modifiers)
+    else { return .ignored }
+    detailPageCommand = detailPageCommand.next(direction)
+    return .handled
+  }
+
   private func toggleArticleViewMode() {
     articleViewMode = articleViewMode == .web ? .reader : .web
+  }
+
+  /// The filter picker shows only with a sidebar selection, so the toggle
+  /// needs one too.
+  private func toggleArticleFilter() {
+    guard selection != nil else { return }
+    articleFilter = articleFilter.toggled
   }
 
   private var bareKeyActions: BareKeyActions {
@@ -488,6 +513,11 @@ struct ContentView: View {
       onB: {
         guard selectedEntry != nil else { return .ignored }
         openInBackground()
+        return .handled
+      },
+      onU: {
+        guard selection != nil else { return .ignored }
+        toggleArticleFilter()
         return .handled
       }
     )
@@ -533,7 +563,8 @@ struct ContentView: View {
         cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead
+        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
+        onPageDetail: pageDetail(modifiers:)
       )
     } else {
       // Until the launch path attaches the reader. The call site's modifiers
@@ -769,7 +800,7 @@ struct ContentView: View {
         collapsedFolders: $collapsedFolders
       )
     )
-    .modifier(BareKeyHandler())
+    .modifier(BareKeyHandler(handlesFilterKey: true))
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {
@@ -810,7 +841,7 @@ struct ContentView: View {
   private var detailView: some View {
     Group {
       if let selectedEntry {
-        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode, pageCommand: detailPageCommand)
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")

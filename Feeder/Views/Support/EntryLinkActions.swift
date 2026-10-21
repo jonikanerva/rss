@@ -13,6 +13,14 @@ extension NSWorkspace {
   }
 }
 
+/// The Edit → Copy action of the article list. It writes the link of the
+/// selected article through `write`. A `nil` URL gives a `nil` action, which
+/// disables Edit → Copy while the article list has focus.
+func articleLinkCopyAction(url: URL?, write: @escaping (URL) -> Void) -> (() -> Void)? {
+  guard let url else { return nil }
+  return { write(url) }
+}
+
 extension NSPasteboard {
   /// Replaces the contents with one item that carries `url` as a URL and as
   /// plain text.

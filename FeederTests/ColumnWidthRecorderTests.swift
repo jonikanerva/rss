@@ -9,12 +9,18 @@ import Testing
 /// observer, the launch-layout skip, the width-only debounce key, the settle
 /// debounce, and the sanity floor reach an injected `UserDefaults` suite
 /// without a split view. `.serialized` runs the two columns one at a time.
+@MainActor
 @Suite("Column width recorder", .serialized)
 struct ColumnWidthRecorderTests {
   private static let settleDelay: Duration = .milliseconds(20)
   /// Five settle periods: a negative check waits this long for a store that
   /// must not happen.
   private static let quietWindow: Duration = .milliseconds(100)
+  private let isolatedDefaults: IsolatedDefaults
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("ColumnWidthRecorder")
+  }
 
   /// Drives the recorder's width and leading edge independently inside a
   /// fixed-size host: a leading spacer moves the recorded view, a fixed
@@ -48,9 +54,7 @@ struct ColumnWidthRecorderTests {
     arguments: ColumnWidthSetting.Column.allCases)
   @MainActor
   func launchSkipThenWidthOnlyTrigger(column: ColumnWidthSetting.Column) async throws {
-    let suiteName = "ColumnWidthRecorderTests.\(column.rawValue)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defaults.removePersistentDomain(forName: suiteName)
+    let defaults = isolatedDefaults.defaults
     let key = column.userDefaultsKey
     let box = GeometryBox()
 
