@@ -386,7 +386,7 @@ struct ContentView: View {
       }
       return .handled
     }
-    // J/K/R/B route three ways. The per-panel `BareKeyHandler` modifiers fire
+    // J/K/R/B/U route three ways. The per-panel `BareKeyHandler` modifiers fire
     // while a `List` has focus and keep bare keys out of text fields, where
     // typing must type. `BareKeyForwardingWebView` forwards the same actions
     // from inside the article web view, where the AppKit first responder
@@ -396,6 +396,7 @@ struct ContentView: View {
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
     .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in bareKeyActions.onU() }
     .modifier(menuBarValues)
   }
 
@@ -406,6 +407,7 @@ struct ContentView: View {
         syncAction: { Task { await syncAndClassify() } },
         markAllReadAction: markAllAsRead,
         toggleViewModeAction: toggleArticleViewMode,
+        toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
         copyLinkAction: copySelectedLink,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
@@ -414,7 +416,9 @@ struct ContentView: View {
         canOpenInBrowser: selectedEntry != nil,
         hasSelectedEntry: selectedEntry != nil,
         isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
-        currentViewMode: articleViewMode
+        currentViewMode: articleViewMode,
+        currentFilter: articleFilter,
+        hasSidebarSelection: selection != nil
       )
     )
   }
@@ -461,6 +465,13 @@ struct ContentView: View {
     articleViewMode = articleViewMode == .web ? .reader : .web
   }
 
+  /// The filter picker shows only with a sidebar selection, so the toggle
+  /// needs one too.
+  private func toggleArticleFilter() {
+    guard selection != nil else { return }
+    articleFilter = articleFilter.toggled
+  }
+
   private var bareKeyActions: BareKeyActions {
     BareKeyActions(
       onJ: {
@@ -481,6 +492,11 @@ struct ContentView: View {
       onB: {
         guard selectedEntry != nil else { return .ignored }
         openInBackground()
+        return .handled
+      },
+      onU: {
+        guard selection != nil else { return .ignored }
+        toggleArticleFilter()
         return .handled
       }
     )

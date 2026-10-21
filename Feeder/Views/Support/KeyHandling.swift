@@ -38,6 +38,7 @@ struct BareKeyActions {
   var onK: () -> KeyPress.Result = { .handled }
   var onR: () -> KeyPress.Result = { .handled }
   var onB: () -> KeyPress.Result = { .handled }
+  var onU: () -> KeyPress.Result = { .handled }
 }
 
 private struct BareKeyActionsKey: EnvironmentKey {
@@ -65,5 +66,6 @@ struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in actions.onU() }
   }
 }
