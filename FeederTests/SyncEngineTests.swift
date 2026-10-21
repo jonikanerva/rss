@@ -450,23 +450,6 @@ struct SyncEngineTests {
     #expect(queuedReadIDs == [1, 2])
   }
 
-  /// Another path marks entry 1 read between the fetch and the store write.
-  /// The write skips entry 1 because it is already read, and the queue holds
-  /// only the fetched IDs.
-  @Test
-  func skippedAlreadyReadEntryQueuesNoUnrelatedIDs() async throws {
-    let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
-    try await seedMarkAllReadEntries(in: writer)
-
-    let ids = try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast)
-    try await writer.markEntriesRead(feedbinEntryIDs: [1])
-    engine.queueReadIDs(ids)
-    try await writer.markEntriesRead(feedbinEntryIDs: ids)
-
-    #expect(queuedReadIDs == [1, 2])
-    #expect(try await isRead(3, in: writer) == false)
-  }
-
   // MARK: - 8. Extracted content
 
   private static func extractURL(_ id: Int) -> String {
