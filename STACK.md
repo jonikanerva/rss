@@ -209,7 +209,7 @@ When one of these feels slow more than once, the owner records a trace: a sideba
 | `contentview-reeval` | A list reload makes the whole window stutter. The interval runs from the new visible rows to the next `ContentView` render. |
 | `row-body-build` | A list reload is slow for a large category. More events inside one `structural-reload` interval than visible rows show that the `List` builds rows that are not visible. |
 | `net-fetch-page` | A sync is slow. The interval is the network request for one page. |
-| `write-persist-page` | The UI is slow during a sync. The interval is the persist of one page. Back-to-back intervals with no `net-fetch-page` gap show that the writes saturate the shared SwiftData coordinator. |
+| `write-persist-page` | The UI is slow during a sync. The interval is the persist of one page. A `read-fetch-sections` interval that overlaps it shows that the persist delays the article-list read on the shared SwiftData coordinator. The page fetch is pull-based, so a `net-fetch-page` interval separates each pair of persists. |
 | `account-reset` | A switch to another Feedbin account is slow. The interval is the delete of the previous account's feeds and entries on the `DataWriter` actor. |
 
 ### Rollback
