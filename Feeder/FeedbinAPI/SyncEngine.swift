@@ -293,10 +293,6 @@ final class SyncEngine {
   private var accountSave: Task<Bool, any Error>?
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
-  /// Read-only companion to `writer`. Vended to the article list and sidebar,
-  /// so their reads run on a separate actor and never queue behind a write.
-  /// The caller owns it; the engine only holds the reference.
-  private(set) var reader: DataReader?
   private var periodicSyncTask: Task<Void, Never>?
   /// The running `sync()` body. An account switch cancels it and waits for it.
   private var syncRun: Task<Void, Never>?
@@ -388,12 +384,6 @@ final class SyncEngine {
   /// stays synchronous.
   func attachWriter(_ writer: DataWriter) {
     self.writer = writer
-  }
-
-  /// Inject the pre-built read-only `DataReader`. Same ownership contract as
-  /// `attachWriter`, and the caller must build it on the same container.
-  func attachReader(_ reader: DataReader) {
-    self.reader = reader
   }
 
   /// Set the work that an account switch pauses before it deletes the previous
@@ -570,6 +560,16 @@ final class SyncEngine {
 
   // MARK: - Read queue
 
+  /// The result of `markAllAsRead(scope:)`.
+  enum MarkAllReadOutcome: Equatable {
+    /// The store holds the entries as read.
+    case written
+    /// The scope had no unread entry, or the account changed during the call.
+    case nothingToMark
+    /// The fetch or the store write failed. IDs that were queued stay queued.
+    case failed
+  }
+
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
   /// `DataWriter.updateReadState` keeps a queued ID read, and
   /// `applyQueuedReads()` writes a queued ID to the store as read at launch.
@@ -583,18 +583,19 @@ final class SyncEngine {
   }
 
   /// Mark every unread entry in `scope` as read, and queue the IDs for the
-  /// push. Returns after the store write ends, so a caller can refetch.
-  func markAllAsRead(scope: EntryScope) async {
-    guard let writer else { return }
+  /// push. Returns after the store write ends. Only `.written` means that the
+  /// store changed.
+  func markAllAsRead(scope: EntryScope) async -> MarkAllReadOutcome {
+    guard let writer else { return .failed }
     let generation = accountGeneration
     let ids: Set<Int>
     do {
       ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate)
     } catch {
       logger.error("Mark all read: failed to fetch \(scope.logDescription): \(error.localizedDescription)")
-      return
+      return .failed
     }
-    guard !ids.isEmpty, generation == accountGeneration else { return }
+    guard !ids.isEmpty, generation == accountGeneration else { return .nothingToMark }
     // Queue before the store write. `fetchEntriesSince` reads the queue and
     // enqueues `updateReadState` on the writer in one main-actor step, and the
     // writer runs its jobs in order. So a sync either keeps these rows read or
@@ -603,9 +604,11 @@ final class SyncEngine {
     do {
       try await writer.markEntriesRead(feedbinEntryIDs: ids)
       logger.info("Marked \(ids.count, privacy: .public) entries as read in \(scope.logDescription)")
+      return .written
     } catch {
       // The IDs stay queued: the next sync or launch writes them as read.
       logger.error("Mark all read: failed to write \(scope.logDescription): \(error.localizedDescription)")
+      return .failed
     }
   }
 

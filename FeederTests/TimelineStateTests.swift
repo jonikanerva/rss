@@ -1,0 +1,439 @@
+import Foundation
+import Testing
+
+@testable import Feeder
+
+/// `TimelineState` owns the refresh scheduling and the read intents of one
+/// window. The tests use the real writer, reader, and `SyncEngine` on an
+/// in-memory or failing store, with isolated defaults. They call the owner
+/// directly, so no test sleeps.
+@MainActor
+@Suite("TimelineState")
+struct TimelineStateTests {
+  private let isolatedDefaults: IsolatedDefaults
+  private var defaults: UserDefaults { isolatedDefaults.defaults }
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("TimelineState")
+  }
+
+  // MARK: - Builders
+
+  private func makeEngine(writer: DataWriter) -> SyncEngine {
+    let engine = SyncEngine(defaults: defaults, credentialStore: MemoryFeedbinCredentialStore(), account: .unused)
+    engine.attachWriter(writer)
+    return engine
+  }
+
+  private func makeTimeline(store: StoreActors, engine: SyncEngine) -> TimelineState {
+    TimelineState(store: store, readQueue: engine)
+  }
+
+  /// Unread entries in one feed, published now, so the engine's cutoff keeps
+  /// them.
+  private func seedUnread(_ ids: [Int], in writer: DataWriter) async throws {
+    try await writer.syncFeeds([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    let published = formatDateForFeedbin(.now)
+    let entries = try ids.map { try FeedbinFixtures.entry(id: $0, feedId: 100, published: published) }
+    _ = try await writer.persistEntries(entries, unreadIDs: Set(ids))
+  }
+
+  private func inMemory() async throws -> (StoreActors, SyncEngine) {
+    let (writer, reader) = try await DataWriterTestSupport.makeWriterAndReader()
+    return (StoreActors(writer: writer, reader: reader), makeEngine(writer: writer))
+  }
+
+  private var queuedReadIDs: Set<Int> {
+    Set(defaults.array(forKey: pendingReadIDsUserDefaultsKey) as? [Int] ?? [])
+  }
+
+  private func isRead(_ id: Int, _ store: StoreActors) async throws -> Bool? {
+    try await store.writer.fetchEntrySnapshot(feedbinEntryID: id)?.isRead
+  }
+
+  /// Put `id` in the overlay through the selection path.
+  private func select(_ id: Int, _ timeline: TimelineState) async {
+    await timeline.entrySelected(feedbinEntryID: id, isRead: false)?.value
+  }
+
+  // MARK: - Commit notification
+
+  @Test
+  func sidebarFlushRefreshesTheSnapshotOnlyAfterTheCommit() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    let flush = try #require(timeline.flushPendingReads(.sidebarChange))
+    #expect(queuedReadIDs == [1])
+    #expect(timeline.snapshotVersion == 0)
+    await flush.value
+
+    #expect(try await isRead(1, store) == true)
+    #expect(timeline.snapshotVersion == 1)
+    #expect(timeline.listVersion == 0)
+  }
+
+  @Test
+  func filterFlushRefreshesTheListAfterTheCommit() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    await timeline.flushPendingReads(.filterChange)?.value
+
+    #expect(timeline.listVersion == 1)
+    #expect(timeline.snapshotVersion == 1)
+  }
+
+  @Test
+  func emptyOverlayFlushesNothing() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    #expect(timeline.flushPendingReads(.filterChange) == nil)
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  @Test
+  func writtenMarkAllRefreshesTheListOnce() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1, 2], clearsArticleSelection: true)
+
+    let task = timeline.markAllAsRead(plan)
+    #expect(timeline.pendingReadIDs == [1, 2])
+    await task.value
+
+    #expect(timeline.listVersion == 1)
+    #expect(queuedReadIDs == [1, 2])
+    #expect(try await isRead(2, store) == true)
+  }
+
+  @Test
+  func markAllWithNothingUnreadRefreshesTheSnapshotOnly() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [], clearsArticleSelection: false)
+
+    await timeline.markAllAsRead(plan).value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 1)
+  }
+
+  // MARK: - No success signal on failure
+
+  @Test
+  func failedFlushSendsNoSignalAndKeepsTheOverlayAndTheQueue() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1], in: writer)
+    let store = StoreActors(writer: writer, reader: reader)
+    let timeline = makeTimeline(store: store, engine: makeEngine(writer: writer))
+    await select(1, timeline)
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+
+    await timeline.flushPendingReads(.filterChange)?.value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 0)
+    #expect(timeline.pendingReadIDs == [1])
+    #expect(queuedReadIDs == [1])
+    #expect(try await isRead(1, store) == false)
+  }
+
+  @Test
+  func failedMarkAllSendsNoSignal() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1, 2], in: writer)
+    let timeline = makeTimeline(
+      store: StoreActors(writer: writer, reader: reader), engine: makeEngine(writer: writer))
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1, 2], clearsArticleSelection: true)
+
+    await timeline.markAllAsRead(plan).value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 0)
+  }
+
+  /// A classification batch whose writes all fail reports progress with a
+  /// classified count of 0. It asks for no refresh.
+  @Test
+  func classificationTicksWithoutNewResultsSendNoRefresh() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    timeline.classificationProgressed(classifiedCount: 0)
+    timeline.classificationProgressed(classifiedCount: 0)
+    timeline.classificationFinished(classifiedCount: 0)
+
+    #expect(timeline.pendingClassificationRefresh == false)
+  }
+
+  @Test
+  func quietSyncLeavesTheListUntouched() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    timeline.syncFinished(changedCount: 0)
+
+    #expect(timeline.listVersion == 0)
+  }
+
+  // MARK: - Scheduling
+
+  @Test
+  func syncPageBurstCoalescesToOneRefresh() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    for _ in 0..<5 { timeline.syncPagePersisted() }
+    timeline.drainSyncRefresh()
+    timeline.drainSyncRefresh()
+
+    #expect(timeline.listVersion == 1)
+    #expect(timeline.pendingSyncRefresh == false)
+  }
+
+  @Test
+  func classificationResultsRequestOneRefreshPerGrowth() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    timeline.classificationProgressed(classifiedCount: 2)
+    timeline.drainClassificationRefresh()
+    timeline.classificationProgressed(classifiedCount: 2)
+    #expect(timeline.pendingClassificationRefresh == false)
+    timeline.classificationProgressed(classifiedCount: 3)
+    #expect(timeline.pendingClassificationRefresh == true)
+    timeline.drainClassificationRefresh()
+
+    #expect(timeline.listVersion == 2)
+  }
+
+  /// The next batch counts from 0 again.
+  @Test
+  func finishedBatchResetsTheClassificationBaseline() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+    timeline.classificationProgressed(classifiedCount: 5)
+    timeline.classificationFinished(classifiedCount: 5)
+    timeline.drainClassificationRefresh()
+
+    timeline.classificationProgressed(classifiedCount: 1)
+
+    #expect(timeline.pendingClassificationRefresh == true)
+  }
+
+  /// A new batch can replace a running batch with no finish signal between
+  /// them. Its smaller count starts a new baseline.
+  @Test
+  func replacingBatchRequestsARefreshForItsFirstResult() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+    timeline.classificationProgressed(classifiedCount: 5)
+    timeline.drainClassificationRefresh()
+
+    timeline.classificationProgressed(classifiedCount: 0)
+    #expect(timeline.pendingClassificationRefresh == false)
+    timeline.classificationProgressed(classifiedCount: 1)
+
+    #expect(timeline.pendingClassificationRefresh == true)
+  }
+
+  @Test
+  func backgroundFlushOwesOneRefreshThatResumeConsumes() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    await timeline.flushPendingReads(.sceneInactive)?.value
+    #expect(timeline.listVersion == 0)
+    timeline.sceneBecameActive()
+    timeline.sceneBecameActive()
+
+    #expect(timeline.listVersion == 1)
+  }
+
+  /// The window became active before the background write committed, so the
+  /// commit refreshes at once and owes nothing.
+  @Test
+  func backgroundFlushThatCommitsAfterResumeRefreshesAtOnce() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    let flush = timeline.flushPendingReads(.sceneInactive)
+    timeline.sceneBecameActive()
+    await flush?.value
+    timeline.sceneBecameActive()
+
+    #expect(timeline.listVersion == 1)
+  }
+
+  // MARK: - List and sidebar consistency
+
+  /// A list refresh also refetches the sidebar counts, so the list and the
+  /// sidebar never show different read states for long. A snapshot-only
+  /// refresh changes the key too.
+  @Test
+  func everyRefreshChangesTheSnapshotKey() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+    let key = { timeline.unreadSnapshotKey(folderCount: 1, categoryCount: 2, cutoffDate: .distantPast) }
+    var keys = [key()]
+
+    timeline.categoryFoldersChanged()
+    keys.append(key())
+    timeline.syncFinished(changedCount: 1)
+    keys.append(key())
+    timeline.accountDataDeleted()
+    keys.append(key())
+    let nothingToMark = MarkAllReadPlan(markTarget: .all, optimisticIDs: [], clearsArticleSelection: false)
+    await timeline.markAllAsRead(nothingToMark).value
+    #expect(timeline.snapshotVersion == 1)
+    keys.append(key())
+
+    #expect(Set(keys).count == keys.count)
+  }
+
+  /// The overlay releases an ID only when both the snapshot and the rendered
+  /// rows show it read, in either order.
+  @Test(arguments: [true, false])
+  func overlayReleasesAnIDOnlyWhenSnapshotAndRowsAgree(snapshotFirst: Bool) async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await timeline.refreshUnreadSnapshot(cutoffDate: .distantPast)
+    timeline.visibleEntriesChanged(renderedUnreadIDs: [1, 2])
+    await select(1, timeline)
+    await timeline.flushPendingReads(.sidebarChange)?.value
+
+    if snapshotFirst {
+      await timeline.refreshUnreadSnapshot(cutoffDate: .distantPast)
+      #expect(timeline.pendingReadIDs == [1])
+      timeline.visibleEntriesChanged(renderedUnreadIDs: [2])
+    } else {
+      timeline.visibleEntriesChanged(renderedUnreadIDs: [2])
+      #expect(timeline.pendingReadIDs == [1])
+      await timeline.refreshUnreadSnapshot(cutoffDate: .distantPast)
+    }
+
+    #expect(timeline.pendingReadIDs.isEmpty)
+    #expect(timeline.unreadSnapshot.unreadFeedbinEntryIDs == [2])
+  }
+
+  // MARK: - Stale results
+
+  @Test
+  func accountSwitchDropsALateSelectionInsertion() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    let insertion = timeline.entrySelected(feedbinEntryID: 1, isRead: false)
+    timeline.resetForAccountSwitch()
+    await insertion?.value
+
+    #expect(timeline.pendingReadIDs.isEmpty)
+  }
+
+  @Test
+  func accountSwitchDropsTheSignalOfAnEarlierFlush() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    let flush = timeline.flushPendingReads(.filterChange)
+    timeline.resetForAccountSwitch()
+    await flush?.value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 0)
+    #expect(timeline.pendingReadIDs.isEmpty)
+  }
+
+  @Test
+  func accountSwitchDropsTheSignalOfAnEarlierMarkAll() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1], clearsArticleSelection: true)
+
+    let task = timeline.markAllAsRead(plan)
+    timeline.resetForAccountSwitch()
+    await task.value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.pendingReadIDs.isEmpty)
+  }
+
+  @Test
+  func deletedAccountDataReloadsTheList() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    timeline.resetForAccountSwitch()
+    #expect(timeline.accountDataVersion == 0)
+    timeline.accountDataDeleted()
+
+    #expect(timeline.accountDataVersion == 1)
+  }
+
+  // MARK: - Integration contracts
+
+  /// A selection does not write the store: the overlay holds the read until a
+  /// flush.
+  @Test
+  func selectionWritesNothingToTheStore() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    await select(1, timeline)
+
+    #expect(timeline.pendingReadIDs == [1])
+    #expect(try await isRead(1, store) == false)
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// One main window per owner: a new window starts empty, and the quit step
+  /// queues the reads of every window.
+  @Test
+  func eachWindowRecordsItsOwnReadsForTheQuitStep() async throws {
+    let (store, engine) = try await inMemory()
+    let first = makeTimeline(store: store, engine: engine)
+    await select(1, first)
+    let second = makeTimeline(store: store, engine: engine)
+    #expect(second.pendingReadIDs.isEmpty)
+    await select(2, second)
+
+    engine.queueRecordedPendingReads()
+
+    #expect(queuedReadIDs == [1, 2])
+  }
+
+  /// The reads of a closed window still reach the quit queue.
+  @Test
+  func closedWindowReadsStillReachTheQuitQueue() async throws {
+    let (store, engine) = try await inMemory()
+    var window: TimelineState? = makeTimeline(store: store, engine: engine)
+    if let window { await select(7, window) }
+    window = nil
+
+    engine.queueRecordedPendingReads()
+
+    #expect(window == nil)
+    #expect(queuedReadIDs == [7])
+  }
+}

@@ -39,6 +39,33 @@ nonisolated func refreshRequiresFirstPageFallback(
   return result.sections.isEmpty
 }
 
+// MARK: - Interleaved window fetches
+
+/// What a finished `atOrAbove` refresh does with its result.
+nonisolated enum WindowRefreshDecision: Equatable, Sendable {
+  case apply
+  /// Run one `firstPage` fetch instead (`refreshRequiresFirstPageFallback`).
+  case firstPage
+  /// An append or a reload changed the window during the fetch. Fetch again
+  /// from the current cursor; an older snapshot would drop the new tail.
+  case retry
+}
+
+nonisolated func windowRefreshDecision(
+  fetchStart: EntryListCursor, current: EntryListCursor?,
+  window: EntryListWindow, result: EntryListFetchResult
+) -> WindowRefreshDecision {
+  guard current == fetchStart else { return .retry }
+  return refreshRequiresFirstPageFallback(window: window, result: result) ? .firstPage : .apply
+}
+
+/// An append page applies only while the window still ends at the cursor that
+/// the page was fetched from. A refresh or a reload that landed meanwhile
+/// would otherwise get a stale tail.
+nonisolated func appendPageApplies(fetchStart: EntryListCursor, current: EntryListCursor?) -> Bool {
+  current == fetchStart
+}
+
 // MARK: - Window append (section merge)
 
 extension EntryListFetchResult {

@@ -166,7 +166,7 @@ struct FeederApp: App {
 
   enum BootstrapPhase {
     case pending
-    case ready
+    case ready(StoreActors)
     case failed(String)
   }
 
@@ -176,8 +176,8 @@ struct FeederApp: App {
     case .pending:
       bootstrapPendingView
         .task { await runBootstrap(container: container) }
-    case .ready:
-      ContentView()
+    case .ready(let store):
+      ContentView(store: store, readQueue: syncEngine)
     case .failed(let message):
       bootstrapFailedView(message: message)
     }
@@ -233,8 +233,7 @@ struct FeederApp: App {
       // bootstrapped. It is a second context on that same container, so there
       // is no separate store to migrate.
       let reader = await DataReader.makeDetached(modelContainer: container)
-      syncEngine.attachReader(reader)
-      bootstrapPhase = .ready
+      bootstrapPhase = .ready(StoreActors(writer: writer, reader: reader))
     } catch {
       logger.error("Bootstrap failed: \(error.localizedDescription, privacy: .private)")
       bootstrapPhase = .failed(error.localizedDescription)

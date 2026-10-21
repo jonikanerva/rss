@@ -122,19 +122,6 @@ struct WindowRefreshGateTests {
 
   // MARK: - Key composition pins
 
-  /// `snapshotRefreshVersion` must be an `unreadSnapshotKey` component — the
-  /// flush's snapshot-only channel re-keys the snapshot task through it.
-  @Test
-  func unreadSnapshotKeyIncludesSnapshotRefreshVersion() {
-    let before = ContentView.composeUnreadSnapshotKey(
-      entryRefreshVersion: 1, snapshotRefreshVersion: 0,
-      folderCount: 2, categoryCount: 5, cutoffSeconds: 1000)
-    let after = ContentView.composeUnreadSnapshotKey(
-      entryRefreshVersion: 1, snapshotRefreshVersion: 1,
-      folderCount: 2, categoryCount: 5, cutoffSeconds: 1000)
-    #expect(before != after)
-  }
-
   /// `resolvedStructuralKey` must be a `refreshTaskKey` component — the
   /// resolve-flip re-fire depends on it; the other components alone must
   /// also still re-key (structural cancel, bump).

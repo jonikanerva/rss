@@ -328,4 +328,81 @@ struct DataReaderPagingTests {
     #expect(rowIDs(result) == [4001, 4003, pinnedID, 4005, 4007])
     #expect(!result.hasMore)
   }
+
+  // MARK: - Interleaved refresh and append
+
+  /// The window that a view holds after a first page and one append.
+  @MainActor
+  private func appended(_ firstPage: EntryListFetchResult, _ page: EntryListFetchResult) -> EntryListFetchResult {
+    firstPage.appending(page)
+  }
+
+  /// An append lands while a refresh fetch runs. The refresh result is older
+  /// than the window, so it is retried from the new cursor. The retry keeps
+  /// the appended tail, shows a newer row on top, and holds no duplicate.
+  @Test
+  func refreshThatAnAppendOvertookIsRetriedAndKeepsTheTail() async throws {
+    let specs = (1...6).map { RowSpec(id: 1000 + $0, age: $0 * 60) }
+    let (writer, reader) = try await makeSeededPair(specs)
+    let firstPage = try await fetch(reader, window: .firstPage(limit: 3))
+    let refreshStart = try cursor(firstPage)
+    let staleRefresh = try await fetch(reader, window: .atOrAbove(refreshStart))
+    let window = await appended(firstPage, try await fetch(reader, window: .after(refreshStart, limit: 3)))
+
+    #expect(
+      windowRefreshDecision(
+        fetchStart: refreshStart, current: entryListCursor(of: window.sections),
+        window: .atOrAbove(refreshStart), result: staleRefresh) == .retry)
+
+    let newer = try FeedbinFixtures.entry(id: 2001, published: Self.publishedString(secondsBeforeBase: 0))
+    _ = try await writer.persistEntries([newer], unreadIDs: [2001])
+    try await writer.applyClassification(
+      entryID: 2001, result: ClassificationResult(entryID: 2001, categoryLabel: "tech"))
+    let retryStart = try cursor(window)
+    let retried = try await fetch(reader, window: .atOrAbove(retryStart))
+
+    #expect(
+      windowRefreshDecision(
+        fetchStart: retryStart, current: entryListCursor(of: window.sections),
+        window: .atOrAbove(retryStart), result: retried) == .apply)
+    #expect(rowIDs(retried) == [2001, 1001, 1002, 1003, 1004, 1005, 1006])
+    #expect(Set(rowIDs(retried)).count == rowIDs(retried).count)
+  }
+
+  /// A refresh lands while an append fetch runs and moves the window end, here
+  /// because the last row was read in the unread filter. The append page is
+  /// discarded instead of glued onto the new window.
+  @Test
+  func appendThatARefreshOvertookIsDiscarded() async throws {
+    let specs = (1...6).map { RowSpec(id: 1000 + $0, age: $0 * 60) }
+    let (writer, reader) = try await makeSeededPair(specs)
+    let firstPage = try await fetch(reader, window: .firstPage(limit: 3))
+    let appendStart = try cursor(firstPage)
+    let page = try await fetch(reader, window: .after(appendStart, limit: 3))
+
+    try await writer.markEntriesRead(feedbinEntryIDs: [1003])
+    let refreshed = try await fetch(reader, window: .atOrAbove(appendStart))
+
+    #expect(rowIDs(refreshed) == [1001, 1002])
+    #expect(!appendPageApplies(fetchStart: appendStart, current: entryListCursor(of: refreshed.sections)))
+    #expect(appendPageApplies(fetchStart: appendStart, current: entryListCursor(of: firstPage.sections)))
+    #expect(rowIDs(page) == [1004, 1005, 1006])
+  }
+
+  /// Every loaded row left the filter during the refresh: the decision is one
+  /// first-page fetch, not an empty window.
+  @Test
+  func refreshWithNoRowLeftFallsBackToTheFirstPage() async throws {
+    let specs = (1...4).map { RowSpec(id: 1000 + $0, age: $0 * 60) }
+    let (writer, reader) = try await makeSeededPair(specs)
+    let firstPage = try await fetch(reader, window: .firstPage(limit: 2))
+    let start = try cursor(firstPage)
+
+    try await writer.markEntriesRead(feedbinEntryIDs: [1001, 1002])
+    let refreshed = try await fetch(reader, window: .atOrAbove(start))
+
+    #expect(
+      windowRefreshDecision(
+        fetchStart: start, current: start, window: .atOrAbove(start), result: refreshed) == .firstPage)
+  }
 }
