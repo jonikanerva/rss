@@ -18,6 +18,8 @@ struct AccountSwitchResetTests {
     isolatedDefaults = try IsolatedDefaults("AccountSwitchReset")
   }
 
+  private struct DeleteFailure: Error {}
+
   private struct Fixture {
     let engine: SyncEngine
     let writer: DataWriter
@@ -33,14 +35,21 @@ struct AccountSwitchResetTests {
 
   /// The engine is signed in to `previous` and holds its feed, two entries,
   /// a coverage cursor, and a `lastSyncDate`.
-  private func makeFixture(account: FeedbinAccountPhase = .signedIn(username: previous.username)) async throws
-    -> Fixture
-  {
+  private func makeFixture(
+    account: FeedbinAccountPhase = .signedIn(username: previous.username), deleteFails: Bool = false
+  ) async throws -> Fixture {
     let previousClient = FakeFeedbinClient()
     let nextClient = FakeFeedbinClient()
     let factory = RecordingClientFactory { $0.username == Self.previous.username ? previousClient : nextClient }
     let store = MemoryFeedbinCredentialStore(credentials: Self.previous)
-    let engine = SyncEngine(defaults: defaults, credentialStore: store, account: account, makeClient: factory.make)
+    let events = EventLog()
+    let engine = SyncEngine(
+      defaults: defaults, credentialStore: store, account: account, makeClient: factory.make,
+      deletePreviousAccountData: { writer in
+        await MainActor.run { events.events.append("delete") }
+        if deleteFails { throw DeleteFailure() }
+        _ = try await writer.deleteAccountData()
+      })
     let writer = try await DataWriterTestSupport.makeWriter()
     _ = try await writer.bootstrap()
     try await writer.syncFeeds([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
@@ -51,7 +60,7 @@ struct AccountSwitchResetTests {
     defaults.set(Date(), forKey: entryCoverageCursorUserDefaultsKey)
     engine.attachWriter(writer)
     engine.attachClient(previousClient)
-    let events = EventLog()
+    engine.registerAccountSwitchReset(forWindow: UUID()) { events.events.append("window") }
     engine.attachAccountSwitchWork(
       pause: { events.events.append("pause") },
       resume: { _ in events.events.append("resume") })
@@ -84,7 +93,7 @@ struct AccountSwitchResetTests {
 
     #expect(saved)
     #expect(engine.account == .signedIn(username: Self.next.username))
-    #expect(fixture.events.events == ["pause", "resume"])
+    #expect(fixture.events.events == ["pause", "window", "delete", "resume"])
     #expect(try await fixture.writer.entryCount() == 0)
     #expect(try await fixture.writer.feedCount() == 0)
     let taxonomyAfter = try await fixture.writer.taxonomyCount()
@@ -101,6 +110,29 @@ struct AccountSwitchResetTests {
     #expect(await fixture.nextClient.deleteUnreadEntriesCallLog.isEmpty)
     #expect(await fixture.previousClient.deleteUnreadEntriesCallLog.allSatisfy { !$0.contains(1) })
     #expect(await fixture.nextClient.fetchEntryPagesSinceLog.first == engine.queryCutoffDate)
+  }
+
+  @Test
+  func failedDeleteKeepsThePreviousAccountAndItsData() async throws {
+    let fixture = try await makeFixture(deleteFails: true)
+    let engine = fixture.engine
+    let cursor = engine.entryCoverageCursor
+    let lastSyncDate = engine.lastSyncDate
+    engine.queueReadIDs([1])
+
+    await #expect(throws: DeleteFailure.self) {
+      try await engine.saveAccount(username: Self.next.username, password: Self.next.password)
+    }
+
+    #expect(fixture.events.events == ["pause", "window", "delete", "resume"])
+    #expect(engine.account == .signedIn(username: Self.previous.username))
+    #expect(try await engine.credentialStore.load() == Self.previous)
+    #expect(try await fixture.writer.entryCount() == 2)
+    #expect(engine.entryCoverageCursor == cursor)
+    #expect(engine.lastSyncDate == lastSyncDate)
+    await engine.pushPendingReads()
+    #expect(await fixture.previousClient.deleteUnreadEntriesCallLog == [[1]])
+    #expect(await fixture.nextClient.deleteUnreadEntriesCallLog.isEmpty)
   }
 
   @Test

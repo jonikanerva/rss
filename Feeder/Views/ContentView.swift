@@ -56,9 +56,9 @@ struct ContentView: View {
   @State
   private var selectedEntryID: PersistentIdentifier?
   /// Memoized live model for the selected row — the one full `Entry`
-  /// materialization per selection. Write it in exactly one place, the
-  /// `.onChange(of: selectedEntryID)` handler; every other consumer only
-  /// reads it.
+  /// materialization per selection. Write it only in the
+  /// `.onChange(of: selectedEntryID)` handler and in `AccountSwitchWindowReset`;
+  /// every other consumer only reads it.
   @State
   private var selectedEntry: Entry?
   @State
@@ -322,6 +322,10 @@ struct ContentView: View {
       )
     )
     .modifier(PendingReadQuitRecord(pendingReadIDs: pendingReadIDs))
+    .modifier(
+      AccountSwitchWindowReset(
+        selectedEntryID: $selectedEntryID, selectedEntry: $selectedEntry, pendingReadIDs: $pendingReadIDs)
+    )
     // Both edges fire when the work finishes, and only when that batch
     // actually changed rows. A quiet tick must leave the list untouched.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in
