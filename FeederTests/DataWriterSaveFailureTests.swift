@@ -114,6 +114,30 @@ struct DataWriterSaveFailureTests {
     #expect(snapshot.unreadFeedbinEntryIDs == [1001, 1002])
   }
 
+  /// A failed update of a model that is not an `Entry` does not reach a later
+  /// save either. A separate context reads what the store holds.
+  @Test
+  func failedCategoryUpdateDoesNotLeakIntoTheNextSave() async throws {
+    defer { removeTemporaryFolder() }
+    let (writer, _) = try await makeWriterAndReader()
+    try await writer.addCategory(label: "apple", displayName: "Apple", description: "Apple Inc.", sortOrder: 0)
+    try await seedEntries(writer, ids: [1001])
+
+    try installFailingTrigger("UPDATE", on: "ZCATEGORY")
+    await #expect(throws: (any Error).self) {
+      try await writer.updateCategoryFields(label: "apple", displayName: "Failed", description: "Failed")
+    }
+    #expect(await writer.testHasPendingChanges == false)
+    try dropFailingTrigger()
+
+    try await writer.markEntriesRead(feedbinEntryIDs: [1001])
+
+    let storeContext = ModelContext(writer.modelContainer)
+    let stored = try storeContext.fetch(FetchDescriptor<Feeder.Category>()).first
+    #expect(stored?.displayName == "Apple")
+    #expect(stored?.categoryDescription == "Apple Inc.")
+  }
+
   /// The reassignment updates entries and deletes the source category in one
   /// save, so a failed entry update keeps the source category too.
   @Test
