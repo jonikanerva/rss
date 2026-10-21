@@ -150,6 +150,33 @@ struct ClassificationCancellationTests {
     #expect(snapshots.last?.isClassifying == false)
   }
 
+  /// The engine drops a report that arrives after its task was replaced. A
+  /// replacement during the first progress report hides that report, so the
+  /// committed-result signal must carry the result.
+  @Test
+  func droppedProgressReportStillSignalsTheCommittedResult() async throws {
+    let writer = try await fixture()
+    let provider = FakeClassificationProvider()
+    await provider.configureDelay(.milliseconds(300))
+    let engine = ReplacingProgressReceiver()
+    let signals = CommitSignalCounter()
+    let runner = ClassificationRunner(
+      writer: writer, providerFactory: { provider }, reportProgress: { await engine.receive($0) },
+      reportCommittedResults: { await signals.increment() })
+    let batch = Task { await runner.runOneBatch(cutoffDate: .distantPast) }
+    await engine.attach(batch)
+    _ = await batch.value
+
+    var classified = 0
+    for id in 1001...1003 where try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true {
+      classified += 1
+    }
+    let carried = await engine.accepted.filter(\.isClassifying).map(\.classifiedCount).max() ?? 0
+    #expect(classified >= 1)
+    #expect(carried == 0)
+    #expect(await signals.count == 1)
+  }
+
   @Test
   func cancelledBatchWithNoCommitSendsNoSignal() async throws {
     let (signals, _, writer) = try await cancelBatch(afterCalls: 1)

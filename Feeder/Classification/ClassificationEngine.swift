@@ -485,7 +485,8 @@ nonisolated struct ClassificationRunner: Sendable {
         // Report at most once per 200 ms: every report hops to MainActor.
         if now - lastProgress >= .milliseconds(200) {
           await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
-          reportedCompleted = completed
+          // The engine drops the report of a cancelled task.
+          if !Task.isCancelled { reportedCompleted = completed }
           lastProgress = now
         }
       }
@@ -503,6 +504,9 @@ nonisolated struct ClassificationRunner: Sendable {
       return await abort(skippedFailure, completed: completed, reportedCompleted: reportedCompleted)
     }
     await reportProgress(progressSnapshot(completed: completed, remaining: remaining, provider: provider.name))
+    if Task.isCancelled {
+      return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
+    }
     await reportProgress(.outcome(nil))
     return .completed(completed)
   }
@@ -535,6 +539,9 @@ nonisolated struct ClassificationRunner: Sendable {
         ProgressSnapshot(
           isClassifying: true, progress: "Categorized \(completed) articles",
           classifiedCount: completed, totalToClassify: completed))
+      if Task.isCancelled {
+        return await cancelledBatch(completed: completed, reportedCompleted: reportedCompleted)
+      }
     }
     await reportProgress(.outcome(failure?.batchAbort ?? .providerUnavailable))
     return .aborted(failure?.retryDisposition ?? .poll, completed: completed)
