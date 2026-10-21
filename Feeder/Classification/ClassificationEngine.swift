@@ -68,6 +68,8 @@ final class ClassificationEngine {
   private var classificationTask: Task<ClassificationBatchOutcome, Never>?
   private var classificationTaskID: UUID?
   private var isContinuousModeActive = false
+  /// While true, no entry point starts a task. An account switch sets it.
+  private var isPausedForAccountSwitch = false
   @ObservationIgnored
   private var continuousWriter: DataWriter?
   /// Every reset must also replace the task: the task-ID guard in the reporter
@@ -86,6 +88,7 @@ final class ClassificationEngine {
   }
 
   func startContinuousClassification(writer: DataWriter) {
+    guard !isPausedForAccountSwitch else { return }
     isContinuousModeActive = true
     continuousWriter = writer
     _ = replaceTask(writer: writer, operation: .continuous(nil))
@@ -97,6 +100,22 @@ final class ClassificationEngine {
     isContinuousModeActive = false
     continuousWriter = nil
     apply(.terminal, provider: lastAbortProvider)
+  }
+
+  /// Stop every classification task and wait until it ends, so no result of
+  /// the previous account reaches the store. No task starts until
+  /// `resumeAfterAccountSwitch(writer:)`.
+  func pauseForAccountSwitch() async {
+    isPausedForAccountSwitch = true
+    let task = classificationTask
+    stopContinuousClassification()
+    _ = await task?.value
+  }
+
+  /// Restart continuous classification for the new account with no strikes.
+  func resumeAfterAccountSwitch(writer: DataWriter) {
+    isPausedForAccountSwitch = false
+    configurationChanged(writer: writer)
   }
 
   /// Ends the loop wait at once after a self-healing Apple Foundation Models
@@ -129,6 +148,7 @@ final class ClassificationEngine {
   }
 
   private func runOneShot(writer: DataWriter, reset: Bool) async {
+    guard !isPausedForAccountSwitch else { return }
     if reset { entryFailures = TransientEntryFailures() }
     let (id, task) = replaceTask(writer: writer, operation: .once(reset: reset))
     let outcome = await withTaskCancellationHandler {

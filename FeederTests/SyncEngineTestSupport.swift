@@ -195,4 +195,19 @@ extension DataWriter {
   func entryCount() throws -> Int {
     try modelContext.fetchCount(FetchDescriptor<Entry>())
   }
+
+  func entryModelIDs() throws -> Set<PersistentIdentifier> {
+    Set(try modelContext.fetch(FetchDescriptor<Entry>()).map(\.persistentModelID))
+  }
+
+  func feedCount() throws -> Int {
+    try modelContext.fetchCount(FetchDescriptor<Feed>())
+  }
+
+  func taxonomyCount() throws -> (folders: Int, categories: Int) {
+    (
+      try modelContext.fetchCount(FetchDescriptor<Folder>()),
+      try modelContext.fetchCount(FetchDescriptor<Feeder.Category>())
+    )
+  }
 }

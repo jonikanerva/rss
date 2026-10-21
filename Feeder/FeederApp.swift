@@ -220,6 +220,10 @@ struct FeederApp: App {
         "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
       syncEngine.attachWriter(writer)
+      let classificationEngine = classificationEngine
+      syncEngine.attachAccountSwitchWork(
+        pause: { await classificationEngine.pauseForAccountSwitch() },
+        resume: { classificationEngine.resumeAfterAccountSwitch(writer: $0) })
       // Keep this after `attachWriter` and before `.ready`, so that the first
       // list render and the first sidebar counts show the queued reads as read.
       await syncEngine.applyQueuedReads()

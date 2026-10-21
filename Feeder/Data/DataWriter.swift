@@ -833,6 +833,25 @@ actor DataWriter: ModelActor {
     try commit()
   }
 
+  // MARK: - Account switch
+
+  /// Delete every feed and every entry of the signed-in Feedbin account. Folders,
+  /// categories, and the seeded flag stay: they are user data. One commit, so
+  /// a failure keeps the old account's rows.
+  func deleteAccountData() throws -> AccountDataDeletion {
+    dispatchPrecondition(condition: .notOnQueue(.main))
+    let signpost = perfSignposter.beginInterval(PerformanceSignpostName.accountReset)
+    defer { perfSignposter.endInterval(PerformanceSignpostName.accountReset, signpost) }
+    let entries = try modelContext.fetch(FetchDescriptor<Entry>())
+    let feeds = try modelContext.fetch(FetchDescriptor<Feed>())
+    let entryModelIDs = Set(entries.map(\.persistentModelID))
+    for entry in entries { modelContext.delete(entry) }
+    for feed in feeds { modelContext.delete(feed) }
+    try commit()
+    Self.logger.info("Deleted \(feeds.count) feeds and \(entries.count) entries of the previous account")
+    return AccountDataDeletion(feedCount: feeds.count, entryModelIDs: entryModelIDs)
+  }
+
   // MARK: - Purge
 
   /// Delete entries whose `publishedAt` is older than `days` ago, so the store

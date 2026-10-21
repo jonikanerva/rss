@@ -56,9 +56,9 @@ struct ContentView: View {
   @State
   private var selectedEntryID: PersistentIdentifier?
   /// Memoized live model for the selected row — the one full `Entry`
-  /// materialization per selection. Write it in exactly one place, the
-  /// `.onChange(of: selectedEntryID)` handler; every other consumer only
-  /// reads it.
+  /// materialization per selection. Write it only in the
+  /// `.onChange(of: selectedEntryID)` handler and in `AccountSwitchWindowReset`;
+  /// every other consumer only reads it.
   @State
   private var selectedEntry: Entry?
   @State
@@ -229,7 +229,9 @@ struct ContentView: View {
       // The single writer for `selectedEntry`: resolve the one live model per
       // selection commit here, at the interface↔store boundary. Every other
       // consumer reads the memoized `@State`.
-      let newEntry = newID.flatMap { modelContext.model(for: $0) as? Entry }
+      // A row of an entry that an account switch deleted can stay until the
+      // list refreshes. Its model must not be read.
+      let newEntry = newID.flatMap { syncEngine.isDeletedEntry($0) ? nil : modelContext.model(for: $0) as? Entry }
       selectedEntry = newEntry
       // Defer the pending-read insertion off the selection-commit critical
       // path: an in-frame mutation cascades through the sidebar counts and
@@ -330,6 +332,11 @@ struct ContentView: View {
       )
     )
     .modifier(PendingReadQuitRecord(pendingReadIDs: pendingReadIDs))
+    .modifier(
+      AccountSwitchWindowReset(
+        selectedEntryID: $selectedEntryID, selectedEntry: $selectedEntry, pendingReadIDs: $pendingReadIDs,
+        refreshList: { bumpEntryList() })
+    )
     // Both edges fire when the work finishes, and only when that batch
     // actually changed rows. A quiet tick must leave the list untouched.
     .onChange(of: syncEngine.isSyncing) { _, isSyncing in

@@ -17,7 +17,8 @@ nonisolated let lastSyncDateUserDefaultsKey = "lastSyncDate"
 /// `EntryCoverageCursor.newestCreatedAt` of the incremental entry fetch.
 nonisolated let entryCoverageCursorUserDefaultsKey = "entryCoverageCursor"
 /// Entry IDs queued to push to Feedbin as read. Start Over
-/// (`StoreRecovery.startOver`) keeps this key.
+/// (`StoreRecovery.startOver`) keeps this key. A switch to another Feedbin
+/// account clears it.
 nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
 
 /// Maximum age for articles, in days. Nothing older is fetched or persisted,
@@ -203,6 +204,13 @@ nonisolated private struct ExtractedContentTally {
   }
 }
 
+// MARK: - Account switch window callbacks
+
+private struct AccountSwitchWindowCallbacks {
+  let beforeDelete: @MainActor () -> Void
+  let afterDelete: @MainActor () -> Void
+}
+
 // MARK: - Entry fetch result
 
 private nonisolated struct EntryFetchResult: Sendable {
@@ -240,8 +248,9 @@ final class SyncEngine {
   /// gates its refresh on this count.
   private(set) var lastSyncChangedEntryCount: Int = 0
 
-  /// Monotonic counter bumped after each persisted page, so `ContentView` can
-  /// route a deferred article-list refresh while the sync still runs. Additive
+  /// Monotonic counter bumped after each persisted page and after an account
+  /// switch deletes the previous account's rows, so `ContentView` can route a
+  /// deferred article-list refresh while the sync still runs. Additive
   /// to the terminal `lastSyncChangedEntryCount` signal, never a replacement.
   private(set) var lastPersistedPageVersion: Int = 0
 
@@ -289,6 +298,11 @@ final class SyncEngine {
   /// The caller owns it; the engine only holds the reference.
   private(set) var reader: DataReader?
   private var periodicSyncTask: Task<Void, Never>?
+  /// The running `sync()` body. An account switch cancels it and waits for it.
+  private var syncRun: Task<Void, Never>?
+  /// The running read push. An account switch waits for it and does not cancel
+  /// it: the queued reads belong to the previous account.
+  private var readPush: Task<Void, Never>?
   private var backfillTask: Task<Void, Never>?
   private var extractedContentTask: Task<Void, Never>?
   private var extractedContentTaskID: UUID?
@@ -311,6 +325,33 @@ final class SyncEngine {
   private var pendingReadsByWindow: [UUID: Set<Int>] = [:]
   @ObservationIgnored
   private var readIDsQueuedThisLaunch: Set<Int> = []
+  /// The window reads of the previous account at an account switch. The read
+  /// queue never takes these IDs. An ID leaves the set when no window records
+  /// it any more.
+  @ObservationIgnored
+  private var previousAccountWindowReadIDs: Set<Int> = []
+  /// Called before an account switch deletes the previous account's data. It
+  /// must stop the work that writes to entries and wait until that work ends.
+  @ObservationIgnored
+  private var pauseDependentWork: @MainActor () async -> Void = {}
+  /// Called after an account switch, also after a failed switch.
+  @ObservationIgnored
+  private var resumeDependentWork: @MainActor (DataWriter) -> Void = { _ in }
+  /// Each window clears its selection and its optimistic reads before an
+  /// account switch deletes the entries, and refreshes its list after the
+  /// delete commits.
+  @ObservationIgnored
+  private var accountSwitchResetsByWindow: [UUID: AccountSwitchWindowCallbacks] = [:]
+  /// The entries that an account switch deleted in this launch. A list can
+  /// still show their rows until it refreshes, and a live model of a deleted
+  /// row must not be read.
+  @ObservationIgnored
+  private var deletedEntryModelIDs: Set<PersistentIdentifier> = []
+  /// Changes at each account switch, so work that started before a switch can
+  /// drop its result.
+  @ObservationIgnored
+  private var accountGeneration = 0
+  private let deletePreviousAccountData: @Sendable (DataWriter) async throws -> AccountDataDeletion
 
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
@@ -321,13 +362,20 @@ final class SyncEngine {
     makeClient: @escaping @MainActor (FeedbinCredentials) -> any FeedbinClientProtocol = {
       FeedbinClient(username: $0.username, password: $0.password)
     },
-    now: @escaping @MainActor () -> Date = { Date() }
+    now: @escaping @MainActor () -> Date = { Date() },
+    deletePreviousAccountData: @escaping @Sendable (DataWriter) async throws -> AccountDataDeletion = SyncEngine
+      .deleteAccountData
   ) {
     self.defaults = defaults
+    self.deletePreviousAccountData = deletePreviousAccountData
     self.now = now
     self.credentialStore = credentialStore
     self.account = account
     self.makeClient = makeClient
+  }
+
+  private nonisolated static func deleteAccountData(of writer: DataWriter) async throws -> AccountDataDeletion {
+    try await writer.deleteAccountData()
   }
 
   /// Never reads the Keychain and never contacts Feedbin.
@@ -346,6 +394,35 @@ final class SyncEngine {
   /// `attachWriter`, and the caller must build it on the same container.
   func attachReader(_ reader: DataReader) {
     self.reader = reader
+  }
+
+  /// Set the work that an account switch pauses before it deletes the previous
+  /// account's data, and resumes afterwards.
+  func attachAccountSwitchWork(
+    pause: @escaping @MainActor () async -> Void, resume: @escaping @MainActor (DataWriter) -> Void
+  ) {
+    pauseDependentWork = pause
+    resumeDependentWork = resume
+  }
+
+  /// The window calls `unregisterAccountSwitchReset(forWindow:)` when it
+  /// closes. `afterDelete` runs only after the delete commits.
+  func registerAccountSwitchReset(
+    forWindow window: UUID, beforeDelete: @escaping @MainActor () -> Void,
+    afterDelete: @escaping @MainActor () -> Void
+  ) {
+    accountSwitchResetsByWindow[window] = AccountSwitchWindowCallbacks(
+      beforeDelete: beforeDelete, afterDelete: afterDelete)
+  }
+
+  /// True for an entry that an account switch deleted. Do not resolve or read
+  /// its model.
+  func isDeletedEntry(_ id: PersistentIdentifier) -> Bool {
+    deletedEntryModelIDs.contains(id)
+  }
+
+  func unregisterAccountSwitchReset(forWindow window: UUID) {
+    accountSwitchResetsByWindow[window] = nil
   }
 
   /// Bypasses the account phase: attach only an inert or fake client.
@@ -433,10 +510,15 @@ final class SyncEngine {
   }
 
   /// Must remove before the add: an update would keep the access list of the
-  /// old Keychain item.
+  /// old Keychain item. A switch to another username resets the previous
+  /// account before the Keychain changes, so a failed reset keeps the previous
+  /// account signed in.
   private func replaceAccount(with credentials: FeedbinCredentials) async throws -> Bool {
     let candidate = makeClient(credentials)
     guard try await candidate.verifyCredentials() else { return false }
+    if case .signedIn(let previous) = account, previous != credentials.username {
+      try await resetPreviousAccount()
+    }
     try await credentialStore.remove()
     do {
       try await credentialStore.add(credentials)
@@ -453,6 +535,39 @@ final class SyncEngine {
     return true
   }
 
+  /// Stop and wait for the previous account's work, delete its feeds and
+  /// entries, and clear its sync state. Folders and categories stay. The new
+  /// account then syncs the full retention window.
+  private func resetPreviousAccount() async throws {
+    guard let writer else { return }
+    await pauseDependentWork()
+    defer { resumeDependentWork(writer) }
+    syncRun?.cancel()
+    backfillTask?.cancel()
+    await syncRun?.value
+    await backfillTask?.value
+    extractedContentTask?.cancel()
+    await extractedContentTask?.value
+    await readPush?.value
+    accountGeneration &+= 1
+    for window in accountSwitchResetsByWindow.values { window.beforeDelete() }
+    let deletion = try await deletePreviousAccountData(writer)
+    deletedEntryModelIDs.formUnion(deletion.entryModelIDs)
+    // One main-actor step after the last suspension, so no caller sees a
+    // partly cleared state.
+    lastSyncDate = nil
+    entryCoverageCursor = nil
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    previousAccountWindowReadIDs = Set(pendingReadsByWindow.values.joined())
+    readIDsQueuedThisLaunch = []
+    extractedContentRetry = ExtractedContentRetrySchedule()
+    lastError = nil
+    lastSyncChangedEntryCount = 0
+    lastPersistedPageVersion &+= 1
+    for window in accountSwitchResetsByWindow.values { window.afterDelete() }
+    logger.info("Account switch: the previous account's data and sync state are cleared")
+  }
+
   // MARK: - Read queue
 
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
@@ -461,6 +576,7 @@ final class SyncEngine {
   /// Also record the IDs, so that `queueRecordedPendingReads()` does not queue
   /// them again.
   func queueReadIDs(_ ids: Set<Int>) {
+    let ids = ids.subtracting(previousAccountWindowReadIDs)
     guard !ids.isEmpty else { return }
     pendingReadIDsToSync.formUnion(ids)
     readIDsQueuedThisLaunch.formUnion(ids)
@@ -470,6 +586,7 @@ final class SyncEngine {
   /// push. Returns after the store write ends, so a caller can refetch.
   func markAllAsRead(scope: EntryScope) async {
     guard let writer else { return }
+    let generation = accountGeneration
     let ids: Set<Int>
     do {
       ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate)
@@ -477,7 +594,7 @@ final class SyncEngine {
       logger.error("Mark all read: failed to fetch \(scope.logDescription): \(error.localizedDescription)")
       return
     }
-    guard !ids.isEmpty else { return }
+    guard !ids.isEmpty, generation == accountGeneration else { return }
     // Queue before the store write. `fetchEntriesSince` reads the queue and
     // enqueues `updateReadState` on the writer in one main-actor step, and the
     // writer runs its jobs in order. So a sync either keeps these rows read or
@@ -497,6 +614,9 @@ final class SyncEngine {
   /// the quit step must also see the reads of a closed window.
   func recordPendingReads(_ ids: Set<Int>, forWindow window: UUID) {
     pendingReadsByWindow[window] = ids.isEmpty ? nil : ids
+    if !previousAccountWindowReadIDs.isEmpty {
+      previousAccountWindowReadIDs.formIntersection(pendingReadsByWindow.values.joined())
+    }
   }
 
   /// Add the pending reads of every window to the read queue, except the IDs
@@ -533,7 +653,16 @@ final class SyncEngine {
   /// `sync()`.
   func pushPendingReads() async {
     guard !isSyncing else { return }
-    await pushQueuedReads()
+    await runReadPush()
+  }
+
+  /// The push runs in its own task, so a cancelled caller does not cancel it.
+  private func runReadPush() async {
+    if let readPush { await readPush.value }
+    let push = Task { await pushQueuedReads() }
+    readPush = push
+    await push.value
+    if readPush == push { readPush = nil }
   }
 
   private func pushQueuedReads() async {
@@ -587,9 +716,20 @@ final class SyncEngine {
   /// show the access dialog.
   func sync() async {
     if account == .unreadable { await retryAccount() }
-    guard let client, let writer, !isSyncing else { return }
+    guard accountSave == nil, let client, let writer, !isSyncing else { return }
 
     isSyncing = true
+    let run = Task { await runSync(using: client, writer: writer) }
+    syncRun = run
+    await withTaskCancellationHandler {
+      await run.value
+    } onCancel: {
+      run.cancel()
+    }
+    if syncRun == run { syncRun = nil }
+  }
+
+  private func runSync(using client: any FeedbinClientProtocol, writer: DataWriter) async {
     let errorBeforeSync = lastError
     lastError = nil
     fetchedCount = 0
@@ -616,7 +756,7 @@ final class SyncEngine {
 
       // Push queued local read-state changes first, so the `unreadIDs` set
       // fetched below reflects them.
-      await pushQueuedReads()
+      await runReadPush()
 
       let since = EntryCoverageCursor.since(after: entryCoverageCursor, cutoff: queryCutoffDate)
       let fetch = try await fetchEntriesSince(since, using: client, writer: writer)
@@ -686,8 +826,9 @@ final class SyncEngine {
         newestCreatedAt = max(newestCreatedAt ?? pageNewest, pageNewest)
       }
       // Bumped per persisted page even when the page inserted nothing: the
-      // counter's contract is "a page was processed". The downstream deferred
-      // refresh channel coalesces the bumps.
+      // counter's contract is "a page was processed" or "an account switch
+      // deleted rows". The downstream deferred refresh channel coalesces the
+      // bumps.
       lastPersistedPageVersion &+= 1
       let now = ContinuousClock.now
       if now - lastProgressUpdate >= .milliseconds(200) {
@@ -776,7 +917,7 @@ final class SyncEngine {
   func refetchHistory() {
     backfillTask?.cancel()
     backfillTask = Task(priority: .utility) {
-      guard let client, let writer else { return }
+      guard accountSave == nil, let client, let writer else { return }
       guard !isSyncing else {
         logger.info("Backfill skipped: another sync in progress")
         return
@@ -806,8 +947,8 @@ final class SyncEngine {
       lastSyncChangedEntryCount = changed
 
       // The extracted-content fetch rides the same post-sync pipeline as
-      // `sync()`.
-      startExtractedContentFetch()
+      // `sync()`. A cancelled backfill starts none.
+      if !Task.isCancelled { startExtractedContentFetch() }
     }
   }
 
