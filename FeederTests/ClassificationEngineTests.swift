@@ -10,7 +10,7 @@ import Testing
 // The real providers are bypassed: the engine is built with a provider factory
 // override, so every batch resolves through a fake and no test reads the
 // Keychain. Each task start still reads the provider kind from
-// `UserDefaults.standard`, for the banner's provider name.
+// `AppDefaults.current`, for the banner's provider name.
 
 @MainActor
 @Suite("ClassificationEngine")

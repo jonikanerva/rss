@@ -22,8 +22,6 @@ nonisolated enum SplitViewAutosaveReset {
   /// launch. AppKit writes a key again during the session; it is removed
   /// again at the next launch.
   @discardableResult
-  /// AppKit writes these keys to `.standard` in every launch, so the removal
-  /// does not use `AppDefaults.current`.
   static func removeStaleFrames(in defaults: UserDefaults = .standard) -> Int {
     let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(keyPrefix) }
     for key in keys {
