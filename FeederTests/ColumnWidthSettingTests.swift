@@ -14,11 +14,14 @@ struct ColumnWidthSettingTests {
   private typealias Setting = ColumnWidthSetting
   typealias Column = ColumnWidthSetting.Column
 
-  private static func makeSuite(_ name: String, _ column: Column) throws -> UserDefaults {
-    let suiteName = "ColumnWidthSettingTests.\(name).\(column.rawValue)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defaults.removePersistentDomain(forName: suiteName)
-    return defaults
+  private let isolatedDefaults: IsolatedDefaults
+  /// A second empty suite for a test that compares a fresh store with a
+  /// stored width.
+  private let otherIsolatedDefaults: IsolatedDefaults
+
+  init() throws {
+    isolatedDefaults = try IsolatedDefaults("ColumnWidthSetting")
+    otherIsolatedDefaults = try IsolatedDefaults("ColumnWidthSetting.other")
   }
 
   private static func stored(_ defaults: UserDefaults, _ column: Column) -> Double? {
@@ -41,13 +44,13 @@ struct ColumnWidthSettingTests {
 
   @Test("an absent key restores the column default", arguments: Column.allCases)
   func absentKeyRestoresDefault(column: Column) throws {
-    let defaults = try Self.makeSuite("absent", column)
+    let defaults = isolatedDefaults.defaults
     #expect(Setting.restoredIdealWidth(for: column, in: defaults) == column.defaultIdealWidth)
   }
 
   @Test("a stored width is restored without a clamp: 900 stays 900, 150 stays 150", arguments: Column.allCases)
   func noClamp(column: Column) throws {
-    let defaults = try Self.makeSuite("noClamp", column)
+    let defaults = isolatedDefaults.defaults
     defaults.set(900.0, forKey: column.userDefaultsKey)
     #expect(Setting.restoredIdealWidth(for: column, in: defaults) == 900)
     defaults.set(150.0, forKey: column.userDefaultsKey)
@@ -56,7 +59,7 @@ struct ColumnWidthSettingTests {
 
   @Test("below the sanity floor, zero, negative, NaN and a wrong type restore the default", arguments: Column.allCases)
   func unusableValuesRestoreDefault(column: Column) throws {
-    let defaults = try Self.makeSuite("unusable", column)
+    let defaults = isolatedDefaults.defaults
     for value in [50.0, 99.9, 0.0, -450.0] {
       defaults.set(value, forKey: column.userDefaultsKey)
       #expect(Setting.restoredIdealWidth(for: column, in: defaults) == column.defaultIdealWidth, "\(value)")
@@ -75,7 +78,7 @@ struct ColumnWidthSettingTests {
 
   @Test("the sanity floor beats every other rule", arguments: Column.allCases)
   func sanityFloorFirst(column: Column) throws {
-    let defaults = try Self.makeSuite("floor", column)
+    let defaults = isolatedDefaults.defaults
     Setting.persist(450, for: column, isLaunchLayout: false, in: defaults)
     for launch in [true, false] {
       #expect(Setting.persist(80, for: column, isLaunchLayout: launch, in: defaults) == .skippedBelowSanityFloor)
@@ -90,13 +93,13 @@ struct ColumnWidthSettingTests {
   @Test("equal-to-stored beats the launch layout: a healthy launch logs skippedEqualToStored", arguments: Column.allCases)
   func equalBeatsLaunch(column: Column) throws {
     // Fresh install: the launch layout at the default width is "equal".
-    let fresh = try Self.makeSuite("equalFresh", column)
+    let fresh = isolatedDefaults.defaults
     #expect(Setting.persist(column.defaultIdealWidth, for: column, isLaunchLayout: true, in: fresh) == .skippedEqualToStored)
     #expect(Setting.persist(column.defaultIdealWidth + 0.5, for: column, isLaunchLayout: true, in: fresh) == .skippedEqualToStored)
     #expect(Self.stored(fresh, column) == nil)
 
     // Stored 586, platform lays out 586 at launch: equal, healthy.
-    let stored = try Self.makeSuite("equalStored", column)
+    let stored = otherIsolatedDefaults.defaults
     Setting.persist(586, for: column, isLaunchLayout: false, in: stored)
     #expect(Setting.persist(586, for: column, isLaunchLayout: true, in: stored) == .skippedEqualToStored)
     #expect(Setting.persist(586.5, for: column, isLaunchLayout: true, in: stored) == .skippedEqualToStored)
@@ -106,13 +109,13 @@ struct ColumnWidthSettingTests {
 
   @Test("the launch layout beats the store: a different first value is never written", arguments: Column.allCases)
   func launchBeatsStore(column: Column) throws {
-    let fresh = try Self.makeSuite("launchFresh", column)
+    let fresh = isolatedDefaults.defaults
     #expect(Setting.persist(450, for: column, isLaunchLayout: true, in: fresh) == .skippedLaunchLayout)
     #expect(Setting.persist(200, for: column, isLaunchLayout: true, in: fresh) == .skippedLaunchLayout)
     #expect(Self.stored(fresh, column) == nil)
 
     // The mis-framed restore case: stored 586, platform lays out 348.
-    let stored = try Self.makeSuite("launchStored", column)
+    let stored = otherIsolatedDefaults.defaults
     Setting.persist(586, for: column, isLaunchLayout: false, in: stored)
     #expect(Setting.persist(348, for: column, isLaunchLayout: true, in: stored) == .skippedLaunchLayout)
     #expect(Self.stored(stored, column) == 586)
@@ -120,7 +123,7 @@ struct ColumnWidthSettingTests {
 
   @Test("a settled non-launch width is stored, rounded down, with no upper bound", arguments: Column.allCases)
   func storeRules(column: Column) throws {
-    let defaults = try Self.makeSuite("store", column)
+    let defaults = isolatedDefaults.defaults
     #expect(Setting.persist(450, for: column, isLaunchLayout: false, in: defaults) == .stored(450))
     #expect(Setting.restoredIdealWidth(for: column, in: defaults) == 450)
     #expect(Setting.persist(450.5, for: column, isLaunchLayout: false, in: defaults) == .skippedEqualToStored)
@@ -134,7 +137,7 @@ struct ColumnWidthSettingTests {
 
   @Test("the two columns do not share a key")
   func columnsAreIndependent() throws {
-    let defaults = try Self.makeSuite("independent", .content)
+    let defaults = isolatedDefaults.defaults
     Setting.persist(586, for: .content, isLaunchLayout: false, in: defaults)
     #expect(Setting.restoredIdealWidth(for: .content, in: defaults) == 586)
     #expect(Setting.restoredIdealWidth(for: .sidebar, in: defaults) == 238)
