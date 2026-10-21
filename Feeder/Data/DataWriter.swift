@@ -825,14 +825,8 @@ actor DataWriter: ModelActor {
     try commit()
   }
 
-  // MARK: - Purge
+  // MARK: - Account switch
 
-  /// Delete entries whose `publishedAt` is older than `days` ago, so the store
-  /// does not grow without bound. The cutoff is raw seconds, with no calendar
-  /// boundary, exactly as `articleCutoffDate()` and `maxRetentionAge` compute
-  /// theirs, so the purge window stays consistent with the read-side
-  /// predicates.
-  ///
   /// Delete every feed and every entry of the signed-in Feedbin account. Folders,
   /// categories, and the seeded flag stay: they are user data. One commit, so
   /// a failure keeps the old account's rows.
@@ -842,13 +836,22 @@ actor DataWriter: ModelActor {
     defer { perfSignposter.endInterval(PerformanceSignpostName.accountReset, signpost) }
     let entries = try modelContext.fetch(FetchDescriptor<Entry>())
     let feeds = try modelContext.fetch(FetchDescriptor<Feed>())
+    let entryModelIDs = Set(entries.map(\.persistentModelID))
     for entry in entries { modelContext.delete(entry) }
     for feed in feeds { modelContext.delete(feed) }
     try commit()
     Self.logger.info("Deleted \(feeds.count) feeds and \(entries.count) entries of the previous account")
-    return AccountDataDeletion(feedCount: feeds.count, entryCount: entries.count)
+    return AccountDataDeletion(feedCount: feeds.count, entryModelIDs: entryModelIDs)
   }
 
+  // MARK: - Purge
+
+  /// Delete entries whose `publishedAt` is older than `days` ago, so the store
+  /// does not grow without bound. The cutoff is raw seconds, with no calendar
+  /// boundary, exactly as `articleCutoffDate()` and `maxRetentionAge` compute
+  /// theirs, so the purge window stays consistent with the read-side
+  /// predicates.
+  ///
   /// The day count is the parameter, not a `Date`, so no call site recomputes
   /// retention math. Production callers pass the fixed 30-day ceiling, the
   /// largest value the keep-days picker offers, so changing that setting never

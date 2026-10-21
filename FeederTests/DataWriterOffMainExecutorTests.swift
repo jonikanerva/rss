@@ -35,6 +35,6 @@ struct DataWriterOffMainExecutorTests {
       modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
 
     let deletion = try await writer.deleteAccountData()
-    #expect(deletion == AccountDataDeletion(feedCount: 0, entryCount: 0))
+    #expect(deletion == AccountDataDeletion(feedCount: 0, entryModelIDs: []))
   }
 }

@@ -48,7 +48,7 @@ struct AccountSwitchResetTests {
       deletePreviousAccountData: { writer in
         await MainActor.run { events.events.append("delete") }
         if deleteFails { throw DeleteFailure() }
-        _ = try await writer.deleteAccountData()
+        return try await writer.deleteAccountData()
       })
     let writer = try await DataWriterTestSupport.makeWriter()
     _ = try await writer.bootstrap()
@@ -60,7 +60,9 @@ struct AccountSwitchResetTests {
     defaults.set(Date(), forKey: entryCoverageCursorUserDefaultsKey)
     engine.attachWriter(writer)
     engine.attachClient(previousClient)
-    engine.registerAccountSwitchReset(forWindow: UUID()) { events.events.append("window") }
+    engine.registerAccountSwitchReset(
+      forWindow: UUID(), beforeDelete: { events.events.append("window") },
+      afterDelete: { events.events.append("refresh") })
     engine.attachAccountSwitchWork(
       pause: { events.events.append("pause") },
       resume: { _ in events.events.append("resume") })
@@ -86,6 +88,7 @@ struct AccountSwitchResetTests {
     try await waitUntil("the first page is persisted") { await (try? fixture.writer.entryCount()) == 3 }
     engine.queueReadIDs([1])
     engine.recordPendingReads([2], forWindow: UUID())
+    let previousEntryModelIDs = try await fixture.writer.entryModelIDs()
 
     let saved = try await engine.saveAccount(username: Self.next.username, password: Self.next.password)
     laterPageGate.open()
@@ -93,7 +96,8 @@ struct AccountSwitchResetTests {
 
     #expect(saved)
     #expect(engine.account == .signedIn(username: Self.next.username))
-    #expect(fixture.events.events == ["pause", "window", "delete", "resume"])
+    #expect(fixture.events.events == ["pause", "window", "delete", "refresh", "resume"])
+    #expect(previousEntryModelIDs.allSatisfy(engine.isDeletedEntry))
     #expect(try await fixture.writer.entryCount() == 0)
     #expect(try await fixture.writer.feedCount() == 0)
     let taxonomyAfter = try await fixture.writer.taxonomyCount()
@@ -207,9 +211,12 @@ struct AccountDataDeleteTests {
     let entries = [try FeedbinFixtures.entry(id: 1, feedId: 100), try FeedbinFixtures.entry(id: 2, feedId: 999)]
     _ = try await writer.persistEntries(entries, unreadIDs: [])
 
+    let entryModelIDs = try await writer.entryModelIDs()
+
     let deletion = try await writer.deleteAccountData()
 
-    #expect(deletion == AccountDataDeletion(feedCount: 1, entryCount: 2))
+    #expect(entryModelIDs.count == 2)
+    #expect(deletion == AccountDataDeletion(feedCount: 1, entryModelIDs: entryModelIDs))
     #expect(try await writer.entryCount() == 0)
     #expect(try await writer.feedCount() == 0)
     let taxonomyAfter = try await writer.taxonomyCount()

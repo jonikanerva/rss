@@ -140,7 +140,7 @@ nonisolated struct PurgeOutcome: Sendable, Equatable {
 /// Result of `DataWriter.deleteAccountData()`.
 nonisolated struct AccountDataDeletion: Sendable, Equatable {
   let feedCount: Int
-  let entryCount: Int
+  let entryModelIDs: Set<PersistentIdentifier>
 }
 
 /// Result of `DataWriter.removeCategoryAndReassignArticles(_:to:)`: how many

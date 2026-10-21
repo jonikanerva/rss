@@ -204,6 +204,13 @@ nonisolated private struct ExtractedContentTally {
   }
 }
 
+// MARK: - Account switch window callbacks
+
+private struct AccountSwitchWindowCallbacks {
+  let beforeDelete: @MainActor () -> Void
+  let afterDelete: @MainActor () -> Void
+}
+
 // MARK: - Entry fetch result
 
 private nonisolated struct EntryFetchResult: Sendable {
@@ -330,15 +337,21 @@ final class SyncEngine {
   /// Called after an account switch, also after a failed switch.
   @ObservationIgnored
   private var resumeDependentWork: @MainActor (DataWriter) -> Void = { _ in }
-  /// Each window clears its selection and its optimistic reads here before an
-  /// account switch deletes the entries.
+  /// Each window clears its selection and its optimistic reads before an
+  /// account switch deletes the entries, and refreshes its list after the
+  /// delete commits.
   @ObservationIgnored
-  private var accountSwitchResetsByWindow: [UUID: @MainActor () -> Void] = [:]
+  private var accountSwitchResetsByWindow: [UUID: AccountSwitchWindowCallbacks] = [:]
+  /// The entries that an account switch deleted in this launch. A list can
+  /// still show their rows until it refreshes, and a live model of a deleted
+  /// row must not be read.
+  @ObservationIgnored
+  private var deletedEntryModelIDs: Set<PersistentIdentifier> = []
   /// Changes at each account switch, so work that started before a switch can
   /// drop its result.
   @ObservationIgnored
   private var accountGeneration = 0
-  private let deletePreviousAccountData: @Sendable (DataWriter) async throws -> Void
+  private let deletePreviousAccountData: @Sendable (DataWriter) async throws -> AccountDataDeletion
 
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
@@ -350,9 +363,8 @@ final class SyncEngine {
       FeedbinClient(username: $0.username, password: $0.password)
     },
     now: @escaping @MainActor () -> Date = { Date() },
-    deletePreviousAccountData: @escaping @Sendable (DataWriter) async throws -> Void = {
-      _ = try await $0.deleteAccountData()
-    }
+    deletePreviousAccountData: @escaping @Sendable (DataWriter) async throws -> AccountDataDeletion = SyncEngine
+      .deleteAccountData
   ) {
     self.defaults = defaults
     self.deletePreviousAccountData = deletePreviousAccountData
@@ -360,6 +372,10 @@ final class SyncEngine {
     self.credentialStore = credentialStore
     self.account = account
     self.makeClient = makeClient
+  }
+
+  private nonisolated static func deleteAccountData(of writer: DataWriter) async throws -> AccountDataDeletion {
+    try await writer.deleteAccountData()
   }
 
   /// Never reads the Keychain and never contacts Feedbin.
@@ -390,9 +406,19 @@ final class SyncEngine {
   }
 
   /// The window calls `unregisterAccountSwitchReset(forWindow:)` when it
-  /// closes.
-  func registerAccountSwitchReset(forWindow window: UUID, reset: @escaping @MainActor () -> Void) {
-    accountSwitchResetsByWindow[window] = reset
+  /// closes. `afterDelete` runs only after the delete commits.
+  func registerAccountSwitchReset(
+    forWindow window: UUID, beforeDelete: @escaping @MainActor () -> Void,
+    afterDelete: @escaping @MainActor () -> Void
+  ) {
+    accountSwitchResetsByWindow[window] = AccountSwitchWindowCallbacks(
+      beforeDelete: beforeDelete, afterDelete: afterDelete)
+  }
+
+  /// True for an entry that an account switch deleted. Do not resolve or read
+  /// its model.
+  func isDeletedEntry(_ id: PersistentIdentifier) -> Bool {
+    deletedEntryModelIDs.contains(id)
   }
 
   func unregisterAccountSwitchReset(forWindow window: UUID) {
@@ -524,8 +550,9 @@ final class SyncEngine {
     await extractedContentTask?.value
     await readPush?.value
     accountGeneration &+= 1
-    for reset in accountSwitchResetsByWindow.values { reset() }
-    try await deletePreviousAccountData(writer)
+    for window in accountSwitchResetsByWindow.values { window.beforeDelete() }
+    let deletion = try await deletePreviousAccountData(writer)
+    deletedEntryModelIDs.formUnion(deletion.entryModelIDs)
     // One main-actor step after the last suspension, so no caller sees a
     // partly cleared state.
     lastSyncDate = nil
@@ -537,6 +564,7 @@ final class SyncEngine {
     lastError = nil
     lastSyncChangedEntryCount = 0
     lastPersistedPageVersion &+= 1
+    for window in accountSwitchResetsByWindow.values { window.afterDelete() }
     logger.info("Account switch: the previous account's data and sync state are cleared")
   }
 
