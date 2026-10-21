@@ -358,6 +358,115 @@ struct SyncEngineTests {
     #expect(await client.deleteUnreadEntriesCallLog == [[1]])
   }
 
+  // MARK: - 7b. Mark all read
+
+  private var queuedReadIDs: Set<Int> {
+    Set(defaults.array(forKey: pendingReadIDsUserDefaultsKey) as? [Int] ?? [])
+  }
+
+  /// Unread entries 1 and 2 in `technology`, unread entry 3 in `world_news`,
+  /// and read entry 4 in `technology`. The entries are new, so the engine's
+  /// `queryCutoffDate` from the clock keeps them.
+  private func seedMarkAllReadEntries(in writer: DataWriter) async throws {
+    try await writer.syncFeeds([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    let published = formatDateForFeedbin(.now)
+    let entries = try [1, 2, 3, 4].map { try FeedbinFixtures.entry(id: $0, feedId: 100, published: published) }
+    _ = try await writer.persistEntries(entries, unreadIDs: [1, 2, 3, 4])
+    try await writer.markEntriesRead(feedbinEntryIDs: [4])
+    try await writer.addCategory(label: "technology", displayName: "Technology", description: "Tech", sortOrder: 0)
+    try await writer.addCategory(label: "world_news", displayName: "World", description: "World", sortOrder: 1)
+    for (id, label) in [(1, "technology"), (2, "technology"), (3, "world_news"), (4, "technology")] {
+      try await writer.applyClassification(entryID: id, result: .init(entryID: id, categoryLabel: label))
+    }
+  }
+
+  @Test
+  func markAllReadQueuesExactlyTheMarkedIDs() async throws {
+    let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
+    try await seedMarkAllReadEntries(in: writer)
+    engine.queueReadIDs([99])
+
+    await engine.markAllAsRead(scope: .category("technology"))
+
+    #expect(queuedReadIDs == [1, 2, 99])
+    #expect(try await isRead(1, in: writer) == true)
+    #expect(try await isRead(2, in: writer) == true)
+    #expect(try await isRead(3, in: writer) == false)
+  }
+
+  @Test
+  func markAllReadWithNothingUnreadQueuesNothing() async throws {
+    let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
+    try await seedMarkAllReadEntries(in: writer)
+
+    await engine.markAllAsRead(scope: .category("unknown"))
+
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// The window that the store write and the queue write leave open: a sync
+  /// takes its queue snapshot after the mark-all-read fetch and before the
+  /// store write, and Feedbin still lists the entries as unread. The steps
+  /// run in the order of `SyncEngine.markAllAsRead(scope:)`.
+  @Test
+  func syncSnapshotBeforeTheStoreWriteKeepsMarkedEntriesRead() async throws {
+    let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
+    try await seedMarkAllReadEntries(in: writer)
+
+    let ids = try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast)
+    engine.queueReadIDs(ids)
+    let syncSnapshot = queuedReadIDs
+    try await writer.markEntriesRead(feedbinEntryIDs: ids)
+    let flips = try await writer.updateReadState(unreadIDs: [1, 2, 3, 4], queuedReadIDs: syncSnapshot)
+
+    #expect(flips == 1, "only entry 4 becomes unread")
+    #expect(try await isRead(1, in: writer) == true)
+    #expect(try await isRead(2, in: writer) == true)
+    #expect(try await isRead(3, in: writer) == false)
+  }
+
+  /// A sync that waits for its entry pages while the user marks all read still
+  /// keeps the marked entries read, and the IDs stay queued for the push.
+  @Test
+  func syncDuringMarkAllReadKeepsMarkedEntriesRead() async throws {
+    let client = FakeFeedbinClient()
+    await client.setUnreadIDsResponse([1, 2, 3, 4])
+    await client.setEntryPagesResponse([FeedbinFixtures.entriesPage([])])
+    let gate = AsyncGate()
+    defer { gate.open() }
+    await client.holdEntryPages(until: gate)
+    let (engine, writer) = try await makeEngine(with: client)
+    try await seedMarkAllReadEntries(in: writer)
+    let sync = Task { await engine.sync() }
+    try await waitUntil("the sync reaches the entry pages") { await client.fetchEntryPagesCallCount == 1 }
+
+    await engine.markAllAsRead(scope: .category("technology"))
+    gate.open()
+    await sync.value
+
+    #expect(try await isRead(1, in: writer) == true)
+    #expect(try await isRead(2, in: writer) == true)
+    #expect(try await isRead(3, in: writer) == false)
+    #expect(queuedReadIDs == [1, 2])
+  }
+
+  /// Another path marks entry 1 read between the fetch and the store write.
+  /// The write skips entry 1 because it is already read, and the queue holds
+  /// only the fetched IDs.
+  @Test
+  func skippedAlreadyReadEntryQueuesNoUnrelatedIDs() async throws {
+    let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
+    try await seedMarkAllReadEntries(in: writer)
+
+    let ids = try await writer.fetchUnreadEntryIDs(in: .category("technology"), cutoffDate: .distantPast)
+    try await writer.markEntriesRead(feedbinEntryIDs: [1])
+    engine.queueReadIDs(ids)
+    try await writer.markEntriesRead(feedbinEntryIDs: ids)
+
+    #expect(queuedReadIDs == [1, 2])
+    #expect(try await isRead(3, in: writer) == false)
+  }
+
   // MARK: - 8. Extracted content
 
   private static func extractURL(_ id: Int) -> String {
