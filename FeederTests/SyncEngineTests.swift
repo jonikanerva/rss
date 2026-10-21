@@ -386,7 +386,7 @@ struct SyncEngineTests {
     try await seedMarkAllReadEntries(in: writer)
     engine.queueReadIDs([99])
 
-    await engine.markAllAsRead(scope: .category("technology"))
+    #expect(await engine.markAllAsRead(scope: .category("technology")) == .written)
 
     #expect(queuedReadIDs == [1, 2, 99])
     #expect(try await isRead(1, in: writer) == true)
@@ -399,9 +399,26 @@ struct SyncEngineTests {
     let (engine, writer) = try await makeEngine(with: FakeFeedbinClient())
     try await seedMarkAllReadEntries(in: writer)
 
-    await engine.markAllAsRead(scope: .category("unknown"))
+    #expect(await engine.markAllAsRead(scope: .category("unknown")) == .nothingToMark)
 
     #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// A failed store write reports `.failed`, so the caller sends no refresh.
+  /// The IDs stay queued for the next sync.
+  @Test
+  func failedMarkAllWriteReportsFailureAndKeepsTheQueue() async throws {
+    let store = try FailingWriteStore()
+    defer { store.removeFolder() }
+    let (writer, _) = try await store.makeWriterAndReader()
+    let engine = makeEngine(writer: writer)
+    try await store.seedUnreadEntries(writer, ids: [1, 2], published: .now)
+    try store.installFailingTrigger("UPDATE", on: "ZENTRY")
+
+    #expect(await engine.markAllAsRead(scope: .all) == .failed)
+
+    #expect(queuedReadIDs == [1, 2])
+    #expect(try await isRead(1, in: writer) == false)
   }
 
   /// The window that the store write and the queue write leave open: a sync
@@ -440,7 +457,7 @@ struct SyncEngineTests {
     let sync = Task { await engine.sync() }
     try await waitUntil("the sync reaches the entry pages") { await client.fetchEntryPagesCallCount == 1 }
 
-    await engine.markAllAsRead(scope: .category("technology"))
+    #expect(await engine.markAllAsRead(scope: .category("technology")) == .written)
     gate.open()
     await sync.value
 

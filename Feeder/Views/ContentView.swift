@@ -1,7 +1,9 @@
 import Foundation
 import SwiftData
 import SwiftUI
-import os.signpost
+import os
+
+private let logger = Logger(subsystem: "com.feeder.app", category: "ContentView")
 
 // MARK: - Content View
 
@@ -675,7 +677,14 @@ struct ContentView: View {
     syncEngine.queueReadIDs(ids)
     Task {
       guard let writer = syncEngine.writer else { return }
-      try? await writer.markEntriesRead(feedbinEntryIDs: ids)
+      do {
+        try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      } catch {
+        // No refresh: the IDs stay queued and stay in the overlay, and the
+        // next sync writes them as read.
+        logger.error("Read flush failed: \(error.localizedDescription)")
+        return
+      }
       // Post-commit, and the snapshot channel only: the rendered rows already
       // show the flipped state. This refetch is still mandatory, because
       // `prunePendingReadIDs` releases retained IDs only once the snapshot
@@ -718,10 +727,16 @@ struct ContentView: View {
     }
     pendingReadIDs.formUnion(plan.optimisticIDs)
     Task {
-      await syncEngine.markAllAsRead(scope: plan.markTarget)
-      // Post-commit. Unlike the flush, mark-all-read can change the visible
-      // window itself, so the list must refetch immediately.
-      bumpEntryList()
+      switch await syncEngine.markAllAsRead(scope: plan.markTarget) {
+      case .written:
+        // Post-commit. Unlike the flush, mark-all-read can change the visible
+        // window itself, so the list must refetch immediately.
+        bumpEntryList()
+      case .nothingToMark:
+        bumpUnreadSnapshot()
+      case .failed:
+        break
+      }
     }
   }
 
