@@ -73,14 +73,19 @@ struct AppleFMProviderPolicyTests {
   }
 
   private func fixture(entryCount: Int) async throws -> DataWriter {
+    try await fixture(titles: Array(repeating: "An article", count: entryCount))
+  }
+
+  /// The entry IDs start at 1001, in the order of `titles`.
+  private func fixture(titles: [String]) async throws -> DataWriter {
     let writer = try await DataWriterTestSupport.makeWriter()
     try await writer.addCategory(label: "tech", displayName: "Tech", description: "Technology", sortOrder: 0)
     try await writer.addCategory(label: uncategorizedLabel, displayName: "Uncategorized", description: "Fallback", sortOrder: 1)
     try await writer.syncFeeds([FeedbinFixtures.subscription()])
     let date = ISO8601DateFormatter().string(from: Date())
-    let ids = Array(1001..<(1001 + entryCount))
-    let entries = try ids.map {
-      try FeedbinFixtures.entry(id: $0, title: "An article", content: "<p>Some article text</p>", published: date)
+    let ids = Array(1001..<(1001 + titles.count))
+    let entries = try zip(ids, titles).map { id, title in
+      try FeedbinFixtures.entry(id: id, title: title, content: "<p>Some article text</p>", published: date)
     }
     _ = try await writer.persistEntries(entries, unreadIDs: Set(ids))
     return writer
@@ -312,16 +317,39 @@ struct AppleFMProviderPolicyTests {
     return (engine, provider, clock)
   }
 
-  @Test
-  func activationEndsTheLoopWaitAfterAnAppleFMRateLimit() async throws {
+  nonisolated private static let selfHealingReasons: [ClassificationAbortReason] = [
+    .rateLimited, .appleIntelligenceUnavailable, .providerUnavailable,
+  ]
+
+  @Test(arguments: AppleFMProviderPolicyTests.selfHealingReasons)
+  func activationEndsTheLoopWaitAfterASelfHealingAppleFMStop(_ abort: ClassificationAbortReason) async throws {
     let writer = try await fixture(entryCount: 2)
     let (engine, provider, clock) = try await engineWaitingAfterAStop(writer)
-    engine.applyPreviewState(lastAbort: .rateLimited, provider: .appleFM)
+    engine.applyPreviewState(lastAbort: abort, provider: .appleFM)
     engine.applicationDidBecomeActive()
     try await waitUntil("the restarted drain completes") { await clock.delays.count == 2 }
     #expect(await provider.callCount == 3)
     #expect(engine.lastAbort == nil)
     for id in 1001...1002 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
+  func activationKeepsTheStrikes() async throws {
+    let writer = try await fixture(titles: ["Stuck", "An article"])
+    let provider = FakeClassificationProvider()
+    await provider.configureFailure(AppleFMClassificationError.unexpected(detail: "x"), forTitle: "Stuck")
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
+    engine.startContinuousClassification(writer: writer)
+    try await waitUntil("the skipped article gets a strike") { await engine.currentEntryFailures.strikes(for: 1001) == 1 }
+    try await waitUntil("the loop wait starts") { await clock.delays.count == 1 }
+    let strikes = engine.currentEntryFailures
+    engine.applyPreviewState(lastAbort: .rateLimited, provider: .appleFM)
+    engine.applicationDidBecomeActive()
+    #expect(engine.currentEntryFailures == strikes)
+    try await waitUntil("the restarted drain stops") { await clock.delays.count == 2 }
+    #expect(engine.currentEntryFailures.strikes(for: 1001) == 1)
     engine.stopContinuousClassification()
   }
 
