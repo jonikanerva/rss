@@ -704,7 +704,6 @@ private enum EntryListPreviewFixtures {
       entry.primaryCategory = "apple"
       entry.primaryFolder = "technology"
       entry.isClassified = true
-      entry.formattedDate = formatEntryDate(published)
       entry.formattedPublishedTime = formatEntryTime(published)
       entry.displayDomain = shape.domain
       entry.plainText = shape.excerpt
@@ -750,7 +749,6 @@ private enum EntryListPreviewFixtures {
       url: "https://world.example.com/2", content: "<p>New story.</p>", summary: "New story",
       extractedContentURL: nil, publishedAt: published, createdAt: published)
     entry.feed = try? context.fetch(FetchDescriptor<Feed>()).first
-    entry.formattedDate = formatEntryDate(published)
     entry.formattedPublishedTime = formatEntryTime(published)
     entry.plainText = "New story."
     entry.summaryPlainText = "New story."
@@ -827,7 +825,6 @@ private enum EntryListPreviewFixtures {
       entry.primaryFolder = "technology"
       entry.isClassified = true
       entry.isRead = row.isRead
-      entry.formattedDate = formatEntryDate(row.publishedAt)
       entry.formattedPublishedTime = formatEntryTime(row.publishedAt)
       entry.displayDomain = "preview.example.com"
       entry.plainText = excerpt

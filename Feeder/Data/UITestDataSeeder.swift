@@ -55,7 +55,6 @@ extension DataWriter {
       entry.primaryCategory = "apple"
       entry.primaryFolder = "technology"
       entry.isClassified = true
-      entry.formattedDate = formatEntryDate(entry.publishedAt)
       entry.formattedPublishedTime = formatEntryTime(entry.publishedAt)
 
       entry.displayDomain = extractDomain(from: entry.feed?.siteURL ?? "")
@@ -80,7 +79,6 @@ extension DataWriter {
     worldEntry.primaryCategory = "world_news"
     worldEntry.primaryFolder = ""
     worldEntry.isClassified = true
-    worldEntry.formattedDate = formatEntryDate(worldEntry.publishedAt)
     worldEntry.formattedPublishedTime = formatEntryTime(worldEntry.publishedAt)
     worldEntry.displayDomain = extractDomain(from: worldEntry.feed?.siteURL ?? "")
     worldEntry.plainText = "European lawmakers finalized a new AI framework."

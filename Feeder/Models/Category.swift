@@ -3,7 +3,7 @@ import SwiftData
 
 /// The live `Category` is whatever the latest `VersionedSchema` declares. See
 /// `Entry.swift` for the typealias-to-latest pattern.
-typealias Category = FeederSchemaV2.Category
+typealias Category = FeederSchemaV3.Category
 
 // MARK: - Collection helpers
 

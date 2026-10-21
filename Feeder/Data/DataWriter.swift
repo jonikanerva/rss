@@ -336,7 +336,6 @@ actor DataWriter: ModelActor {
       entry.articleBlocksData = blocks.toJSONData()
       entry.plainText = parseHTMLToBlocks(rawHTML).classificationText
       entry.summaryPlainText = stripHTMLToPlainText(dto.summary ?? "")
-      entry.formattedDate = formatEntryDate(dto.published)
       entry.formattedPublishedTime = formatEntryTime(dto.published)
 
       entry.displayDomain = extractDomain(from: feedsByFeedbinID[dto.feedId]?.siteURL ?? dto.url)
