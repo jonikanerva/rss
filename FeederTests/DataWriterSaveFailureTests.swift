@@ -28,8 +28,9 @@ struct DataWriterSaveFailureTests {
     try? FileManager.default.removeItem(at: folder)
   }
 
+  /// Opens the store with the newest schema in the migration plan.
   private func makeWriterAndReader() async throws -> (DataWriter, DataReader) {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: try #require(FeederMigrationPlan.schemas.last))
     let config = ModelConfiguration(schema: schema, url: storeURL)
     let container = try ModelContainer(
       for: schema, migrationPlan: FeederMigrationPlan.self, configurations: config)
