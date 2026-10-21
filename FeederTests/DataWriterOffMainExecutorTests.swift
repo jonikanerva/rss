@@ -27,4 +27,14 @@ struct DataWriterOffMainExecutorTests {
     let outcome = try await writer.bootstrap()
     #expect(outcome.action == .seeded)
   }
+
+  @Test
+  func accountDataDeleteRunsOffMainWhenAwaitedFromMainActor() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = await DataWriter.makeDetached(
+      modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
+
+    let deletion = try await writer.deleteAccountData()
+    #expect(deletion == AccountDataDeletion(feedCount: 0, entryCount: 0))
+  }
 }

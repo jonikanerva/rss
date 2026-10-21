@@ -137,6 +137,12 @@ nonisolated struct PurgeOutcome: Sendable, Equatable {
   let purgedCount: Int
 }
 
+/// Result of `DataWriter.deleteAccountData()`.
+nonisolated struct AccountDataDeletion: Sendable, Equatable {
+  let feedCount: Int
+  let entryCount: Int
+}
+
 /// Result of `DataWriter.removeCategoryAndReassignArticles(_:to:)`: how many
 /// entries moved, and the new folder label. The deletion is implicit — when
 /// this value returns, the source category is gone from the store.

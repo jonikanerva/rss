@@ -75,4 +75,7 @@ nonisolated enum PerformanceSignpostName {
   /// window shows whether the `List` rebuilds every row or only the visible
   /// ones.
   static let rowBodyBuild: StaticString = "row-body-build"
+  /// The delete of the previous account's feeds and entries on the writer
+  /// actor when the Feedbin account changes.
+  static let accountReset: StaticString = "account-reset"
 }
