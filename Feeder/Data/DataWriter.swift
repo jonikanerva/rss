@@ -834,8 +834,8 @@ actor DataWriter: ModelActor {
   /// predicates.
   ///
   /// Delete every feed and every entry of the signed-in Feedbin account. Folders,
-  /// categories, and the seeded flag stay: they are user data. One save, so a
-  /// failure keeps the old account's rows.
+  /// categories, and the seeded flag stay: they are user data. One commit, so
+  /// a failure keeps the old account's rows.
   func deleteAccountData() throws -> AccountDataDeletion {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.accountReset)
@@ -844,12 +844,7 @@ actor DataWriter: ModelActor {
     let feeds = try modelContext.fetch(FetchDescriptor<Feed>())
     for entry in entries { modelContext.delete(entry) }
     for feed in feeds { modelContext.delete(feed) }
-    do {
-      try modelContext.save()
-    } catch {
-      modelContext.rollback()
-      throw error
-    }
+    try commit()
     Self.logger.info("Deleted \(feeds.count) feeds and \(entries.count) entries of the previous account")
     return AccountDataDeletion(feedCount: feeds.count, entryCount: entries.count)
   }
