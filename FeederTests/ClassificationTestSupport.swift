@@ -257,6 +257,15 @@ actor SnapshotRecorder {
   }
 }
 
+/// Counts `ClassificationRunner.reportCommittedResults` calls.
+actor CommitSignalCounter {
+  private(set) var count = 0
+
+  func increment() {
+    count += 1
+  }
+}
+
 // MARK: - Test errors
 
 /// Stable error type for the error-recovery test, so it reaches into no

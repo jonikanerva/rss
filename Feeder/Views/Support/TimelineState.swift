@@ -191,7 +191,8 @@ final class TimelineState {
 
   // MARK: - Engine signals
 
-  /// A sync page committed. The list refreshes after the sync dwell.
+  /// A sync page or a read-state update committed. The list refreshes after
+  /// the sync dwell.
   func syncPagePersisted() {
     pendingSyncRefresh = true
   }
@@ -208,6 +209,11 @@ final class TimelineState {
     if classifiedCount < classificationBaseline { classificationBaseline = 0 }
     guard classifiedCount > classificationBaseline else { return }
     classificationBaseline = classifiedCount
+    pendingClassificationRefresh = true
+  }
+
+  /// A cancelled batch committed results that no progress tick carried.
+  func classificationResultsCommitted() {
     pendingClassificationRefresh = true
   }
 
