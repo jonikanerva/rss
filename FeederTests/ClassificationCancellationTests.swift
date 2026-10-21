@@ -454,7 +454,9 @@ struct ClassificationCancellationTests {
     engine.stopContinuousClassification()
   }
 
-  @Test
+  /// The time limit only guards against a hang. The test waits for the
+  /// recorded delays, not for the clock.
+  @Test(.timeLimit(.minutes(1)))
   func continuousLoopKeepsBackoffAcrossFailedBatches() async throws {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
@@ -463,7 +465,8 @@ struct ClassificationCancellationTests {
     let clock = ClassificationSleepRecorder(immediateDelays: 7)
     let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("all retry delays recorded") { await clock.delays.count == 8 }
+    // The eighth sleep blocks, so the loop stays parked while the test asserts.
+    for await _ in clock.recordedDelays.prefix(8) {}
     let expected: [Duration] = [
       .seconds(10), .seconds(20), .seconds(40), .seconds(80), .seconds(160), .seconds(300), .seconds(300), .seconds(2),
     ]
@@ -752,12 +755,20 @@ extension ClassificationBatchOutcome {
 
 actor ClassificationSleepRecorder {
   private(set) var delays: [Duration] = []
+  /// Yields each delay as soon as it is recorded, also a delay whose sleep
+  /// then blocks, so a test can wait for a delay count without a wall clock.
+  nonisolated let recordedDelays: AsyncStream<Duration>
+  private let recordedContinuation: AsyncStream<Duration>.Continuation
   private let immediateDelays: Int
 
-  init(immediateDelays: Int = 0) { self.immediateDelays = immediateDelays }
+  init(immediateDelays: Int = 0) {
+    self.immediateDelays = immediateDelays
+    (recordedDelays, recordedContinuation) = AsyncStream<Duration>.makeStream()
+  }
 
   func sleep(_ delay: Duration) async throws {
     delays.append(delay)
+    recordedContinuation.yield(delay)
     try Task.checkCancellation()
     if delays.count <= immediateDelays { return }
     let (stream, continuation) = AsyncStream<Void>.makeStream()
