@@ -81,6 +81,34 @@ actor DataWriter: ModelActor {
 
   private static let logger = Logger(subsystem: "com.feeder.app", category: "DataWriter")
 
+  // MARK: - Commit
+
+  /// Save for a write operation. A failed save discards all pending changes,
+  /// so a later save cannot commit them. An operation must finish every
+  /// throwing fetch before its first mutation: a throw before `commit()` does
+  /// not roll back.
+  private func commit() throws {
+    do {
+      try modelContext.save()
+    } catch {
+      discardPendingChanges()
+      throw error
+    }
+  }
+
+  /// `rollback()` alone leaves a changed model's new value in place, and the
+  /// next save writes it. Any fetch after `rollback()` prevents that; the
+  /// cause is unknown (`STACK.md § 14`). Keep the fetch after `rollback()`.
+  private func discardPendingChanges() {
+    modelContext.rollback()
+    do {
+      _ = try modelContext.fetchCount(FetchDescriptor<Folder>())
+    } catch {
+      Self.logger.error(
+        "Fetch after a failed save failed: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
   // MARK: - Bootstrap
 
   /// Construct a `DataWriter` on a detached background task: the init must
@@ -129,7 +157,7 @@ actor DataWriter: ModelActor {
       action = .skipped
     } else {
       try seedDefaultTaxonomy()
-      try modelContext.save()
+      try commit()
       defaultsFlagStore.setSeeded(true, forKey: defaultsSeededUserDefaultsKey)
       action = .seeded
     }
@@ -199,7 +227,7 @@ actor DataWriter: ModelActor {
         modelContext.insert(feed)
       }
     }
-    try modelContext.save()
+    try commit()
   }
 
   // MARK: - Icon persistence
@@ -244,7 +272,7 @@ actor DataWriter: ModelActor {
     }
 
     if updated > 0 {
-      try modelContext.save()
+      try commit()
       Self.logger.info("Updated favicon URLs for \(updated) feeds")
     }
   }
@@ -316,7 +344,7 @@ actor DataWriter: ModelActor {
       newCount += 1
     }
 
-    try modelContext.save()
+    try commit()
     return newCount
   }
 
@@ -344,7 +372,7 @@ actor DataWriter: ModelActor {
     }
 
     if updatedCount > 0 {
-      try modelContext.save()
+      try commit()
       Self.logger.info("Updated read state for \(updatedCount) entries")
     }
     return updatedCount
@@ -363,7 +391,7 @@ actor DataWriter: ModelActor {
     for entry in entries {
       entry.isRead = true
     }
-    try modelContext.save()
+    try commit()
   }
 
   /// The feedbin entry IDs of the unread entries in `scope`. The read has no
@@ -435,7 +463,7 @@ actor DataWriter: ModelActor {
         entry.extractedContentURL = nil
       }
     }
-    try modelContext.save()
+    try commit()
   }
 
   // `DataWriter` keeps only writes and the intra-write reads that must see
@@ -514,12 +542,7 @@ actor DataWriter: ModelActor {
     entry.isClassified = true
     entry.primaryCategory = label
     entry.primaryFolder = categories.first { $0.label == label }?.folderLabel ?? ""
-    do {
-      try modelContext.save()
-    } catch {
-      modelContext.rollback()
-      throw error
-    }
+    try commit()
   }
 
   /// Mark every entry as pending a new result. Must keep `primaryCategory`
@@ -534,12 +557,7 @@ actor DataWriter: ModelActor {
     for entry in entries {
       entry.isClassified = false
     }
-    do {
-      try modelContext.save()
-    } catch {
-      modelContext.rollback()
-      throw error
-    }
+    try commit()
   }
 
   // MARK: - Entry folder backfill
@@ -561,7 +579,7 @@ actor DataWriter: ModelActor {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let folder = Folder(label: label, displayName: displayName, sortOrder: sortOrder)
     modelContext.insert(folder)
-    try modelContext.save()
+    try commit()
   }
 
   func deleteFolder(label: String) throws {
@@ -579,23 +597,23 @@ actor DataWriter: ModelActor {
     let existingRootCount = try modelContext.fetchCount(
       FetchDescriptor<Category>(predicate: #Predicate<Category> { $0.folderLabel == nil })
     )
-    for (index, category) in categories.enumerated() {
-      category.folderLabel = nil
-      category.sortOrder = existingRootCount + index
-    }
-
     // Cover the folder's current categories and the orphaned entries left by
     // deleted ones.
     let entryDescriptor = FetchDescriptor<Entry>(
       predicate: #Predicate<Entry> { $0.primaryFolder == label }
     )
     let entries = try modelContext.fetch(entryDescriptor)
+
+    for (index, category) in categories.enumerated() {
+      category.folderLabel = nil
+      category.sortOrder = existingRootCount + index
+    }
     for entry in entries {
       entry.primaryFolder = ""
     }
 
     modelContext.delete(folder)
-    try modelContext.save()
+    try commit()
   }
 
   func updateFolderFields(label: String, displayName: String) throws {
@@ -605,7 +623,7 @@ actor DataWriter: ModelActor {
     )
     guard let folder = try modelContext.fetch(descriptor).first else { return }
     folder.displayName = displayName
-    try modelContext.save()
+    try commit()
   }
 
   func fetchFolderSortOrder(label: String) throws -> Int? {
@@ -622,14 +640,16 @@ actor DataWriter: ModelActor {
   /// `Folder` crosses the actor boundary.
   func reorderFolders(orderedLabels: [String]) throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
+    let descriptor = FetchDescriptor<Folder>(
+      predicate: #Predicate<Folder> { orderedLabels.contains($0.label) }
+    )
+    let foldersByLabel = Dictionary(
+      uniqueKeysWithValues: try modelContext.fetch(descriptor).map { ($0.label, $0) })
     for (index, label) in orderedLabels.enumerated() {
-      let descriptor = FetchDescriptor<Folder>(
-        predicate: #Predicate<Folder> { $0.label == label }
-      )
-      guard let folder = try modelContext.fetch(descriptor).first else { continue }
+      guard let folder = foldersByLabel[label] else { continue }
       folder.sortOrder = index
     }
-    try modelContext.save()
+    try commit()
   }
 
   // MARK: - Category management
@@ -644,7 +664,7 @@ actor DataWriter: ModelActor {
       folderLabel: folderLabel
     )
     modelContext.insert(category)
-    try modelContext.save()
+    try commit()
   }
 
   func deleteCategory(label: String) throws {
@@ -655,7 +675,7 @@ actor DataWriter: ModelActor {
     guard let category = try modelContext.fetch(descriptor).first else { return }
     guard !category.isSystem else { return }
     modelContext.delete(category)
-    try modelContext.save()
+    try commit()
   }
 
   /// Count entries assigned to a category. The management UI shows the
@@ -671,11 +691,9 @@ actor DataWriter: ModelActor {
 
   /// Reassign every entry whose `primaryCategory == sourceLabel` to
   /// `targetLabel` and the target's folder, then delete the source category.
-  /// The reassignment loop and the delete run inside
-  /// `ModelContext.transaction(block:)`, so a save-time failure leaves the
-  /// store byte-equivalent to its pre-call state. The pre-flight guards run
-  /// before the transaction opens, so they short-circuit with no pending
-  /// mutation to roll back.
+  /// The reassignment and the delete commit in one save, so a save-time
+  /// failure leaves the store in its pre-call state. The pre-flight guards run
+  /// before the first mutation, so they short-circuit with no pending change.
   ///
   /// Errors:
   /// - `.sourceMissing` — no category with `sourceLabel` exists.
@@ -711,16 +729,12 @@ actor DataWriter: ModelActor {
       predicate: #Predicate<Entry> { $0.primaryCategory == sourceLabel }
     )
     let affected = try modelContext.fetch(entryDescriptor)
-    // `transaction(block:)` commits at the closing brace and rolls back on any
-    // throw, so do not call `save()` afterwards. Either every entry moves and
-    // the source is gone, or nothing changed.
-    try modelContext.transaction {
-      for entry in affected {
-        entry.primaryCategory = targetLabel
-        entry.primaryFolder = targetFolderLabel
-      }
-      modelContext.delete(source)
+    for entry in affected {
+      entry.primaryCategory = targetLabel
+      entry.primaryFolder = targetFolderLabel
     }
+    modelContext.delete(source)
+    try commit()
     Self.logger.info(
       "Reassigned \(affected.count) entries from category \(sourceLabel, privacy: .public) to \(targetLabel, privacy: .public), then removed the source category."
     )
@@ -744,10 +758,10 @@ actor DataWriter: ModelActor {
       predicate: #Predicate<Category> { $0.label == label }
     )
     guard let category = try modelContext.fetch(descriptor).first, !category.isSystem else { return }
+    try updatePrimaryFolderOnEntries(categoryLabel: label, newFolder: folderLabel ?? "")
     category.folderLabel = folderLabel
     category.sortOrder = sortOrder
-    try updatePrimaryFolderOnEntries(categoryLabel: label, newFolder: folderLabel ?? "")
-    try modelContext.save()
+    try commit()
   }
 
   /// Re-assign `sortOrder` for the categories in one folder, or at root when
@@ -758,17 +772,19 @@ actor DataWriter: ModelActor {
   /// actor boundary.
   func reorderCategories(inFolder folderLabel: String?, orderedLabels: [String]) throws {
     dispatchPrecondition(condition: .notOnQueue(.main))
+    let descriptor = FetchDescriptor<Category>(
+      predicate: #Predicate<Category> { orderedLabels.contains($0.label) }
+    )
+    let categoriesByLabel = Dictionary(
+      uniqueKeysWithValues: try modelContext.fetch(descriptor).map { ($0.label, $0) })
     for (index, label) in orderedLabels.enumerated() {
-      let descriptor = FetchDescriptor<Category>(
-        predicate: #Predicate<Category> { $0.label == label }
-      )
-      guard let category = try modelContext.fetch(descriptor).first,
+      guard let category = categoriesByLabel[label],
         !category.isSystem,
         category.folderLabel == folderLabel
       else { continue }
       category.sortOrder = index
     }
-    try modelContext.save()
+    try commit()
   }
 
   func updateSystemFlag(label: String, isSystem: Bool) throws {
@@ -778,7 +794,7 @@ actor DataWriter: ModelActor {
     )
     guard let category = try modelContext.fetch(descriptor).first else { return }
     category.isSystem = isSystem
-    try modelContext.save()
+    try commit()
   }
 
   func updateCategoryFields(label: String, displayName: String, description: String) throws {
@@ -789,7 +805,7 @@ actor DataWriter: ModelActor {
     guard let category = try modelContext.fetch(descriptor).first else { return }
     if !category.isSystem { category.displayName = displayName }
     category.categoryDescription = description
-    try modelContext.save()
+    try commit()
   }
 
   func seedDefaultCategories(
@@ -806,7 +822,7 @@ actor DataWriter: ModelActor {
       )
       modelContext.insert(category)
     }
-    try modelContext.save()
+    try commit()
   }
 
   // MARK: - Purge
@@ -833,7 +849,7 @@ actor DataWriter: ModelActor {
     for entry in old {
       modelContext.delete(entry)
     }
-    try modelContext.save()
+    try commit()
     Self.logger.info("Purged \(old.count) entries older than \(days) days")
     return PurgeOutcome(purgedCount: old.count)
   }
