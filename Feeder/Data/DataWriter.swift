@@ -98,8 +98,8 @@ actor DataWriter: ModelActor {
 
   /// `rollback()` alone leaves a changed model's cached values in place, and
   /// the next save writes them; a fetch of the model reloads the committed
-  /// values (`STACK.md § 14`). The type list must name every model type in
-  /// `FeederSchemaV2.models`.
+  /// values (`STACK.md § 14`). The type list must name every model type of
+  /// the live schema, the last schema in `FeederMigrationPlan`.
   private func discardPendingChanges() {
     let ids = (modelContext.changedModelsArray + modelContext.deletedModelsArray).map(\.persistentModelID)
     modelContext.rollback()
