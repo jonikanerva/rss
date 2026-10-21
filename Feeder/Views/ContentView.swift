@@ -1,25 +1,11 @@
 import Foundation
 import SwiftData
 import SwiftUI
-import os
-
-private let logger = Logger(subsystem: "com.feeder.app", category: "ContentView")
+import os.signpost
 
 // MARK: - Content View
 
 struct ContentView: View {
-  /// Hold time before a finished classification batch may refresh the article
-  /// list while a row is selected. A batch can add or remove rows between the
-  /// visible rows, so the refresh waits until the selection has been stable
-  /// for this long.
-  fileprivate static let classificationBumpDwell: Duration = .seconds(4)
-  /// Coalescing window for classification bumps when no row is selected. Each
-  /// progress tick would otherwise trigger a full re-fetch.
-  fileprivate static let classificationIdleThrottle: Duration = .seconds(1)
-  /// Coalescing window for sync-page bumps, with and without a selection: it
-  /// collapses a burst of pages into one re-fetch.
-  fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
-
   /// The window reads and writes the store only through these actors.
   let store: StoreActors
   @Environment(SyncEngine.self)
@@ -38,10 +24,9 @@ struct ContentView: View {
   private var allCategories: [Category]
   @Query(filter: #Predicate<Category> { $0.folderLabel == nil }, sort: \Category.sortOrder)
   private var rootCategories: [Category]
-  /// Cached aggregation over the classified-unread universe. Refreshed only by
-  /// `UnreadSnapshotRefreshTask`; never re-aggregate it inside `body`.
+  /// Refresh scheduling and read intents of this window.
   @State
-  private var unreadSnapshot: UnreadCountsSnapshot = .empty
+  private var timeline: TimelineState
   /// Launch `ideal` of the content column: read once from `ColumnWidthSetting`
   /// when this view's identity is created, never written. `@State` pins the
   /// value so a re-construction after a persisted drag cannot hand the split
@@ -73,40 +58,13 @@ struct ContentView: View {
   private var articleViewMode: ArticleViewMode = .web
   @State
   private var detailPageCommand = DetailPageCommand.initial
-  @State
-  private var pendingReadIDs: Set<Int> = []
-  /// Rendered-entries payload bubbled up from `EntryListView`: the visible ids
-  /// plus the rendered-unread ids, which are one side of the two-sided
-  /// `pendingReadIDs` retention prune.
+  /// Rendered-entries payload bubbled up from `EntryListView`. Tab reads its
+  /// ids; `timeline` reads its unread ids.
   @State
   private var currentEntries: VisibleEntriesPayload = .empty
   /// App-lifetime favicon cache: decoded once per feed, off the render path.
   @State
   private var faviconStore = FaviconStore()
-  /// Bumped whenever underlying article data may have changed. `EntryListView`
-  /// includes it in its `.task(id:)` key. Mutate it only through
-  /// `bumpEntryList()`.
-  @State
-  private var entryRefreshVersion: Int = 0
-  /// Snapshot-only refresh channel: bump it when a write changed unread
-  /// membership but the visible window provably cannot change. It feeds
-  /// `unreadSnapshotKey` alone, so the sidebar snapshot refetches without a
-  /// whole-window refetch of the article list.
-  @State
-  private var snapshotRefreshVersion: Int = 0
-  /// Set when a scene-inactive flush queues a write with its list bump
-  /// suppressed. Exactly one `bumpEntryList()` on the next `.active`
-  /// transition consumes it, so a suppressed update is delayed, never dropped.
-  @State
-  private var owedListBumpOnResume = false
-  /// Set when a classification batch finishes and a refresh is owed.
-  /// `DeferredBumpDrainTrigger` drains it.
-  @State
-  private var pendingClassificationBump = false
-  /// Sync-page sibling of `pendingClassificationBump`, drained on a shorter
-  /// dwell so persisted entries appear as pages arrive.
-  @State
-  private var pendingSyncBump = false
   @FocusState
   private var panelFocus: PanelFocus?
   /// In-flight click → render signpost states. `@State` keeps the begin alive
@@ -126,6 +84,11 @@ struct ContentView: View {
   private var isPreviewMode: Bool { processEnvironment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" }
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
+
+  init(store: StoreActors, readQueue: SyncEngine) {
+    self.store = store
+    _timeline = State(initialValue: TimelineState(store: store, readQueue: readQueue))
+  }
 
   var body: some View {
     NavigationSplitView {
@@ -151,7 +114,7 @@ struct ContentView: View {
               #selector(NSText.copy(_:)),
               perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
             )
-            .environment(\.pendingReadIDs, pendingReadIDs)
+            .environment(\.pendingReadIDs, timeline.pendingReadIDs)
             .navigationTitle(navigationTitle)
             .toolbar {
               ToolbarItem(placement: .automatic) {
@@ -198,10 +161,7 @@ struct ContentView: View {
       )
       contentReevalVersion &+= 1
       currentEntries = payload
-      // Second prune trigger: the rendered-unread side of the retention
-      // criterion just changed, so release confirmed IDs here too and not
-      // only on the next snapshot refresh.
-      prunePendingReadIDs()
+      timeline.visibleEntriesChanged(renderedUnreadIDs: payload.unreadFeedbinEntryIDs)
     }
     .task(id: contentReevalVersion) {
       guard let state = contentReevalIntervalState else { return }
@@ -237,15 +197,10 @@ struct ContentView: View {
       // list refreshes. Its model must not be read.
       let newEntry = newID.flatMap { syncEngine.isDeletedEntry($0) ? nil : modelContext.model(for: $0) as? Entry }
       selectedEntry = newEntry
-      // Defer the pending-read insertion off the selection-commit critical
-      // path: an in-frame mutation cascades through the sidebar counts and
-      // the row dimming overlay, nudging row metrics on the same frame as the
-      // keystroke. Mark-read reads the live `entry.isRead`, which is fresher
-      // than the row DTO's snapshot.
-      if let entry = newEntry, !entry.isRead {
-        applyPendingReadAfterYield(feedbinEntryID: entry.feedbinEntryID) { id in
-          pendingReadIDs.insert(id)
-        }
+      // Mark-read reads the live `entry.isRead`, which is fresher than the
+      // row DTO's snapshot.
+      if let entry = newEntry {
+        timeline.entrySelected(feedbinEntryID: entry.feedbinEntryID, isRead: entry.isRead)
       }
       articleViewMode = .web
       // No begin when the selection clears: the empty state has no render
@@ -265,18 +220,13 @@ struct ContentView: View {
       articleClickIntervalState = nil
     }
     .onChange(of: articleFilter) {
-      // The filter flip is the one flush caller that needs a post-commit list
-      // bump: the flipped rows change membership in the new filter's window,
-      // and the structural refetch can run before the flush commits. Ordering
-      // is pinned by `WindowRefreshGateTests`.
-      flushPendingReads(thenBumpListAfterCommit: true)
+      timeline.flushPendingReads(.filterChange)
       selectedEntryID = nil
     }
     .onChange(of: selection) { _, newSelection in
-      // No list bump: the sidebar move re-keys the structural task, whose
-      // first page covers the new axis, and the flush's snapshot bump handles
-      // the sidebar counts and the overlay release.
-      flushPendingReads()
+      // No list refresh: the sidebar move re-keys the structural task, whose
+      // first page covers the new axis.
+      timeline.flushPendingReads(.sidebarChange)
       selectedEntryID = nil
       if newSelection != nil {
         sidebarClickIntervalState = perfSignposter.beginInterval(
@@ -297,96 +247,30 @@ struct ContentView: View {
     }
     .onChange(of: scenePhase) {
       if scenePhase == .active {
-        // Consume the owed bump: the inactive-phase flush suppressed its
-        // refetch, so one bump on resume shows the committed state. This runs
-        // before a new suppression can be owed, so the bit never double-fires.
-        if owedListBumpOnResume {
-          owedListBumpOnResume = false
-          bumpEntryList()
-        }
+        timeline.sceneBecameActive()
       } else {
-        // Background work pauses while the surface is not visible, so the
-        // list bump is suppressed and the owed bit bounds that suppression to
-        // the next `.active` transition. The bit is set at queue time, so a
-        // resume racing the commit costs one early refresh, never a dropped
-        // update; the overlay keeps the rows dimmed meanwhile.
-        if flushPendingReads() {
-          owedListBumpOnResume = true
-        }
+        timeline.flushPendingReads(.sceneInactive)
         Task { await syncEngine.pushPendingReads() }
       }
     }
-    // The modifier owns the `.task(id:)` so `body` stays inside SwiftUI's
-    // type-checker budget.
     .modifier(
-      UnreadSnapshotRefreshTask(
-        key: unreadSnapshotKey,
-        reader: store.reader,
+      TimelineRefreshTasks(
+        timeline: timeline,
         cutoffDate: syncEngine.queryCutoffDate,
-        snapshot: $unreadSnapshot
+        folderCount: folders.count,
+        categoryCount: allCategories.count,
+        selectedFeedbinEntryID: selectedEntry?.feedbinEntryID
       )
     )
-    // Drop an ID from the optimistic overlay once a background write flips it
-    // out of the snapshot, so the set cannot grow unbounded across a long
-    // session or mask a later cross-device unread flip on the same ID.
-    .modifier(
-      PendingReadPruneTrigger(
-        unreadCount: unreadSnapshot.totalUnread,
-        onUnreadCountChange: { prunePendingReadIDs() }
-      )
-    )
-    .modifier(PendingReadQuitRecord(pendingReadIDs: pendingReadIDs))
     .modifier(
       AccountSwitchWindowReset(
-        selectedEntryID: $selectedEntryID, selectedEntry: $selectedEntry, pendingReadIDs: $pendingReadIDs,
-        refreshList: { bumpEntryList() })
+        timeline: timeline, selectedEntryID: $selectedEntryID, selectedEntry: $selectedEntry)
     )
-    // Both edges fire when the work finishes, and only when that batch
-    // actually changed rows. A quiet tick must leave the list untouched.
-    .onChange(of: syncEngine.isSyncing) { _, isSyncing in
-      if !isSyncing && syncEngine.lastSyncChangedEntryCount > 0 {
-        bumpEntryList()
-      }
-    }
-    .onChange(of: classificationEngine.isClassifying) { _, isClassifying in
-      if !isClassifying && classificationEngine.lastBatchClassifiedCount > 0 {
-        pendingClassificationBump = true
-      }
-    }
-    // `MidFlightBumpRouter` is a leaf `View`, not a `ViewModifier`, so the
-    // mid-flight version reads live in its own body. Reading them in
-    // `ContentView.body` would invalidate the whole split view on every sync
-    // page and every classification progress tick.
-    .modifier(
-      MidFlightBumpRouterModifier(
-        pendingSyncBump: $pendingSyncBump,
-        pendingClassificationBump: $pendingClassificationBump
-      )
-    )
-    .modifier(
-      DeferredBumpDrainTrigger(
-        key: classificationBumpDrainKey,
-        dwell: Self.classificationBumpDwell,
-        idleThrottle: Self.classificationIdleThrottle,
-        hasSelection: selectedEntry != nil,
-        pendingBump: $pendingClassificationBump,
-        onDrain: { bumpEntryList() }
-      )
-    )
-    .modifier(
-      DeferredBumpDrainTrigger(
-        key: syncBumpDrainKey,
-        dwell: Self.syncBumpDwell,
-        idleThrottle: Self.syncBumpDwell,
-        hasSelection: selectedEntry != nil,
-        pendingBump: $pendingSyncBump,
-        onDrain: { bumpEntryList() }
-      )
-    )
+    .modifier(TimelineSignalRouterModifier(timeline: timeline))
     .modifier(
       CategoryFolderChangeTrigger(
         categoryFolderLabels: categoryFolderLabels,
-        onChange: { bumpEntryList() }
+        onChange: { timeline.categoryFoldersChanged() }
       )
     )
     // Escape and Tab stay at `NavigationSplitView` level so `List`
@@ -564,7 +448,8 @@ struct ContentView: View {
     EntryListView(
       scope: sel.entryScope, filter: articleFilter,
       cutoffDate: syncEngine.queryCutoffDate, reader: store.reader,
-      refreshVersion: entryRefreshVersion,
+      refreshVersion: timeline.listVersion,
+      accountDataVersion: timeline.accountDataVersion,
       pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
       selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
       onPageDetail: pageDetail(modifiers:)
@@ -577,42 +462,6 @@ struct ContentView: View {
   /// category between folders refreshes the article list.
   private var categoryFolderLabels: [String?] {
     allCategories.map(\.folderLabel)
-  }
-
-  /// Re-key for the unread snapshot refresh task. `cutoffSeconds` truncates to
-  /// whole seconds so the key moves only on a real cutoff change, not on every
-  /// `Date()` re-evaluation. The version components wrap with `&+=`, and the
-  /// key is compared for equality, which handles the wrap. Composition is
-  /// pinned by `WindowRefreshGateTests`.
-  private var unreadSnapshotKey: String {
-    Self.composeUnreadSnapshotKey(
-      entryRefreshVersion: entryRefreshVersion,
-      snapshotRefreshVersion: snapshotRefreshVersion,
-      folderCount: folders.count,
-      categoryCount: allCategories.count,
-      cutoffSeconds: Int(syncEngine.queryCutoffDate.timeIntervalSinceReferenceDate)
-    )
-  }
-
-  /// Pure key builder behind `unreadSnapshotKey`, extracted so tests can pin
-  /// its composition.
-  nonisolated static func composeUnreadSnapshotKey(
-    entryRefreshVersion: Int, snapshotRefreshVersion: Int,
-    folderCount: Int, categoryCount: Int, cutoffSeconds: Int
-  ) -> String {
-    "\(entryRefreshVersion)|\(snapshotRefreshVersion)|\(folderCount)|\(categoryCount)|\(cutoffSeconds)"
-  }
-
-  /// Re-key for the classification drain task: a selection move starts a fresh
-  /// dwell window, a pending-flag flip picks up the newly-owed bump.
-  private var classificationBumpDrainKey: String {
-    "\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingClassificationBump)"
-  }
-
-  /// Sync-page sibling of `classificationBumpDrainKey`, re-keyed on the same
-  /// inputs.
-  private var syncBumpDrainKey: String {
-    "sync|\(selectedEntry?.feedbinEntryID ?? -1)|\(pendingSyncBump)"
   }
 
   /// Tab from the sidebar into the article-list column. Selecting the first
@@ -641,72 +490,6 @@ struct ContentView: View {
 
   // MARK: - Actions
 
-  /// Single point that invalidates `EntryListView`'s data refresh. Call it
-  /// after any mutation that can change what the timeline shows.
-  ///
-  /// POST-COMMIT CONTRACT: call only after the mutating write's `await` has
-  /// returned. `EntryListView` treats a bump at or below its pre-fetch
-  /// snapshot as already fetched, so a bump fired before its write commits is
-  /// silently dropped.
-  private func bumpEntryList() {
-    entryRefreshVersion &+= 1
-  }
-
-  /// Snapshot-channel sibling of `bumpEntryList`: refetches the sidebar unread
-  /// snapshot without refetching the visible window. Use it when a committed
-  /// write changed unread membership but the rendered rows cannot change. Same
-  /// post-commit contract as `bumpEntryList`.
-  private func bumpUnreadSnapshot() {
-    snapshotRefreshVersion &+= 1
-  }
-
-  /// Queue the optimistic-read overlay for a committed `markEntriesRead`
-  /// write. Returns `true` when a flush was queued, so the scene-inactive
-  /// caller can record its owed resume bump. A caller that also needs the
-  /// visible window refetched must ask for it explicitly.
-  @discardableResult
-  private func flushPendingReads(thenBumpListAfterCommit: Bool = false) -> Bool {
-    let ids = pendingReadIDs
-    guard !ids.isEmpty else { return false }
-    syncEngine.queueReadIDs(ids)
-    let writer = store.writer
-    Task {
-      do {
-        try await writer.markEntriesRead(feedbinEntryIDs: ids)
-      } catch {
-        // No refresh: the IDs stay queued and stay in the overlay, and the
-        // next sync writes them as read.
-        logger.error("Read flush failed: \(error.localizedDescription)")
-        return
-      }
-      // Post-commit, and the snapshot channel only: the rendered rows already
-      // show the flipped state. This refetch is still mandatory, because
-      // `prunePendingReadIDs` releases retained IDs only once the snapshot
-      // confirms the committed flips.
-      bumpUnreadSnapshot()
-      if thenBumpListAfterCommit {
-        bumpEntryList()
-      }
-    }
-    return true
-  }
-
-  /// Prune the optimistic-read overlay: release an ID only once both the
-  /// unread snapshot and the rendered rows confirm `isRead == true`, so a
-  /// snapshot refresh landing before the row DTOs refetch cannot un-dim a row.
-  ///
-  /// `renderedUnread` covers the loaded window only. An ID beyond that window
-  /// has no rendered row to un-dim, so the unbounded snapshot side alone
-  /// governs its release.
-  private func prunePendingReadIDs() {
-    guard !pendingReadIDs.isEmpty else { return }
-    pendingReadIDs = retainedPendingReadIDs(
-      pending: pendingReadIDs,
-      snapshotUnread: unreadSnapshot.unreadFeedbinEntryIDs,
-      renderedUnread: currentEntries.unreadFeedbinEntryIDs
-    )
-  }
-
   private func markAllAsRead() {
     guard let selection else { return }
     markAllAsRead(target: selection)
@@ -715,23 +498,11 @@ struct ContentView: View {
   private func markAllAsRead(target: SidebarSelection) {
     guard articleFilter == .unread else { return }
     let plan = markAllReadPlan(
-      for: target, currentSelection: selection, snapshot: unreadSnapshot)
+      for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot)
     if plan.clearsArticleSelection {
       selectedEntryID = nil
     }
-    pendingReadIDs.formUnion(plan.optimisticIDs)
-    Task {
-      switch await syncEngine.markAllAsRead(scope: plan.markTarget) {
-      case .written:
-        // Post-commit. Unlike the flush, mark-all-read can change the visible
-        // window itself, so the list must refetch immediately.
-        bumpEntryList()
-      case .nothingToMark:
-        bumpUnreadSnapshot()
-      case .failed:
-        break
-      }
-    }
+    timeline.markAllAsRead(plan)
   }
 
   private func openInBackground() {
@@ -782,15 +553,15 @@ struct ContentView: View {
     // IDs that are no longer unread on disk, so a stale cross-device flip
     // cannot double-subtract.
     let pendingByCategory = pendingReadCountsByCategory(
-      snapshot: unreadSnapshot, pending: pendingReadIDs)
+      snapshot: timeline.unreadSnapshot, pending: timeline.pendingReadIDs)
     let pendingByFolder = pendingReadCountsByFolder(
-      snapshot: unreadSnapshot, pending: pendingReadIDs)
-    let categoryUnreadCounts = unreadSnapshot.categoryCounts
+      snapshot: timeline.unreadSnapshot, pending: timeline.pendingReadIDs)
+    let categoryUnreadCounts = timeline.unreadSnapshot.categoryCounts
       .subtractingPendingCounts(pendingByCategory)
-    let folderUnreadCounts = unreadSnapshot.folderCounts
+    let folderUnreadCounts = timeline.unreadSnapshot.folderCounts
       .subtractingPendingCounts(pendingByFolder)
     let allArticlesUnreadCount = max(
-      0, unreadSnapshot.totalUnread - pendingReadCountAll(snapshot: unreadSnapshot, pending: pendingReadIDs))
+      0, timeline.unreadSnapshot.totalUnread - pendingReadCountAll(snapshot: timeline.unreadSnapshot, pending: timeline.pendingReadIDs))
     // `EquatableView` short-circuits the sidebar body whenever the structural
     // inputs match the previous render, so overlay flips and detail-pane state
     // never reach the sidebar's render path. Toolbar and key handlers stay
@@ -992,12 +763,14 @@ private func timelineSeededDemoPreview() -> some View {
 private struct ContentViewPreviewHost: View {
   let container: ModelContainer
   @State
+  private var syncEngine = SyncEngine.preview()
+  @State
   private var store: StoreActors?
 
   var body: some View {
     Group {
       if let store {
-        ContentView(store: store)
+        ContentView(store: store, readQueue: syncEngine)
       } else {
         ProgressView()
       }
@@ -1007,7 +780,7 @@ private struct ContentViewPreviewHost: View {
       let reader = await DataReader.makeDetached(modelContainer: container)
       store = StoreActors(writer: writer, reader: reader)
     }
-    .environment(SyncEngine.preview())
+    .environment(syncEngine)
     .environment(ClassificationEngine())
     .environment(AppFontSettings())
     .modelContainer(container)

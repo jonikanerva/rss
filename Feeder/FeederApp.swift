@@ -175,7 +175,7 @@ struct FeederApp: App {
       bootstrapPendingView
         .task { await runBootstrap(container: container) }
     case .ready(let store):
-      ContentView(store: store)
+      ContentView(store: store, readQueue: syncEngine)
     case .failed(let message):
       bootstrapFailedView(message: message)
     }

@@ -45,8 +45,8 @@ struct VisibleEntriesKey: PreferenceKey {
 /// rebuild every row. "No Articles" is asserted only by a resolved empty
 /// fetch, never while a fetch is pending and never while rows exist.
 ///
-/// Refreshes arrive only as explicit version bumps from `ContentView`, each
-/// under the post-commit contract on `bumpEntryList`.
+/// Refreshes arrive only as `refreshVersion` bumps from the window's
+/// `TimelineState`, each after a commit.
 ///
 /// The view holds a bounded window of the canonical order, defined by the
 /// cursor of its last loaded row: structural fetches take `firstPage`,
@@ -59,6 +59,9 @@ struct EntryListView: View {
   let cutoffDate: Date
   let reader: DataReader
   let refreshVersion: Int
+  /// Changes after the data of a previous account is deleted. It is part of
+  /// `structuralKey`, so the list reloads and an old read is cancelled.
+  var accountDataVersion = 0
   /// When non-nil, the row with this Feedbin entry ID stays in the fetch
   /// result regardless of the filter, so a selected article stays visible
   /// after a cross-device read-state flip. The pin rides along with the next
@@ -536,7 +539,7 @@ struct EntryListView: View {
   /// which rides on a separate task so an in-place refresh does not tear down
   /// the `List` and drop the scroll position.
   private var structuralKey: String {
-    "\(String(describing: scope))|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)"
+    "\(String(describing: scope))|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(accountDataVersion)"
   }
 
   private var emptyListMessage: String {

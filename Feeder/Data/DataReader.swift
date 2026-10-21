@@ -18,8 +18,8 @@ import os.signpost
 /// boundary (`STACK.md § 0 → Actor boundaries`).
 ///
 /// A read sees a writer's committed `save()` on its next fetch. Rows are
-/// snapshots of committed state, and freshness is bounded by the refresh-bump
-/// pipeline in `ContentView`, never by this actor.
+/// snapshots of committed state, and freshness is bounded by the refresh
+/// scheduling in `TimelineState`, never by this actor.
 actor DataReader: ModelActor {
   nonisolated let modelExecutor: any ModelExecutor
   nonisolated let modelContainer: ModelContainer
