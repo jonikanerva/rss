@@ -293,10 +293,6 @@ final class SyncEngine {
   private var accountSave: Task<Bool, any Error>?
   private var client: (any FeedbinClientProtocol)?
   private(set) var writer: DataWriter?
-  /// Read-only companion to `writer`. Vended to the article list and sidebar,
-  /// so their reads run on a separate actor and never queue behind a write.
-  /// The caller owns it; the engine only holds the reference.
-  private(set) var reader: DataReader?
   private var periodicSyncTask: Task<Void, Never>?
   /// The running `sync()` body. An account switch cancels it and waits for it.
   private var syncRun: Task<Void, Never>?
@@ -388,12 +384,6 @@ final class SyncEngine {
   /// stays synchronous.
   func attachWriter(_ writer: DataWriter) {
     self.writer = writer
-  }
-
-  /// Inject the pre-built read-only `DataReader`. Same ownership contract as
-  /// `attachWriter`, and the caller must build it on the same container.
-  func attachReader(_ reader: DataReader) {
-    self.reader = reader
   }
 
   /// Set the work that an account switch pauses before it deletes the previous

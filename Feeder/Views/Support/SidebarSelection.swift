@@ -160,14 +160,13 @@ struct PendingReadPruneTrigger: ViewModifier {
 /// `.task(id:)` stays out of `ContentView.body`.
 struct UnreadSnapshotRefreshTask: ViewModifier {
   let key: String
-  let reader: DataReader?
+  let reader: DataReader
   let cutoffDate: Date
   @Binding
   var snapshot: UnreadCountsSnapshot
 
   func body(content: Content) -> some View {
     content.task(id: key) {
-      guard let reader else { return }
       let fresh = try? await reader.fetchUnreadCountsSnapshot(cutoffDate: cutoffDate)
       guard !Task.isCancelled, let fresh else { return }
       snapshot = fresh

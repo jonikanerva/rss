@@ -20,6 +20,8 @@ struct ContentView: View {
   /// collapses a burst of pages into one re-fetch.
   fileprivate static let syncBumpDwell: Duration = .milliseconds(750)
 
+  /// The window reads and writes the store only through these actors.
+  let store: StoreActors
   @Environment(SyncEngine.self)
   private var syncEngine
   @Environment(ClassificationEngine.self)
@@ -319,7 +321,7 @@ struct ContentView: View {
     .modifier(
       UnreadSnapshotRefreshTask(
         key: unreadSnapshotKey,
-        reader: syncEngine.reader,
+        reader: store.reader,
         cutoffDate: syncEngine.queryCutoffDate,
         snapshot: $unreadSnapshot
       )
@@ -559,22 +561,14 @@ struct ContentView: View {
 
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
-    if let reader = syncEngine.reader {
-      EntryListView(
-        scope: sel.entryScope, filter: articleFilter,
-        cutoffDate: syncEngine.queryCutoffDate, reader: reader,
-        refreshVersion: entryRefreshVersion,
-        pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
-        onPageDetail: pageDetail(modifiers:)
-      )
-    } else {
-      // Until the launch path attaches the reader. The call site's modifiers
-      // still apply to this branch.
-      ProgressView()
-        .controlSize(.regular)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
+    EntryListView(
+      scope: sel.entryScope, filter: articleFilter,
+      cutoffDate: syncEngine.queryCutoffDate, reader: store.reader,
+      refreshVersion: entryRefreshVersion,
+      pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
+      selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
+      onPageDetail: pageDetail(modifiers:)
+    )
   }
 
   // MARK: - Selection
@@ -675,8 +669,8 @@ struct ContentView: View {
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return false }
     syncEngine.queueReadIDs(ids)
+    let writer = store.writer
     Task {
-      guard let writer = syncEngine.writer else { return }
       do {
         try await writer.markEntriesRead(feedbinEntryIDs: ids)
       } catch {
@@ -719,7 +713,7 @@ struct ContentView: View {
   }
 
   private func markAllAsRead(target: SidebarSelection) {
-    guard articleFilter == .unread, syncEngine.writer != nil else { return }
+    guard articleFilter == .unread else { return }
     let plan = markAllReadPlan(
       for: target, currentSelection: selection, snapshot: unreadSnapshot)
     if plan.clearsArticleSelection {
@@ -904,16 +898,9 @@ struct ContentView: View {
       return
     }
     if isPreviewMode {
-      // Preview canvases seed their container directly and never run the
-      // bootstrap, so attach a writer here or `EntryListView` spins on
-      // `ProgressView` forever.
-      let container = modelContext.container
-      Task {
-        let writer = await DataWriter.makeDetached(modelContainer: container)
-        let reader = await DataReader.makeDetached(modelContainer: container)
-        syncEngine.attachWriter(writer)
-        syncEngine.attachReader(reader)
-      }
+      // Preview canvases never run the bootstrap, so Mark All as Read needs
+      // the writer here.
+      syncEngine.attachWriter(store.writer)
     }
   }
 
@@ -925,12 +912,8 @@ struct ContentView: View {
 
   /// Seeds the data store: call it only on a launch with the in-memory store.
   private func seedUITestDataIfNeeded() {
-    let container = modelContext.container
+    let writer = store.writer
     Task {
-      let writer = await DataWriter.makeDetached(modelContainer: container)
-      let reader = await DataReader.makeDetached(modelContainer: container)
-      syncEngine.attachWriter(writer)
-      syncEngine.attachReader(reader)
       let seeded = try? await writer.seedUITestData()
       if seeded == true {
         selection = .folder("technology")
@@ -948,19 +931,15 @@ struct ContentView: View {
       // only stops the store growing without bound. Passing the ceiling
       // derived from `maxRetentionAge` keeps a change to `articleKeepDays`
       // from needing a refetch and recategorise round-trip.
-      if let writer = syncEngine.writer {
-        let days = Int(maxRetentionAge / 86_400)
-        _ = try? await writer.purgeEntriesOlderThan(days)
-        classificationEngine.startContinuousClassification(writer: writer)
-      }
+      let days = Int(maxRetentionAge / 86_400)
+      _ = try? await store.writer.purgeEntriesOlderThan(days)
+      classificationEngine.startContinuousClassification(writer: store.writer)
     }
   }
 
   private func syncAndClassify() async {
     await syncEngine.sync()
-    if let writer = syncEngine.writer {
-      await classificationEngine.classifyUnclassified(writer: writer)
-    }
+    await classificationEngine.classifyUnclassified(writer: store.writer)
   }
 }
 
@@ -1005,10 +984,33 @@ private func timelineSeededDemoPreview() -> some View {
 
   try? context.save()
 
-  return ContentView()
+  return ContentViewPreviewHost(container: container)
+}
+
+/// Builds the store actors for the preview container before the window exists,
+/// as `FeederApp` does after its bootstrap.
+private struct ContentViewPreviewHost: View {
+  let container: ModelContainer
+  @State
+  private var store: StoreActors?
+
+  var body: some View {
+    Group {
+      if let store {
+        ContentView(store: store)
+      } else {
+        ProgressView()
+      }
+    }
+    .task {
+      let writer = await DataWriter.makeDetached(modelContainer: container)
+      let reader = await DataReader.makeDetached(modelContainer: container)
+      store = StoreActors(writer: writer, reader: reader)
+    }
     .environment(SyncEngine.preview())
     .environment(ClassificationEngine())
     .environment(AppFontSettings())
     .modelContainer(container)
     .frame(minWidth: 1200, minHeight: 760)
+  }
 }
