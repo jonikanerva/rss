@@ -374,6 +374,23 @@ struct AppleFMProviderPolicyTests {
   }
 
   @Test
+  func activationKeepsAStartingOneShotRun() async throws {
+    let writer = try await fixture(entryCount: 2)
+    let (engine, provider, _) = try await engineWaitingAfterAStop(writer)
+    await provider.configureDelay(.milliseconds(50))
+    let run = Task { await engine.reclassifyAll(writer: writer) }
+    try await waitUntil("the run sends a request") { await provider.callCount == 2 }
+    // `applyPreviewState` clears `isClassifying`, as before the first progress report of the run.
+    engine.applyPreviewState(lastAbort: .rateLimited, provider: .appleFM)
+    let taskID = engine.currentClassificationTaskID
+    engine.applicationDidBecomeActive()
+    #expect(engine.currentClassificationTaskID == taskID)
+    await run.value
+    for id in 1001...1002 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.primaryCategory == "tech") }
+    engine.stopContinuousClassification()
+  }
+
+  @Test
   func activationDoesNotStartAStoppedLoop() {
     let engine = ClassificationEngine(providerFactoryOverride: { FakeClassificationProvider() })
     engine.applyPreviewState(lastAbort: .rateLimited, provider: .appleFM)
