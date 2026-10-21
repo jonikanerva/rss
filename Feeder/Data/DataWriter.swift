@@ -96,28 +96,16 @@ actor DataWriter: ModelActor {
     }
   }
 
-  /// `rollback()` alone leaves a changed model's cached values in place, and
-  /// the next save writes them; a fetch of the model reloads the committed
-  /// values (`STACK.md § 14`). The type list must name every model type of
-  /// the live schema, the last schema in `FeederMigrationPlan`.
+  /// `rollback()` alone leaves a changed model's new value in place, and the
+  /// next save writes it. Any fetch after `rollback()` prevents that; the
+  /// cause is unknown (`STACK.md § 14`). Keep the fetch after `rollback()`.
   private func discardPendingChanges() {
-    let ids = (modelContext.changedModelsArray + modelContext.deletedModelsArray).map(\.persistentModelID)
     modelContext.rollback()
-    guard !ids.isEmpty else { return }
-    reloadCommittedValues(Entry.self, ids: ids)
-    reloadCommittedValues(Feed.self, ids: ids)
-    reloadCommittedValues(Folder.self, ids: ids)
-    reloadCommittedValues(Category.self, ids: ids)
-  }
-
-  private func reloadCommittedValues<Model: PersistentModel>(_ type: Model.Type, ids: [PersistentIdentifier]) {
     do {
-      _ = try modelContext.fetch(
-        FetchDescriptor<Model>(predicate: #Predicate { ids.contains($0.persistentModelID) }))
+      _ = try modelContext.fetchCount(FetchDescriptor<Folder>())
     } catch {
       Self.logger.error(
-        "Reload after a failed save failed for \(String(describing: type), privacy: .public): \(error.localizedDescription, privacy: .public)"
-      )
+        "Fetch after a failed save failed: \(error.localizedDescription, privacy: .public)")
     }
   }
 
