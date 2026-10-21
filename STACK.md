@@ -339,9 +339,9 @@ UTC everywhere internally, converted only at the boundary (§ 15 → Time). Conc
 - **Readability:** good contrast at all times; comfortable body-text sizes for long sessions; clear information hierarchy at a glance; premium / calm / harmonious — reduce noise, not information.
 - **Accessibility:** VoiceOver labels/hints, Dynamic Type, Reduced Motion respected on every surface.
 - **Documented thresholds to exercise at the threshold** (HIG-documented limits are exactly where bugs sit; testing below them is a false pass — the preview matrix must include the threshold case):
-  - Alert / `confirmationDialog` button count — at most three buttons (HIG → Alerts → Anatomy). Use a sheet with a picker for more choices.
+  - Alert / `confirmationDialog` button count — at most three buttons (HIG → Alerts → Content). Use a sheet with a picker for more choices.
   - `Picker` style — a `.radioGroup` holds two to five options. Use `.menu`, a pop-up button, for more than about five options (HIG → Toggles → Radio buttons).
-  - Sheet size — HIG → Sheets gives no width limits. Use a default size that fits the content. Do not cover most or all of the parent window. Support resizing when people need to expand the content (HIG → Sheets → macOS).
+  - Sheet size — HIG → Sheets gives no width limits. Use a reasonable default size that fits the content. Support resizing when people need to expand the content (HIG → Sheets → macOS).
   - `NavigationSplitView` sidebar nesting depth — at most two levels of hierarchy (HIG → Sidebars → Best practices).
   - Reference shape: the `Recategorize Sheet — Large N` preview in `CategoryEditSheet.swift` (22 targets).
 
