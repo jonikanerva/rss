@@ -41,8 +41,36 @@ struct DataWriterEntryTests {
     try await writer.applyExtractedContent(
       results: [(entryID: 1001, content: "<p>Full</p>")], unavailableEntryIDs: [1002])
 
-    let remaining = try await writer.fetchExtractedContentRequests().map(\.entryID)
+    let remaining = try await writer.fetchExtractedContentRequests(cutoffDate: .distantPast).map(\.entryID)
     #expect(remaining == [1003])
+  }
+
+  // MARK: - fetchExtractedContentRequests
+
+  /// Only entries inside the keep-days window get a request, newest first in
+  /// timeline order. An entry with extracted content or no extract URL gets none.
+  @Test
+  func extractedContentRequestsStayInsideTheWindowNewestFirst() async throws {
+    let writer = try await makeWriter()
+    try await seedFeed(writer)
+    func published(_ offset: TimeInterval) -> String {
+      formatDateForFeedbin(Self.reference.addingTimeInterval(offset))
+    }
+    let entries = [
+      try FeedbinFixtures.entry(id: 1001, published: published(-1), extractedContentURL: "https://extract.example.com/1"),
+      try FeedbinFixtures.entry(id: 1002, published: published(0), extractedContentURL: "https://extract.example.com/2"),
+      try FeedbinFixtures.entry(id: 1003, published: published(3600), extractedContentURL: "https://extract.example.com/3"),
+      try FeedbinFixtures.entry(id: 1004, published: published(3600), extractedContentURL: "https://extract.example.com/4"),
+      try FeedbinFixtures.entry(id: 1005, published: published(60), extractedContentURL: "https://extract.example.com/5"),
+      try FeedbinFixtures.entry(id: 1006, published: published(7200)),
+    ]
+    _ = try await writer.persistEntries(entries, unreadIDs: [])
+    try await writer.applyExtractedContent(results: [(entryID: 1005, content: "<p>Full</p>")])
+
+    let requests = try await writer.fetchExtractedContentRequests(cutoffDate: Self.reference)
+
+    #expect(requests.map(\.entryID) == [1004, 1003, 1002])
+    #expect(requests.first?.url == "https://extract.example.com/4")
   }
 
   // MARK: - persistEntries

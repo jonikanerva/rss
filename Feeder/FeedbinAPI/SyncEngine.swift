@@ -704,7 +704,7 @@ final class SyncEngine {
   }
 
   private func fetchDueExtractedContent(using client: any FeedbinClientProtocol, writer: DataWriter) async throws {
-    let pending = try await writer.fetchExtractedContentRequests()
+    let pending = try await writer.fetchExtractedContentRequests(cutoffDate: articleCutoffDate())
     guard !pending.isEmpty else { return }
     let now = Date()
     let due = pending.filter { extractedContentRetry.isDue($0.entryID, now: now) }
