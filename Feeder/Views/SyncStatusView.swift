@@ -205,10 +205,16 @@ private enum SyncStatusPreviewState {
   case abortedModel
   case abortedNeedsKey
   case abortedKeyUnreadable
+  case abortedKeyRejected
+  case abortedInvalidCategories
+  case abortedInputTooLarge
+  case abortedInvalidResponse
   case abortedOffline
   case abortedRateLimited
   case abortedQuotaExhausted
   case abortedQuotaExhaustedVercel
+  case abortedAppleIntelligenceUnavailable
+  case abortedCategoriesDeclined
   case abortedWhileSyncing
   case accountUnreadable
   case accountAndKeyUnreadable
@@ -271,6 +277,21 @@ private enum SyncStatusPreviewState {
       // Threshold check for the Keychain read copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .keyUnreadable, provider: .vercel)
+    case .abortedKeyRejected:
+      // Threshold checks for the longest Settings-fixable labels at the largest
+      // text size: the label wraps, and the symbol and "Open Settings" do not
+      // truncate (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .keyRejected, provider: .openAI)
+    case .abortedInvalidCategories:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .invalidCategories, provider: .vercel)
+    case .abortedInputTooLarge:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .inputTooLarge, provider: .vercel)
+    case .abortedInvalidResponse:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .invalidResponse, provider: .vercel)
     case .abortedOffline:
       // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
@@ -290,6 +311,16 @@ private enum SyncStatusPreviewState {
       // Threshold check for the Vercel quota copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .vercel)
+    case .abortedAppleIntelligenceUnavailable:
+      // Self-healing cause → no button. Threshold check at the largest text
+      // size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .appleIntelligenceUnavailable, provider: .appleFM)
+    case .abortedCategoriesDeclined:
+      // Settings-fixable cause → "Open Settings". Threshold check at the
+      // largest text size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .categoriesDeclined, provider: .appleFM)
     case .abortedWhileSyncing:
       // Both banners stacked at the narrow frame must not truncate
       // (`STACK.md § 11`).
@@ -366,6 +397,22 @@ private enum SyncStatusPreviewState {
   syncStatusPreview(state: .abortedKeyUnreadable, textSize: .xxLarge)
 }
 
+#Preview("Aborted - Key rejected") {
+  syncStatusPreview(state: .abortedKeyRejected, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Invalid categories") {
+  syncStatusPreview(state: .abortedInvalidCategories, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Input too large") {
+  syncStatusPreview(state: .abortedInputTooLarge, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Invalid response") {
+  syncStatusPreview(state: .abortedInvalidResponse, textSize: .xxLarge)
+}
+
 #Preview("Aborted - Service limit") {
   syncStatusPreview(state: .abortedRateLimited)
 }
@@ -376,6 +423,14 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Quota (Vercel)") {
   syncStatusPreview(state: .abortedQuotaExhaustedVercel, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Apple Intelligence unavailable") {
+  syncStatusPreview(state: .abortedAppleIntelligenceUnavailable, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Categories declined") {
+  syncStatusPreview(state: .abortedCategoriesDeclined, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Offline") {

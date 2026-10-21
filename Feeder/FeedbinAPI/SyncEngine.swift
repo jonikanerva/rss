@@ -466,6 +466,32 @@ final class SyncEngine {
     readIDsQueuedThisLaunch.formUnion(ids)
   }
 
+  /// Mark every unread entry in `scope` as read, and queue the IDs for the
+  /// push. Returns after the store write ends, so a caller can refetch.
+  func markAllAsRead(scope: EntryScope) async {
+    guard let writer else { return }
+    let ids: Set<Int>
+    do {
+      ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate)
+    } catch {
+      logger.error("Mark all read: failed to fetch \(scope.logDescription): \(error.localizedDescription)")
+      return
+    }
+    guard !ids.isEmpty else { return }
+    // Queue before the store write. `fetchEntriesSince` reads the queue and
+    // enqueues `updateReadState` on the writer in one main-actor step, and the
+    // writer runs its jobs in order. So a sync either keeps these rows read or
+    // updates them before this write marks them read.
+    queueReadIDs(ids)
+    do {
+      try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      logger.info("Marked \(ids.count, privacy: .public) entries as read in \(scope.logDescription)")
+    } catch {
+      // The IDs stay queued: the next sync or launch writes them as read.
+      logger.error("Mark all read: failed to write \(scope.logDescription): \(error.localizedDescription)")
+    }
+  }
+
   /// Keep a copy of the pending reads of one window for the quit step. An
   /// empty set removes the copy. Do not remove a copy when its window closes:
   /// the quit step must also see the reads of a closed window.
