@@ -6,6 +6,8 @@ import FoundationModels
 nonisolated protocol ClassificationProvider: Sendable {
   var name: String { get }
   var isAvailable: Bool { get async }
+  /// The banner reason when `isAvailable` is false.
+  var unavailableAbort: ClassificationAbortReason { get }
   /// Nil means that the provider supports all languages.
   var supportedLanguageCodes: Set<String>? { get async }
 
@@ -20,6 +22,7 @@ nonisolated protocol ClassificationProvider: Sendable {
 }
 
 extension ClassificationProvider {
+  nonisolated var unavailableAbort: ClassificationAbortReason { .providerUnavailable }
   nonisolated func validate(categories: [CategoryDefinition]) async throws {}
 }
 
@@ -37,10 +40,12 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   case keyRejected
   case offline
   case providerUnavailable
+  case appleIntelligenceUnavailable
   case needsKey
   case keyUnreadable
   case invalidCategories
   case inputTooLarge
+  case categoriesDeclined
   case invalidResponse
   case rateLimited
   case quotaExhausted
@@ -53,10 +58,12 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
     case .keyRejected: "API key was rejected"
     case .offline: "Categorizing paused — offline"
     case .providerUnavailable: "Categorizing paused — provider unavailable"
+    case .appleIntelligenceUnavailable: "Apple Intelligence is not available — check System Settings"
     case .needsKey: "Add an API key to start categorizing"
     case .keyUnreadable: "Could not read the API key from Keychain"
     case .invalidCategories: "The selected model needs unique category labels and at most 255 categories"
     case .inputTooLarge: "Category definitions are too large for the selected model"
+    case .categoriesDeclined: "Apple Intelligence declined the category definitions"
     case .invalidResponse: "The selected model returned an invalid result"
     case .rateLimited: "Categorizing paused — service limit reached"
     case .quotaExhausted:
@@ -82,9 +89,10 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
   /// failure a reason that does not (`STACK.md → Cloud classification`).
   var offersSettings: Bool {
     switch self {
-    case .keyRejected, .modelRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted:
+    case .keyRejected, .modelRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .categoriesDeclined,
+      .invalidResponse, .quotaExhausted:
       true
-    case .offline, .providerUnavailable, .rateLimited: false
+    case .offline, .providerUnavailable, .appleIntelligenceUnavailable, .rateLimited: false
     }
   }
 }
@@ -110,43 +118,150 @@ extension ClassificationFailure {
 
 /// Classifies articles with the on-device Apple Foundation Model and
 /// constrained decoding, using native token counting to fit as much article
-/// content as the context window allows.
+/// content as the context window allows. Build one instance per drain: the
+/// guardrail streak counts the failures of one drain only.
 nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
-  let name = "Apple FM"
+  /// The token count of the instructions with an empty prompt, and the context
+  /// size of the model.
+  nonisolated struct InstructionMeasure: Sendable, Equatable {
+    let tokenCount: Int
+    let contextSize: Int
+  }
 
+  /// Consecutive guardrail failures that stop the drain
+  /// (`STACK.md → Cloud classification`).
+  static let declinedCategoriesStreak = 3
   /// Tokens reserved for output schema overhead and generated JSON.
-  private let outputTokenReserve = 200
+  private static let outputTokenReserve = 200
+
+  let name = "Apple FM"
+  let unavailableAbort = ClassificationAbortReason.appleIntelligenceUnavailable
+  private let availability: @Sendable () -> SystemLanguageModel.Availability
+  private let languageCodes: @Sendable () -> Set<String>
+  private let measureInstructions: @Sendable (String) async throws -> InstructionMeasure
+  private let generate: @Sendable (String, String, String, [CategoryDefinition]) async throws -> ProviderClassificationResult
+  private let sleep: @Sendable (Duration) async throws -> Void
+  private let now: @Sendable () -> Date
+  private let guardrailStreak = GuardrailStreak()
+
+  init(
+    availability: @escaping @Sendable () -> SystemLanguageModel.Availability = { SystemLanguageModel.default.availability },
+    languageCodes: @escaping @Sendable () -> Set<String> = {
+      Set(SystemLanguageModel.default.supportedLanguages.compactMap { $0.languageCode?.identifier })
+    },
+    measureInstructions: @escaping @Sendable (String) async throws -> InstructionMeasure = Self.measureWithSystemModel,
+    generate: @escaping @Sendable (String, String, String, [CategoryDefinition]) async throws -> ProviderClassificationResult =
+      Self.generateWithSystemModel,
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+    now: @escaping @Sendable () -> Date = { Date() }
+  ) {
+    self.availability = availability
+    self.languageCodes = languageCodes
+    self.measureInstructions = measureInstructions
+    self.generate = generate
+    self.sleep = sleep
+    self.now = now
+  }
 
   var isAvailable: Bool {
-    get async {
-      let model = SystemLanguageModel.default
-      if case .available = model.availability { return true }
-      return false
-    }
+    get async { Self.abortReason(for: availability()) == nil }
   }
 
   var supportedLanguageCodes: Set<String>? {
-    get async {
-      let model = SystemLanguageModel.default
-      return Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier })
+    get async { languageCodes() }
+  }
+
+  /// Nil means that the model is available. Every unavailability cause gets the
+  /// same banner reason.
+  static func abortReason(for availability: SystemLanguageModel.Availability) -> ClassificationAbortReason? {
+    switch availability {
+    case .available: nil
+    case .unavailable(.appleIntelligenceNotEnabled), .unavailable(.deviceNotEligible), .unavailable(.modelNotReady):
+      .appleIntelligenceUnavailable
+    @unknown default: .appleIntelligenceUnavailable
     }
   }
 
+  /// The model counts the context size and the tokens only while it is
+  /// available, so an unavailable model skips the check and the availability
+  /// gate of the runner reports it.
+  func validate(categories: [CategoryDefinition]) async throws {
+    await guardrailStreak.reset()
+    guard await isAvailable else { return }
+    let instructions = buildClassificationInstructions(from: categories) + Self.promptPrefix(title: "", url: "")
+    let measure: InstructionMeasure
+    do {
+      measure = try await measureInstructions(instructions)
+    } catch {
+      throw try await mapped(error)
+    }
+    guard Self.instructionsFit(measure) else { throw AppleFMClassificationError.instructionsTooLarge }
+  }
+
+  static func instructionsFit(_ measure: InstructionMeasure) -> Bool {
+    measure.tokenCount <= measure.contextSize - outputTokenReserve
+  }
+
+  /// A rate limit gets the request retry of a cloud rate limit
+  /// (`STACK.md → Cloud classification`). Cancellation throws
+  /// `CancellationError`, also during a retry wait.
   func classify(
     title: String,
     body: String,
     url: String,
     categories: [CategoryDefinition]
   ) async throws -> ProviderClassificationResult {
-    do {
-      return try await generate(title: title, body: body, url: url, categories: categories)
-    } catch {
-      guard let failure = AppleFMClassificationError(error, isModelAvailable: await isAvailable, now: Date()) else { throw error }
-      throw failure
+    var attempt = 1
+    while true {
+      try Task.checkCancellation()
+      let failure: AppleFMClassificationError
+      do {
+        let result = try await generate(title, body, url, categories)
+        await guardrailStreak.reset()
+        return result
+      } catch {
+        failure = try await mapped(error)
+      }
+      if failure == .guardrailViolation {
+        let streak = await guardrailStreak.recordViolation()
+        throw streak >= Self.declinedCategoriesStreak ? AppleFMClassificationError.categoriesDeclined : failure
+      }
+      await guardrailStreak.reset()
+      guard case .rateLimited(let retryAfter) = failure,
+        let wait = CloudRequestRetry.delay(afterAttempt: attempt, retryAfter: retryAfter)
+      else { throw failure }
+      try await sleep(wait)
+      attempt += 1
     }
   }
 
-  private func generate(
+  /// Rethrows a cancellation unchanged.
+  private func mapped(_ error: any Error) async throws -> AppleFMClassificationError {
+    if Task.isCancelled { throw CancellationError() }
+    guard let failure = AppleFMClassificationError(error, isModelAvailable: await isAvailable, now: now()) else { throw error }
+    return failure
+  }
+
+  private static func promptPrefix(title: String, url: String) -> String {
+    "title: \(title)\nurl: \(url)\ncontent: "
+  }
+
+  private static func contextSize(of model: SystemLanguageModel) -> Int {
+    if #available(macOS 26.4, *) { model.contextSize } else { 4096 }
+  }
+
+  @Sendable
+  private static func measureWithSystemModel(_ instructions: String) async throws -> InstructionMeasure {
+    let model = SystemLanguageModel.default
+    let contextSize = contextSize(of: model)
+    guard #available(macOS 26.4, *) else {
+      return InstructionMeasure(tokenCount: charEstimatedTokens(instructions.count), contextSize: contextSize)
+    }
+    return InstructionMeasure(tokenCount: try await model.tokenCount(for: instructions), contextSize: contextSize)
+  }
+
+  @Sendable
+  private static func generateWithSystemModel(
     title: String,
     body: String,
     url: String,
@@ -156,14 +271,8 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     let model = SystemLanguageModel.default
     let session = LanguageModelSession(model: model, instructions: instructions)
 
-    let contextSize: Int
-    if #available(macOS 26.4, *) {
-      contextSize = model.contextSize
-    } else {
-      contextSize = 4096
-    }
-    let maxInputTokens = contextSize - outputTokenReserve
-    let promptPrefix = "title: \(title)\nurl: \(url)\ncontent: "
+    let maxInputTokens = contextSize(of: model) - outputTokenReserve
+    let promptPrefix = promptPrefix(title: title, url: url)
     let truncatedBody = try await fitBody(
       body: body,
       prefix: promptPrefix,
@@ -188,10 +297,25 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
   }
 }
 
+/// Consecutive guardrail failures in one drain. Any other request outcome
+/// resets the count.
+private actor GuardrailStreak {
+  private var count = 0
+
+  func reset() { count = 0 }
+
+  func recordViolation() -> Int {
+    count += 1
+    return count
+  }
+}
+
 // MARK: - Apple Foundation Models failures
 
 nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equatable {
   case modelUnavailable
+  case instructionsTooLarge
+  case categoriesDeclined
   case rateLimited(retryAfter: TimeInterval?)
   case contextSizeExceeded
   case guardrailViolation
@@ -217,7 +341,10 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
 
   var batchAbort: ClassificationAbortReason? {
     switch self {
-    case .modelUnavailable, .unexpected: .providerUnavailable
+    case .modelUnavailable: .appleIntelligenceUnavailable
+    case .unexpected: .providerUnavailable
+    case .instructionsTooLarge: .inputTooLarge
+    case .categoriesDeclined: .categoriesDeclined
     case .rateLimited: .rateLimited
     case .contextSizeExceeded, .guardrailViolation, .refusal, .unsupportedLanguage: nil
     }
@@ -227,6 +354,7 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
     switch self {
     case .rateLimited(let retryAfter): .transient(retryAfter: retryAfter)
     case .unexpected: .transient(retryAfter: nil)
+    case .instructionsTooLarge, .categoriesDeclined: .blocked
     case .modelUnavailable, .contextSizeExceeded, .guardrailViolation, .refusal, .unsupportedLanguage: .poll
     }
   }
@@ -234,6 +362,8 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
   var publicLogLabel: String {
     switch self {
     case .modelUnavailable: "modelUnavailable"
+    case .instructionsTooLarge: "instructionsTooLarge"
+    case .categoriesDeclined: "categoriesDeclined"
     case .rateLimited: "rateLimited"
     case .contextSizeExceeded: "contextSizeExceeded"
     case .guardrailViolation: "guardrailViolation"
@@ -351,10 +481,16 @@ nonisolated private func fitBodyWithCharEstimate(
   instructions: String,
   maxInputTokens: Int
 ) -> String {
-  let maxChars = maxInputTokens * 4
+  let maxChars = maxInputTokens * charsPerEstimatedToken
   let usedChars = instructions.count + prefix.count
   let maxBodyChars = max(500, maxChars - usedChars)
   return String(body.prefix(maxBodyChars))
+}
+
+nonisolated private let charsPerEstimatedToken = 4
+
+nonisolated private func charEstimatedTokens(_ characterCount: Int) -> Int {
+  (characterCount + charsPerEstimatedToken - 1) / charsPerEstimatedToken
 }
 
 // MARK: - Apple FM generable output type

@@ -135,8 +135,7 @@ nonisolated enum CloudRequestRetry {
     switch failure {
     case .http(let status, let retryAfter):
       guard ClassificationRetry.isTransient(httpStatus: status) else { return nil }
-      guard let retryAfter, retryAfter.isFinite, retryAfter >= 0 else { return .seconds(planned) }
-      return retryAfter <= longestRetryAfter ? .seconds(max(planned, retryAfter)) : nil
+      return delay(afterAttempt: attempt, retryAfter: retryAfter)
     case .transport(.timedOut):
       return attempt <= timeoutRetries ? .seconds(planned) : nil
     case .transport(.networkConnectionLost):
@@ -144,5 +143,14 @@ nonisolated enum CloudRequestRetry {
     case .transport:
       return nil
     }
+  }
+
+  /// The wait before a retry of a rate limit or another transient failure.
+  /// `retryAfter` is the server value, or the wait until a known reset date.
+  static func delay(afterAttempt attempt: Int, retryAfter: TimeInterval?) -> Duration? {
+    guard plannedDelays.indices.contains(attempt - 1) else { return nil }
+    let planned = plannedDelays[attempt - 1]
+    guard let retryAfter, retryAfter.isFinite, retryAfter >= 0 else { return .seconds(planned) }
+    return retryAfter <= longestRetryAfter ? .seconds(max(planned, retryAfter)) : nil
   }
 }
