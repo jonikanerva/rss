@@ -12,16 +12,16 @@ nonisolated enum OpenAIModelSetting {
   static let defaultModel = "gpt-5.6-luna"
 
   /// The effective model: the stored pick, or `defaultModel` when the key is
-  /// absent or empty. Production callers read `UserDefaults.standard`; tests
+  /// absent or empty. Production callers read `AppDefaults.current`; tests
   /// pass an isolated suite (the `ClassificationProviderKind` pattern).
-  static func current(in defaults: UserDefaults = .standard) -> String {
+  static func current(in defaults: UserDefaults = AppDefaults.current) -> String {
     guard let stored = defaults.string(forKey: userDefaultsKey), !stored.isEmpty else {
       return defaultModel
     }
     return stored
   }
 
-  static func persist(_ model: String, in defaults: UserDefaults = .standard) {
+  static func persist(_ model: String, in defaults: UserDefaults = AppDefaults.current) {
     defaults.set(model, forKey: userDefaultsKey)
   }
 }

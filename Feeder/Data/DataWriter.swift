@@ -37,15 +37,15 @@ nonisolated protocol SeededDefaultsFlagStore: Sendable {
   func setSeeded(_ value: Bool, forKey key: String)
 }
 
-/// Production implementation over the live `UserDefaults.standard` suite.
-/// Every call re-resolves the suite instead of capturing the non-`Sendable`
-/// reference, which keeps the wrapper itself `Sendable`.
-nonisolated struct StandardUserDefaultsFlagStore: SeededDefaultsFlagStore {
+/// Production implementation over `AppDefaults.current`. Every call
+/// re-resolves the suite instead of capturing the non-`Sendable` reference,
+/// which keeps the wrapper itself `Sendable`.
+nonisolated struct AppDefaultsFlagStore: SeededDefaultsFlagStore {
   func isSeeded(forKey key: String) -> Bool {
-    UserDefaults.standard.bool(forKey: key)
+    AppDefaults.current.bool(forKey: key)
   }
   func setSeeded(_ value: Bool, forKey key: String) {
-    UserDefaults.standard.set(value, forKey: key)
+    AppDefaults.current.set(value, forKey: key)
   }
 }
 
@@ -66,7 +66,7 @@ actor DataWriter: ModelActor {
 
   init(
     modelContainer: ModelContainer,
-    defaultsFlagStore: any SeededDefaultsFlagStore = StandardUserDefaultsFlagStore()
+    defaultsFlagStore: any SeededDefaultsFlagStore = AppDefaultsFlagStore()
   ) {
     self.modelContainer = modelContainer
     self.defaultsFlagStore = defaultsFlagStore
@@ -115,7 +115,7 @@ actor DataWriter: ModelActor {
   /// happen off the main thread (`STACK.md § 0 → Actor boundaries`).
   static func makeDetached(
     modelContainer: ModelContainer,
-    defaultsFlagStore: any SeededDefaultsFlagStore = StandardUserDefaultsFlagStore()
+    defaultsFlagStore: any SeededDefaultsFlagStore = AppDefaultsFlagStore()
   ) async -> DataWriter {
     await Task.detached(priority: .utility) {
       DataWriter(modelContainer: modelContainer, defaultsFlagStore: defaultsFlagStore)

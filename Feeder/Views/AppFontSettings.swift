@@ -54,15 +54,15 @@ final class AppFontSettings {
   /// valid `AppTextSize`, so the fallback below resolves a missing or invalid
   /// value to medium.
   convenience init() {
-    let stored = UserDefaults.standard.integer(forKey: appTextSizeUserDefaultsKey)
+    let stored = AppDefaults.current.integer(forKey: appTextSizeUserDefaultsKey)
     let resolved = AppTextSize(rawValue: stored) ?? .medium
-    self.init(textSize: resolved, userDefaults: .standard)
+    self.init(textSize: resolved, userDefaults: AppDefaults.current)
   }
 
   /// Injected init for previews and tests, so each one pins its own size and
   /// its own `UserDefaults`. The assignment is direct, so `didSet` does not
   /// fire and construction has no write-back side effect.
-  init(textSize: AppTextSize, userDefaults: UserDefaults = .standard) {
+  init(textSize: AppTextSize, userDefaults: UserDefaults = AppDefaults.current) {
     self.userDefaults = userDefaults
     self.textSize = textSize
     self.entryRowHeight = Self.computeEntryRowHeight(scale: textSize.scaleFactor)

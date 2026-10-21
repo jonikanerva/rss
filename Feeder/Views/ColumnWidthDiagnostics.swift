@@ -15,7 +15,7 @@ nonisolated enum ColumnWidthDiagnostics {
   /// Once per launch and column: the `ideal` handed to the split view and the
   /// raw stored value behind it.
   static func logRestoredIdeal(
-    _ restored: CGFloat, for column: ColumnWidthSetting.Column, in defaults: UserDefaults = .standard
+    _ restored: CGFloat, for column: ColumnWidthSetting.Column, in defaults: UserDefaults = AppDefaults.current
   ) {
     let raw = defaults.object(forKey: column.userDefaultsKey) as? Double
     let rawText = raw.map { String($0) } ?? "absent"

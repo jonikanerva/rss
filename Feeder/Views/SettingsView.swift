@@ -25,10 +25,10 @@ struct SettingsView: View {
   @State
   private var showAccountEditor = false
   @State
-  private var syncInterval: Double = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
+  private var syncInterval: Double = AppDefaults.current.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
   @State
   private var keepDays: Int = {
-    let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
+    let stored = AppDefaults.current.integer(forKey: articleKeepDaysUserDefaultsKey)
     return stored > 0 ? stored : 7
   }()
 
@@ -135,7 +135,7 @@ struct SettingsView: View {
           Text("1 hour").tag(3600.0)
         }
         .onChange(of: syncInterval) { _, newValue in
-          UserDefaults.standard.set(newValue, forKey: syncIntervalUserDefaultsKey)
+          AppDefaults.current.set(newValue, forKey: syncIntervalUserDefaultsKey)
         }
 
         Picker("Keep articles", selection: $keepDays) {
@@ -146,7 +146,7 @@ struct SettingsView: View {
           Text("30 days").tag(30)
         }
         .onChange(of: keepDays) { oldValue, newValue in
-          UserDefaults.standard.set(newValue, forKey: articleKeepDaysUserDefaultsKey)
+          AppDefaults.current.set(newValue, forKey: articleKeepDaysUserDefaultsKey)
           syncEngine.refreshArticleCutoff()
           if let writer = syncEngine.writer {
             classificationEngine.stopContinuousClassification()

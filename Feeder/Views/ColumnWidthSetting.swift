@@ -67,9 +67,9 @@ nonisolated enum ColumnWidthSetting {
   /// default when the key is absent or holds no usable number.
   /// `double(forKey:)` returns 0 for an absent key or a wrong type; 0,
   /// negative, NaN, infinite and below-floor values all fall back to the
-  /// default. No clamp. Production callers read `UserDefaults.standard`;
+  /// default. No clamp. Production callers read `AppDefaults.current`;
   /// tests pass an isolated suite.
-  static func restoredIdealWidth(for column: Column, in defaults: UserDefaults = .standard) -> CGFloat {
+  static func restoredIdealWidth(for column: Column, in defaults: UserDefaults = AppDefaults.current) -> CGFloat {
     let stored = defaults.double(forKey: column.userDefaultsKey)
     guard stored.isFinite, stored >= Double(sanityFloor) else { return column.defaultIdealWidth }
     return CGFloat(stored)
@@ -89,7 +89,7 @@ nonisolated enum ColumnWidthSetting {
   /// the health signal. The first settled value is never stored either way.
   @discardableResult
   static func persist(
-    _ width: CGFloat, for column: Column, isLaunchLayout: Bool, in defaults: UserDefaults = .standard
+    _ width: CGFloat, for column: Column, isLaunchLayout: Bool, in defaults: UserDefaults = AppDefaults.current
   ) -> PersistOutcome {
     guard width.isFinite else { return .skippedBelowSanityFloor }
     let rounded = width.rounded(.down)

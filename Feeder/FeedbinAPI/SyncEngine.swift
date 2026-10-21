@@ -24,7 +24,7 @@ nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
 /// Maximum age for articles, in days. Nothing older is fetched or persisted,
 /// and an older row is purged.
 nonisolated var articleKeepDays: Int {
-  let stored = UserDefaults.standard.integer(forKey: articleKeepDaysUserDefaultsKey)
+  let stored = AppDefaults.current.integer(forKey: articleKeepDaysUserDefaultsKey)
   return stored > 0 ? stored : 7
 }
 
@@ -356,7 +356,7 @@ final class SyncEngine {
   /// A test passes an isolated `defaults` suite: the standard domain holds the
   /// owner's real sync state.
   init(
-    defaults: UserDefaults = .standard,
+    defaults: UserDefaults = AppDefaults.current,
     credentialStore: any FeedbinCredentialStore,
     account: FeedbinAccountPhase = .checking,
     makeClient: @escaping @MainActor (FeedbinCredentials) -> any FeedbinClientProtocol = {

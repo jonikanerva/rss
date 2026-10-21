@@ -12,7 +12,7 @@ nonisolated enum SettingsPane: String, Sendable {
   static let userDefaultsKey = "settings_pane"
   static let `default`: Self = .account
 
-  static func persist(_ pane: Self, in defaults: UserDefaults = .standard) {
+  static func persist(_ pane: Self, in defaults: UserDefaults = AppDefaults.current) {
     defaults.set(pane.rawValue, forKey: userDefaultsKey)
   }
 }
