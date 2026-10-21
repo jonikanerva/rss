@@ -27,6 +27,8 @@ enum DetailDateFormatting {
 struct EntryDetailView: View {
   let entry: Entry
   let viewMode: ArticleViewMode
+  /// A new command scrolls the article by one page, in both view modes.
+  var pageCommand: DetailPageCommand = .initial
   @Environment(\.accessibilityReduceMotion)
   private var reduceMotion
   @Environment(AppFontSettings.self)
@@ -40,12 +42,16 @@ struct EntryDetailView: View {
   /// or the writer updated the blocks in place.
   @State
   private var blocks: [ArticleBlock] = []
+  @State
+  private var readerScrollPosition = ScrollPosition(edge: .top)
+  @State
+  private var readerScrollMetrics = ReaderScrollMetrics()
 
   var body: some View {
     Group {
       switch viewMode {
       case .web:
-        ArticleWebContainer(entry: entry)
+        ArticleWebContainer(entry: entry, pageCommand: pageCommand)
       case .reader:
         readerView
       }
@@ -74,6 +80,20 @@ struct EntryDetailView: View {
       .padding(.top, 24)
       .padding(.bottom, 32)
       .frame(maxWidth: .infinity, alignment: .center)
+    }
+    .scrollPosition($readerScrollPosition)
+    .onScrollGeometryChange(for: ReaderScrollMetrics.Value.self) { geometry in
+      ReaderScrollMetrics.Value(offset: geometry.contentOffset.y, viewportHeight: geometry.containerSize.height)
+    } action: { _, value in
+      readerScrollMetrics.value = value
+    }
+    .onChange(of: pageCommand) { _, command in
+      let value = readerScrollMetrics.value
+      let target = pagedScrollOffset(
+        current: value.offset, viewportHeight: value.viewportHeight, direction: command.direction)
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+        readerScrollPosition.scrollTo(y: target)
+      }
     }
     .task(id: entry.articleBlocksData) {
       // The decode is fast enough to run synchronously here. Dispatching it to a
@@ -125,6 +145,20 @@ struct EntryDetailView: View {
   }
 }
 
+// MARK: - Reader Scroll Metrics
+
+/// The last scroll geometry of the reader. A plain class, not `@Observable`:
+/// the reader writes it on each scroll frame, and that write must not render
+/// the view again.
+final class ReaderScrollMetrics {
+  struct Value: Equatable {
+    var offset: CGFloat = 0
+    var viewportHeight: CGFloat = 0
+  }
+
+  var value = Value()
+}
+
 // MARK: - Article View Mode
 
 enum ArticleViewMode {
@@ -141,6 +175,7 @@ enum ArticleViewMode {
 /// keyboard navigation never flashes.
 private struct ArticleWebContainer: View {
   let entry: Entry
+  let pageCommand: DetailPageCommand
 
   @Environment(AppFontSettings.self)
   private var fontSettings
@@ -159,7 +194,7 @@ private struct ArticleWebContainer: View {
   var body: some View {
     Group {
       if let renderedHTML {
-        ArticleWebView(entry: entry, renderedHTML: renderedHTML)
+        ArticleWebView(entry: entry, renderedHTML: renderedHTML, pageCommand: pageCommand)
       } else {
         ProgressView()
           .frame(maxWidth: .infinity, maxHeight: .infinity)

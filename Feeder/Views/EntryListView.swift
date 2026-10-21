@@ -67,6 +67,8 @@ struct EntryListView: View {
   @Binding
   var selectedEntryID: PersistentIdentifier?
   let onMarkAllRead: () -> Void
+  /// Space and Shift-Space in the list page the detail pane.
+  var onPageDetail: (EventModifiers) -> KeyPress.Result = { _ in .ignored }
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -216,6 +218,7 @@ struct EntryListView: View {
         }
         .modifier(BareKeyHandler())
         .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
+        .modifier(DetailPageKeyHandler(action: onPageDetail))
         .preference(key: VisibleEntriesKey.self, value: visibleEntries)
         .accessibilityIdentifier("timeline.list")
       }

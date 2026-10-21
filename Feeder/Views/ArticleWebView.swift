@@ -89,6 +89,8 @@ struct ArticleWebView: NSViewRepresentable {
   /// Pre-rendered article HTML. The host computes it on a background task, so
   /// the sanitisation and template injection stay off MainActor.
   let renderedHTML: String
+  /// A command with a new sequence scrolls the page by one page.
+  let pageCommand: DetailPageCommand
   /// The same actions the SwiftUI handlers dispatch, forwarded into the AppKit
   /// subclass above so the shortcuts keep working while the web view is first
   /// responder.
@@ -105,6 +107,9 @@ struct ArticleWebView: NSViewRepresentable {
     webView.bareKeyActions = bareKeyActions
     webView.navigationDelegate = context.coordinator
     context.coordinator.webView = webView
+    // A new web view, for example after a view mode switch, does not run the
+    // command that was current before it existed.
+    context.coordinator.pageSequence = pageCommand.sequence
     return webView
   }
 
@@ -113,6 +118,17 @@ struct ArticleWebView: NSViewRepresentable {
     // environment rebuilds its closures even when the entry and HTML are
     // unchanged.
     (webView as? BareKeyForwardingWebView)?.bareKeyActions = bareKeyActions
+    if context.coordinator.pageSequence != pageCommand.sequence {
+      context.coordinator.pageSequence = pageCommand.sequence
+      // The standard AppKit page actions scroll the page without a script,
+      // and the web view keeps its own page size and animation.
+      let action =
+        switch pageCommand.direction {
+        case .down: #selector(NSResponder.scrollPageDown(_:))
+        case .up: #selector(NSResponder.scrollPageUp(_:))
+        }
+      webView.tryToPerform(action, with: nil)
+    }
     // Re-load when the entry changes or the rendered HTML changes. Hashing the
     // HTML keeps the guard cheap: comparing the strings would allocate on every
     // diff.
@@ -142,6 +158,7 @@ struct ArticleWebView: NSViewRepresentable {
     weak var webView: WKWebView?
     var currentEntryID: Int?
     var currentHTMLHash: Int?
+    var pageSequence = DetailPageCommand.initial.sequence
     /// True from `loadHTMLString` until its main-frame decision. Feeder starts
     /// no other load in that time, so the next main-frame decision without a
     /// user click belongs to this load. Any later one is a meta refresh or a

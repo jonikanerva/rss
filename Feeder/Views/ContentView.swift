@@ -68,6 +68,8 @@ struct ContentView: View {
   @State
   private var articleViewMode: ArticleViewMode = .web
   @State
+  private var detailPageCommand = DetailPageCommand.initial
+  @State
   private var pendingReadIDs: Set<Int> = []
   /// Rendered-entries payload bubbled up from `EntryListView`: the visible ids
   /// plus the rendered-unread ids, which are one side of the two-sided
@@ -467,6 +469,13 @@ struct ContentView: View {
     selection = items[newIndex]
   }
 
+  private func pageDetail(modifiers: EventModifiers) -> KeyPress.Result {
+    guard let direction = detailPageDirection(hasSelectedEntry: selectedEntry != nil, modifiers: modifiers)
+    else { return .ignored }
+    detailPageCommand = detailPageCommand.next(direction)
+    return .handled
+  }
+
   private func toggleArticleViewMode() {
     articleViewMode = articleViewMode == .web ? .reader : .web
   }
@@ -548,7 +557,8 @@ struct ContentView: View {
         cutoffDate: syncEngine.queryCutoffDate, reader: reader,
         refreshVersion: entryRefreshVersion,
         pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
-        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead
+        selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
+        onPageDetail: pageDetail(modifiers:)
       )
     } else {
       // Until the launch path attaches the reader. The call site's modifiers
@@ -825,7 +835,7 @@ struct ContentView: View {
   private var detailView: some View {
     Group {
       if let selectedEntry {
-        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode)
+        EntryDetailView(entry: selectedEntry, viewMode: articleViewMode, pageCommand: detailPageCommand)
       } else {
         ContentUnavailableView {
           Label("Select an Article", systemImage: "doc.text")
