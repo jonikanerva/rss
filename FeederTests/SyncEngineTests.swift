@@ -464,8 +464,14 @@ struct SyncEngineTests {
     return client
   }
 
+  /// The entries are one hour old, inside every keep-days window, because the
+  /// engine requests extracted content only after `articleCutoffDate()`.
   private func setEntries(_ ids: [Int], on client: FakeFeedbinClient) async throws {
-    let entries = try ids.map { try FeedbinFixtures.entry(id: $0, feedId: 100, extractedContentURL: Self.extractURL($0)) }
+    let published = formatDateForFeedbin(Date().addingTimeInterval(-3600))
+    let entries = try ids.map {
+      try FeedbinFixtures.entry(
+        id: $0, feedId: 100, published: published, extractedContentURL: Self.extractURL($0))
+    }
     await client.setEntryPagesResponse([FeedbinFixtures.entriesPage(entries)])
   }
 
@@ -480,7 +486,7 @@ struct SyncEngineTests {
   }
 
   private static func pendingExtractIDs(in writer: DataWriter) async throws -> Set<Int> {
-    Set(try await writer.fetchExtractedContentRequests().map(\.entryID))
+    Set(try await writer.fetchExtractedContentRequests(cutoffDate: articleCutoffDate()).map(\.entryID))
   }
 
   @Test(arguments: [ExtractedContentFailure.http(status: 404), .transport(.timedOut)])

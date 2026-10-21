@@ -425,10 +425,19 @@ actor DataWriter: ModelActor {
 
   // MARK: - Extracted content
 
-  func fetchExtractedContentRequests() throws -> [(entryID: Int, url: String)] {
+  /// Entries inside the keep-days window that still need extracted content,
+  /// newest first. Pass `articleCutoffDate()`, the window of the article list
+  /// and the classification queue.
+  func fetchExtractedContentRequests(cutoffDate: Date) throws -> [(entryID: Int, url: String)] {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.extractedContentURL != nil && $0.extractedContent == nil }
+      predicate: #Predicate<Entry> {
+        $0.extractedContentURL != nil && $0.extractedContent == nil && $0.publishedAt >= cutoffDate
+      },
+      sortBy: [
+        SortDescriptor(\Entry.publishedAt, order: .reverse),
+        SortDescriptor(\Entry.feedbinEntryID, order: .reverse),
+      ]
     )
     return try modelContext.fetch(descriptor).compactMap { entry in
       guard let url = entry.extractedContentURL else { return nil }
