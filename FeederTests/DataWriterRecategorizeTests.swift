@@ -7,7 +7,7 @@ import Testing
 //
 // Covers the reassign-and-delete write and the count helper beside it. The two
 // back the sheet's confirmation flow: no orphans means no confirmation, and any
-// orphans mean a reassign and delete in one atomic transaction.
+// orphans mean a reassign and delete in one atomic save.
 
 struct DataWriterRecategorizeTests {
   // MARK: - Helpers
@@ -200,15 +200,9 @@ struct DataWriterRecategorizeTests {
 
   // MARK: - Atomicity
 
-  /// A missing target is detected before the transaction opens, so there is no
-  /// pending mutation to discard and the store is unchanged because the writer
-  /// never started the work.
-  ///
-  /// In-transaction rollback rests on the `transaction(block:)` contract: the
-  /// closure's pending changes commit at the closing brace and are discarded on
-  /// any throw inside it. The in-memory harness cannot inject a save-time
-  /// failure, so this test covers the pre-flight half and the call site's use of
-  /// that single primitive covers the rest.
+  /// A missing target is detected before the first mutation, so the store is
+  /// unchanged because the writer never started the work.
+  /// `DataWriterSaveFailureTests` covers a save-time failure.
   @Test
   func removeCategoryFailureLeavesStoreUntouched() async throws {
     let writer = try await makeWriter()
