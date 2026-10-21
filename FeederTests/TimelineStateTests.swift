@@ -233,6 +233,22 @@ struct TimelineStateTests {
     #expect(timeline.pendingClassificationRefresh == true)
   }
 
+  /// A new batch can replace a running batch with no finish signal between
+  /// them. Its smaller count starts a new baseline.
+  @Test
+  func replacingBatchRequestsARefreshForItsFirstResult() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+    timeline.classificationProgressed(classifiedCount: 5)
+    timeline.drainClassificationRefresh()
+
+    timeline.classificationProgressed(classifiedCount: 0)
+    #expect(timeline.pendingClassificationRefresh == false)
+    timeline.classificationProgressed(classifiedCount: 1)
+
+    #expect(timeline.pendingClassificationRefresh == true)
+  }
+
   @Test
   func backgroundFlushOwesOneRefreshThatResumeConsumes() async throws {
     let (store, engine) = try await inMemory()
@@ -268,7 +284,8 @@ struct TimelineStateTests {
   // MARK: - List and sidebar consistency
 
   /// A list refresh also refetches the sidebar counts, so the list and the
-  /// sidebar never show different read states for long.
+  /// sidebar never show different read states for long. A snapshot-only
+  /// refresh changes the key too.
   @Test
   func everyRefreshChangesTheSnapshotKey() async throws {
     let (store, engine) = try await inMemory()
@@ -281,6 +298,10 @@ struct TimelineStateTests {
     timeline.syncFinished(changedCount: 1)
     keys.append(key())
     timeline.accountDataDeleted()
+    keys.append(key())
+    let nothingToMark = MarkAllReadPlan(markTarget: .all, optimisticIDs: [], clearsArticleSelection: false)
+    await timeline.markAllAsRead(nothingToMark).value
+    #expect(timeline.snapshotVersion == 1)
     keys.append(key())
 
     #expect(Set(keys).count == keys.count)

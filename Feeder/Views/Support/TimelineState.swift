@@ -202,8 +202,10 @@ final class TimelineState {
   }
 
   /// A classification progress tick. It asks for a refresh only when the
-  /// classified count grew, so a batch whose writes all fail sends none.
+  /// classified count grew, so a batch whose writes all fail sends none. A
+  /// smaller count belongs to a new batch that replaced the running batch.
   func classificationProgressed(classifiedCount: Int) {
+    if classifiedCount < classificationBaseline { classificationBaseline = 0 }
     guard classifiedCount > classificationBaseline else { return }
     classificationBaseline = classifiedCount
     pendingClassificationRefresh = true
