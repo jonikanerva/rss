@@ -70,6 +70,8 @@ final class ClassificationEngine {
   private var isContinuousModeActive = false
   /// While true, no entry point starts a task. An account switch sets it.
   private var isPausedForAccountSwitch = false
+  @ObservationIgnored
+  private var continuousWriter: DataWriter?
   /// Every reset must also replace the task: the task-ID guard in the reporter
   /// is what drops a late report from a replaced runner.
   @ObservationIgnored
@@ -88,6 +90,7 @@ final class ClassificationEngine {
   func startContinuousClassification(writer: DataWriter) {
     guard !isPausedForAccountSwitch else { return }
     isContinuousModeActive = true
+    continuousWriter = writer
     _ = replaceTask(writer: writer, operation: .continuous(nil))
   }
 
@@ -95,6 +98,7 @@ final class ClassificationEngine {
     classificationTask?.cancel()
     classificationTaskID = nil
     isContinuousModeActive = false
+    continuousWriter = nil
     apply(.terminal, provider: lastAbortProvider)
   }
 
@@ -112,6 +116,16 @@ final class ClassificationEngine {
   func resumeAfterAccountSwitch(writer: DataWriter) {
     isPausedForAccountSwitch = false
     configurationChanged(writer: writer)
+  }
+
+  /// Ends the loop wait at once after a self-healing Apple Foundation Models
+  /// stop (`STACK.md → Cloud classification`). Keeps the strikes. Any other
+  /// state returns without work, because this runs on every app activation.
+  func applicationDidBecomeActive() {
+    guard isContinuousModeActive, !isClassifying, let writer = continuousWriter,
+      lastAbortProvider == .appleFM, let lastAbort, !lastAbort.offersSettings
+    else { return }
+    _ = replaceTask(writer: writer, operation: .continuous(nil))
   }
 
   /// Call synchronously after a committed provider, model, key, or category
@@ -322,7 +336,7 @@ nonisolated struct ClassificationRunner: Sendable {
       let categories = try await writer.fetchCategoryDefinitions()
       try await provider.validate(categories: categories)
       guard await provider.isAvailable else {
-        await reportProgress(.outcome(.providerUnavailable))
+        await reportProgress(.outcome(provider.unavailableAbort))
         return .aborted(.poll, completed: 0)
       }
       try Task.checkCancellation()
@@ -365,7 +379,7 @@ nonisolated struct ClassificationRunner: Sendable {
       try Task.checkCancellation()
     } catch { return await abort(error, completed: 0) }
     guard await provider.isAvailable else {
-      if !Task.isCancelled { await reportProgress(.outcome(.providerUnavailable)) }
+      if !Task.isCancelled { await reportProgress(.outcome(provider.unavailableAbort)) }
       return .aborted(.poll, completed: 0)
     }
     let supportedLanguages = await provider.supportedLanguageCodes

@@ -955,8 +955,8 @@ struct CloudFailureDispositionPairingTests {
   @Test
   func appleFMFailuresPair() {
     let appleFM: [AppleFMClassificationError] = [
-      .modelUnavailable, .rateLimited(retryAfter: nil), .rateLimited(retryAfter: 30), .contextSizeExceeded, .guardrailViolation,
-      .refusal, .unsupportedLanguage, .unexpected(detail: "x"),
+      .modelUnavailable, .instructionsTooLarge, .categoriesDeclined, .rateLimited(retryAfter: nil), .rateLimited(retryAfter: 30),
+      .contextSizeExceeded, .guardrailViolation, .refusal, .unsupportedLanguage, .unexpected(detail: "x"),
     ]
     for failure in appleFM { expectPairing(failure) }
   }
@@ -974,10 +974,12 @@ struct ClassificationAbortReasonCopyTests {
     (.keyRejected, "API key was rejected"),
     (.offline, "Categorizing paused — offline"),
     (.providerUnavailable, "Categorizing paused — provider unavailable"),
+    (.appleIntelligenceUnavailable, "Apple Intelligence is not available — check System Settings"),
     (.needsKey, "Add an API key to start categorizing"),
     (.keyUnreadable, "Could not read the API key from Keychain"),
     (.invalidCategories, "The selected model needs unique category labels and at most 255 categories"),
     (.inputTooLarge, "Category definitions are too large for the selected model"),
+    (.categoriesDeclined, "Apple Intelligence declined the category definitions"),
     (.invalidResponse, "The selected model returned an invalid result"),
     (.rateLimited, "Categorizing paused — service limit reached"),
   ]
@@ -1012,9 +1014,10 @@ struct ClassificationAbortReasonCopyTests {
   @Test
   func settingsAffordanceMatchesApprovedMapping() {
     let offersSettings: [ClassificationAbortReason] = [
-      .modelRejected, .keyRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .invalidResponse, .quotaExhausted,
+      .modelRejected, .keyRejected, .needsKey, .keyUnreadable, .invalidCategories, .inputTooLarge, .categoriesDeclined,
+      .invalidResponse, .quotaExhausted,
     ]
-    let selfHealing: [ClassificationAbortReason] = [.offline, .providerUnavailable, .rateLimited]
+    let selfHealing: [ClassificationAbortReason] = [.offline, .providerUnavailable, .appleIntelligenceUnavailable, .rateLimited]
     for reason in offersSettings { #expect(reason.offersSettings, "\(reason) must offer Settings") }
     for reason in selfHealing { #expect(!reason.offersSettings, "\(reason) must not offer Settings") }
   }

@@ -211,6 +211,7 @@ struct FeederApp: App {
     isBootstrapRunning = true
     defer { isBootstrapRunning = false }
     appDelegate.syncEngine = syncEngine
+    appDelegate.classificationEngine = classificationEngine
     let writer = await DataWriter.makeDetached(modelContainer: container)
     do {
       let outcome = try await writer.bootstrap()
@@ -241,11 +242,13 @@ struct FeederApp: App {
 
 // MARK: - App delegate
 
-/// The app's `NSApplicationDelegate`. At quit it queues each pending read that
-/// this launch has not queued yet. It adds no UI and never calls `exit()`.
+/// The app's `NSApplicationDelegate`. At activation it lets the classification
+/// engine end a loop wait. At quit it queues each pending read that this launch
+/// has not queued yet. It adds no UI and never calls `exit()`.
 final class FeederAppDelegate: NSObject, NSApplicationDelegate {
-  /// `FeederApp` owns the engine and sets this reference in its bootstrap.
+  /// `FeederApp` owns the engines and sets these references in its bootstrap.
   weak var syncEngine: SyncEngine?
+  weak var classificationEngine: ClassificationEngine?
 
   // MARK: - Launch
 
@@ -253,6 +256,12 @@ final class FeederAppDelegate: NSObject, NSApplicationDelegate {
     // Feeder has one main window. A window tab is a second window, so remove
     // the tab commands and the tab bar's new-tab button.
     NSWindow.allowsAutomaticWindowTabbing = false
+  }
+
+  // MARK: - Activation
+
+  func applicationDidBecomeActive(_ notification: Notification) {
+    classificationEngine?.applicationDidBecomeActive()
   }
 
   // MARK: - Quit
