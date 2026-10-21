@@ -205,6 +205,10 @@ private enum SyncStatusPreviewState {
   case abortedModel
   case abortedNeedsKey
   case abortedKeyUnreadable
+  case abortedKeyRejected
+  case abortedInvalidCategories
+  case abortedInputTooLarge
+  case abortedInvalidResponse
   case abortedOffline
   case abortedRateLimited
   case abortedQuotaExhausted
@@ -273,6 +277,21 @@ private enum SyncStatusPreviewState {
       // Threshold check for the Keychain read copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .keyUnreadable, provider: .vercel)
+    case .abortedKeyRejected:
+      // Threshold checks for the longest Settings-fixable labels at the largest
+      // text size: the label wraps, and the symbol and "Open Settings" do not
+      // truncate (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .keyRejected, provider: .openAI)
+    case .abortedInvalidCategories:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .invalidCategories, provider: .vercel)
+    case .abortedInputTooLarge:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .inputTooLarge, provider: .vercel)
+    case .abortedInvalidResponse:
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .invalidResponse, provider: .vercel)
     case .abortedOffline:
       // Self-healing cause → no button; exercises the wifi.slash symbol.
       sync.applyPreviewState(lastSyncDate: .now)
@@ -376,6 +395,22 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Key unreadable") {
   syncStatusPreview(state: .abortedKeyUnreadable, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Key rejected") {
+  syncStatusPreview(state: .abortedKeyRejected, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Invalid categories") {
+  syncStatusPreview(state: .abortedInvalidCategories, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Input too large") {
+  syncStatusPreview(state: .abortedInputTooLarge, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Invalid response") {
+  syncStatusPreview(state: .abortedInvalidResponse, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Service limit") {
