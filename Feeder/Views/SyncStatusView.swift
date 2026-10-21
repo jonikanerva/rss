@@ -209,6 +209,8 @@ private enum SyncStatusPreviewState {
   case abortedRateLimited
   case abortedQuotaExhausted
   case abortedQuotaExhaustedVercel
+  case abortedAppleIntelligenceUnavailable
+  case abortedCategoriesDeclined
   case abortedWhileSyncing
   case accountUnreadable
   case accountAndKeyUnreadable
@@ -290,6 +292,16 @@ private enum SyncStatusPreviewState {
       // Threshold check for the Vercel quota copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .vercel)
+    case .abortedAppleIntelligenceUnavailable:
+      // Self-healing cause → no button. Threshold check at the largest text
+      // size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .appleIntelligenceUnavailable, provider: .appleFM)
+    case .abortedCategoriesDeclined:
+      // Settings-fixable cause → "Open Settings". Threshold check at the
+      // largest text size (`STACK.md § 11`).
+      sync.applyPreviewState(lastSyncDate: .now)
+      classification.applyPreviewState(lastAbort: .categoriesDeclined, provider: .appleFM)
     case .abortedWhileSyncing:
       // Both banners stacked at the narrow frame must not truncate
       // (`STACK.md § 11`).
@@ -376,6 +388,14 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Quota (Vercel)") {
   syncStatusPreview(state: .abortedQuotaExhaustedVercel, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Apple Intelligence unavailable") {
+  syncStatusPreview(state: .abortedAppleIntelligenceUnavailable, textSize: .xxLarge)
+}
+
+#Preview("Aborted - Categories declined") {
+  syncStatusPreview(state: .abortedCategoriesDeclined, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Offline") {

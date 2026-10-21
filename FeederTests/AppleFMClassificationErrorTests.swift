@@ -128,8 +128,14 @@ struct AppleFMClassificationErrorTests {
 
   nonisolated private static let contracts: [AppleFMFailureContract] = [
     AppleFMFailureContract(
-      failure: .modelUnavailable, batchAbort: .providerUnavailable, retryDisposition: .poll, isSkippable: false,
+      failure: .modelUnavailable, batchAbort: .appleIntelligenceUnavailable, retryDisposition: .poll, isSkippable: false,
       publicLogLabel: "modelUnavailable"),
+    AppleFMFailureContract(
+      failure: .instructionsTooLarge, batchAbort: .inputTooLarge, retryDisposition: .blocked, isSkippable: false,
+      publicLogLabel: "instructionsTooLarge"),
+    AppleFMFailureContract(
+      failure: .categoriesDeclined, batchAbort: .categoriesDeclined, retryDisposition: .blocked, isSkippable: false,
+      publicLogLabel: "categoriesDeclined"),
     AppleFMFailureContract(
       failure: .rateLimited(retryAfter: nil), batchAbort: .rateLimited, retryDisposition: .transient(retryAfter: nil),
       isSkippable: false, publicLogLabel: "rateLimited"),

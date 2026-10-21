@@ -301,7 +301,7 @@ struct TransientEntrySkipTests {
     case .aborted(.poll, completed: 2): break
     default: Issue.record("Expected a poll abort after two completed entries, got \(outcome)")
     }
-    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.providerUnavailable])
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.appleIntelligenceUnavailable])
     #expect(await provider.callCount == 3)
     for id in ids[2...] { try await expectPending(writer, id: id) }
     #expect(failures == TransientEntryFailures())
@@ -313,7 +313,7 @@ struct TransientEntrySkipTests {
     await provider.configureAvailability(true)
     let recovered = await runner.runOneBatch(cutoffDate: .distantPast, failures: &failures)
     #expect(recovered.completedCount == 3)
-    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.providerUnavailable, .providerUnavailable, nil])
+    #expect(await recorder.snapshots.filter(\.ownsAbort).map(\.abort) == [.appleIntelligenceUnavailable, .providerUnavailable, nil])
     for id in ids { try await expectCategory(writer, id: id, "tech") }
     #expect(failures == TransientEntryFailures())
   }
