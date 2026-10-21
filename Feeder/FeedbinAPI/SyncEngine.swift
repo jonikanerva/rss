@@ -818,8 +818,6 @@ final class SyncEngine {
     var newestCreatedAt: Date?
     for try await page in client.fetchAllEntryPages(since: since) {
       if let total = page.totalCount { totalToFetch = total }
-      // Back-to-back persist intervals with no fetch gap between them show
-      // coordinator saturation in a trace.
       let persistSignpost = perfSignposter.beginInterval(PerformanceSignpostName.writePersistPage)
       let newCount = try await writer.persistEntries(page.entries, unreadIDs: unreadIDSet)
       perfSignposter.endInterval(PerformanceSignpostName.writePersistPage, persistSignpost)
