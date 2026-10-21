@@ -31,7 +31,7 @@ struct ColumnWidthRecorder: ViewModifier {
   static let defaultSettleDelay: Duration = .milliseconds(150)
 
   let column: ColumnWidthSetting.Column
-  /// Store for the width. Production uses `.standard`; tests inject a suite.
+  /// Store for the width. Production uses `AppDefaults.current`; tests inject a suite.
   let defaults: UserDefaults
   /// How long the width must stay unchanged before it is stored. A divider
   /// pauses this long only when the drag has settled. A drag released less
@@ -59,7 +59,7 @@ struct ColumnWidthRecorder: ViewModifier {
   private var createdAt: ContinuousClock.Instant = .now
 
   init(
-    column: ColumnWidthSetting.Column, defaults: UserDefaults = .standard,
+    column: ColumnWidthSetting.Column, defaults: UserDefaults = AppDefaults.current,
     settleDelay: Duration = ColumnWidthRecorder.defaultSettleDelay
   ) {
     self.column = column
@@ -115,7 +115,7 @@ extension View {
   /// `PersistedColumnWidthTests` pins the order with a positive and a
   /// negative case, and `STACK.md § 7` bans the loose pair of modifiers.
   func persistedColumnWidth(
-    column: ColumnWidthSetting.Column, ideal: CGFloat, defaults: UserDefaults = .standard,
+    column: ColumnWidthSetting.Column, ideal: CGFloat, defaults: UserDefaults = AppDefaults.current,
     settleDelay: Duration = ColumnWidthRecorder.defaultSettleDelay
   ) -> some View {
     modifier(ColumnWidthRecorder(column: column, defaults: defaults, settleDelay: settleDelay))

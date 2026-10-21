@@ -130,7 +130,7 @@ Do not test Apple framework behaviour, styling, a private helper whose owner has
 
 Hygiene for a new or changed test:
 
-- Do not use a real Keychain item, `UserDefaults.standard`, `URLCache.shared` or another shared URL-loading store, the general pasteboard, or the app's on-disk store. The unit-test host runs in the owner's app container.
+- Do not use a real Keychain item, `UserDefaults.standard`, `URLCache.shared` or another shared URL-loading store, the general pasteboard, or the app's on-disk store. The unit-test host runs in the owner's app container. App code reads and writes its settings and sync keys through `AppDefaults.current`. A launch without the Feedbin account, also the unit-test host, gets the isolated suite `donut.Feeder.accountless`, and the first read empties that suite. AppKit still writes its split-view autosave keys to `.standard`.
 - Do not use a fixed sleep over 100 ms. Wait for a state, or inject a clock.
 - An on-demand test uses `.enabled(if:)`.
 

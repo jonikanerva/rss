@@ -44,14 +44,14 @@ actor KeychainFeedbinCredentialStore {
   }
 
   func loadLegacy() throws(KeychainError) -> FeedbinCredentials? {
-    try Self.legacyCredentials(username: UserDefaults.standard.string(forKey: Self.legacyUsernameDefaultsKey)) {
+    try Self.legacyCredentials(username: AppDefaults.current.string(forKey: Self.legacyUsernameDefaultsKey)) {
       () throws(KeychainError) -> String? in
       try KeychainHelper.read(key: KeychainHelper.feedbinPasswordKey)
     }
   }
 
   func removeLegacy() {
-    UserDefaults.standard.removeObject(forKey: Self.legacyUsernameDefaultsKey)
+    AppDefaults.current.removeObject(forKey: Self.legacyUsernameDefaultsKey)
     try? KeychainHelper.delete(key: KeychainHelper.feedbinPasswordKey)
   }
 

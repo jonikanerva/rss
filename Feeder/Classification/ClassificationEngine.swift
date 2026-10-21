@@ -278,7 +278,7 @@ final class ClassificationEngine {
   /// Only a cloud provider kind reads the Keychain. An Apple Foundation Models
   /// user never triggers a Keychain read.
   nonisolated static func buildProvider(
-    defaults: UserDefaults = .standard,
+    defaults: UserDefaults = AppDefaults.current,
     keychainRead: (String) throws(KeychainError) -> String? = KeychainHelper.read(key:)
   ) -> any ClassificationProvider {
     let kind = ClassificationProviderKind.current(in: defaults)
