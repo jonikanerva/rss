@@ -42,10 +42,6 @@ struct EntryDetailView: View {
   /// or the writer updated the blocks in place.
   @State
   private var blocks: [ArticleBlock] = []
-  @State
-  private var readerScrollPosition = ScrollPosition(edge: .top)
-  @State
-  private var readerScrollMetrics = ReaderScrollMetrics()
 
   var body: some View {
     Group {
@@ -65,7 +61,7 @@ struct EntryDetailView: View {
   }
 
   private var readerView: some View {
-    ScrollView {
+    PagedReaderScrollView(pageCommand: pageCommand) {
       VStack(alignment: .leading, spacing: 12) {
         articleHeader
 
@@ -80,20 +76,6 @@ struct EntryDetailView: View {
       .padding(.top, 24)
       .padding(.bottom, 32)
       .frame(maxWidth: .infinity, alignment: .center)
-    }
-    .scrollPosition($readerScrollPosition)
-    .onScrollGeometryChange(for: ReaderScrollMetrics.Value.self) { geometry in
-      ReaderScrollMetrics.Value(offset: geometry.contentOffset.y, viewportHeight: geometry.containerSize.height)
-    } action: { _, value in
-      readerScrollMetrics.value = value
-    }
-    .onChange(of: pageCommand) { _, command in
-      let value = readerScrollMetrics.value
-      let target = pagedScrollOffset(
-        current: value.offset, viewportHeight: value.viewportHeight, direction: command.direction)
-      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
-        readerScrollPosition.scrollTo(y: target)
-      }
     }
     .task(id: entry.articleBlocksData) {
       // The decode is fast enough to run synchronously here. Dispatching it to a
@@ -145,12 +127,47 @@ struct EntryDetailView: View {
   }
 }
 
-// MARK: - Reader Scroll Metrics
+// MARK: - Paged Reader Scroll View
+
+/// The reader `ScrollView` with page scrolling. The scroll state lives in this
+/// view, which exists only in reader mode, so each new reader starts at the top.
+private struct PagedReaderScrollView<Content: View>: View {
+  let pageCommand: DetailPageCommand
+  @ViewBuilder
+  let content: Content
+
+  @Environment(\.accessibilityReduceMotion)
+  private var reduceMotion
+  @State
+  private var position = ScrollPosition(edge: .top)
+  @State
+  private var metrics = ReaderScrollMetrics()
+
+  var body: some View {
+    ScrollView {
+      content
+    }
+    .scrollPosition($position)
+    .onScrollGeometryChange(for: ReaderScrollMetrics.Value.self) { geometry in
+      ReaderScrollMetrics.Value(offset: geometry.contentOffset.y, viewportHeight: geometry.containerSize.height)
+    } action: { _, value in
+      metrics.value = value
+    }
+    .onChange(of: pageCommand) { _, command in
+      let value = metrics.value
+      let target = pagedScrollOffset(
+        current: value.offset, viewportHeight: value.viewportHeight, direction: command.direction)
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+        position.scrollTo(y: target)
+      }
+    }
+  }
+}
 
 /// The last scroll geometry of the reader. A plain class, not `@Observable`:
 /// the reader writes it on each scroll frame, and that write must not render
 /// the view again.
-final class ReaderScrollMetrics {
+private final class ReaderScrollMetrics {
   struct Value: Equatable {
     var offset: CGFloat = 0
     var viewportHeight: CGFloat = 0
