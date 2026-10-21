@@ -8,30 +8,33 @@ import Testing
 /// (folders, categories with display name + description + keywords +
 /// sortOrder, classified entries with `primaryCategory` / `primaryFolder`,
 /// feeds) survives a `ModelContainer` open. V1→V2 drops the dead
-/// `Entry.detectedLanguage` column via a lightweight stage; the suite
+/// `Entry.detectedLanguage` column and V2→V3 drops the unread
+/// `Entry.formattedDate` column, both via lightweight stages; the suite
 /// asserts both the plan shape and the on-disk round-trip across the
-/// stage.
+/// stages.
 @Suite("FeederMigrationPlan")
 struct FeederMigrationPlanTests {
   // MARK: - Plan shape
 
   @Test
-  func planAdvertisesV1AndV2InOrder() {
+  func planAdvertisesV1V2AndV3InOrder() {
     let schemaIDs = FeederMigrationPlan.schemas.map { ObjectIdentifier($0) }
     #expect(
       schemaIDs == [
         ObjectIdentifier(FeederSchemaV1.self),
         ObjectIdentifier(FeederSchemaV2.self),
+        ObjectIdentifier(FeederSchemaV3.self),
       ]
     )
   }
 
   @Test
-  func planHasV1ToV2LightweightStage() {
-    // The lightweight V1→V2 stage drops `Entry.detectedLanguage`. No
-    // `.custom` stage is needed because that field is not an input to
-    // any denormalized display field — see `STACK.md` § 5.
-    #expect(FeederMigrationPlan.stages.count == 1)
+  func planHasOneLightweightStagePerAdjacentPair() {
+    // V1→V2 drops `Entry.detectedLanguage` and V2→V3 drops
+    // `Entry.formattedDate`. No `.custom` stage is needed because neither
+    // field is an input to another denormalized display field — see
+    // `STACK.md` § 5.
+    #expect(FeederMigrationPlan.stages.count == 2)
   }
 
   @Test
@@ -59,6 +62,18 @@ struct FeederMigrationPlanTests {
   }
 
   @Test
+  func v3SchemaListsAllModels() {
+    let modelIDs = FeederSchemaV3.models.map { ObjectIdentifier($0) }
+    let expected: [ObjectIdentifier] = [
+      ObjectIdentifier(FeederSchemaV3.Feed.self),
+      ObjectIdentifier(FeederSchemaV3.Entry.self),
+      ObjectIdentifier(FeederSchemaV3.Category.self),
+      ObjectIdentifier(FeederSchemaV3.Folder.self),
+    ]
+    #expect(Set(modelIDs) == Set(expected))
+  }
+
+  @Test
   func v1VersionIdentifierIsOneZeroZero() {
     #expect(FeederSchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
   }
@@ -68,9 +83,14 @@ struct FeederMigrationPlanTests {
     #expect(FeederSchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
   }
 
+  @Test
+  func v3VersionIdentifierIsThreeZeroZero() {
+    #expect(FeederSchemaV3.versionIdentifier == Schema.Version(3, 0, 0))
+  }
+
   // MARK: - In-memory round-trip
 
-  /// Open a fresh `ModelContainer` against the V2 schema + migration
+  /// Open a fresh `ModelContainer` against the V3 schema + migration
   /// plan, insert one of each `@Model` type, and read everything back.
   /// Guards against regressions where the plan references a model type
   /// that does not compile against the live schema (e.g. a rename that
@@ -78,7 +98,7 @@ struct FeederMigrationPlanTests {
   @Test
   @MainActor
   func roundTripsAllModelsThroughTheMigrationPlanInMemory() throws {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(
       for: schema,
@@ -115,33 +135,49 @@ struct FeederMigrationPlanTests {
     #expect(try context.fetchCount(FetchDescriptor<Entry>()) == 1)
   }
 
-  // MARK: - On-disk round-trip (V1 → V2)
+  // MARK: - On-disk round-trip
 
   /// End-to-end migration safety: write a populated V1 store to disk, close the
-  /// container, open a fresh one with the migration plan and the V2 schema
-  /// against the same URL, and verify every row survives. A user-customised
-  /// category must come through unchanged.
+  /// container, open a fresh one with the migration plan and the V3 schema
+  /// against the same URL, and verify every row survives both stages. A
+  /// user-customised category must come through unchanged.
   @Test
   @MainActor
-  func migratingV1StoreToV2PreservesUserData() throws {
-    let storeURL = Self.makeTemporaryStoreURL()
-    defer { Self.cleanUpStoreFiles(at: storeURL) }
+  func migratingV1StoreToV3PreservesUserData() throws {
+    let folder = try Self.makeTemporaryFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let storeURL = folder.appending(path: "Feeder.store")
 
-    // Pass 1: open the store as V1 (no migration plan), populate with
-    // representative data including `detectedLanguage` set on the
-    // entry, then drop the container.
     try Self.writePopulatedV1Store(at: storeURL)
 
-    // Pass 2: open with V2 schema + migration plan. SwiftData detects
-    // the on-disk V1 shape and runs the lightweight V1→V2 stage,
-    // dropping `detectedLanguage` structurally without touching the
-    // other rows.
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
-    let reopenConfig = ModelConfiguration(schema: schema, url: storeURL)
+    try Self.expectUserDataSurvives(at: storeURL)
+  }
+
+  /// A V2 store, the shape of every install before V3, opens as V3 through
+  /// the lightweight V2→V3 stage. Only `formattedDate` goes away.
+  @Test
+  @MainActor
+  func migratingV2StoreToV3PreservesUserData() throws {
+    let folder = try Self.makeTemporaryFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let storeURL = folder.appending(path: "Feeder.store")
+
+    try Self.writePopulatedV2Store(at: storeURL)
+
+    try Self.expectUserDataSurvives(at: storeURL)
+  }
+
+  // MARK: - Helpers
+
+  /// Open the store at `storeURL` with the V3 schema and the migration plan,
+  /// and check that every row and every kept display field survives.
+  @MainActor
+  private static func expectUserDataSurvives(at storeURL: URL) throws {
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     let reopened = try ModelContainer(
       for: schema,
       migrationPlan: FeederMigrationPlan.self,
-      configurations: reopenConfig
+      configurations: ModelConfiguration(schema: schema, url: storeURL)
     )
     let context = ModelContext(reopened)
 
@@ -150,7 +186,6 @@ struct FeederMigrationPlanTests {
     let feeds = try context.fetch(FetchDescriptor<Feed>())
     let entries = try context.fetch(FetchDescriptor<Entry>())
 
-    // The user-customised category state survives the migration.
     #expect(folders.count == 1)
     #expect(folders.first?.displayName == "Persisted Folder")
     #expect(folders.first?.sortOrder == 0)
@@ -161,38 +196,66 @@ struct FeederMigrationPlanTests {
     #expect(cat?.categoryDescription == "Persisted desc.")
     #expect(cat?.keywords == ["keyword-one", "keyword-two"])
     #expect(cat?.sortOrder == 0)
-    // Pin the category→folder relationship across V1→V2. Without this
-    // assertion a future custom stage could silently drop `folderLabel`
-    // (it's a plain `String?`, not a SwiftData relationship) and the
-    // sidebar grouping would collapse to "all root-level" without any
-    // test surfacing the regression.
+    // `folderLabel` is a plain `String?`, not a relationship, so a stage
+    // could drop it without an error, and the sidebar grouping would
+    // collapse to root level.
     #expect(cat?.folderLabel == "persisted_folder")
 
-    // Feeds survive intact.
     #expect(feeds.count == 1)
     #expect(feeds.first?.title == "Persisted Feed")
 
-    // Classified entries keep their denormalized display fields.
     #expect(entries.count == 1)
     let entry = entries.first
     #expect(entry?.primaryCategory == "persisted_cat")
     #expect(entry?.primaryFolder == "persisted_folder")
     #expect(entry?.isClassified == true)
     #expect(entry?.plainText == "persisted plain text")
-    #expect(entry?.formattedDate == "Persisted, 5th Mar")
     #expect(entry?.formattedPublishedTime == "21.24")
     #expect(entry?.displayDomain == "example.com")
     #expect(entry?.summaryPlainText == "persisted summary")
     #expect(entry?.articleBlocksData != nil)
-
-    // Structural assertion: the live V2 Entry has no `detectedLanguage`
-    // property. The migration dropped the column. Verified at compile
-    // time by the absence of the symbol — if a future refactor
-    // re-introduces it without bumping the schema, this test stops
-    // compiling, which is the intended early-warning behaviour.
   }
 
-  // MARK: - Helpers
+  /// Write a V2 store with the same rows as `writePopulatedV1Store`, with
+  /// `formattedDate` set, so the V2→V3 stage has a value to drop.
+  @MainActor
+  private static func writePopulatedV2Store(at storeURL: URL) throws {
+    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: storeURL))
+    let context = ModelContext(container)
+
+    let feed = FeederSchemaV2.Feed(
+      feedbinSubscriptionID: 7, feedbinFeedID: 700,
+      title: "Persisted Feed", feedURL: "https://example.com/feed",
+      siteURL: "https://example.com", createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let entry = FeederSchemaV2.Entry(
+      feedbinEntryID: 12_345, title: "Persisted Entry", author: nil,
+      url: "https://example.com/post", content: nil, summary: nil,
+      extractedContentURL: nil, publishedAt: Date(timeIntervalSince1970: 1_700_000_000),
+      createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    entry.feed = feed
+    entry.isClassified = true
+    entry.primaryCategory = "persisted_cat"
+    entry.primaryFolder = "persisted_folder"
+    entry.plainText = "persisted plain text"
+    entry.formattedDate = "Persisted, 5th Mar"
+    entry.formattedPublishedTime = "21.24"
+    entry.displayDomain = "example.com"
+    entry.summaryPlainText = "persisted summary"
+    entry.articleBlocksData = Data("[]".utf8)
+    context.insert(
+      FeederSchemaV2.Folder(label: "persisted_folder", displayName: "Persisted Folder", sortOrder: 0))
+    context.insert(
+      FeederSchemaV2.Category(
+        label: "persisted_cat", displayName: "Persisted", categoryDescription: "Persisted desc.",
+        sortOrder: 0, folderLabel: "persisted_folder", keywords: ["keyword-one", "keyword-two"]
+      ))
+    context.insert(feed)
+    context.insert(entry)
+    try context.save()
+  }
 
   /// Write a V1 store with one folder, one category, one feed, one
   /// classified entry (with `detectedLanguage` populated). Encapsulated
@@ -246,20 +309,13 @@ struct FeederMigrationPlanTests {
     try context.save()
   }
 
-  /// Build a unique on-disk store URL inside the per-process temp dir
-  /// so parallel test invocations cannot collide.
-  private static func makeTemporaryStoreURL() -> URL {
-    FileManager.default.temporaryDirectory
-      .appendingPathComponent("feeder.migration.\(UUID().uuidString)")
-      .appendingPathExtension("store")
-  }
-
-  /// Remove the SwiftData store file plus its WAL/SHM siblings.
-  private static func cleanUpStoreFiles(at storeURL: URL) {
-    for suffix in ["", "-shm", "-wal"] {
-      let url = storeURL.appendingPathExtension(suffix)
-      try? FileManager.default.removeItem(at: url)
-    }
-    try? FileManager.default.removeItem(at: storeURL)
+  /// A unique folder inside the per-process temp dir, so parallel test
+  /// invocations cannot collide and one removal deletes the store with its
+  /// WAL and SHM files.
+  private static func makeTemporaryFolder() throws -> URL {
+    let folder = FileManager.default.temporaryDirectory
+      .appending(path: "FeederMigration-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+    return folder
   }
 }

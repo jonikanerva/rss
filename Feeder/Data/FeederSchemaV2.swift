@@ -1,7 +1,10 @@
 import Foundation
 import SwiftData
 
-/// Second versioned schema for the Feeder persistent store, and the live one.
+/// Second versioned schema for the Feeder persistent store.
+///
+/// V2 is frozen. A change to its nested `@Model` declarations invalidates the
+/// on-disk contract of the lightweight V2→V3 stage.
 ///
 /// V2 differs from V1 only by dropping `Entry.detectedLanguage`. The removal is
 /// structural, so `FeederMigrationPlan` uses a lightweight stage: the column
@@ -11,9 +14,6 @@ import SwiftData
 /// rather than typealiased to V1: `Entry.feed` must resolve to V2's `Feed` for
 /// the model graph to stay internally consistent. SwiftData maps the unchanged
 /// tables by class shape during the lightweight stage.
-///
-/// Live code uses the unqualified `Entry`, `Feed`, `Folder`, and `Category`
-/// typealiases in `Feeder/Models/`, which point at the nested types here.
 enum FeederSchemaV2: VersionedSchema {
   static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
 
@@ -21,7 +21,7 @@ enum FeederSchemaV2: VersionedSchema {
     [Feed.self, Entry.self, Category.self, Folder.self]
   }
 
-  // MARK: - V2 models (live)
+  // MARK: - V2 models (frozen)
 
   @Model
   final class Feed {

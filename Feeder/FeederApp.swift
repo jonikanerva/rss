@@ -59,15 +59,15 @@ struct FeederApp: App {
     }
   }
 
-  /// `FeederMigrationPlan` carries a V1 store forward with a lightweight
-  /// stage, so it migrates up on the first launch.
+  /// `FeederMigrationPlan` carries an older store forward with lightweight
+  /// stages, so it migrates up on the first launch.
   private static func makeStoreConfiguration(isStoredInMemoryOnly: Bool) -> ModelConfiguration {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     return ModelConfiguration("Feeder", schema: schema, isStoredInMemoryOnly: isStoredInMemoryOnly)
   }
 
   private static func openContainer(_ configuration: ModelConfiguration) throws -> ModelContainer {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     return try ModelContainer(for: schema, migrationPlan: FeederMigrationPlan.self, configurations: configuration)
   }
 

@@ -21,7 +21,7 @@ enum DataWriterTestSupport {
   /// use the fast in-memory container. The serial unit-target run caps
   /// concurrent coordinators, not the per-suite traits (`STACK.md § 14`).
   static func makeOnDiskContainer() throws -> ModelContainer {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("FeederReaderTest-\(UUID().uuidString).store")
     let config = ModelConfiguration(schema: schema, url: url)
@@ -50,12 +50,12 @@ enum DataWriterTestSupport {
   /// Creates an in-memory `ModelContainer` with the full app schema for tests
   /// that need direct `ModelContext` access (e.g. pure-function tests that
   /// insert SwiftData models without going through `DataWriter`).
-  /// Routes through `FeederSchemaV2` + `FeederMigrationPlan` so tests
+  /// Routes through `FeederSchemaV3` + `FeederMigrationPlan` so tests
   /// exercise the same container shape production uses — if a future
   /// schema bump breaks the migration plan, these tests fail loudly
   /// instead of opening a bare schema that diverges from production.
   static func makeInMemoryContainer() throws -> ModelContainer {
-    let schema = Schema(versionedSchema: FeederSchemaV2.self)
+    let schema = Schema(versionedSchema: FeederSchemaV3.self)
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     return try ModelContainer(
       for: schema,
