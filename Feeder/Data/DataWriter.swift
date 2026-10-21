@@ -406,12 +406,13 @@ actor DataWriter: ModelActor {
     try commit()
   }
 
-  /// Mark all unread entries in `target` as read. Returns the feedbin entry
-  /// IDs that were flipped from unread → read.
-  func markAllAsRead(target: EntryScope, cutoffDate: Date) throws -> Set<Int> {
+  /// The feedbin entry IDs of the unread entries in `scope`. The read has no
+  /// side effects; `SyncEngine.markAllAsRead(scope:)` queues these IDs before
+  /// it marks them read.
+  func fetchUnreadEntryIDs(in scope: EntryScope, cutoffDate: Date) throws -> Set<Int> {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor: FetchDescriptor<Entry>
-    switch target {
+    switch scope {
     case .all:
       descriptor = FetchDescriptor<Entry>(
         predicate: #Predicate<Entry> { !$0.isRead && $0.publishedAt >= cutoffDate }
@@ -431,16 +432,7 @@ actor DataWriter: ModelActor {
         }
       )
     }
-    let entries = try modelContext.fetch(descriptor)
-    guard !entries.isEmpty else { return [] }
-    var markedIDs = Set<Int>()
-    for entry in entries {
-      entry.isRead = true
-      markedIDs.insert(entry.feedbinEntryID)
-    }
-    try modelContext.save()
-    Self.logger.info("Marked \(markedIDs.count) entries as read in \(target.logDescription)")
-    return markedIDs
+    return Set(try modelContext.fetch(descriptor).map(\.feedbinEntryID))
   }
 
   // MARK: - Extracted content
