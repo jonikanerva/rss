@@ -5,7 +5,7 @@ import SwiftData
 /// `@Model` class is nested in that schema, and this typealias is how the rest
 /// of the app refers to it. Re-point the typealias when the next schema version
 /// lands, and the app picks up the new shape uniformly.
-typealias Entry = FeederSchemaV2.Entry
+typealias Entry = FeederSchemaV3.Entry
 
 extension Entry {
   fileprivate static let emptyContentMessage = "This article has no inline content."

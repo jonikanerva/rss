@@ -977,7 +977,6 @@ private func timelineSeededDemoPreview() -> some View {
     entry.primaryFolder = "technology"
     entry.isClassified = true
     entry.isRead = i > 3
-    entry.formattedDate = "Today, \(i)th Mar, 12:0\(i)"
     entry.plainText = "Sample article \(i)."
     context.insert(entry)
   }
