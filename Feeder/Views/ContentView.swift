@@ -139,6 +139,12 @@ struct ContentView: View {
         if let selection {
           entryListForSelection(selection)
             .focused($panelFocus, equals: .articleList)
+            // Only this column: the detail pane, the web view, and a text field
+            // keep their own Copy.
+            .onCommand(
+              #selector(NSText.copy(_:)),
+              perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
+            )
             .environment(\.pendingReadIDs, pendingReadIDs)
             .navigationTitle(navigationTitle)
             .toolbar {
