@@ -10,11 +10,11 @@ nonisolated enum VercelDecisionModel: String, Sendable, CaseIterable {
   static let `default`: Self = .jev
 
   /// An absent or unknown stored value resolves to `default`.
-  static func current(in defaults: UserDefaults = .standard) -> Self {
+  static func current(in defaults: UserDefaults = AppDefaults.current) -> Self {
     defaults.string(forKey: userDefaultsKey).flatMap(Self.init(rawValue:)) ?? .default
   }
 
-  static func persist(_ model: Self, in defaults: UserDefaults = .standard) {
+  static func persist(_ model: Self, in defaults: UserDefaults = AppDefaults.current) {
     defaults.set(model.rawValue, forKey: userDefaultsKey)
   }
 

@@ -695,7 +695,7 @@ struct ContentView: View {
   private func startSync() {
     // Start the periodic sync before the first suspension: the start is the
     // claim that `startsSignedInSession` reads for every other main window.
-    let syncInterval = UserDefaults.standard.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
+    let syncInterval = AppDefaults.current.double(forKey: syncIntervalUserDefaultsKey).clamped(to: 60...3600, default: 300)
     syncEngine.startPeriodicSync(interval: syncInterval)
     Task {
       // The reads already filter on `publishedAt >= cutoffDate`, so this purge

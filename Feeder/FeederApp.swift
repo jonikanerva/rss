@@ -112,6 +112,7 @@ struct FeederApp: App {
         .environment(syncEngine)
         .environment(classificationEngine)
         .environment(fontSettings)
+        .defaultAppStorage(AppDefaults.current)
     }
     .commands { FeederCommands() }
 
@@ -120,6 +121,7 @@ struct FeederApp: App {
         .environment(syncEngine)
         .environment(classificationEngine)
         .environment(fontSettings)
+        .defaultAppStorage(AppDefaults.current)
     }
     .windowResizability(.contentSize)
   }
@@ -154,7 +156,7 @@ struct FeederApp: App {
     storePhase = StoreRecovery.startOver(
       storeURL: configuration.url,
       backupFolderName: StoreRecovery.backupFolderName(at: .now, id: UUID()),
-      defaults: .standard,
+      defaults: AppDefaults.current,
       fileSystem: .live,
       open: { try Self.openContainer(configuration) }
     )
@@ -215,7 +217,7 @@ struct FeederApp: App {
     let writer = await DataWriter.makeDetached(modelContainer: container)
     do {
       let outcome = try await writer.bootstrap()
-      let lastSync = UserDefaults.standard.object(forKey: lastSyncDateUserDefaultsKey) as? Date
+      let lastSync = AppDefaults.current.object(forKey: lastSyncDateUserDefaultsKey) as? Date
       logger.info(
         "Startup: action=\(String(describing: outcome.action)), feeds=\(outcome.feedCount), entries=\(outcome.entryCount), categories=\(outcome.categoryCount), folders=\(outcome.folderCount). Last sync: \(lastSync?.description ?? "never")."
       )
