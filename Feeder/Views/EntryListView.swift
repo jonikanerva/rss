@@ -216,7 +216,7 @@ struct EntryListView: View {
         .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
           entryLinkMenu(for: ids)
         }
-        .modifier(BareKeyHandler())
+        .modifier(BareKeyHandler(handlesFilterKey: true))
         .modifier(MarkAllReadKeyHandler(action: onMarkAllRead))
         .modifier(DetailPageKeyHandler(action: onPageDetail))
         .preference(key: VisibleEntriesKey.self, value: visibleEntries)

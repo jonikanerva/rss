@@ -394,7 +394,7 @@ struct ContentView: View {
       }
       return .handled
     }
-    // J/K/R/B/U route three ways. The per-panel `BareKeyHandler` modifiers fire
+    // J/K/R/B route three ways. The per-panel `BareKeyHandler` modifiers fire
     // while a `List` has focus and keep bare keys out of text fields, where
     // typing must type. `BareKeyForwardingWebView` forwards the same actions
     // from inside the article web view, where the AppKit first responder
@@ -404,7 +404,6 @@ struct ContentView: View {
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
     .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in bareKeyActions.onU() }
     .modifier(menuBarValues)
   }
 
@@ -794,7 +793,7 @@ struct ContentView: View {
         collapsedFolders: $collapsedFolders
       )
     )
-    .modifier(BareKeyHandler())
+    .modifier(BareKeyHandler(handlesFilterKey: true))
     .modifier(MarkAllReadKeyHandler(action: markAllAsRead))
     .accessibilityIdentifier("sidebar.list")
     .toolbar {

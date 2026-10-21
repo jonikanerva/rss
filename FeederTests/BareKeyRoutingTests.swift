@@ -16,7 +16,6 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "k", modifiers: []) == .k)
     #expect(bareKeyRoute(characters: "r", modifiers: []) == .r)
     #expect(bareKeyRoute(characters: "b", modifiers: []) == .b)
-    #expect(bareKeyRoute(characters: "u", modifiers: []) == .u)
   }
 
   @Test
@@ -25,7 +24,6 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "K", modifiers: .shift) == .k)
     #expect(bareKeyRoute(characters: "R", modifiers: .shift) == .r)
     #expect(bareKeyRoute(characters: "B", modifiers: .shift) == .b)
-    #expect(bareKeyRoute(characters: "U", modifiers: .shift) == .u)
   }
 
   @Test
@@ -54,6 +52,8 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "A", modifiers: .shift) == nil)
     #expect(bareKeyRoute(characters: "a", modifiers: []) == nil)
     #expect(bareKeyRoute(characters: "x", modifiers: []) == nil)
+    // U switches the filter only from the sidebar and the article list.
+    #expect(bareKeyRoute(characters: "u", modifiers: []) == nil)
   }
 
   @Test

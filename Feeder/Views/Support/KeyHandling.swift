@@ -83,6 +83,9 @@ extension EnvironmentValues {
 /// fires only while that list has focus and never while the user types in a
 /// text field. `ContentView` documents the three routes together.
 struct BareKeyHandler: ViewModifier {
+  /// True on the sidebar and the article list. U switches the filter only
+  /// from these two panels.
+  var handlesFilterKey = false
   @Environment(\.bareKeyActions)
   private var actions
 
@@ -92,6 +95,8 @@ struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in actions.onU() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in
+        handlesFilterKey ? actions.onU() : .ignored
+      }
   }
 }
