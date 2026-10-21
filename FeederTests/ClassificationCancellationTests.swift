@@ -4,8 +4,8 @@ import Testing
 @testable import Feeder
 
 @MainActor
-/// The time limit only guards against a hang: `waitForDelays(_:)` has no
-/// wall-clock limit of its own.
+/// The time limit only guards against a hang: `waitForDelays(_:)` and
+/// `waitForCalls(_:)` have no wall-clock limit of their own.
 @Suite("Classification cancellation and retry timelines", .timeLimit(.minutes(1)))
 struct ClassificationCancellationTests {
   private func fixture(entryCount: Int = 3) async throws -> DataWriter {
@@ -260,9 +260,9 @@ struct ClassificationCancellationTests {
     await provider.configureDelay(.seconds(5))
     let engine = ClassificationEngine(providerFactoryOverride: { provider })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("provider request starts") { await provider.callCount == 1 }
+    await provider.waitForCalls(1)
     engine.stopContinuousClassification()
-    try await Task.sleep(for: .milliseconds(20))
+    await engine.waitForClassificationTask()
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == false) }
     #expect(!engine.isClassifying)
   }
@@ -322,7 +322,7 @@ struct ClassificationCancellationTests {
 
     await provider.configureDelay(.seconds(5))
     let reclassify = Task { await engine.reclassifyAll(writer: writer) }
-    try await waitUntil("reclassification request starts") { await provider.callCount == 4 }
+    await provider.waitForCalls(4)
     reclassify.cancel()
     await reclassify.value
 
@@ -344,18 +344,19 @@ struct ClassificationCancellationTests {
     let writer = try await fixture()
     let provider = FakeClassificationProvider()
     await provider.configureDelay(.seconds(5))
-    let engine = ClassificationEngine(providerFactoryOverride: { provider })
+    let clock = ClassificationSleepRecorder()
+    let engine = ClassificationEngine(providerFactoryOverride: { provider }, sleep: { try await clock.sleep($0) })
     engine.startContinuousClassification(writer: writer)
-    try await waitUntil("first request starts") { await provider.callCount == 1 }
+    await provider.waitForCalls(1)
     await provider.configureDelay(.zero)
     engine.configurationChanged(writer: writer)
     engine.configurationChanged(writer: writer)
     engine.configurationChanged(writer: writer)
-    try await waitUntil("latest replacement completes") {
-      let count = await provider.callCount
-      let active = await engine.isClassifying
-      return count == 4 && !active
-    }
+    // The loop records its wait only after the drain reports its last snapshot.
+    await clock.waitForDelays(1)
+    #expect(await clock.delays == [.seconds(2)])
+    #expect(await provider.callCount == 4)
+    #expect(!engine.isClassifying)
     for id in 1001...1003 { #expect(try await writer.fetchEntrySnapshot(feedbinEntryID: id)?.isClassified == true) }
     engine.stopContinuousClassification()
     #expect(engine.lastAbort == nil)
@@ -488,11 +489,10 @@ struct ClassificationCancellationTests {
     #expect(await clock.delays == [.seconds(10)])
     #expect(await provider.callCount == 2)
     engine.configurationChanged(writer: writer)
-    try await waitUntil("replacement completes") {
-      let count = await provider.callCount
-      let active = await engine.isClassifying
-      return count == 5 && !active
-    }
+    await clock.waitForDelays(2)
+    #expect(await clock.delays == [.seconds(10), .seconds(2)])
+    #expect(await provider.callCount == 5)
+    #expect(!engine.isClassifying)
     #expect(engine.lastAbort == nil)
     engine.stopContinuousClassification()
   }

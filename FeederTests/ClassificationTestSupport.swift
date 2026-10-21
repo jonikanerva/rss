@@ -58,6 +58,21 @@ actor FakeClassificationProvider {
   /// Call count and requested titles: the observable state the tests assert on.
   private(set) var callCount: Int = 0
   private(set) var requestedTitles: [String] = []
+  /// Yields once for each call as the call starts. Only `waitForCalls(_:)`
+  /// reads it.
+  private let startedCalls: AsyncStream<Void>
+  private let startedContinuation: AsyncStream<Void>.Continuation
+
+  init() {
+    (startedCalls, startedContinuation) = AsyncStream<Void>.makeStream()
+  }
+
+  /// Returns when at least `count` calls have started. It has no wall-clock
+  /// limit: one caller at a time.
+  func waitForCalls(_ count: Int) async {
+    if callCount >= count { return }
+    for await _ in startedCalls where callCount >= count { return }
+  }
 
   // MARK: - ClassificationProvider conformance
 
@@ -78,6 +93,7 @@ actor FakeClassificationProvider {
   ) async throws -> ProviderClassificationResult {
     callCount += 1
     requestedTitles.append(title)
+    startedContinuation.yield()
 
     if let failure = failuresByTitle[title] { throw failure }
 
