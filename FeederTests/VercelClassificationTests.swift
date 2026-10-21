@@ -186,7 +186,7 @@ struct VercelClassificationTests {
   }
 
   @Test(
-    arguments: VercelErrorBodies.paymentMethodRequired.map { ($0, ClassificationAbortReason.quotaExhausted) }
+    arguments: VercelErrorBodies.forbiddenBilling.map { ($0, ClassificationAbortReason.quotaExhausted) }
       + VercelErrorBodies.modelBlocked.map { ($0, .modelRejected) }
       + VercelErrorBodies.otherForbidden.map { ($0, .keyRejected) })
   func forbiddenBodyNamesItsCause(body: String, reason: ClassificationAbortReason) async {
@@ -205,7 +205,7 @@ struct VercelClassificationTests {
     #expect(await clock.delays.isEmpty)
   }
 
-  @Test(arguments: VercelErrorBodies.paymentMethodRequired + VercelErrorBodies.modelBlocked)
+  @Test(arguments: VercelErrorBodies.forbiddenBilling + VercelErrorBodies.modelBlocked)
   func forbiddenTypesApplyOnlyToHTTP403(body: String) {
     for status in [400, 401, 402, 404] {
       let error = VercelClassificationProvider.makeHTTPError(
@@ -354,7 +354,7 @@ struct ClassificationRetryTests {
       VercelClassificationError.http(429, retryAfter: nil), VercelClassificationError.http(402, retryAfter: nil),
       VercelClassificationError.http(402, retryAfter: 120), VercelClassificationError.http(401, retryAfter: nil),
       VercelClassificationError.invalidResponse, VercelClassificationError.paymentMethodRequired,
-      VercelClassificationError.modelBlocked,
+      VercelClassificationError.creditsRequired, VercelClassificationError.modelBlocked,
       OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
       OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey, VercelClassificationError.needsKey,
       UnreadableKeyFailure(), FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
