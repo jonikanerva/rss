@@ -185,6 +185,35 @@ struct VercelClassificationTests {
     #expect(await clock.delays.isEmpty)
   }
 
+  @Test(
+    arguments: VercelErrorBodies.forbiddenBilling.map { ($0, ClassificationAbortReason.quotaExhausted) }
+      + VercelErrorBodies.modelBlocked.map { ($0, .modelRejected) }
+      + VercelErrorBodies.otherForbidden.map { ($0, .keyRejected) })
+  func forbiddenBodyNamesItsCause(body: String, reason: ClassificationAbortReason) async {
+    let recorder = ClassificationTransportRecorder(data: Data(body.utf8), status: 403, retryAfter: "120")
+    let clock = ClassificationSleepRecorder(immediateDelays: .max)
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { try await recorder.send($0) }, sleep: { try await clock.sleep($0) })
+    let error = await #expect(throws: VercelClassificationError.self) {
+      try await provider.classify(title: "Title", body: "Body", url: "", categories: categories)
+    }
+    #expect(error?.batchAbort == reason)
+    #expect(error?.batchAbort?.offersSettings == true)
+    #expect(error?.retryDisposition == .blocked)
+    #expect(error?.isSkippable == false)
+    #expect(await recorder.requests.count == 1)
+    #expect(await clock.delays.isEmpty)
+  }
+
+  @Test(arguments: VercelErrorBodies.forbiddenBilling + VercelErrorBodies.modelBlocked)
+  func forbiddenTypesApplyOnlyToHTTP403(body: String) {
+    for status in [400, 401, 402, 404] {
+      let error = VercelClassificationProvider.makeHTTPError(
+        statusCode: status, retryAfter: nil, body: Data(body.utf8), now: Date(timeIntervalSince1970: 0))
+      #expect(error.batchAbort == VercelClassificationError.http(status, retryAfter: nil).batchAbort)
+    }
+  }
+
   @Test
   func requestTimeoutIsAProviderOutage() {
     let error = VercelClassificationError.http(408, retryAfter: nil)
@@ -324,7 +353,8 @@ struct ClassificationRetryTests {
       VercelClassificationError.http(503, retryAfter: 5), VercelClassificationError.http(503, retryAfter: 0),
       VercelClassificationError.http(429, retryAfter: nil), VercelClassificationError.http(402, retryAfter: nil),
       VercelClassificationError.http(402, retryAfter: 120), VercelClassificationError.http(401, retryAfter: nil),
-      VercelClassificationError.invalidResponse,
+      VercelClassificationError.invalidResponse, VercelClassificationError.paymentMethodRequired,
+      VercelClassificationError.creditsRequired, VercelClassificationError.modelBlocked,
       OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
       OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey, VercelClassificationError.needsKey,
       UnreadableKeyFailure(), FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),

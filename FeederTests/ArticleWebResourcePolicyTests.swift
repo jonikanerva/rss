@@ -74,7 +74,9 @@ private enum ArticleWebPolicyFixture {
 // MARK: - Harness
 
 /// One web view with the production configuration and coordinator, the fixture
-/// scheme handlers, and a recording navigation delegate.
+/// scheme handlers, and a recording navigation delegate. With
+/// `attachesDelegate: false`, WebKit allows every navigation and the
+/// coordinator gets no decision until `attachDelegate()`.
 @MainActor
 private struct Harness {
   let webView: WKWebView
@@ -83,7 +85,7 @@ private struct Harness {
 
   var coordinator: ArticleWebView.Coordinator { delegate.coordinator }
 
-  init() {
+  init(attachesDelegate: Bool = true) {
     let config = ArticleWebConfiguration.make()
     let handler = RecordingSchemeHandler()
     config.setURLSchemeHandler(handler, forURLScheme: ArticleWebPolicyFixture.scheme)
@@ -92,10 +94,14 @@ private struct Harness {
     let coordinator = ArticleWebView.Coordinator()
     coordinator.webView = webView
     let delegate = RecordingNavigationDelegate(coordinator: coordinator)
-    webView.navigationDelegate = delegate
+    if attachesDelegate { webView.navigationDelegate = delegate }
     self.webView = webView
     self.handler = handler
     self.delegate = delegate
+  }
+
+  func attachDelegate() {
+    webView.navigationDelegate = delegate
   }
 
   func loadAndFinish(_ html: String, baseURL: URL? = ArticleWebPolicyFixture.baseURL) async throws {
@@ -294,5 +300,33 @@ struct ArticleWebLoadQueueTests {
     try await harness.loadAndFinish(render("<p>Next</p>"), baseURL: urls[1])
     #expect(harness.delegate.decisions.map(\.url) == urls)
     #expect(allowedURLs(harness.delegate) == urls)
+  }
+
+  /// A terminated web content process before the decision of a load starts the
+  /// waiting load. The first load runs with no delegate, so the coordinator
+  /// still waits for its decision when the second load queues.
+  @Test
+  func terminationBeforeTheDecisionStartsTheWaitingLoad() async throws {
+    await ArticleWebConfiguration.applyCookiePolicy()
+    let harness = Harness(attachesDelegate: false)
+    let urls = try ["terminated", "waiting"].map(Self.url)
+    let webView = harness.webView
+    harness.coordinator.load(render("<p>Terminated</p>"), baseURL: urls[0])
+    let first = urls[0]
+    try await waitUntil("the first load ends without a decision", timeout: .seconds(10)) {
+      await MainActor.run { webView.url == first && !webView.isLoading }
+    }
+    harness.coordinator.load(render("<p>Waiting</p>"), baseURL: urls[1])
+    harness.attachDelegate()
+    harness.coordinator.webViewWebContentProcessDidTerminate(webView)
+    let delegate = harness.delegate
+    let waiting = urls[1]
+    try await waitUntil("the waiting load finishes", timeout: .seconds(10)) {
+      await MainActor.run { delegate.finishedLoads > 0 && webView.url == waiting && !webView.isLoading }
+    }
+    #expect(delegate.decisions.map(\.url) == [waiting])
+    #expect(allowedURLs(delegate) == [waiting])
+    #expect(webView.url == waiting)
+    #expect(try await harness.bodyText()?.contains("Waiting") == true)
   }
 }
