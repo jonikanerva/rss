@@ -47,11 +47,11 @@ nonisolated enum PerformanceSignpostName {
   /// list shows its blank window, and how much of that overlaps an active
   /// persist.
   static let structuralReload: StaticString = "structural-reload"
-  /// One sync-page network GET. The gap it represents is what an unbounded
-  /// prefetch stream buffers away, which collapses the persist cadence.
+  /// One sync-page network GET. The GET of a page starts only after the
+  /// persist of the page before it.
   static let netFetchPage: StaticString = "net-fetch-page"
-  /// One sync-page persist. Back-to-back intervals with no `netFetchPage` gap
-  /// between them are the coordinator-saturation signature.
+  /// One sync-page persist. Windowed against `readFetchSections`, it shows
+  /// whether a persist delays the article-list read.
   static let writePersistPage: StaticString = "write-persist-page"
 
   // MARK: - Structural-reload sub-cost split

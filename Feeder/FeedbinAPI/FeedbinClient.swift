@@ -130,8 +130,6 @@ actor FeedbinClient {
   /// Fetch entries with optional `since` date for incremental sync.
   /// Returns entries and whether there are more pages.
   func fetchEntries(since: Date? = nil, page: Int = 1, perPage: Int = 100) async throws -> FeedbinEntriesPage {
-    // The gap this interval represents is what the unbounded prefetch stream
-    // buffers away.
     let signpost = perfSignposter.beginInterval(PerformanceSignpostName.netFetchPage)
     defer { perfSignposter.endInterval(PerformanceSignpostName.netFetchPage, signpost) }
     var queryItems = [
@@ -152,27 +150,14 @@ actor FeedbinClient {
     return FeedbinEntriesPage(entries: entries, hasNextPage: hasNextPage, totalCount: totalCount)
   }
 
-  /// Fetch all entries page by page as an async sequence.
-  /// Each yielded page includes entries, pagination state, and total record count from X-Feedbin-Record-Count.
+  /// Fetch all entries page by page as an async sequence. Each page includes
+  /// the entries, the pagination state, and the total record count from
+  /// `X-Feedbin-Record-Count`. The request for a page starts only when the
+  /// consumer asks for that page, so at most one fetched page waits for the
+  /// consumer and no page is dropped.
   nonisolated func fetchAllEntryPages(since: Date? = nil) -> AsyncThrowingStream<FeedbinEntriesPage, Error> {
-    let client = self
-    return AsyncThrowingStream { continuation in
-      let task = Task {
-        var page = 1
-        do {
-          while !Task.isCancelled {
-            let result = try await client.fetchEntries(since: since, page: page)
-            continuation.yield(result)
-            if !result.hasNextPage || result.entries.isEmpty { break }
-            page += 1
-          }
-          continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
-      }
-      continuation.onTermination = { _ in task.cancel() }
-    }
+    let cursor = EntryPageCursor(client: self, since: since)
+    return AsyncThrowingStream { try await cursor.next() }
   }
 
   // MARK: - Icons
@@ -290,5 +275,29 @@ nonisolated enum ExtractedContentFailure: Error, Sendable, Equatable {
     } else {
       self = .transport(.unknown)
     }
+  }
+}
+
+// MARK: - Entry page cursor
+
+/// The paging state of one `fetchAllEntryPages(since:)` sequence. The stream
+/// has one consumer, so `next()` never runs twice at once.
+private actor EntryPageCursor {
+  private let client: FeedbinClient
+  private let since: Date?
+  /// `nil` after the last page or after a failure.
+  private var nextPage: Int? = 1
+
+  init(client: FeedbinClient, since: Date?) {
+    self.client = client
+    self.since = since
+  }
+
+  func next() async throws -> FeedbinEntriesPage? {
+    guard let page = nextPage else { return nil }
+    nextPage = nil
+    let result = try await client.fetchEntries(since: since, page: page)
+    if result.hasNextPage && !result.entries.isEmpty { nextPage = page + 1 }
+    return result
   }
 }
