@@ -50,7 +50,7 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     request.httpBody = try Self.requestBody(model: model, title: title, body: body, categories: categories)
     let response = try await CloudSession.sendWithRetry(
       request, provider: name, logger: Self.logger, send: send, sleep: sleep, now: now,
-      httpFailure: { VercelClassificationError.http($0.statusCode, retryAfter: retryAfterDelay($0.retryAfter, now: $1)) },
+      httpFailure: { Self.makeHTTPError(statusCode: $0.statusCode, retryAfter: $0.retryAfter, body: $0.data, now: $1) },
       transportFailure: {
         $0 is CloudSession.NonHTTPResponse
           ? VercelClassificationError.invalidResponse : VercelClassificationError.network(($0 as? URLError)?.code)
@@ -94,6 +94,18 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
       }
     }
     return best
+  }
+
+  /// Reads only the documented error type of an HTTP 403 body
+  /// (`STACK.md → Cloud classification`). Any other HTTP 403 stays a rejected key.
+  static func makeHTTPError(statusCode: Int, retryAfter: String?, body: Data, now: Date) -> VercelClassificationError {
+    if statusCode == 403, let failure = ErrorBody(body) {
+      if failure.type == "customer_verification_required" { return .paymentMethodRequired }
+      if failure.type == "no_providers_available" || (failure.type == "forbidden" && failure.ruleID != nil) {
+        return .modelBlocked
+      }
+    }
+    return .http(statusCode, retryAfter: retryAfterDelay(retryAfter, now: now))
   }
 
   static func makeCriteria(_ categories: [CategoryDefinition]) throws -> [String: String] {
@@ -152,6 +164,43 @@ nonisolated struct VercelClassificationProvider: ClassificationProvider {
     let choice: String
     let probabilities: [String: Double]
   }
+
+  /// Vercel sends two error shapes: a flat `type` next to a string `error`,
+  /// and an `error` object that holds `type` and `param`.
+  private struct ErrorBody {
+    let type: String?
+    let ruleID: String?
+
+    init?(_ data: Data) {
+      let decoder = JSONDecoder()
+      if let nested = try? decoder.decode(Nested.self, from: data) {
+        type = nested.error.type
+        ruleID = nested.error.param?.ruleId
+      } else if let flat = try? decoder.decode(Flat.self, from: data) {
+        type = flat.type
+        ruleID = nil
+      } else {
+        return nil
+      }
+    }
+
+    private struct Flat: Decodable {
+      let type: String?
+    }
+
+    private struct Nested: Decodable {
+      struct Failure: Decodable {
+        struct Param: Decodable {
+          let ruleId: String?
+        }
+
+        let type: String?
+        let param: Param?
+      }
+
+      let error: Failure
+    }
+  }
 }
 
 nonisolated enum VercelClassificationError: Error, ClassificationFailure {
@@ -161,6 +210,10 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
   case invalidResponse
   case network(URLError.Code?)
   case http(Int, retryAfter: TimeInterval?)
+  /// HTTP 403: the team must add a payment method before it uses free credits.
+  case paymentMethodRequired
+  /// HTTP 403: a team allowlist or a routing deny rule blocks the selected model.
+  case modelBlocked
 
   var batchAbort: ClassificationAbortReason? {
     switch self {
@@ -168,6 +221,9 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     case .invalidCategories: .invalidCategories
     case .inputTooLarge: .inputTooLarge
     case .invalidResponse: .invalidResponse
+    // A billing failure: its disposition must stay blocked (`STACK.md → Cloud classification`).
+    case .paymentMethodRequired: .quotaExhausted
+    case .modelBlocked: .modelRejected
     case .network(let code): .transportFailure(code)
     case .http(let status, _):
       switch status {
@@ -185,7 +241,7 @@ nonisolated enum VercelClassificationError: Error, ClassificationFailure {
     switch self {
     case .network: .transient(retryAfter: nil)
     case .http(let status, let retryAfter): ClassificationRetry(httpStatus: status, retryAfter: retryAfter)
-    case .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse: .blocked
+    case .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .paymentMethodRequired, .modelBlocked: .blocked
     }
   }
 }
