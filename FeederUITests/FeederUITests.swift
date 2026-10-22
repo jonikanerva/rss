@@ -7,9 +7,10 @@ final class FeederUITests: XCTestCase {
 
   /// The owner-run focus check: one launch, then these checks in order: the
   /// VoiceOver label of the detail pane, a row click and then an arrow key,
-  /// bare R inside the web view, and a sidebar click from the web view. Of the
-  /// checks, only the last changes the sidebar selection, which saves the
-  /// opened articles as read.
+  /// bare R inside the web view, a sidebar click from the web view, and
+  /// Window → Feeder before and after ⌘W. Of the checks, only the sidebar
+  /// click changes the sidebar selection, which saves the opened articles as
+  /// read.
   @MainActor
   func testFocusFlows() throws {
     let app = makeHeadlessApp()
@@ -78,6 +79,24 @@ final class FeederUITests: XCTestCase {
       XCTAssertTrue(
         app.descendants(matching: .any)["entry.row.2001"].waitForExistence(timeout: 10),
         "Sidebar click: the World News entry appears")
+    }
+
+    XCTContext.runActivity(named: "Window menu") { _ in
+      app.typeKey("0", modifierFlags: .command)
+      // Window → Feeder must bring the open main window to the front and must
+      // not create a second main window.
+      XCTAssertFalse(
+        app.windows.element(boundBy: 1).waitForExistence(timeout: 2),
+        "Window menu: the open window stays the only window")
+      app.typeKey("w", modifierFlags: .command)
+      XCTAssertTrue(app.windows.firstMatch.waitForNonExistence(timeout: 5), "Window menu: ⌘W closes the window")
+      app.typeKey("0", modifierFlags: .command)
+      XCTAssertTrue(
+        app.staticTexts["sidebar.folder.technology"].waitForExistence(timeout: 10),
+        "Window menu: the closed window reopens")
+      XCTAssertFalse(
+        app.windows.element(boundBy: 1).waitForExistence(timeout: 2),
+        "Window menu: the reopened window is the only window")
     }
   }
 

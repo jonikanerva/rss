@@ -76,11 +76,14 @@ lint-fix: ## Auto-fix code style (swift-format)
 # Build
 # ---------------------------------------------------------------------------
 
-build: ## Build for testing (ad-hoc signing)
+build: ## Build for testing
 	@echo "==> build-for-testing"
 	@mkdir -p $(DERIVED_DATA)
 	xcodebuild build-for-testing $(XCODEBUILD_FLAGS)
 
+# A Keychain access list trusts the designated requirement of the app. Automatic
+# signing with the team's Apple Development identity keeps that requirement the
+# same for each build. Without the identity, xcodebuild stops before it builds.
 install: ## Build Release and install to /Applications
 	@echo "==> build Release"
 	xcodebuild build \
@@ -89,7 +92,7 @@ install: ## Build Release and install to /Applications
 		-configuration Release \
 		-derivedDataPath $(DERIVED_DATA) \
 		-destination '$(DESTINATION)' \
-		CODE_SIGN_IDENTITY="-" \
+		-allowProvisioningUpdates \
 		ENABLE_APP_SANDBOX=NO \
 		ENABLE_HARDENED_RUNTIME=NO
 	@echo "==> install $(APP_NAME).app → $(INSTALL_DIR)"
