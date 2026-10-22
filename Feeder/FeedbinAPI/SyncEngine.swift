@@ -614,8 +614,9 @@ final class SyncEngine {
   }
 
   /// Keep a copy of the pending reads of one window for the quit step. An
-  /// empty set removes the copy. Do not remove a copy when its window closes:
-  /// the quit step must also see the reads of a closed window.
+  /// empty set removes the copy. Remove a copy only after
+  /// `queueReadIDs(_:)` queued its IDs: the quit step must also see the reads
+  /// of a window that went away without a flush.
   func recordPendingReads(_ ids: Set<Int>, forWindow window: UUID) {
     pendingReadsByWindow[window] = ids.isEmpty ? nil : ids
     if !previousAccountWindowReadIDs.isEmpty {

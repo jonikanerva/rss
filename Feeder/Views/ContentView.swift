@@ -243,6 +243,12 @@ struct ContentView: View {
     .onChange(of: folders.count) {
       revalidateSelection()
     }
+    .onDisappear {
+      // The window closed. The app keeps running, so the reads go to the store
+      // and to Feedbin now, not at the quit.
+      timeline.windowClosed()
+      Task { await syncEngine.pushPendingReads() }
+    }
     .onChange(of: scenePhase) {
       if scenePhase == .active {
         timeline.sceneBecameActive()
