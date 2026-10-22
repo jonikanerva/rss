@@ -50,16 +50,27 @@ struct FocusedValuesModifier: ViewModifier {
 struct FeederCommands: Commands {
   @FocusedValue(\.feederCommandContext)
   private var context
+  @Environment(\.openWindow)
+  private var openWindow
 
   var body: some Commands {
     // Feeder has one main window: replacing this group removes File → New
-    // Window. Closing the window and clicking the Dock icon reopens it.
+    // Window. Window → Feeder and a click on the Dock icon reopen it.
     CommandGroup(replacing: .newItem) {
       Button("Sync") {
         context?.syncAction()
       }
       .keyboardShortcut("r", modifiers: [.command, .shift])
       .disabled(context == nil || context?.isSyncing == true)
+    }
+
+    CommandGroup(after: .singleWindowList) {
+      // The value form brings the open main window to the front. Without the
+      // value, `openWindow` creates a second main window (`MainWindow`).
+      Button("Feeder") {
+        openWindow(id: MainWindow.sceneID, value: MainWindow.main)
+      }
+      .keyboardShortcut("0", modifiers: .command)
     }
 
     // The bare-key shortcuts are handled per panel, so they intercept before
