@@ -470,6 +470,24 @@ struct TimelineStateTests {
     #expect(timeline.snapshotVersion == 0)
   }
 
+  /// The Cmd-W journey: read an article, close the window, reopen it. The new
+  /// window shows the article as read, and the read is in the Feedbin queue.
+  @Test
+  func readCloseReopenKeepsTheArticleRead() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let closed = makeTimeline(store: store, engine: engine)
+    await select(1, closed)
+
+    await closed.windowClosed()?.value
+    let reopened = makeTimeline(store: store, engine: engine)
+    await reopened.refreshUnreadSnapshot(cutoffDate: .distantPast)
+
+    #expect(reopened.pendingReadIDs.isEmpty)
+    #expect(reopened.unreadSnapshot.unreadFeedbinEntryIDs == [2])
+    #expect(queuedReadIDs == [1])
+  }
+
   /// A push can drain the queue after the close. A later scene flush and the
   /// quit step must not queue the pushed IDs again.
   @Test
