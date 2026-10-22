@@ -197,6 +197,9 @@ final class FeederUITests: XCTestCase {
     // Keep the quotes around `[]`: the argument domain parses a value as a
     // property list, and it drops an unquoted `[]`.
     app.launchArguments += ["-sidebar.collapsedFolders", "\"[]\"", "-feeder.defaultsSeeded", "YES"]
+    // The test app shares the saved window state of the owner's app. A test
+    // launch that restores that state presents no main window, so ignore it.
+    app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
     return app
   }
 }
