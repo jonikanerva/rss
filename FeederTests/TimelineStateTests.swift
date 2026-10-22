@@ -470,6 +470,24 @@ struct TimelineStateTests {
     #expect(timeline.snapshotVersion == 0)
   }
 
+  /// The Cmd-W journey: read an article, close the window, reopen it. The new
+  /// window shows the article as read, and the read is in the Feedbin queue.
+  @Test
+  func readCloseReopenKeepsTheArticleRead() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let closed = makeTimeline(store: store, engine: engine)
+    await select(1, closed)
+
+    await closed.windowClosed()?.value
+    let reopened = makeTimeline(store: store, engine: engine)
+    await reopened.refreshUnreadSnapshot(cutoffDate: .distantPast)
+
+    #expect(reopened.pendingReadIDs.isEmpty)
+    #expect(reopened.unreadSnapshot.unreadFeedbinEntryIDs == [2])
+    #expect(queuedReadIDs == [1])
+  }
+
   /// A push can drain the queue after the close. A later scene flush and the
   /// quit step must not queue the pushed IDs again.
   @Test
@@ -618,5 +636,64 @@ struct TimelineStateTests {
     engine.queueRecordedPendingReads()
 
     #expect(queuedReadIDs == [1])
+  }
+
+  // MARK: - Repeated flushes
+
+  /// A scene flush keeps the overlay until a refresh prunes it. A push can
+  /// drain the queue before the next flush, and that flush must not queue
+  /// the pushed IDs again.
+  @Test
+  func secondFlushDoesNotQueueAPushedIDAgain() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    await timeline.flushPendingReads(.sceneInactive)?.value
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    #expect(timeline.pendingReadIDs == [1])
+
+    await timeline.flushPendingReads(.sidebarChange)?.value
+
+    #expect(queuedReadIDs.isEmpty)
+    #expect(try await isRead(1, store) == true)
+  }
+
+  /// A queued ID that the store holds as unread again and that the user opens
+  /// again is a new read: the next flush queues it.
+  @Test
+  func flushQueuesANewReadOfAQueuedID() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    await timeline.flushPendingReads(.sceneInactive)?.value
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    await select(1, timeline)
+
+    await timeline.flushPendingReads(.sidebarChange)?.value
+
+    #expect(queuedReadIDs == [1])
+  }
+
+  /// A failed flush write keeps the IDs queued and in the overlay. The next
+  /// flush writes them again but does not queue them twice.
+  @Test
+  func flushAfterAFailedWriteRetriesTheStoreWrite() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1], in: writer)
+    let store = StoreActors(writer: writer, reader: reader)
+    let timeline = makeTimeline(store: store, engine: makeEngine(writer: writer))
+    await select(1, timeline)
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+    await timeline.flushPendingReads(.sceneInactive)?.value
+    try failing.dropFailingTrigger()
+
+    await timeline.flushPendingReads(.sidebarChange)?.value
+
+    #expect(queuedReadIDs == [1])
+    #expect(try await isRead(1, store) == true)
   }
 }

@@ -65,9 +65,9 @@ final class TimelineState {
   /// Unread rows of the loaded window, one side of the overlay prune.
   @ObservationIgnored
   private var renderedUnreadIDs: Set<Int> = []
-  /// Overlay IDs that a flush or Mark All of this window queued. The close
-  /// does not queue them again: a push can have sent them, and a second push
-  /// would undo a later mark-unread on another device.
+  /// Overlay IDs that a flush or Mark All of this window queued. A flush or
+  /// the close does not queue them again: a push can have sent them, and a
+  /// second push would undo a later mark-unread on another device.
   @ObservationIgnored
   private var queuedOverlayIDs: Set<Int> = []
 
@@ -94,8 +94,8 @@ final class TimelineState {
     }
   }
 
-  /// Queue the overlay, then write it as read. The refresh follows only a
-  /// committed write. On failure the IDs stay queued and stay in the overlay,
+  /// Queue the overlay IDs that this window did not queue, then write the
+  /// overlay as read. The refresh follows only a committed write. On failure the IDs stay queued and stay in the overlay,
   /// and the next sync writes them as read. Returns `nil` when the overlay is
   /// empty.
   @discardableResult
@@ -103,8 +103,9 @@ final class TimelineState {
     if reason == .sceneInactive { isSceneActive = false }
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return nil }
-    readQueue.queueReadIDs(ids)
-    queuedOverlayIDs.formUnion(ids)
+    let unqueued = ids.subtracting(queuedOverlayIDs)
+    if !unqueued.isEmpty { readQueue.queueReadIDs(unqueued) }
+    queuedOverlayIDs.formUnion(unqueued)
     let generation = sessionGeneration
     let writer = writer
     return Task {
