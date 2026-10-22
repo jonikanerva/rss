@@ -296,4 +296,98 @@ struct EntryListScrollAnchorTests {
       documentHeight: 400, viewportHeight: 600, topInset: 52, bottomInset: 0)
     #expect(origin == -52)
   }
+
+  // MARK: - Tab selection
+
+  /// Frames for `tableRows` with a 109-pt row pitch and a 20-pt header pitch:
+  /// the fixture of `tabSections` puts headers at table rows 0 and 4.
+  private static func tabFrames(_ tableRows: ClosedRange<Int>) -> [ScrollAnchorRowFrame] {
+    tableRows.map { row in
+      let minY = tabRowMinY(row)
+      let height: CGFloat = row == 0 || row == 4 ? 20 : 109
+      return ScrollAnchorRowFrame(tableRow: row, minY: minY, maxY: minY + height)
+    }
+  }
+
+  private static func tabRowMinY(_ tableRow: Int) -> CGFloat {
+    (0..<tableRow).reduce(0) { $0 + ($1 == 0 || $1 == 4 ? 20 : 109) }
+  }
+
+  /// Two days: header 0, rows 1–3 (ids 0–2), header 4, rows 5–8 (ids 3–6).
+  private static func tabSections(_ ids: [PersistentIdentifier]) -> [EntryListSection] {
+    [section(day: 0, rows(ids[0..<3])), section(day: 1, rows(ids[3..<7], first: 4))]
+  }
+
+  @Test("Tab keeps a selection whose row shows")
+  func tabKeepsAShownSelection() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let target = EntryListTabSelection.target(
+      selectedID: ids[4], visibleRows: Self.tabFrames(2...7), visibleTop: Self.tabRowMinY(2),
+      visibleBottom: Self.tabRowMinY(8), sections: Self.tabSections(ids))
+    #expect(target == ids[4])
+  }
+
+  @Test("Tab replaces a selection outside the viewport with the first row that shows")
+  func tabReplacesAHiddenSelection() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let target = EntryListTabSelection.target(
+      selectedID: ids[0], visibleRows: Self.tabFrames(3...7), visibleTop: Self.tabRowMinY(3),
+      visibleBottom: Self.tabRowMinY(8), sections: Self.tabSections(ids))
+    #expect(target == ids[2])
+  }
+
+  @Test("Tab selects the first shown row, never the first loaded row")
+  func tabSelectsTheFirstShownRow() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let target = EntryListTabSelection.target(
+      selectedID: nil, visibleRows: Self.tabFrames(5...8), visibleTop: Self.tabRowMinY(6),
+      visibleBottom: Self.tabRowMinY(9), sections: Self.tabSections(ids))
+    #expect(target == ids[4])
+  }
+
+  @Test("a row whose top edge is under the toolbar or the floating header does not show")
+  func tabSkipsAPartlyHiddenRow() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let sections = Self.tabSections(ids)
+    let target = EntryListTabSelection.target(
+      selectedID: ids[3], visibleRows: Self.tabFrames(5...8), visibleTop: Self.tabRowMinY(5) + 1,
+      visibleBottom: Self.tabRowMinY(9), sections: sections)
+    #expect(target == ids[4])
+  }
+
+  @Test("a header row is never the Tab target")
+  func tabSkipsHeaderRows() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let target = EntryListTabSelection.target(
+      selectedID: nil, visibleRows: Self.tabFrames(4...6), visibleTop: Self.tabRowMinY(4),
+      visibleBottom: Self.tabRowMinY(7), sections: Self.tabSections(ids))
+    #expect(target == ids[3])
+  }
+
+  @Test("with no shown row Tab selects nothing")
+  func tabWithNoShownRowSelectsNothing() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let sections = Self.tabSections(ids)
+    let tooShort = EntryListTabSelection.target(
+      selectedID: ids[1], visibleRows: Self.tabFrames(2...2), visibleTop: Self.tabRowMinY(2) + 1,
+      visibleBottom: Self.tabRowMinY(3), sections: sections)
+    let empty = EntryListTabSelection.target(
+      selectedID: nil, visibleRows: [], visibleTop: 0, visibleBottom: 600, sections: sections)
+    #expect(tooShort == nil)
+    #expect(empty == nil)
+  }
+
+  @Test("a row whose top edge is at or below the bottom edge does not show")
+  func tabSkipsARowBelowTheBottomEdge() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let sections = Self.tabSections(ids)
+    let replaced = EntryListTabSelection.target(
+      selectedID: ids[5], visibleRows: Self.tabFrames(5...7), visibleTop: Self.tabRowMinY(5),
+      visibleBottom: Self.tabRowMinY(7), sections: sections)
+    let onlyCandidate = EntryListTabSelection.target(
+      selectedID: nil, visibleRows: Self.tabFrames(7...7), visibleTop: Self.tabRowMinY(7) - 50,
+      visibleBottom: Self.tabRowMinY(7), sections: sections)
+    #expect(replaced == ids[3])
+    #expect(onlyCandidate == nil)
+  }
 }

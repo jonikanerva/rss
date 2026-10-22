@@ -159,3 +159,22 @@ nonisolated private struct TableRowKeys: IteratorProtocol {
     return nil
   }
 }
+
+// MARK: - Tab selection (pure)
+
+nonisolated enum EntryListTabSelection {
+  /// The row that Tab selects when focus moves into the article list. A row
+  /// shows when its top edge is in `visibleTop..<visibleBottom`. Keep the
+  /// selection when its row shows, else take the first row that shows. `nil`
+  /// when no row shows: Tab then moves focus only.
+  static func target(
+    selectedID: PersistentIdentifier?, visibleRows: [ScrollAnchorRowFrame],
+    visibleTop: CGFloat, visibleBottom: CGFloat, sections: [EntryListSection]
+  ) -> PersistentIdentifier? {
+    let shownIDs = visibleRows.lazy
+      .filter { $0.minY >= visibleTop && $0.minY < visibleBottom }
+      .compactMap { EntryListTableLayout.entryID(atTableRow: $0.tableRow, in: sections) }
+    if let selectedID, shownIDs.contains(selectedID) { return selectedID }
+    return shownIDs.first
+  }
+}
