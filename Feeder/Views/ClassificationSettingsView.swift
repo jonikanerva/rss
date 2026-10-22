@@ -86,23 +86,12 @@ struct ClassificationSettingsView: View {
     }
     .task(id: "\(settings.provider.rawValue)|\(settings.keyRevision)") { await settings.refreshKey() }
     .task(id: modelFetchKey) { await refreshModelList() }
-    .alert(
-      "Reclassify Articles?",
-      isPresented: Binding(
-        get: { settings.reclassificationTarget != nil }, set: { if !$0 { settings.dismissReclassificationPrompt() } })
-    ) {
-      Button("Reclassify", role: .destructive) {
-        Task {
-          if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
-        }
+    .reclassificationAlert(target: settings.reclassificationTarget) {
+      Task {
+        if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
       }
-      // Return must not start a reclassification: Reclassify needs a click, or Tab and Space.
-      Button("Cancel", role: .cancel) {}
-        .keyboardShortcut(.defaultAction)
-    } message: {
-      Text(
-        "Reclassify existing articles with \(settings.reclassificationTarget ?? "the selected provider")? This replaces their category assignments."
-      )
+    } onDismiss: {
+      settings.dismissReclassificationPrompt()
     }
   }
 
