@@ -8,9 +8,9 @@ final class FeederUITests: XCTestCase {
   /// The owner-run focus check: one launch, then these checks in order: the
   /// VoiceOver label of the detail pane, a row click and then an arrow key,
   /// bare R inside the web view, a sidebar click from the web view, and
-  /// Window → Feeder before and after ⌘W. Of the checks, only the sidebar
-  /// click changes the sidebar selection, which saves the opened articles as
-  /// read.
+  /// Window → Feeder before and after ⌘W with the column widths of the
+  /// reopened window. The sidebar click and the last check change the sidebar
+  /// selection, which saves the opened articles as read.
   @MainActor
   func testFocusFlows() throws {
     let app = makeHeadlessApp()
@@ -82,6 +82,7 @@ final class FeederUITests: XCTestCase {
     }
 
     XCTContext.runActivity(named: "Window menu") { _ in
+      let rowFrameBeforeClose = technologyRowFrame(in: app, check: "Window menu")
       app.typeKey("0", modifierFlags: .command)
       // Window → Feeder must bring the open main window to the front and must
       // not create a second main window.
@@ -97,7 +98,29 @@ final class FeederUITests: XCTestCase {
       XCTAssertFalse(
         app.windows.element(boundBy: 1).waitForExistence(timeout: 2),
         "Window menu: the reopened window is the only window")
+      // The row starts at the right edge of the sidebar and spans the article
+      // list, so its frame shows both column widths of the reopened window.
+      let rowFrameAfterReopen = technologyRowFrame(in: app, check: "Window menu")
+      XCTAssertEqual(
+        rowFrameAfterReopen.minX, rowFrameBeforeClose.minX, accuracy: 2,
+        "Window menu: the reopened sidebar keeps its width")
+      XCTAssertEqual(
+        rowFrameAfterReopen.width, rowFrameBeforeClose.width, accuracy: 2,
+        "Window menu: the reopened article list keeps its width")
     }
+  }
+
+  /// Selects the Technology folder and returns the frame of row 1004, relative
+  /// to the window origin: a reopened window can open at another place on the
+  /// screen. The list shows unread rows, and the sidebar click saves rows 1001
+  /// and 1002 as read, so the row must be the first seeded unread row.
+  @MainActor
+  private func technologyRowFrame(in app: XCUIApplication, check: String) -> CGRect {
+    app.staticTexts["sidebar.folder.technology"].click()
+    let row = app.descendants(matching: .any)["entry.row.1004"]
+    XCTAssertTrue(row.waitForExistence(timeout: 10), "\(check): row 1004 appears")
+    let windowOrigin = app.windows.firstMatch.frame.origin
+    return row.frame.offsetBy(dx: -windowOrigin.x, dy: -windowOrigin.y)
   }
 
   @MainActor

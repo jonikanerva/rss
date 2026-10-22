@@ -36,11 +36,6 @@ struct FeederApp: App {
   private var appDelegate
 
   init() {
-    // Must run before any window or split view exists, so the split view lays
-    // out both leading columns at the `ideal` widths Feeder stores itself.
-    // `STACK.md § 14` records the reliance on the undocumented key name.
-    SplitViewAutosaveReset.removeStaleFrames()
-
     let useInMemoryStore = Self.usesInMemoryStores(in: ProcessInfo.processInfo.environment)
     let configuration = Self.makeStoreConfiguration(isStoredInMemoryOnly: useInMemoryStore)
     storeConfiguration = configuration
@@ -109,11 +104,7 @@ struct FeederApp: App {
 
   var body: some Scene {
     WindowGroup(id: MainWindow.sceneID, for: MainWindow.self) { _ in
-      mainWindowContent
-        .environment(syncEngine)
-        .environment(classificationEngine)
-        .environment(fontSettings)
-        .defaultAppStorage(AppDefaults.current)
+      newMainWindowContent
     } defaultValue: {
       .main
     }
@@ -130,6 +121,19 @@ struct FeederApp: App {
   }
 
   // MARK: - Store gate
+
+  /// The content of each new main window. The removal must run before the
+  /// window's split view exists (`SplitViewAutosaveReset`). SwiftUI also
+  /// reads this when the scene state changes; a repeated removal is harmless.
+  private var newMainWindowContent: some View {
+    SplitViewAutosaveReset.removeStaleFrames()
+    return
+      mainWindowContent
+      .environment(syncEngine)
+      .environment(classificationEngine)
+      .environment(fontSettings)
+      .defaultAppStorage(AppDefaults.current)
+  }
 
   @ViewBuilder
   private var mainWindowContent: some View {

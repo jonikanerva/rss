@@ -1,9 +1,9 @@
 import Foundation
 import os
 
-/// Removes AppKit's autosaved `NSSplitView` frames at launch, so the
-/// `NavigationSplitView` finds none when it is created and lays out both
-/// leading columns at the `ideal` widths Feeder stores itself
+/// Removes AppKit's autosaved `NSSplitView` frames before each new main
+/// window, so the `NavigationSplitView` finds none when it is created and
+/// lays out both leading columns at the `ideal` widths Feeder stores itself
 /// (`ColumnWidthSetting`).
 ///
 /// `NSSplitView.autosaveName` is documented; the `UserDefaults` key NAME
@@ -17,10 +17,11 @@ nonisolated enum SplitViewAutosaveReset {
   static let keyPrefix = "NSSplitView Subview Frames"
 
   /// Removes every key with `keyPrefix` from `defaults` and returns how many
-  /// there were. Call BEFORE any window or split view exists — the first
-  /// statement of `FeederApp.init`. One small-plist dictionary copy per
-  /// launch. AppKit writes a key again during the session; it is removed
-  /// again at the next launch.
+  /// there were. Call BEFORE the split view of a new main window exists:
+  /// `FeederApp.newMainWindowContent` calls it for the launch window, a Dock
+  /// reopen, and Window → Feeder. AppKit writes a key again during the
+  /// session, and a new window in the same launch restores that key unless
+  /// this call removes it. One small-plist dictionary copy per call.
   @discardableResult
   static func removeStaleFrames(in defaults: UserDefaults = .standard) -> Int {
     let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(keyPrefix) }
