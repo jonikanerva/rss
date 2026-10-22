@@ -65,6 +65,11 @@ final class TimelineState {
   /// Unread rows of the loaded window, one side of the overlay prune.
   @ObservationIgnored
   private var renderedUnreadIDs: Set<Int> = []
+  /// Overlay IDs that a flush or Mark All of this window queued. The close
+  /// does not queue them again: a push can have sent them, and a second push
+  /// would undo a later mark-unread on another device.
+  @ObservationIgnored
+  private var queuedOverlayIDs: Set<Int> = []
 
   init(store: StoreActors, readQueue: SyncEngine) {
     writer = store.writer
@@ -83,6 +88,8 @@ final class TimelineState {
     let generation = sessionGeneration
     return applyPendingReadAfterYield(feedbinEntryID: feedbinEntryID) { id in
       guard generation == self.sessionGeneration else { return }
+      // The store holds the article as unread again, so this is a new read.
+      self.queuedOverlayIDs.remove(id)
       self.pendingReadIDs.insert(id)
     }
   }
@@ -97,6 +104,7 @@ final class TimelineState {
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return nil }
     readQueue.queueReadIDs(ids)
+    queuedOverlayIDs.formUnion(ids)
     let generation = sessionGeneration
     let writer = writer
     return Task {
@@ -121,18 +129,20 @@ final class TimelineState {
     }
   }
 
-  /// The window closed. Queue the overlay and write it as read, then release
-  /// the overlay and its quit record, and drop every read-intent effect that
-  /// is still in flight. A later flush of this owner then finds an empty
-  /// overlay, so a pushed ID is never queued again. Returns `nil` when the
+  /// The window closed. Queue the overlay IDs that this window did not queue,
+  /// and write the overlay as read. Then release the overlay and its quit
+  /// record, and drop every read-intent effect that is still in flight, so a
+  /// later flush of this owner finds an empty overlay. Returns `nil` when the
   /// overlay is empty.
   @discardableResult
   func windowClosed() -> Task<Void, Never>? {
     let ids = pendingReadIDs
-    if !ids.isEmpty { readQueue.queueReadIDs(ids) }
+    let unqueued = ids.subtracting(queuedOverlayIDs)
+    if !unqueued.isEmpty { readQueue.queueReadIDs(unqueued) }
     sessionGeneration &+= 1
     pendingReadIDs = []
     renderedUnreadIDs = []
+    queuedOverlayIDs = []
     guard !ids.isEmpty else { return nil }
     let writer = writer
     return Task {
@@ -159,6 +169,9 @@ final class TimelineState {
   @discardableResult
   func markAllAsRead(_ plan: MarkAllReadPlan) -> Task<Void, Never> {
     pendingReadIDs.formUnion(plan.optimisticIDs)
+    // `SyncEngine.markAllAsRead(scope:)` queues these rows.
+    let claimedIDs = plan.optimisticIDs.subtracting(queuedOverlayIDs)
+    queuedOverlayIDs.formUnion(claimedIDs)
     let generation = sessionGeneration
     return Task {
       let outcome = await readQueue.markAllAsRead(scope: plan.markTarget)
@@ -170,7 +183,8 @@ final class TimelineState {
         // The overlay can hold rows that are already read in the store.
         snapshotVersion &+= 1
       case .failed:
-        break
+        // The rows can be unqueued, so the close queues them.
+        queuedOverlayIDs.subtract(claimedIDs)
       }
     }
   }
@@ -192,7 +206,10 @@ final class TimelineState {
       snapshotUnread: unreadSnapshot.unreadFeedbinEntryIDs,
       renderedUnread: renderedUnreadIDs
     )
-    if retained != pendingReadIDs { pendingReadIDs = retained }
+    if retained != pendingReadIDs {
+      pendingReadIDs = retained
+      queuedOverlayIDs.formIntersection(retained)
+    }
   }
 
   // MARK: - Unread snapshot
@@ -274,6 +291,7 @@ final class TimelineState {
     sessionGeneration &+= 1
     pendingReadIDs = []
     renderedUnreadIDs = []
+    queuedOverlayIDs = []
   }
 
   /// The previous account's data is deleted. The list and the snapshot reload.

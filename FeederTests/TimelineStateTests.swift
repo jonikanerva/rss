@@ -487,8 +487,9 @@ struct TimelineStateTests {
     #expect(queuedReadIDs.isEmpty)
   }
 
-  /// The scene flush can run before the close. The close then queues the same
-  /// IDs once and sends no late signal.
+  /// The scene flush can run before the close, and a push can drain the
+  /// queue between them. The close then queues nothing and sends no late
+  /// signal.
   @Test
   func sceneFlushBeforeTheCloseIsHarmless() async throws {
     let (store, engine) = try await inMemory()
@@ -497,12 +498,14 @@ struct TimelineStateTests {
     await select(1, timeline)
 
     let sceneFlush = timeline.flushPendingReads(.sceneInactive)
+    #expect(queuedReadIDs == [1])
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
     let closeFlush = timeline.windowClosed()
     await sceneFlush?.value
     await closeFlush?.value
     engine.queueRecordedPendingReads()
 
-    #expect(queuedReadIDs == [1])
+    #expect(queuedReadIDs.isEmpty)
     #expect(try await isRead(1, store) == true)
     #expect(timeline.pendingReadIDs.isEmpty)
     #expect(timeline.listVersion == 0)
@@ -542,5 +545,57 @@ struct TimelineStateTests {
 
     #expect(queuedReadIDs == [1])
     #expect(try await isRead(1, store) == false)
+  }
+
+  /// A queued ID that the store holds as unread again and that the user opens
+  /// again is a new read: the close queues it.
+  @Test
+  func windowCloseQueuesANewReadOfAQueuedID() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    timeline.flushPendingReads(.sidebarChange)
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    await select(1, timeline)
+
+    timeline.windowClosed()
+
+    #expect(queuedReadIDs == [1])
+  }
+
+  /// Mark All queues its rows. A push can drain the queue before the close,
+  /// and the close does not queue the rows again.
+  @Test
+  func windowCloseSkipsTheRowsOfMarkAll() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1, 2], clearsArticleSelection: true)
+    await timeline.markAllAsRead(plan).value
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+
+    timeline.windowClosed()
+
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// A failed Mark All can leave its rows unqueued, so the close queues them.
+  @Test
+  func windowCloseQueuesTheRowsOfAFailedMarkAll() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1], in: writer)
+    let store = StoreActors(writer: writer, reader: reader)
+    let timeline = makeTimeline(store: store, engine: makeEngine(writer: writer))
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1], clearsArticleSelection: true)
+    await timeline.markAllAsRead(plan).value
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+
+    timeline.windowClosed()
+
+    #expect(queuedReadIDs == [1])
   }
 }
