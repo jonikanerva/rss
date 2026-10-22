@@ -376,4 +376,18 @@ struct EntryListScrollAnchorTests {
     #expect(tooShort == nil)
     #expect(empty == nil)
   }
+
+  @Test("a row whose top edge is at or below the bottom edge does not show")
+  func tabSkipsARowBelowTheBottomEdge() {
+    let ids = PreviewSupport.mintEntryIdentifiers(count: 7)
+    let sections = Self.tabSections(ids)
+    let replaced = EntryListTabSelection.target(
+      selectedID: ids[5], visibleRows: Self.tabFrames(5...7), visibleTop: Self.tabRowMinY(5),
+      visibleBottom: Self.tabRowMinY(7), sections: sections)
+    let onlyCandidate = EntryListTabSelection.target(
+      selectedID: nil, visibleRows: Self.tabFrames(7...7), visibleTop: Self.tabRowMinY(7) - 50,
+      visibleBottom: Self.tabRowMinY(7), sections: sections)
+    #expect(replaced == ids[3])
+    #expect(onlyCandidate == nil)
+  }
 }
