@@ -39,25 +39,19 @@ Open `Feeder.xcodeproj` in Xcode to run.
 
 ### Keychain prompts during local development
 
-After every `make install`, macOS shows one native keychain dialog per stored
-credential — typically the Feedbin token and, if configured, the selected cloud provider's API key:
+`make install` signs the app with the team's Apple Development identity. The
+designated requirement of the app then stays the same for each build, and the
+Keychain access list of each stored item trusts that requirement.
 
-> *"Feeder wants to use your confidential information stored in `<key>` in your
-> keychain. Allow / Always Allow / Deny."*
+The first read of each stored item in a build with a new requirement shows one
+macOS Keychain access dialog. The stored items are the Feedbin account and each
+saved API key.
+Click **Always Allow** on each dialog. A later `make install` with the same
+certificate keeps the access, so the dialog does not show again.
 
-This is macOS's keychain access prompt, not an in-app dialog. Click **Always
-Allow** on each prompt for the current binary.
-
-**Why it re-prompts after each rebuild.** The `install` target uses ad-hoc
-signing (`CODE_SIGN_IDENTITY="-"`), which produces a fresh code-signing
-identity (different CDHash) on every build. macOS keychain ACLs are bound to a
-specific code-signing identity, so a freshly built binary is treated as a
-*different application* even though the bundle ID is unchanged — the previous
-"Always Allow" grant does not carry over.
-
-**For end users.** This is a development-only phenomenon. A user who installs
-the app once and does not rebuild sees each prompt exactly once and never
-again. See `STACK.md` § 8 Logging & privacy for how secrets are stored.
+`make install` stops before the build when the Mac has no Apple Development
+identity for the team. See `STACK.md` § 16 for the signing rule and § 8 for
+how Feeder stores secrets.
 
 ## Status
 
