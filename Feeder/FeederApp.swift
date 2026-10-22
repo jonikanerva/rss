@@ -20,8 +20,9 @@ struct FeederApp: App {
   private var classificationEngine = FeederApp.makeClassificationEngine()
   @State
   private var bootstrapPhase: BootstrapPhase = .pending
-  /// A Dock reopen during `.pending` creates a new window and a new bootstrap
-  /// task. This flag keeps one bootstrap run per store open.
+  /// A reopen during `.pending`, from the Dock or from Window → Feeder, creates
+  /// a new window and a new bootstrap task. This flag keeps one bootstrap run
+  /// per store open.
   @State
   private var isBootstrapRunning = false
   /// App-wide font settings, injected into both scenes. A size change
@@ -107,12 +108,14 @@ struct FeederApp: App {
   }
 
   var body: some Scene {
-    WindowGroup {
+    WindowGroup(id: MainWindow.sceneID, for: MainWindow.self) { _ in
       mainWindowContent
         .environment(syncEngine)
         .environment(classificationEngine)
         .environment(fontSettings)
         .defaultAppStorage(AppDefaults.current)
+    } defaultValue: {
+      .main
     }
     .commands { FeederCommands() }
 
