@@ -96,7 +96,9 @@ struct ClassificationSettingsView: View {
           if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
         }
       }
+      // Return must not start a reclassification: Reclassify needs a click, or Tab and Space.
       Button("Cancel", role: .cancel) {}
+        .keyboardShortcut(.defaultAction)
     } message: {
       Text(
         "Reclassify existing articles with \(settings.reclassificationTarget ?? "the selected provider")? This replaces their category assignments."
