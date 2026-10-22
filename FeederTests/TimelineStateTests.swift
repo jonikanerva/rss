@@ -598,9 +598,11 @@ struct TimelineStateTests {
     #expect(queuedReadIDs.isEmpty)
   }
 
-  /// A failed Mark All can leave its rows unqueued, so the close queues them.
+  /// A Mark All whose write fails after the queue step leaves its rows
+  /// queued. A push can drain the queue, and a later flush or the close must
+  /// not queue the rows again. The flush still writes them as read.
   @Test
-  func windowCloseQueuesTheRowsOfAFailedMarkAll() async throws {
+  func failedMarkAllWriteRowsAreNotQueuedAgain() async throws {
     let failing = try FailingWriteStore()
     defer { failing.removeFolder() }
     let (writer, reader) = try await failing.makeWriterAndReader()
@@ -610,7 +612,28 @@ struct TimelineStateTests {
     try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
     let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1], clearsArticleSelection: true)
     await timeline.markAllAsRead(plan).value
+    #expect(queuedReadIDs == [1])
     defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    try failing.dropFailingTrigger()
+
+    await timeline.flushPendingReads(.sidebarChange)?.value
+    timeline.windowClosed()
+
+    #expect(queuedReadIDs.isEmpty)
+    #expect(try await isRead(1, store) == true)
+  }
+
+  /// A Mark All that fails before its queue step leaves the rows unqueued, so
+  /// the close queues them.
+  @Test
+  func windowCloseQueuesTheRowsOfAMarkAllThatQueuedNothing() async throws {
+    let (store, _) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    // No writer: Mark All fails before it queues a row.
+    let engine = SyncEngine(defaults: defaults, credentialStore: MemoryFeedbinCredentialStore(), account: .unused)
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1], clearsArticleSelection: true)
+    await timeline.markAllAsRead(plan).value
 
     timeline.windowClosed()
 
