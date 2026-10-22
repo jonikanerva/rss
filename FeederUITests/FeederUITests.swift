@@ -152,8 +152,10 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(app.buttons["classification.key.save"].isEnabled)
     app.typeKey(.return, modifierFlags: [])
     XCTAssertTrue(app.buttons["Reclassify"].exists || app.buttons["Reclassify"].waitForExistence(timeout: 5), app.debugDescription)
+    app.typeKey(.return, modifierFlags: [])
+    XCTAssertTrue(app.buttons["Reclassify"].exists, "Return presses no button of the alert")
     app.typeKey(.escape, modifierFlags: [])
-    XCTAssertFalse(app.buttons["Reclassify"].exists)
+    XCTAssertTrue(app.buttons["Reclassify"].waitForNonExistence(timeout: 5), app.debugDescription)
     XCTAssertFalse(field.exists)
     XCTAssertTrue(nativeText("API key is saved", in: app).exists || nativeText("API key is saved", in: app).waitForExistence(timeout: 5))
     edit.click()
@@ -169,8 +171,8 @@ final class FeederUITests: XCTestCase {
     XCTAssertTrue(decision1.exists || decision1.waitForExistence(timeout: 5), app.debugDescription)
     decision1.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).click()
     XCTAssertTrue(app.buttons["Reclassify"].exists || app.buttons["Reclassify"].waitForExistence(timeout: 5), app.debugDescription)
-    app.typeKey(.return, modifierFlags: [])
-    XCTAssertFalse(app.buttons["Reclassify"].exists)
+    app.typeKey(.escape, modifierFlags: [])
+    XCTAssertTrue(app.buttons["Reclassify"].waitForNonExistence(timeout: 5), app.debugDescription)
     XCTAssertTrue(decision1.isSelected)
   }
 
