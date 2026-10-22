@@ -430,8 +430,9 @@ struct SyncEngineTests {
     #expect(queuedReadIDs.isEmpty)
   }
 
-  /// A failed store write reports `.failed`, so the caller sends no refresh.
-  /// The IDs stay queued for the next sync.
+  /// A failed store write reports `.failed` with the queued IDs, so the caller
+  /// sends no refresh and does not queue them again. The IDs stay queued for
+  /// the next sync.
   @Test
   func failedMarkAllWriteReportsFailureAndKeepsTheQueue() async throws {
     let store = try FailingWriteStore()
@@ -441,7 +442,7 @@ struct SyncEngineTests {
     try await store.seedUnreadEntries(writer, ids: [1, 2], published: .now)
     try store.installFailingTrigger("UPDATE", on: "ZENTRY")
 
-    #expect(await engine.markAllAsRead(scope: .all) == .failed)
+    #expect(await engine.markAllAsRead(scope: .all) == .failed(queuedIDs: [1, 2]))
 
     #expect(queuedReadIDs == [1, 2])
     #expect(try await isRead(1, in: writer) == false)

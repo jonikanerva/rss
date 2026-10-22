@@ -567,8 +567,9 @@ final class SyncEngine {
     case written
     /// The scope had no unread entry, or the account changed during the call.
     case nothingToMark
-    /// The fetch or the store write failed. IDs that were queued stay queued.
-    case failed
+    /// The fetch or the store write failed. `queuedIDs` holds the IDs that the
+    /// call queued; they stay queued. A failed fetch queues none.
+    case failed(queuedIDs: Set<Int>)
   }
 
   /// Queue entry IDs to push to Feedbin as read. Until a push succeeds,
@@ -587,14 +588,14 @@ final class SyncEngine {
   /// push. Returns after the store write ends. Only `.written` means that the
   /// store changed.
   func markAllAsRead(scope: EntryScope) async -> MarkAllReadOutcome {
-    guard let writer else { return .failed }
+    guard let writer else { return .failed(queuedIDs: []) }
     let generation = accountGeneration
     let ids: Set<Int>
     do {
       ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate)
     } catch {
       logger.error("Mark all read: failed to fetch \(scope.logDescription): \(error.localizedDescription)")
-      return .failed
+      return .failed(queuedIDs: [])
     }
     guard !ids.isEmpty, generation == accountGeneration else { return .nothingToMark }
     // Queue before the store write. `fetchEntriesSince` reads the queue and
@@ -609,7 +610,7 @@ final class SyncEngine {
     } catch {
       // The IDs stay queued: the next sync or launch writes them as read.
       logger.error("Mark all read: failed to write \(scope.logDescription): \(error.localizedDescription)")
-      return .failed
+      return .failed(queuedIDs: ids)
     }
   }
 

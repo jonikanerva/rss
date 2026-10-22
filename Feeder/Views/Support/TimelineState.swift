@@ -183,8 +183,9 @@ final class TimelineState {
       case .nothingToMark:
         // The overlay can hold rows that are already read in the store.
         snapshotVersion &+= 1
-      case .failed:
-        break
+      case .failed(let queuedIDs):
+        // The write failed after the queue step: the queued rows stay queued.
+        queuedOverlayIDs.formUnion(queuedIDs.intersection(pendingReadIDs))
       }
     }
   }
