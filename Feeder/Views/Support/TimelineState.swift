@@ -169,22 +169,21 @@ final class TimelineState {
   @discardableResult
   func markAllAsRead(_ plan: MarkAllReadPlan) -> Task<Void, Never> {
     pendingReadIDs.formUnion(plan.optimisticIDs)
-    // `SyncEngine.markAllAsRead(scope:)` queues these rows.
-    let claimedIDs = plan.optimisticIDs.subtracting(queuedOverlayIDs)
-    queuedOverlayIDs.formUnion(claimedIDs)
     let generation = sessionGeneration
     return Task {
       let outcome = await readQueue.markAllAsRead(scope: plan.markTarget)
       guard generation == sessionGeneration else { return }
       switch outcome {
       case .written:
+        // `SyncEngine.markAllAsRead(scope:)` queued the unread rows of the
+        // scope before its write.
+        queuedOverlayIDs.formUnion(plan.optimisticIDs)
         listVersion &+= 1
       case .nothingToMark:
         // The overlay can hold rows that are already read in the store.
         snapshotVersion &+= 1
       case .failed:
-        // The rows can be unqueued, so the close queues them.
-        queuedOverlayIDs.subtract(claimedIDs)
+        break
       }
     }
   }

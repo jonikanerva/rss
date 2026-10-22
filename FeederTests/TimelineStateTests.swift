@@ -598,4 +598,25 @@ struct TimelineStateTests {
 
     #expect(queuedReadIDs == [1])
   }
+
+  /// A close while Mark All runs queues the overlay: Mark All can fail before
+  /// it queues anything.
+  @Test
+  func windowCloseDuringMarkAllQueuesTheOverlay() async throws {
+    let (store, _) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    // No writer: Mark All fails before it queues a row.
+    let engine = SyncEngine(defaults: defaults, credentialStore: MemoryFeedbinCredentialStore(), account: .unused)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    let plan = MarkAllReadPlan(markTarget: .all, optimisticIDs: [1], clearsArticleSelection: true)
+
+    let markAll = timeline.markAllAsRead(plan)
+    let close = timeline.windowClosed()
+    await markAll.value
+    await close?.value
+    engine.queueRecordedPendingReads()
+
+    #expect(queuedReadIDs == [1])
+  }
 }
