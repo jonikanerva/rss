@@ -58,10 +58,9 @@ struct ContentView: View {
   private var articleViewMode: ArticleViewMode = .web
   @State
   private var detailPageCommand = DetailPageCommand.initial
-  /// Rendered-entries payload bubbled up from `EntryListView`. Tab reads its
-  /// ids; `timeline` reads its unread ids.
+  /// A bump asks the article list for the row that Tab selects.
   @State
-  private var currentEntries: VisibleEntriesPayload = .empty
+  private var articleListTabRequest = 0
   /// App-lifetime favicon cache: decoded once per feed, off the render path.
   @State
   private var faviconStore = FaviconStore()
@@ -160,7 +159,6 @@ struct ContentView: View {
         PerformanceSignpostName.contentViewReeval
       )
       contentReevalVersion &+= 1
-      currentEntries = payload
       timeline.visibleEntriesChanged(renderedUnreadIDs: payload.unreadFeedbinEntryIDs)
     }
     .task(id: contentReevalVersion) {
@@ -452,7 +450,9 @@ struct ContentView: View {
       accountDataVersion: timeline.accountDataVersion,
       pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
       selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
-      onPageDetail: pageDetail(modifiers:)
+      onPageDetail: pageDetail(modifiers:),
+      tabSelectionRequest: articleListTabRequest,
+      onTabSelection: { selectedEntryID = $0 }
     )
   }
 
@@ -464,14 +464,12 @@ struct ContentView: View {
     allCategories.map(\.folderLabel)
   }
 
-  /// Tab from the sidebar into the article-list column. Selecting the first
-  /// row is gated on `currentEntries.ids`, which fills only once the list has
-  /// rendered for the active `selection`; without rendered rows Tab moves
-  /// focus alone.
+  /// Tab from the sidebar into the article-list column. The list keeps a
+  /// selection that is on screen, or selects its first row on screen
+  /// (`EntryListTabSelection`). Without such a row Tab moves focus alone.
   private func tabIntoArticleList() {
     panelFocus = .articleList
-    guard let firstID = currentEntries.ids.first else { return }
-    selectedEntryID = firstID
+    articleListTabRequest &+= 1
   }
 
   private func revalidateSelection() {

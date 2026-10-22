@@ -506,9 +506,8 @@ struct DataWriterEntryTests {
   }
 
   /// The reader must return the flat ID sequence in section order. Order
-  /// matters: the view keys its rendered-entries preference and its
-  /// Tab-into-list selection off the first ID, so a reorder lands the selection
-  /// on the wrong row.
+  /// matters: the view requests the next page when the selection reaches the
+  /// last ID, so a reorder requests it at the wrong row.
   @Test
   func fetchEntrySectionsAllEntryIDsMatchSectionsFlatMap() async throws {
     let writer = try await seedPinTestData(readEntryID: 3002)

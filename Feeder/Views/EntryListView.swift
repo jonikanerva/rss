@@ -72,6 +72,11 @@ struct EntryListView: View {
   let onMarkAllRead: () -> Void
   /// Space and Shift-Space in the list page the detail pane.
   var onPageDetail: (EventModifiers) -> KeyPress.Result = { _ in .ignored }
+  /// A change asks for the row that Tab selects. Only rows on screen qualify,
+  /// so the selection is in view and reaches the table.
+  var tabSelectionRequest = 0
+  /// Selects the Tab row. It must not move focus.
+  var onTabSelection: (PersistentIdentifier) -> Void = { _ in }
 
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -316,6 +321,13 @@ struct EntryListView: View {
       if let newValue, newValue == visibleEntries.ids.last {
         requestAppend()
       }
+    }
+    .onChange(of: tabSelectionRequest) {
+      guard
+        let target = scrollAnchorKeeper.tabSelectionTarget(selectedID: selectedEntryID, sections: sections),
+        target != selectedEntryID
+      else { return }
+      onTabSelection(target)
     }
   }
 

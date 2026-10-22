@@ -1,4 +1,5 @@
 import AppKit
+import SwiftData
 import SwiftUI
 import os
 
@@ -6,7 +7,7 @@ import os
 /// rows above them. Call `prepareForUpdate(from:to:)` immediately before the
 /// new sections are assigned. An arm ends at the next display pass at the
 /// latest. When the keeper does not arm, the native `List` behaviour applies
-/// (`STACK.md § 14`).
+/// (`STACK.md § 14`). The keeper also picks the row that Tab selects.
 final class ScrollAnchorKeeper: NSObject {
   private struct Pending {
     weak var table: NSTableView?
@@ -45,6 +46,36 @@ final class ScrollAnchorKeeper: NSObject {
   func cancel() {
     NotificationCenter.default.removeObserver(self)
     pending = nil
+  }
+
+  /// The row that Tab selects (`EntryListTabSelection`). A row under the
+  /// toolbar or under the floating section header does not show. `nil` when
+  /// the table does not match `sections` or no row shows.
+  func tabSelectionTarget(
+    selectedID: PersistentIdentifier?, sections: [EntryListSection]
+  ) -> PersistentIdentifier? {
+    let signpost = perfSignposter.beginInterval(PerformanceSignpostName.tabSelect)
+    var rowCount = 0
+    defer {
+      perfSignposter.endInterval(PerformanceSignpostName.tabSelect, signpost, "rows=\(rowCount, privacy: .public)")
+    }
+    guard let scrollView, scrollView.window != nil, let table = scrollView.documentView as? NSTableView,
+      table.numberOfRows > 0, table.numberOfRows == EntryListTableLayout.rowCount(of: sections)
+    else { return nil }
+    let clip = scrollView.contentView
+    let visible = table.rows(in: clip.documentVisibleRect)
+    rowCount = visible.length
+    let visibleRows = (visible.location..<(visible.location + visible.length)).map { row in
+      let rect = table.rect(ofRow: row)
+      return ScrollAnchorRowFrame(tableRow: row, minY: rect.minY, maxY: rect.maxY)
+    }
+    // Table row 0 is a section header; every header has the same height.
+    let headerHeight = table.rect(ofRow: 0).height
+    return EntryListTabSelection.target(
+      selectedID: selectedID, visibleRows: visibleRows,
+      visibleTop: clip.bounds.minY + scrollView.contentInsets.top + headerHeight,
+      visibleBottom: clip.bounds.maxY - scrollView.contentInsets.bottom,
+      sections: sections)
   }
 
   // MARK: - Arming

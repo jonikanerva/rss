@@ -68,6 +68,8 @@ nonisolated enum PerformanceSignpostName {
   static let reloadStateAssign: StaticString = "reload-state-assign"
   /// The scroll-anchor capture and compensation (`STACK.md § 4 → Signposts`).
   static let scrollAnchor: StaticString = "scroll-anchor"
+  /// The viewport read that picks the row Tab selects in the article list.
+  static let tabSelect: StaticString = "tab-select"
   /// Preference change → the next `ContentView` render pass. Isolates the
   /// whole-split-view re-evaluation one reload triggers.
   static let contentViewReeval: StaticString = "contentview-reeval"
