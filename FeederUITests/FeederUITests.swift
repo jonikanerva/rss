@@ -163,6 +163,15 @@ final class FeederUITests: XCTestCase {
     XCTAssertFalse(field.exists)
     XCTAssertTrue(nativeText("API key is saved", in: app).exists || nativeText("API key is saved", in: app).waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Reclassify"].exists)
+    let decision1 = app.radioButtons.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "classification.vercel.model.microsoft/microsoft-decision-1")
+    ).firstMatch
+    XCTAssertTrue(decision1.exists || decision1.waitForExistence(timeout: 5), app.debugDescription)
+    decision1.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).click()
+    XCTAssertTrue(app.buttons["Reclassify"].exists || app.buttons["Reclassify"].waitForExistence(timeout: 5), app.debugDescription)
+    app.typeKey(.return, modifierFlags: [])
+    XCTAssertFalse(app.buttons["Reclassify"].exists)
+    XCTAssertTrue(decision1.isSelected)
   }
 
   @MainActor
