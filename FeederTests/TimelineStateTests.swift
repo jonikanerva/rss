@@ -434,7 +434,7 @@ struct TimelineStateTests {
     #expect(queuedReadIDs == [1, 2])
   }
 
-  /// The reads of a closed window still reach the quit queue.
+  /// A window that goes away without a close flush keeps its quit record.
   @Test
   func closedWindowReadsStillReachTheQuitQueue() async throws {
     let (store, engine) = try await inMemory()
@@ -446,5 +446,101 @@ struct TimelineStateTests {
 
     #expect(window == nil)
     #expect(queuedReadIDs == [7])
+  }
+
+  // MARK: - Window close
+
+  /// A closed window queues its overlay, writes it as read, and releases its
+  /// quit record. The closed window sends no refresh signal.
+  @Test
+  func windowCloseQueuesWritesAndReleasesTheOverlay() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1, 2], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    let flush = try #require(timeline.windowClosed())
+    #expect(queuedReadIDs == [1])
+    #expect(timeline.pendingReadIDs.isEmpty)
+    await flush.value
+
+    #expect(try await isRead(1, store) == true)
+    #expect(try await isRead(2, store) == false)
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 0)
+  }
+
+  /// A push can drain the queue after the close. A later scene flush and the
+  /// quit step must not queue the pushed IDs again.
+  @Test
+  func flushAndQuitAfterTheCloseQueueNothingAgain() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    await timeline.windowClosed()?.value
+    defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+
+    #expect(timeline.flushPendingReads(.sceneInactive) == nil)
+    engine.queueRecordedPendingReads()
+
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// The scene flush can run before the close. The close then queues the same
+  /// IDs once and sends no late signal.
+  @Test
+  func sceneFlushBeforeTheCloseIsHarmless() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+
+    let sceneFlush = timeline.flushPendingReads(.sceneInactive)
+    let closeFlush = timeline.windowClosed()
+    await sceneFlush?.value
+    await closeFlush?.value
+    engine.queueRecordedPendingReads()
+
+    #expect(queuedReadIDs == [1])
+    #expect(try await isRead(1, store) == true)
+    #expect(timeline.pendingReadIDs.isEmpty)
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.snapshotVersion == 0)
+  }
+
+  /// A selection that lands after the close must not add a quit record for
+  /// the closed window.
+  @Test
+  func windowCloseDropsALateSelectionInsertion() async throws {
+    let (store, engine) = try await inMemory()
+    let timeline = makeTimeline(store: store, engine: engine)
+
+    let insertion = timeline.entrySelected(feedbinEntryID: 1, isRead: false)
+    #expect(timeline.windowClosed() == nil)
+    await insertion?.value
+    engine.queueRecordedPendingReads()
+
+    #expect(timeline.pendingReadIDs.isEmpty)
+    #expect(queuedReadIDs.isEmpty)
+  }
+
+  /// A failed close write keeps the IDs queued, so the next sync or launch
+  /// writes them as read.
+  @Test
+  func failedCloseWriteKeepsTheQueue() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1], in: writer)
+    let store = StoreActors(writer: writer, reader: reader)
+    let timeline = makeTimeline(store: store, engine: makeEngine(writer: writer))
+    await select(1, timeline)
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+
+    await timeline.windowClosed()?.value
+
+    #expect(queuedReadIDs == [1])
+    #expect(try await isRead(1, store) == false)
   }
 }

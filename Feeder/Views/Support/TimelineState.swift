@@ -121,6 +121,30 @@ final class TimelineState {
     }
   }
 
+  /// The window closed. Queue the overlay and write it as read, then release
+  /// the overlay and its quit record, and drop every read-intent effect that
+  /// is still in flight. A later flush of this owner then finds an empty
+  /// overlay, so a pushed ID is never queued again. Returns `nil` when the
+  /// overlay is empty.
+  @discardableResult
+  func windowClosed() -> Task<Void, Never>? {
+    let ids = pendingReadIDs
+    if !ids.isEmpty { readQueue.queueReadIDs(ids) }
+    sessionGeneration &+= 1
+    pendingReadIDs = []
+    renderedUnreadIDs = []
+    guard !ids.isEmpty else { return nil }
+    let writer = writer
+    return Task {
+      do {
+        try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      } catch {
+        // The IDs stay queued: the next sync or launch writes them as read.
+        logger.error("Close flush failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
   /// The window became active again. A refresh that a background flush owes
   /// runs now.
   func sceneBecameActive() {
