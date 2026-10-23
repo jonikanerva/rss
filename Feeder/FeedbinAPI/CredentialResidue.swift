@@ -4,8 +4,9 @@ import OSLog
 nonisolated enum CredentialResidue {
   private static let logger = Logger(subsystem: "com.feeder.app", category: "CredentialResidue")
 
-  /// GET URLs that Feeder requests only with an `Authorization` header. A cached
-  /// response for any of them means the cache also holds that header.
+  /// GET URLs that any Feeder build requests only with an `Authorization`
+  /// header. A cached response for any of them means the cache also holds
+  /// that header.
   static let probeURLs: [URL] = [
     "https://api.feedbin.com/v2/authentication.json",
     "https://api.feedbin.com/v2/subscriptions.json",

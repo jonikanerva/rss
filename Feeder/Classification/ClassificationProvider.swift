@@ -70,7 +70,7 @@ nonisolated enum ClassificationAbortReason: Equatable, Sendable {
       // No `default:`: a new provider kind must choose its own billing copy.
       switch provider {
       case .vercel: "Vercel quota used up — check billing at Vercel"
-      case .openAI, .appleFM, nil: "OpenAI quota used up — check billing at OpenAI"
+      case .appleFM, nil: "Quota used up — check billing at the provider"
       }
     }
   }

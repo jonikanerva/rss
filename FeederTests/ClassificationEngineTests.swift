@@ -706,175 +706,6 @@ struct ClassificationEngineTests {
   }
 }
 
-// MARK: - OpenAIError → ClassificationAbortReason mapping
-
-/// Pins the batch-abort mapping: a provider-level failure aborts with a
-/// user-facing cause, and a per-entry model-output defect returns nil and keeps
-/// the uncategorized fallback. A silent flip either reintroduces the
-/// mass-misclassification hazard or stalls the drain on a harmless defect.
-@Suite("OpenAIError batch-abort mapping")
-struct OpenAIErrorBatchAbortMappingTests {
-  @Test
-  func unauthorizedMapsToKeyRejected() {
-    #expect(
-      OpenAIError.apiError(statusCode: 401, message: "x", retryAfter: nil).batchAbort
-        == .keyRejected)
-  }
-
-  @Test(arguments: [400, 402, 403, 404, 422])
-  func otherClientErrorsMapToModelRejected(statusCode: Int) {
-    #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort
-        == .modelRejected)
-  }
-
-  @Test
-  func rateLimitMapsToRateLimited() {
-    #expect(
-      OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil).batchAbort
-        == .rateLimited)
-  }
-
-  @Test(arguments: OpenAIErrorBodies.billing)
-  func billingFailureMapsToQuotaExhausted(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 429, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.batchAbort == .quotaExhausted)
-  }
-
-  @Test(arguments: OpenAIErrorBodies.rateLimit)
-  func otherRateLimitBodiesMapToRateLimited(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 429, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.batchAbort == .rateLimited)
-  }
-
-  @Test(arguments: OpenAIErrorBodies.billing)
-  func billingBodyKeepsTheStatusMappingOutsideHTTP429(body: String) {
-    let now = Date(timeIntervalSince1970: 0)
-    let badRequest = OpenAIClassificationProvider.makeAPIError(statusCode: 400, retryAfter: nil, body: body, now: now)
-    #expect(badRequest.batchAbort == .modelRejected)
-    let serverError = OpenAIClassificationProvider.makeAPIError(statusCode: 503, retryAfter: nil, body: body, now: now)
-    #expect(serverError.batchAbort == .providerUnavailable)
-  }
-
-  @Test
-  func requestTimeoutMapsToProviderUnavailable() {
-    #expect(
-      OpenAIError.apiError(statusCode: 408, message: "x", retryAfter: nil).batchAbort
-        == .providerUnavailable)
-  }
-
-  @Test(arguments: [500, 502, 503, 599])
-  func serverErrorsMapToProviderUnavailable(statusCode: Int) {
-    #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort
-        == .providerUnavailable)
-  }
-
-  @Test(arguments: [600, 700])
-  func outOfRangeStatusesTakeThePerEntryFallback(statusCode: Int) {
-    #expect(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).batchAbort == nil)
-  }
-
-  @Test
-  func perEntryOutputDefectsDoNotAbort() {
-    #expect(OpenAIError.emptyResponse.batchAbort == nil)
-    #expect(OpenAIError.invalidResponse.batchAbort == nil)
-  }
-
-  @Test(
-    arguments: [
-      #"{"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}"#,
-      #"{"error":{"message":"too long","type":"invalid_request_error","code":"string_above_max_length"}}"#,
-      #"{"error":{"message":"refused","type":"invalid_request_error","code":"content_policy_violation"}}"#,
-      #"{"error":{"message":"refused","type":"invalid_prompt"}}"#,
-    ])
-  func perArticleRejectionsNeverAbortTheBatch(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 400, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.batchAbort == nil)
-    #expect(error.retryDisposition == .poll)
-  }
-
-  @Test(
-    arguments: [
-      #"{"error":{"message":"bad model","type":"invalid_request_error","code":"model_not_found"}}"#,
-      "",
-      "not json at all",
-    ])
-  func unrecognizedBadRequestsStillAbortTheBatch(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 400, retryAfter: nil, body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.batchAbort == .modelRejected)
-    #expect(error.retryDisposition == .blocked)
-  }
-}
-
-// MARK: - OpenAIError → ClassificationRetry mapping
-
-/// Pins the retry disposition: an OpenAI failure must wait as long as the same
-/// failure from Vercel does. A `.poll` here would send one request every two
-/// seconds for as long as the failure lasts.
-@Suite("OpenAIError retry disposition")
-struct OpenAIErrorRetryDispositionTests {
-  @Test(arguments: [408, 429, 500, 502, 503, 599])
-  func transientStatusesUseTheBoundedBackoff(statusCode: Int) {
-    #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
-        == .transient(retryAfter: nil))
-  }
-
-  @Test(arguments: [400, 401, 402, 403, 404, 407, 409, 422])
-  func deterministicClientErrorsBlock(statusCode: Int) {
-    #expect(
-      OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil).retryDisposition
-        == .blocked)
-  }
-
-  @Test
-  func retryAfterHeaderReachesTheDisposition() {
-    let now = Date(timeIntervalSince1970: 0)
-    let bounded = OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "120", body: "x", now: now)
-    #expect(bounded.retryDisposition == .transient(retryAfter: 120))
-    let clamped = OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "7200", body: "x", now: now)
-    #expect(clamped.retryDisposition == .transient(retryAfter: 3600))
-  }
-
-  @Test(arguments: OpenAIErrorBodies.billing)
-  func billingFailureBlocksDespiteRetryAfter(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 429, retryAfter: "120", body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.retryDisposition == .blocked)
-  }
-
-  @Test(arguments: OpenAIErrorBodies.rateLimit)
-  func rateLimitBodiesKeepTheRetryAfter(body: String) {
-    let error = OpenAIClassificationProvider.makeAPIError(
-      statusCode: 429, retryAfter: "30", body: body, now: Date(timeIntervalSince1970: 0))
-    #expect(error.retryDisposition == .transient(retryAfter: 30))
-  }
-
-  @Test
-  func quotaExhaustedBlocks() {
-    #expect(OpenAIError.quotaExhausted(code: nil).retryDisposition == .blocked)
-  }
-
-  @Test
-  func transportFailureUsesBoundedBackoff() {
-    let error = OpenAIError.networkUnavailable(underlying: URLError(.timedOut))
-    #expect(error.retryDisposition == .transient(retryAfter: nil))
-  }
-
-  @Test
-  func perEntryDefectsNeverReachTheRetryState() {
-    for error in [OpenAIError.invalidResponse, .emptyResponse, .entryRejected(code: "x")] {
-      #expect(error.batchAbort == nil)
-      #expect(error.retryDisposition == .poll)
-    }
-  }
-}
-
 // MARK: - Cloud transport failure mapping
 
 @Suite("Cloud transport failure mapping")
@@ -884,13 +715,11 @@ struct CloudTransportFailureMappingTests {
     (.notConnectedToInternet, .offline), (.networkConnectionLost, .offline), (.cannotFindHost, .offline),
   ])
   func transportFailureMapsToItsAbortReason(code: URLError.Code, expected: ClassificationAbortReason) {
-    #expect(OpenAIError.networkUnavailable(underlying: URLError(code)).batchAbort == expected)
     #expect(VercelClassificationError.network(code).batchAbort == expected)
   }
 
   @Test
   func transportFailureWithoutAURLErrorMapsToOffline() {
-    #expect(OpenAIError.networkUnavailable(underlying: FakeProviderError()).batchAbort == .offline)
     #expect(VercelClassificationError.network(nil).batchAbort == .offline)
   }
 }
@@ -919,31 +748,12 @@ struct CloudFailureDispositionPairingTests {
   @Test(arguments: [
     199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 408, 409, 422, 429, 499, 500, 502, 503, 599, 600, 700,
   ])
-  func openAIHTTPFailuresPair(statusCode: Int) {
-    expectPairing(OpenAIError.apiError(statusCode: statusCode, message: "x", retryAfter: nil))
-  }
-
-  @Test(arguments: OpenAIErrorBodies.billing)
-  func openAIBillingFailuresPair(body: String) {
-    expectPairing(
-      OpenAIClassificationProvider.makeAPIError(statusCode: 429, retryAfter: "120", body: body, now: Date(timeIntervalSince1970: 0)))
-  }
-
-  @Test(arguments: [
-    199, 200, 300, 399, 400, 401, 402, 403, 404, 407, 408, 409, 422, 429, 499, 500, 502, 503, 599, 600, 700,
-  ])
   func vercelHTTPFailuresPair(statusCode: Int) {
     expectPairing(VercelClassificationError.http(statusCode, retryAfter: nil))
   }
 
   @Test
   func nonHTTPFailuresPair() {
-    let openAI: [OpenAIError] = [
-      .needsKey, .invalidResponse, .emptyResponse, .entryRejected(code: "context_length_exceeded"),
-      .quotaExhausted(code: "credit_balance_exhausted"), .networkUnavailable(underlying: URLError(.notConnectedToInternet)),
-      .networkUnavailable(underlying: URLError(.timedOut)),
-    ]
-    for failure in openAI { expectPairing(failure) }
     let vercel: [VercelClassificationError] = [
       .needsKey, .invalidCategories, .inputTooLarge, .invalidResponse, .network(.notConnectedToInternet), .network(.timedOut),
       .network(nil),
@@ -995,7 +805,7 @@ struct ClassificationAbortReasonCopyTests {
   @Test
   func quotaLabelNamesTheReportingProvider() {
     #expect(
-      ClassificationAbortReason.quotaExhausted.displayLabel(reportedBy: .openAI) == "OpenAI quota used up — check billing at OpenAI")
+      ClassificationAbortReason.quotaExhausted.displayLabel(reportedBy: .appleFM) == "Quota used up — check billing at the provider")
     #expect(
       ClassificationAbortReason.quotaExhausted.displayLabel(reportedBy: .vercel) == "Vercel quota used up — check billing at Vercel")
   }

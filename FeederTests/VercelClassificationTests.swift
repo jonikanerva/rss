@@ -290,11 +290,6 @@ struct VercelClassificationTests {
     let generative = try resolveClassification(.generative(category: "tech", confidence: 0.1), input: plain, categories: categories)
     #expect(generative.categoryLabel == uncategorizedLabel)
   }
-
-  @Test
-  func openAIArticleMessageExcludesURL() {
-    #expect(OpenAIClassificationProvider.articleMessage(title: "Title", body: "Body") == "title: Title\ncontent: Body")
-  }
 }
 
 @Suite("Classification retry policy")
@@ -345,8 +340,8 @@ struct ClassificationRetryTests {
     let skippable: [any ClassificationFailure] = [
       VercelClassificationError.network(.notConnectedToInternet), VercelClassificationError.network(.timedOut),
       VercelClassificationError.http(503, retryAfter: nil),
-      VercelClassificationError.http(408, retryAfter: nil), OpenAIError.networkUnavailable(underlying: URLError(.timedOut)),
-      OpenAIError.apiError(statusCode: 500, message: "x", retryAfter: nil),
+      VercelClassificationError.http(408, retryAfter: nil), VercelClassificationError.http(500, retryAfter: nil),
+      AppleFMClassificationError.unexpected(detail: "x"),
     ]
     for failure in skippable { #expect(failure.isSkippable, "\(failure) must be skippable") }
     let stopping: [any ClassificationFailure] = [
@@ -355,8 +350,8 @@ struct ClassificationRetryTests {
       VercelClassificationError.http(402, retryAfter: 120), VercelClassificationError.http(401, retryAfter: nil),
       VercelClassificationError.invalidResponse, VercelClassificationError.paymentMethodRequired,
       VercelClassificationError.creditsRequired, VercelClassificationError.modelBlocked,
-      OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil), OpenAIError.quotaExhausted(code: nil),
-      OpenAIError.entryRejected(code: "context_length_exceeded"), OpenAIError.needsKey, VercelClassificationError.needsKey,
+      AppleFMClassificationError.rateLimited(retryAfter: nil), AppleFMClassificationError.contextSizeExceeded,
+      VercelClassificationError.needsKey,
       UnreadableKeyFailure(), FakeClassificationFailure(batchAbort: .offline), FakeClassificationFailure(batchAbort: nil),
     ]
     for failure in stopping { #expect(!failure.isSkippable, "\(failure) must not be skippable") }

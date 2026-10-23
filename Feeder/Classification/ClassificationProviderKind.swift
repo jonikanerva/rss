@@ -2,9 +2,9 @@ import Foundation
 
 /// Identifies the classification backend configured by the user.
 /// Persisted to UserDefaults under `userDefaultsKey` using the raw value.
+/// A stored value with no case, such as `openai`, resolves to `default`.
 nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   case appleFM = "apple_fm"
-  case openAI = "openai"
   case vercel = "vercel"
 
   static let userDefaultsKey = "classification_provider"
@@ -30,7 +30,6 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   var keychainKey: String? {
     switch self {
     case .appleFM: nil
-    case .openAI: KeychainHelper.openAIAPIKeychainKey
     case .vercel: KeychainHelper.vercelAPIKeychainKey
     }
   }
@@ -40,7 +39,6 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   var displayName: String {
     switch self {
     case .appleFM: "Apple Foundation Models"
-    case .openAI: "OpenAI"
     case .vercel: "Vercel AI Gateway"
     }
   }
@@ -48,7 +46,7 @@ nonisolated enum ClassificationProviderKind: String, Sendable, CaseIterable {
   var subtitle: String {
     switch self {
     case .appleFM: "Free \u{00B7} On-device \u{00B7} Private"
-    case .openAI, .vercel: "Requires API key \u{00B7} Cloud-based"
+    case .vercel: "Requires API key \u{00B7} Cloud-based"
     }
   }
 }

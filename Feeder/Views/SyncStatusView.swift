@@ -212,7 +212,6 @@ private enum SyncStatusPreviewState {
   case abortedOffline
   case abortedRateLimited
   case abortedQuotaExhausted
-  case abortedQuotaExhaustedVercel
   case abortedAppleIntelligenceUnavailable
   case abortedCategoriesDeclined
   case abortedWhileSyncing
@@ -272,7 +271,7 @@ private enum SyncStatusPreviewState {
       classification.applyPreviewState(lastAbort: .modelRejected)
     case .abortedNeedsKey:
       sync.applyPreviewState(lastSyncDate: .now)
-      classification.applyPreviewState(lastAbort: .needsKey, provider: .openAI)
+      classification.applyPreviewState(lastAbort: .needsKey, provider: .vercel)
     case .abortedKeyUnreadable:
       // Threshold check for the Keychain read copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
@@ -282,7 +281,7 @@ private enum SyncStatusPreviewState {
       // text size: the label wraps, and the symbol and "Open Settings" do not
       // truncate (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
-      classification.applyPreviewState(lastAbort: .keyRejected, provider: .openAI)
+      classification.applyPreviewState(lastAbort: .keyRejected, provider: .vercel)
     case .abortedInvalidCategories:
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .invalidCategories, provider: .vercel)
@@ -305,10 +304,6 @@ private enum SyncStatusPreviewState {
       // Settings-fixable cause → "Open Settings". Threshold check: its preview
       // runs at the largest text size in the narrow frame, and the label and
       // the button must not truncate (`STACK.md § 11`).
-      sync.applyPreviewState(lastSyncDate: .now)
-      classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .openAI)
-    case .abortedQuotaExhaustedVercel:
-      // Threshold check for the Vercel quota copy at the largest text size (`STACK.md § 11`).
       sync.applyPreviewState(lastSyncDate: .now)
       classification.applyPreviewState(lastAbort: .quotaExhausted, provider: .vercel)
     case .abortedAppleIntelligenceUnavailable:
@@ -419,10 +414,6 @@ private enum SyncStatusPreviewState {
 
 #Preview("Aborted - Quota") {
   syncStatusPreview(state: .abortedQuotaExhausted, textSize: .xxLarge)
-}
-
-#Preview("Aborted - Quota (Vercel)") {
-  syncStatusPreview(state: .abortedQuotaExhaustedVercel, textSize: .xxLarge)
 }
 
 #Preview("Aborted - Apple Intelligence unavailable") {
