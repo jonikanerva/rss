@@ -106,6 +106,15 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
 
+Name additional checks below. The `/project-manager` delivery flow runs the dependency freshness check before each task.
+
+- **Dependency freshness check:** run this read-only procedure on the current `main` before each delivery task, or once before an authorised batch. The task PR records the result: "no due update", the deps PR link, or a recorded gap. An unavailable check is a recorded gap, not a pass.
+  - **Xcode and SDK:** compare the installed Xcode release and its macOS SDK with the latest stable Xcode release. Do not adopt a beta.
+  - **Swift packages:** none (§ 6). A future `Package.resolved` pin is compared with its latest upstream release.
+  - **Vercel decision models:** read `GET https://ai-gateway.vercel.sh/v1/models`. This request needs no API key. Select the entries with the type `evaluation` and the owner `typesafe-ai`, `microsoft`, or `openai`. An update is due when a vendor lists a decision model with a newer `released` value than the model in `VercelDecisionModel` for that vendor. Typesafe has the unversioned ID `typesafe-ai/jev`, so a new Jev version needs no update. A user who selected a replaced model keeps the same vendor after the update. Live classification with the new model is an owner check.
+  - **Apple Foundation Models:** after a new SDK, read the `FoundationModels` documentation of that SDK for a new model, use case, or variant. Record a finding in an issue labelled `follow-up`.
+  - **Delivery:** deliver a due update first, in a dedicated `chore/deps-<topic>` PR through the normal review path. After the owner merges it, the owner builds and installs the app with `make install` (§ 16).
+
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
 
 One narrow exception: when an issue or the owner names an owner trace (§ 4 → Owner trace), an agent may read that trace with `xcrun xctrace export`, also with `--toc`. The raw export stays on the Mac. Only counts and durations go into an issue or a PR. An agent never runs `xctrace record` or `xctrace import`, and never uses `--launch` or `--attach`.
@@ -240,14 +249,6 @@ Default answer to "should we add a library?" is **no** — especially for what A
 | Dependency                       | Version | Why it earns its place | Approver | Date |
 | -------------------------------- | ------- | ---------------------- | -------- | ---- |
 | _(none — Apple frameworks only)_ | —       | —                      | —        | —    |
-
-### Freshness check
-
-Run this check on the current `main` before each delivery task (`DOCTRINE.md → P7`). Feeder has no third-party packages, so the check covers the external models that Feeder names in code. The PR of the task records the result: "no due update", or the link to the deps PR.
-
-- **Vercel decision models.** Read `GET https://ai-gateway.vercel.sh/v1/models`. This request needs no API key. Select the entries with the type `evaluation` and the owner `typesafe-ai`, `microsoft`, or `openai`. Compare them with `VercelDecisionModel`. An update is due when one of these vendors lists a decision model with a newer `released` value than the model that Feeder uses for that vendor. Typesafe has the unversioned ID `typesafe-ai/jev`, so a new Jev version needs no update. Deliver a due update first, in a `chore/deps-<topic>` PR through the normal review path. A user who selected the replaced model keeps the same vendor after the update. Live classification with the new model is an owner check.
-- **Apple Foundation Models.** After an Xcode or macOS update, read the `FoundationModels` documentation of the new SDK. Look for a new model, a new use case, or a new variant. Record a finding in an issue labelled `follow-up`.
-- **Release.** After the owner merges a deps PR, the owner builds and installs the app with `make install` (§ 16).
 
 ---
 
