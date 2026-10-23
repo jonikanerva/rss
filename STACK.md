@@ -241,6 +241,14 @@ Default answer to "should we add a library?" is **no** — especially for what A
 | -------------------------------- | ------- | ---------------------- | -------- | ---- |
 | _(none — Apple frameworks only)_ | —       | —                      | —        | —    |
 
+### Freshness check
+
+Run this check on the current `main` before each delivery task (`DOCTRINE.md → P7`). Feeder has no third-party packages, so the check covers the external models that Feeder names in code. The PR of the task records the result: "no due update", or the link to the deps PR.
+
+- **Vercel decision models.** Read `GET https://ai-gateway.vercel.sh/v1/models`. This request needs no API key. Select the entries with the type `evaluation` and the owner `typesafe-ai`, `microsoft`, or `openai`. Compare them with `VercelDecisionModel`. An update is due when one of these vendors lists a decision model with a newer `released` value than the model that Feeder uses for that vendor. Typesafe has the unversioned ID `typesafe-ai/jev`, so a new Jev version needs no update. Deliver a due update first, in a `chore/deps-<topic>` PR through the normal review path. A user who selected the replaced model keeps the same vendor after the update. Live classification with the new model is an owner check.
+- **Apple Foundation Models.** After an Xcode or macOS update, read the `FoundationModels` documentation of the new SDK. Look for a new model, a new use case, or a new variant. Record a finding in an issue labelled `follow-up`.
+- **Release.** After the owner merges a deps PR, the owner builds and installs the app with `make install` (§ 16).
+
 ---
 
 ## 7. Stack-specific reject-list additions
