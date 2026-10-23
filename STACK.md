@@ -106,6 +106,15 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
 
+Name additional checks below. The `/project-manager` delivery flow runs the dependency freshness check before each task.
+
+- **Dependency freshness check:** run this read-only procedure on the current `main` before each delivery task, or once before an authorised batch. The task PR records the result: "no due update", the deps PR link, or a recorded gap. An unavailable check is a recorded gap, not a pass.
+  - **Xcode and SDK:** compare the installed Xcode release and its macOS SDK with the latest stable Xcode release. Do not adopt a prerelease, such as a beta or a release candidate. Report a newer stable Xcode to the owner, who installs it. A deps PR follows only when the new SDK needs a change in the repository.
+  - **Swift packages:** none (§ 6). A future `Package.resolved` pin is compared with its latest upstream release.
+  - **Vercel decision models:** read `GET https://ai-gateway.vercel.sh/v1/models`. This request needs no API key. Select the entries with the type `evaluation` and the `owned_by` value `typesafe-ai`, `microsoft`, or `openai`. Feeder keeps an unversioned ID, such as `typesafe-ai/jev`, so the check compares only the vendors without one. For such a vendor, an update is due when the list holds a decision model with a newer `released` value than the ID in `VercelDecisionModel`, or when the list no longer holds that ID. The check cannot see which version an unversioned ID serves. The owner reads `providerMetadata.gateway.routing.canonicalSlug` in a live response. A user who selected a replaced model keeps the same vendor after the update. Live classification with the new model is an owner check.
+  - **Apple Foundation Models:** after a new SDK, read the `FoundationModels` documentation of that SDK for a new model, use case, or variant. Record a finding in an issue labelled `follow-up`.
+  - **Delivery:** deliver a due model update first, in a dedicated `chore/deps-<topic>` PR through the normal review path. After the owner merges it, the owner builds and installs the app with `make install` (§ 16).
+
 The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
 
 One narrow exception: when an issue or the owner names an owner trace (§ 4 → Owner trace), an agent may read that trace with `xcrun xctrace export`, also with `--toc`. The raw export stays on the Mac. Only counts and durations go into an issue or a PR. An agent never runs `xctrace record` or `xctrace import`, and never uses `--launch` or `--attach`.
