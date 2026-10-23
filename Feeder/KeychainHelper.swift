@@ -22,8 +22,7 @@ nonisolated enum KeychainHelper {
   static let feedbinAccountKey = "feedbin_account"
   /// Keychain account key of the Feedbin password item that an older build wrote.
   static let feedbinPasswordKey = "feedbin_password"
-  /// Named `…KeychainKey` (not `APIKey`) so call sites read unambiguously as
-  /// "the keychain key" rather than "the API key value".
+  /// Keychain account key of the Vercel AI Gateway API key item.
   static let vercelAPIKeychainKey = "vercel_ai_gateway_api_key"
 
   // MARK: - Writes

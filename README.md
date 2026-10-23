@@ -9,10 +9,9 @@ Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-fir
 - Feedbin sync (full article content via the Feedbin API)
 - Strict chronological timeline — newest first, within and across categories
 - One main category per article, from a user-defined taxonomy
-- Three classification providers:
+- Two classification providers:
   - **Apple Foundation Models** — zero-config and fully on-device.
-  - **OpenAI API** — bring your own API key.
-  - **Vercel AI Gateway** — use Typesafe JEV or Microsoft Decision-1 with your AI Gateway key.
+  - **Vercel AI Gateway** — use Typesafe JEV, Microsoft Decision-1, or OpenAI GPT-6 Luna Decisions with your AI Gateway key.
     Article titles, text, and category definitions go through Vercel to the provider of the selected model.
 - Full keyboard navigation
 - Native macOS look and feel
@@ -20,7 +19,7 @@ Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-fir
 ## Stack
 
 - SwiftUI + SwiftData
-- Apple Foundation Models / OpenAI API / Vercel AI Gateway (JEV, Decision-1)
+- Apple Foundation Models / Vercel AI Gateway (JEV, Decision-1, GPT-6 Luna Decisions)
 - Swift 6, strict concurrency
 - macOS 26.2+
 
