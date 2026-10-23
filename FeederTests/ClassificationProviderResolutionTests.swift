@@ -44,28 +44,18 @@ struct ClassificationProviderResolutionTests {
 
   // MARK: - Cloud providers without a stored key
 
-  @Test(arguments: [ClassificationProviderKind.openAI, .vercel], [nil, ""] as [String?])
-  func cloudKindWithoutKeyKeepsItsProviderAndNeedsKey(kind: ClassificationProviderKind, storedKey: String?) async {
-    ClassificationProviderKind.persist(kind, in: defaults)
+  @Test(arguments: [nil, ""] as [String?])
+  func cloudKindWithoutKeyKeepsItsProviderAndNeedsKey(storedKey: String?) async {
+    ClassificationProviderKind.persist(.vercel, in: defaults)
     var requestedKeys: [String] = []
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
       requestedKeys.append(key)
       return storedKey
     }
 
-    // Compare with the constants, not `kind.keychainKey`: this test checks that mapping.
-    switch kind {
-    case .openAI:
-      #expect(requestedKeys == [KeychainHelper.openAIAPIKeychainKey])
-      #expect(provider is OpenAIClassificationProvider)
-    case .vercel:
-      #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
-      #expect(provider is VercelClassificationProvider)
-    case .appleFM:
-      Issue.record("Apple Foundation Models has no key to miss")
-    }
-    #expect(KeychainHelper.vercelAPIKeychainKey != KeychainHelper.openAIAPIKeychainKey)
-    #expect(!(provider is AppleFMClassificationProvider))
+    // Compare with the constant, not `kind.keychainKey`: this test checks that mapping.
+    #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
+    #expect(provider is VercelClassificationProvider)
     #expect(!(await provider.isAvailable))
     let error = await #expect(throws: (any Error).self) {
       try await provider.validate(categories: categories)
@@ -82,8 +72,9 @@ struct ClassificationProviderResolutionTests {
     .encodingFailed,
   ]
 
-  @Test(arguments: [ClassificationProviderKind.openAI, .vercel], ClassificationProviderResolutionTests.failedReads)
-  func cloudKindWithUnreadableKeyKeepsItsProviderAndBlocks(kind: ClassificationProviderKind, failure: KeychainError) async {
+  @Test(arguments: ClassificationProviderResolutionTests.failedReads)
+  func cloudKindWithUnreadableKeyKeepsItsProviderAndBlocks(failure: KeychainError) async {
+    let kind = ClassificationProviderKind.vercel
     ClassificationProviderKind.persist(kind, in: defaults)
     var requestedKeys: [String] = []
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { (key: String) throws(KeychainError) -> String? in
@@ -91,8 +82,7 @@ struct ClassificationProviderResolutionTests {
       throw failure
     }
 
-    let account = kind == .openAI ? KeychainHelper.openAIAPIKeychainKey : KeychainHelper.vercelAPIKeychainKey
-    #expect(requestedKeys == [account])
+    #expect(requestedKeys == [KeychainHelper.vercelAPIKeychainKey])
     #expect(provider is UnreadableKeyClassificationProvider)
     let realProvider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
     #expect(provider.name == kind.displayName)
@@ -111,63 +101,35 @@ struct ClassificationProviderResolutionTests {
     }
   }
 
-  // MARK: - OpenAI path with key
+  // MARK: - Unknown stored provider
 
+  /// A stored `openai` value names no provider. It resolves to the default
+  /// provider, and the resolution reads no Keychain item.
   @Test
-  func openAIKindWithStoredKeyResolvesToOpenAIProvider() async {
-    ClassificationProviderKind.persist(.openAI, in: defaults)
+  func storedOpenAIProviderResolvesToAppleFMWithoutAKeychainRead() {
+    defaults.set("openai", forKey: ClassificationProviderKind.userDefaultsKey)
+    #expect(ClassificationProviderKind.current(in: defaults) == .appleFM)
 
+    var requestedKeys: [String] = []
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { key in
-      // Verify the production code asked for the right keychain account.
-      #expect(key == KeychainHelper.openAIAPIKeychainKey)
+      requestedKeys.append(key)
       return "sk-test-not-real"
     }
 
-    #expect(provider.name == "OpenAI")
-    #expect(await provider.isAvailable)
-  }
-
-  // MARK: - OpenAI model resolution
-
-  /// An explicit model pick stored under `OpenAIModelSetting.userDefaultsKey`
-  /// must reach the provider verbatim — `buildProvider` is the single
-  /// resolution point, re-read per batch, so a Settings pick takes effect on
-  /// the next polling cycle without any restart.
-  @Test
-  func buildProviderPassesStoredModelToOpenAIProvider() {
-    ClassificationProviderKind.persist(.openAI, in: defaults)
-    OpenAIModelSetting.persist("gpt-example-custom", in: defaults)
-
-    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
-
-    let openAIProvider = provider as? OpenAIClassificationProvider
-    #expect(openAIProvider != nil)
-    #expect(openAIProvider?.model == "gpt-example-custom")
-  }
-
-  /// With no model key stored, the provider must resolve to the current app
-  /// default, so a user who never picked a model tracks a future default bump.
-  @Test
-  func buildProviderDefaultsToLunaWhenNoModelStored() {
-    ClassificationProviderKind.persist(.openAI, in: defaults)
-    #expect(defaults.string(forKey: OpenAIModelSetting.userDefaultsKey) == nil)
-
-    let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "sk-test-not-real" }
-
-    let openAIProvider = provider as? OpenAIClassificationProvider
-    #expect(openAIProvider?.model == "gpt-5.6-luna")
+    #expect(requestedKeys.isEmpty)
+    #expect(provider is AppleFMClassificationProvider)
   }
 
   // MARK: - Vercel decision model resolution
 
-  @Test
-  func buildProviderPassesStoredDecisionModelToVercelProvider() {
+  @Test(arguments: VercelDecisionModel.allCases)
+  func buildProviderPassesStoredDecisionModelToVercelProvider(model: VercelDecisionModel) {
     ClassificationProviderKind.persist(.vercel, in: defaults)
-    VercelDecisionModel.persist(.decision1, in: defaults)
+    VercelDecisionModel.persist(model, in: defaults)
 
     let provider = ClassificationEngine.buildProvider(defaults: defaults) { _ in "vercel-test-not-real" }
 
-    #expect((provider as? VercelClassificationProvider)?.model == .decision1)
+    #expect((provider as? VercelClassificationProvider)?.model == model)
   }
 
   @Test

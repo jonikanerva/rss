@@ -177,8 +177,8 @@ struct AppleFMClassificationErrorTests {
 
   @Test
   func defaultLabelIsTheTypeName() {
-    let failure: any ClassificationFailure = OpenAIError.entryRejected(code: "context_length_exceeded")
-    #expect(failure.publicLogLabel == "OpenAIError")
+    let failure: any ClassificationFailure = VercelClassificationError.needsKey
+    #expect(failure.publicLogLabel == "VercelClassificationError")
   }
 
   // MARK: - Reset delay

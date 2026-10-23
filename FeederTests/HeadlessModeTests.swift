@@ -55,7 +55,7 @@ struct HeadlessModeTests {
   /// The headless provider assigns the explicit fallback category with zero
   /// confidence and reaches no backend — so an automated launch keeps the
   /// `VISION.md` "every article gets exactly one main category" invariant without
-  /// ever performing the OpenAI-key Keychain read.
+  /// ever performing a cloud-key Keychain read.
   @Test("Headless provider assigns the fallback category, no backend")
   func headlessProviderAssignsFallback() async throws {
     let provider = HeadlessClassificationProvider()

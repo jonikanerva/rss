@@ -18,6 +18,7 @@ struct VercelDecisionModelTests {
   func rawValuesAreTheGatewayModelIDs() {
     #expect(VercelDecisionModel.jev.rawValue == "typesafe-ai/jev")
     #expect(VercelDecisionModel.decision1.rawValue == "microsoft/microsoft-decision-1")
+    #expect(VercelDecisionModel.lunaDecisions.rawValue == "openai/gpt-6-luna-decisions")
   }
 
   /// A user who never picked a model keeps JEV.

@@ -355,7 +355,6 @@ struct AppleFMProviderPolicyTests {
 
   nonisolated private static let statesWithoutRestart: [(ClassificationAbortReason?, ClassificationProviderKind)] = [
     (.rateLimited, .vercel),
-    (.rateLimited, .openAI),
     (.categoriesDeclined, .appleFM),
     (.inputTooLarge, .appleFM),
     (nil, .appleFM),

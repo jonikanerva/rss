@@ -11,7 +11,7 @@ import Foundation
 /// The stored value is applied as `ideal` only; the platform divider and the
 /// column content's own minimum size are the only limits.
 ///
-/// Single-setting pattern (`OpenAIModelSetting`), not an `@Observable` owner:
+/// Single-setting pattern (`VercelDecisionModel`), not an `@Observable` owner:
 /// the widths have no in-session reader. `ColumnWidthRecorder` writes them
 /// when a divider drag settles; `ContentView` reads them once when the view
 /// is created. A live binding would hand the split view a new preferred

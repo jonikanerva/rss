@@ -2,8 +2,6 @@ import Foundation
 import Security
 
 nonisolated protocol ClassificationKeyStore: Sendable {
-  /// Follows the contract of `KeychainHelper.read(key:)`.
-  func load(provider: ClassificationProviderKind) async throws(KeychainError) -> String?
   /// Follows the contract of `KeychainHelper.exists(key:)`.
   func exists(provider: ClassificationProviderKind) async throws(KeychainError) -> Bool
   /// Must not stop for cancellation: a save calls it after its delete completes.
@@ -12,11 +10,6 @@ nonisolated protocol ClassificationKeyStore: Sendable {
 }
 
 actor KeychainClassificationKeyStore {
-  func load(provider: ClassificationProviderKind) throws(KeychainError) -> String? {
-    guard !Task.isCancelled, let key = provider.keychainKey else { return nil }
-    return try KeychainHelper.read(key: key)
-  }
-
   func exists(provider: ClassificationProviderKind) throws(KeychainError) -> Bool {
     guard !Task.isCancelled, let key = provider.keychainKey else { return false }
     return try KeychainHelper.exists(key: key)
@@ -85,7 +78,6 @@ final class ClassificationSettingsModel {
   private(set) var provider: ClassificationProviderKind
   private(set) var keyState: KeyState
   private(set) var keyRevision = 0
-  private(set) var openAIModel: String
   private(set) var vercelModel: VercelDecisionModel
   private(set) var reclassificationPrompt: ReclassificationPrompt = .idle
   let isInert: Bool
@@ -103,14 +95,12 @@ final class ClassificationSettingsModel {
     provider: ClassificationProviderKind? = nil,
     store: (any ClassificationKeyStore)? = nil,
     isInert: Bool = HeadlessMode.isEnabled,
-    openAIModel: String? = nil,
     vercelModel: VercelDecisionModel? = nil
   ) {
     self.isInert = isInert
     let selected = provider ?? (isInert ? .appleFM : .current)
     self.provider = selected
     self.store = store ?? (isInert ? MemoryClassificationKeyStore() : KeychainClassificationKeyStore())
-    self.openAIModel = openAIModel ?? (isInert ? OpenAIModelSetting.defaultModel : OpenAIModelSetting.current())
     self.vercelModel = vercelModel ?? (isInert ? .default : .current())
     keyState = selected == .appleFM ? .missing : .loading
   }
@@ -123,15 +113,6 @@ final class ClassificationSettingsModel {
     if !isInert { ClassificationProviderKind.persist(provider) }
     keyState = provider == .appleFM ? .missing : .loading
     reclassificationPrompt = .afterKeyProbe
-    return true
-  }
-
-  /// Returns false, and changes nothing, for the model that is already selected.
-  func selectOpenAIModel(_ model: String) -> Bool {
-    guard model != openAIModel else { return false }
-    openAIModel = model
-    if !isInert { OpenAIModelSetting.persist(model) }
-    if hasStoredKey { reclassificationPrompt = .showing(target: targetName(for: .openAI)) }
     return true
   }
 
@@ -191,13 +172,6 @@ final class ClassificationSettingsModel {
     reclassificationPrompt = .idle
   }
 
-  /// A throw is a failed read: the caller must not show it as a missing key.
-  func keyForModelList() async throws(KeychainError) -> String? {
-    guard !isInert, provider == .openAI, hasStoredKey else { return nil }
-    guard let key = try await store.load(provider: .openAI), !key.isEmpty else { return nil }
-    return key
-  }
-
   private func commitKeyChange(_ state: KeyState, for provider: ClassificationProviderKind) {
     if self.provider == provider { keyState = state }
     keyRevision &+= 1
@@ -206,7 +180,6 @@ final class ClassificationSettingsModel {
   private func targetName(for provider: ClassificationProviderKind) -> String {
     switch provider {
     case .appleFM: provider.displayName
-    case .openAI: "OpenAI (\(openAIModel))"
     case .vercel: "\(vercelModel.shortName) through Vercel AI Gateway"
     }
   }

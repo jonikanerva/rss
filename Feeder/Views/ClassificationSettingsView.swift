@@ -12,8 +12,6 @@ struct ClassificationSettingsView: View {
   private var settings: ClassificationSettingsModel
   @State
   private var keyEditor: ClassificationProviderKind?
-  @State
-  private var modelListState: ModelListState = .needsKey
 
   init(settings: ClassificationSettingsModel = ClassificationSettingsModel()) {
     _settings = State(initialValue: settings)
@@ -33,7 +31,7 @@ struct ClassificationSettingsView: View {
         .labelsHidden()
         Text(settings.provider.subtitle).font(fontSettings.caption).foregroundStyle(.secondary)
       }
-      if settings.provider != .appleFM {
+      if settings.provider == .vercel {
         Section(settings.provider.displayName) {
           HStack {
             Label(
@@ -44,23 +42,6 @@ struct ClassificationSettingsView: View {
               .controlSize(.small)
               .accessibilityIdentifier("classification.key.edit")
               .disabled(settings.isLoadingKey)
-          }
-          if settings.provider == .openAI {
-            OpenAIModelPickerRow(selection: Binding(get: { settings.openAIModel }, set: selectModel), state: modelListState)
-          } else {
-            Picker("Model", selection: Binding(get: { settings.vercelModel }, set: selectVercelModel)) {
-              ForEach(VercelDecisionModel.allCases, id: \.self) { model in
-                Text(model.displayName)
-                  .accessibilityIdentifier("classification.vercel.model.\(model.rawValue)")
-                  .tag(model)
-              }
-            }
-            .pickerStyle(.radioGroup)
-            Text(
-              "Article titles, text, and category definitions are sent to Vercel AI Gateway and \(settings.vercelModel.recipientName) for classification."
-            )
-            .font(fontSettings.caption)
-            .foregroundStyle(.secondary)
           }
           if let abort = classificationEngine.lastAbort, classificationEngine.lastAbortProvider == settings.provider {
             HStack {
@@ -78,6 +59,22 @@ struct ClassificationSettingsView: View {
             }
           }
         }
+        Section("Decision Model") {
+          Picker("Decision model", selection: Binding(get: { settings.vercelModel }, set: selectVercelModel)) {
+            ForEach(VercelDecisionModel.allCases, id: \.self) { model in
+              Text(model.displayName)
+                .accessibilityIdentifier("classification.vercel.model.\(model.rawValue)")
+                .tag(model)
+            }
+          }
+          .pickerStyle(.radioGroup)
+          .labelsHidden()
+          Text(
+            "Article titles, text, and category definitions are sent to Vercel AI Gateway and \(settings.vercelModel.recipientName) for classification."
+          )
+          .font(fontSettings.caption)
+          .foregroundStyle(.secondary)
+        }
       }
     }
     .formStyle(.grouped)
@@ -85,7 +82,6 @@ struct ClassificationSettingsView: View {
       APIKeyEditSheet(settings: settings, provider: provider) { configurationChanged() }
     }
     .task(id: "\(settings.provider.rawValue)|\(settings.keyRevision)") { await settings.refreshKey() }
-    .task(id: modelFetchKey) { await refreshModelList() }
     .reclassificationAlert(target: settings.reclassificationTarget) {
       Task {
         if let writer = syncEngine.writer { await classificationEngine.reclassifyAll(writer: writer) }
@@ -99,10 +95,6 @@ struct ClassificationSettingsView: View {
     if settings.select(provider) { configurationChanged() }
   }
 
-  private func selectModel(_ model: String) {
-    if settings.selectOpenAIModel(model) { configurationChanged() }
-  }
-
   private func selectVercelModel(_ model: VercelDecisionModel) {
     if settings.selectVercelModel(model) { configurationChanged() }
   }
@@ -110,32 +102,6 @@ struct ClassificationSettingsView: View {
   private func configurationChanged() {
     guard !settings.isInert, let writer = syncEngine.writer else { return }
     classificationEngine.configurationChanged(writer: writer)
-  }
-
-  private var modelFetchKey: String { "\(settings.provider.rawValue)|\(settings.keyRevision)|\(settings.hasStoredKey)" }
-
-  private func refreshModelList() async {
-    guard settings.provider == .openAI else { return }
-    let storedKey: String?
-    do throws(KeychainError) {
-      storedKey = try await settings.keyForModelList()
-    } catch {
-      modelListState = .keyUnreadable
-      return
-    }
-    guard let apiKey = storedKey else {
-      modelListState = .needsKey
-      return
-    }
-    modelListState = .loading
-    let outcome: Result<[OpenAIModel], OpenAIModelsError>
-    do throws(OpenAIModelsError) {
-      outcome = .success(try await OpenAIModelsClient().fetchModels(apiKey: apiKey))
-    } catch { outcome = .failure(error) }
-    // A cancelled fetch surfaces as a network failure. Do not show a failure
-    // this view abandoned.
-    guard !Task.isCancelled else { return }
-    modelListState = resolveModelListState(outcome: outcome)
   }
 }
 
@@ -267,6 +233,22 @@ private struct APIKeyEditSheet: View {
   .frame(width: 550, height: 550)
 }
 
+#Preview("Vercel — GPT-6 Luna Decisions") {
+  ClassificationSettingsView(
+    settings: ClassificationSettingsModel(
+      provider: .vercel, store: MemoryClassificationKeyStore(values: [.vercel: "preview"]), isInert: true,
+      vercelModel: .lunaDecisions)
+  )
+  .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings(textSize: .xxLarge))
+  .frame(width: 550, height: 600)
+}
+
+#Preview("Apple Foundation Models") {
+  ClassificationSettingsView(settings: ClassificationSettingsModel(provider: .appleFM, isInert: true))
+    .environment(SyncEngine.preview()).environment(ClassificationEngine()).environment(AppFontSettings())
+    .frame(width: 420, height: 300)
+}
+
 private struct ClassificationSettingsPreview: View {
   private let engine: ClassificationEngine
   private let provider: ClassificationProviderKind
@@ -304,11 +286,7 @@ private struct ClassificationSettingsPreview: View {
 #Preview("Vercel — large categories") { ClassificationSettingsPreview(reason: .inputTooLarge) }
 #Preview("Vercel — unavailable") { ClassificationSettingsPreview(reason: .providerUnavailable) }
 #Preview("Vercel — key unreadable") { ClassificationSettingsPreview(reason: .keyUnreadable) }
-#Preview("OpenAI — key unreadable") { ClassificationSettingsPreview(provider: .openAI, reason: .keyUnreadable) }
-#Preview("OpenAI — invalid key") { ClassificationSettingsPreview(provider: .openAI, reason: .keyRejected) }
-#Preview("OpenAI — service limit") { ClassificationSettingsPreview(provider: .openAI, reason: .rateLimited) }
-#Preview("OpenAI — quota") { ClassificationSettingsPreview(provider: .openAI, reason: .quotaExhausted) }
-#Preview("OpenAI — needs key") { ClassificationSettingsPreview(provider: .openAI, reason: .needsKey, hasKey: false) }
+#Preview("Vercel — needs key banner") { ClassificationSettingsPreview(reason: .needsKey, hasKey: false) }
 #Preview("Vercel — key sheet") {
   APIKeyEditSheet(settings: ClassificationSettingsModel(provider: .vercel, isInert: true), provider: .vercel, onCommit: {})
     .environment(AppFontSettings())
@@ -320,148 +298,4 @@ private struct ClassificationSettingsPreview: View {
   )
   .environment(AppFontSettings(textSize: .xxLarge))
   .preferredColorScheme(.dark)
-}
-
-// MARK: - OpenAI model picker row
-
-/// Keep the menu usable with fallback options when model discovery fails.
-private struct OpenAIModelPickerRow: View {
-  @Binding
-  var selection: String
-  let state: ModelListState
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Picker("Model", selection: $selection) {
-        ForEach(
-          pickerOptions(
-            for: state,
-            selection: selection,
-            defaultModel: OpenAIModelSetting.defaultModel
-          ),
-          id: \.self
-        ) { modelID in
-          Text(modelID).tag(modelID)
-        }
-      }
-      // The loaded list passes the option-count threshold for a menu (STACK.md § 11).
-      .pickerStyle(.menu)
-
-      statusLine
-    }
-  }
-
-  @ViewBuilder
-  private var statusLine: some View {
-    switch state {
-    case .needsKey:
-      captionText("Add an API key to load available models.")
-    case .loading:
-      HStack(spacing: 6) {
-        ProgressView()
-          .controlSize(.small)
-        Text("Loading available models…")
-      }
-      .font(.caption)
-      .foregroundStyle(.secondary)
-    case .loaded:
-      EmptyView()
-    case .empty:
-      captionText("No compatible models found for this key.")
-    case .failed(let reason):
-      captionText(reason)
-    }
-  }
-
-  private func captionText(_ text: String) -> some View {
-    Text(text)
-      .font(.caption)
-      .foregroundStyle(.secondary)
-  }
-}
-
-// Model-picker state matrix. The large case sits above the option-count
-// threshold in `STACK.md § 11` on purpose.
-
-#Preview("Model Picker - Loaded (Large N)") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(
-        selection: $selection,
-        state: .loaded(
-          ["gpt-5.6-luna", "gpt-5.4-nano"] + (1...23).map { "gpt-preview-model-\($0)" }
-        )
-      )
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
-}
-
-#Preview("Model Picker - Needs Key") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(selection: $selection, state: .needsKey)
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
-}
-
-#Preview("Model Picker - Loading") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(selection: $selection, state: .loading)
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
-}
-
-#Preview("Model Picker - Empty") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(selection: $selection, state: .empty)
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
-}
-
-#Preview("Model Picker - Failed") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(selection: $selection, state: .failed(reason: "API key was rejected."))
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
-}
-
-#Preview("Model Picker - Key Unreadable") {
-  @Previewable
-  @State
-  var selection = OpenAIModelSetting.defaultModel
-  Form {
-    Section("OpenAI") {
-      OpenAIModelPickerRow(selection: $selection, state: .keyUnreadable)
-    }
-  }
-  .formStyle(.grouped)
-  .frame(width: 480, height: 200)
 }

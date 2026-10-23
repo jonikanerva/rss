@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite("Transient entry skip timelines")
 struct TransientEntrySkipTests {
-  nonisolated private static let timeout = OpenAIError.networkUnavailable(underlying: URLError(.timedOut))
+  nonisolated private static let timeout = VercelClassificationError.network(.timedOut)
 
   private func makeWriter() async throws -> DataWriter {
     let writer = try await DataWriterTestSupport.makeWriter()
@@ -156,7 +156,7 @@ struct TransientEntrySkipTests {
     let ids = try await persist(writer, ["Stuck 1", "Rejected", "Stuck 2", "Backlog"], firstID: 1001)
     let provider = FakeClassificationProvider()
     await provider.configureFailure(Self.timeout, forTitle: "Stuck 1")
-    await provider.configureFailure(OpenAIError.entryRejected(code: "context_length_exceeded"), forTitle: "Rejected")
+    await provider.configureFailure(AppleFMClassificationError.contextSizeExceeded, forTitle: "Rejected")
     await provider.configureFailure(Self.timeout, forTitle: "Stuck 2")
     var failures = TransientEntryFailures()
     let outcome = await makeRunner(writer, provider: provider).runOneBatch(cutoffDate: .distantPast, failures: &failures)
@@ -170,7 +170,7 @@ struct TransientEntrySkipTests {
 
   nonisolated private static let retryAfterFailures: [any Error] = [
     VercelClassificationError.http(503, retryAfter: 30),
-    OpenAIError.apiError(statusCode: 503, message: "x", retryAfter: 30),
+    AppleFMClassificationError.rateLimited(retryAfter: 30),
   ]
 
   @Test(arguments: TransientEntrySkipTests.retryAfterFailures)
@@ -188,16 +188,15 @@ struct TransientEntrySkipTests {
   }
 
   @Test
-  func openAITimeoutForOneArticleSkipsOnlyThatArticle() async throws {
+  func timeoutForOneArticleSkipsOnlyThatArticle() async throws {
     let writer = try await makeWriter()
     let ids = try await persist(writer, ["Stuck", "Second", "Third"], firstID: 1001)
     let transport = ClassificationTransportRecorder(route: { body in
-      body.contains("Stuck") ? .failure(URLError(.timedOut)) : .success(CloudProviderFixture.openAI.success)
+      body.contains("Stuck") ? .failure(URLError(.timedOut)) : .success(VercelFixture.success)
     })
     let retryClock = ClassificationSleepRecorder(immediateDelays: .max)
-    let provider = OpenAIClassificationProvider(
-      apiKey: "fake-openai-key", model: "gpt-test", send: { try await transport.send($0) },
-      sleep: { try await retryClock.sleep($0) })
+    let provider = VercelClassificationProvider(
+      apiKey: "fake", send: { try await transport.send($0) }, sleep: { try await retryClock.sleep($0) })
     var failures = TransientEntryFailures()
     let outcome = await makeRunner(writer, provider: provider).runOneBatch(cutoffDate: .distantPast, failures: &failures)
     #expect(outcome.completedCount == 2)
@@ -238,9 +237,9 @@ struct TransientEntrySkipTests {
     FakeClassificationFailure(batchAbort: .providerUnavailable),
     VercelClassificationError.http(429, retryAfter: nil),
     VercelClassificationError.http(402, retryAfter: nil),
-    OpenAIError.apiError(statusCode: 503, message: "x", retryAfter: 5),
+    VercelClassificationError.http(503, retryAfter: 5),
     AppleFMClassificationError.modelUnavailable,
-    OpenAIError.needsKey,
+    VercelClassificationError.needsKey,
     UnreadableKeyFailure(),
   ]
 
@@ -264,7 +263,6 @@ struct TransientEntrySkipTests {
 
   nonisolated private static let serviceLimits: [any Error] = [
     VercelClassificationError.http(429, retryAfter: nil),
-    OpenAIError.apiError(statusCode: 429, message: "x", retryAfter: nil),
     AppleFMClassificationError.rateLimited(retryAfter: nil),
   ]
 
