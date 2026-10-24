@@ -8,7 +8,8 @@ import SwiftUI
 struct FeederCommandContext {
   let syncAction: () -> Void
   let markAllReadAction: () -> Void
-  /// Opens the search field of the article list and focuses it.
+  /// Toggles the search bar of the article list: an open bar closes and
+  /// clears its term, a closed bar opens empty with its field focused.
   let findAction: () -> Void
   let toggleViewModeAction: () -> Void
   let toggleFilterAction: () -> Void
