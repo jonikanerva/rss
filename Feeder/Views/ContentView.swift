@@ -109,11 +109,12 @@ struct ContentView: View {
         if let selection {
           VStack(spacing: 0) {
             if search.isPresented {
-              ArticleSearchBar(
-                state: search, onSubmit: tabIntoArticleList,
-                onCancel: { panelFocus = .articleList })
+              ArticleSearchBar(state: search, onSubmit: tabIntoArticleList, onCancel: closeSearch)
             }
             entryListForSelection(selection)
+              // An empty list must still fill the column, so the bar stays
+              // under the toolbar.
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
               .focused($panelFocus, equals: .articleList)
               // Only the list: the detail pane, the web view, and a text field
               // keep their own Copy.
@@ -148,7 +149,7 @@ struct ContentView: View {
             }
             ToolbarItem(placement: .automatic) {
               Button {
-                search.open()
+                toggleSearch()
               } label: {
                 Label("Search", systemImage: "magnifyingglass")
               }
@@ -299,6 +300,10 @@ struct ContentView: View {
     // Escape and Tab stay at `NavigationSplitView` level so `List`
     // type-to-select cannot consume them.
     .onKeyPress(.escape) {
+      if search.isPresented, isEditingArticleSearch(in: NSApp.keyWindow) {
+        closeSearch()
+        return .handled
+      }
       selectedEntryID = nil
       panelFocus = .sidebar
       return .handled
@@ -333,7 +338,7 @@ struct ContentView: View {
       context: FeederCommandContext(
         syncAction: { Task { await syncAndClassify() } },
         markAllReadAction: markAllAsRead,
-        findAction: focusSearchField,
+        findAction: toggleSearch,
         toggleViewModeAction: toggleArticleViewMode,
         toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
@@ -516,9 +521,17 @@ struct ContentView: View {
     articleListTabRequest &+= 1
   }
 
-  private func focusSearchField() {
+  /// The magnifier button and Command-F share this toggle.
+  private func toggleSearch() {
     guard selection != nil else { return }
-    search.open()
+    let wasPresented = search.isPresented
+    search.toggle()
+    if wasPresented { panelFocus = .articleList }
+  }
+
+  private func closeSearch() {
+    search.close()
+    panelFocus = .articleList
   }
 
   private func revalidateSelection() {

@@ -105,6 +105,24 @@ struct ArticleSearchTests {
     #expect(state.term == nil)
   }
 
+  /// The magnifier button and Command-F toggle: a second press clears and
+  /// hides the bar, a third opens it empty and asks for focus again.
+  @MainActor
+  @Test("The toggle closes an open bar and reopens it empty")
+  func toggleClosesAndReopensEmpty() {
+    let state = ArticleSearchState()
+    state.toggle()
+    state.text = "swift"
+    state.commitTypedTerm()
+    state.toggle()
+    #expect(!state.isPresented)
+    #expect(state.term == nil)
+    state.toggle()
+    #expect(state.isPresented)
+    #expect(state.text.isEmpty)
+    #expect(state.focusRequest == 2)
+  }
+
   @Test("The term matches the title, the site name, and the summary only")
   func matchesTitleSiteAndSummary() async throws {
     let (_, reader) = try await seed([

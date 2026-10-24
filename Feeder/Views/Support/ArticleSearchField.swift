@@ -33,6 +33,12 @@ final class ArticleSearchState {
     isPresented = false
   }
 
+  /// The magnifier button and Command-F: an open bar closes and clears its
+  /// term; a closed bar opens empty with its field focused.
+  func toggle() {
+    if isPresented { close() } else { open() }
+  }
+
   func commitTypedTerm() {
     let typed = typedTerm
     if typed != term { term = typed }
@@ -46,7 +52,8 @@ struct ArticleSearchBar: View {
   var state: ArticleSearchState
   /// Return or Down Arrow in the field moves focus to the article list.
   let onSubmit: () -> Void
-  /// Escape in the field: the bar closed, so focus returns to the article list.
+  /// Escape in the bar. The caller closes the bar and returns focus to the
+  /// article list.
   let onCancel: () -> Void
 
   static let debounce: Duration = .milliseconds(200)
@@ -59,10 +66,7 @@ struct ArticleSearchBar: View {
           state.commitTypedTerm()
           onSubmit()
         },
-        onCancel: {
-          state.close()
-          onCancel()
-        }
+        onCancel: onCancel
       )
       .padding(.horizontal, 12)
       .padding(.vertical, 8)
@@ -81,7 +85,7 @@ struct ArticleSearchBar: View {
 
 /// `NSSearchField` adapter: SwiftUI has no inline search field on macOS, and
 /// `searchable` places its field in the window toolbar.
-private struct ArticleSearchTextField: NSViewRepresentable {
+struct ArticleSearchTextField: NSViewRepresentable {
   @Binding
   var text: String
   let focusRequest: Int
@@ -91,9 +95,13 @@ private struct ArticleSearchTextField: NSViewRepresentable {
   func makeCoordinator() -> Coordinator { Coordinator(self) }
 
   func makeNSView(context: Context) -> NSSearchField {
-    let field = NSSearchField()
+    Self.makeField(coordinator: context.coordinator)
+  }
+
+  static func makeField(coordinator: Coordinator) -> NSSearchField {
+    let field = ArticleNSSearchField()
     field.placeholderString = "Search"
-    field.delegate = context.coordinator
+    field.delegate = coordinator
     field.setAccessibilityIdentifier("article.search")
     return field
   }
@@ -135,4 +143,15 @@ private struct ArticleSearchTextField: NSViewRepresentable {
       }
     }
   }
+}
+
+/// Marks the article search field, so `isEditingArticleSearch(in:)` can find
+/// it behind its field editor.
+final class ArticleNSSearchField: NSSearchField {}
+
+/// True while the article search field edits text in `window`. The window-level
+/// Escape handler runs before the field sees the key, so it asks this first.
+func isEditingArticleSearch(in window: NSWindow?) -> Bool {
+  guard let editor = window?.firstResponder as? NSTextView else { return false }
+  return editor.delegate is ArticleNSSearchField
 }
