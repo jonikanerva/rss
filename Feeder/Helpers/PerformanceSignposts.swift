@@ -80,4 +80,6 @@ nonisolated enum PerformanceSignpostName {
   /// The delete of the previous account's feeds and entries on the writer
   /// actor when the Feedbin account changes.
   static let accountReset: StaticString = "account-reset"
+  /// The store write of a Mark as Unread on the writer actor.
+  static let markUnread: StaticString = "mark-unread"
 }

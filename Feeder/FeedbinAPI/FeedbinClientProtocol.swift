@@ -14,6 +14,7 @@ protocol FeedbinClientProtocol: Actor {
   func fetchIcons() async throws -> [FeedbinIcon]
   func fetchUnreadEntryIDs() async throws -> [Int]
   func deleteUnreadEntries(_ ids: [Int]) async throws
+  func createUnreadEntries(_ ids: [Int]) async throws
   func verifyCredentials() async throws -> Bool
   func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String
 

@@ -64,6 +64,8 @@ struct BareKeyActions {
   var onK: () -> KeyPress.Result = { .handled }
   var onR: () -> KeyPress.Result = { .handled }
   var onB: () -> KeyPress.Result = { .handled }
+  var onM: () -> KeyPress.Result = { .handled }
+  var onC: () -> KeyPress.Result = { .handled }
   var onU: () -> KeyPress.Result = { .handled }
 }
 
@@ -95,6 +97,8 @@ struct BareKeyHandler: ViewModifier {
       .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
       .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
       .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in actions.onM() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in actions.onC() }
       .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in
         handlesFilterKey ? actions.onU() : .ignored
       }

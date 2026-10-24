@@ -45,3 +45,24 @@ struct PendingReadRetentionTests {
       retainedPendingReadIDs(pending: [1, 2], snapshotUnread: [], renderedUnread: []).isEmpty)
   }
 }
+
+// MARK: - retainedPendingUnreadIDs and effectiveIsRead
+
+/// The unread overlay releases an ID only when both refetched sources show the
+/// article unread. A pending read wins over a pending unread.
+struct PendingUnreadRetentionTests {
+  @Test
+  func unreadOverlayReleasesOnlyWhenBothSidesShowUnread() {
+    #expect(retainedPendingUnreadIDs(pending: [1], snapshotUnread: [1], renderedUnread: []) == [1])
+    #expect(retainedPendingUnreadIDs(pending: [1], snapshotUnread: [], renderedUnread: [1]) == [1])
+    #expect(retainedPendingUnreadIDs(pending: [1, 2], snapshotUnread: [1, 2], renderedUnread: [1]) == [2])
+  }
+
+  @Test
+  func effectiveReadStatePrefersThePendingIntent() {
+    #expect(effectiveIsRead(feedbinEntryID: 1, storeIsRead: false, pendingRead: [1], pendingUnread: [1]))
+    #expect(!effectiveIsRead(feedbinEntryID: 1, storeIsRead: true, pendingRead: [], pendingUnread: [1]))
+    #expect(effectiveIsRead(feedbinEntryID: 1, storeIsRead: true, pendingRead: [], pendingUnread: []))
+    #expect(!effectiveIsRead(feedbinEntryID: 1, storeIsRead: false, pendingRead: [2], pendingUnread: []))
+  }
+}

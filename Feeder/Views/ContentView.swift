@@ -114,6 +114,7 @@ struct ContentView: View {
               perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
             )
             .environment(\.pendingReadIDs, timeline.pendingReadIDs)
+            .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
             .navigationTitle(navigationTitle)
             .toolbar {
               ToolbarItem(placement: .automatic) {
@@ -293,7 +294,7 @@ struct ContentView: View {
       }
       return .handled
     }
-    // J/K/R/B route three ways. The per-panel `BareKeyHandler` modifiers fire
+    // J/K/R/B/M/C route three ways. The per-panel `BareKeyHandler` modifiers fire
     // while a `List` has focus and keep bare keys out of text fields, where
     // typing must type. `BareKeyForwardingWebView` forwards the same actions
     // from inside the article web view, where the AppKit first responder
@@ -303,6 +304,8 @@ struct ContentView: View {
     .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
     .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
     .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in bareKeyActions.onM() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in bareKeyActions.onC() }
     .modifier(menuBarValues)
   }
 
@@ -316,11 +319,15 @@ struct ContentView: View {
         toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
         copyLinkAction: copySelectedLink,
+        toggleReadAction: toggleSelectedEntryRead,
         moveSelectionDownAction: { moveSidebarSelection(by: 1) },
         moveSelectionUpAction: { moveSidebarSelection(by: -1) },
         canMarkAllRead: articleFilter == .unread && selection != nil,
         canOpenInBrowser: selectedEntry != nil,
         hasSelectedEntry: selectedEntry != nil,
+        selectedEntryIsRead: selectedEntry.map {
+          timeline.isRead(feedbinEntryID: $0.feedbinEntryID, storeIsRead: $0.isRead)
+        },
         isSyncing: syncEngine.isSyncing || classificationEngine.isClassifying,
         currentViewMode: articleViewMode,
         currentFilter: articleFilter,
@@ -407,6 +414,16 @@ struct ContentView: View {
         openInBackground()
         return .handled
       },
+      onM: {
+        guard selectedEntry != nil else { return .ignored }
+        toggleSelectedEntryRead()
+        return .handled
+      },
+      onC: {
+        guard selectedEntryURL != nil else { return .ignored }
+        copySelectedLink()
+        return .handled
+      },
       onU: {
         guard selection != nil else { return .ignored }
         toggleArticleFilter()
@@ -456,6 +473,8 @@ struct ContentView: View {
       accountDataVersion: timeline.accountDataVersion,
       pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
       selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
+      isRead: timeline.isRead(feedbinEntryID:storeIsRead:),
+      onToggleRead: toggleRead(feedbinEntryID:storeIsRead:),
       onPageDetail: pageDetail(modifiers:),
       tabSelectionRequest: articleListTabRequest,
       onTabSelection: { selectedEntryID = $0 }
@@ -517,6 +536,20 @@ struct ContentView: View {
   private func copySelectedLink() {
     guard let url = selectedEntryURL else { return }
     NSPasteboard.general.writeLink(url)
+  }
+
+  private func toggleSelectedEntryRead() {
+    guard let selectedEntry else { return }
+    toggleRead(feedbinEntryID: selectedEntry.feedbinEntryID, storeIsRead: selectedEntry.isRead)
+  }
+
+  /// Toggle the read state that the window shows for one article.
+  private func toggleRead(feedbinEntryID id: Int, storeIsRead: Bool) {
+    if timeline.isRead(feedbinEntryID: id, storeIsRead: storeIsRead) {
+      timeline.markUnread(feedbinEntryID: id)
+    } else {
+      timeline.markRead(feedbinEntryID: id)
+    }
   }
 
   private var selectedEntryURL: URL? {

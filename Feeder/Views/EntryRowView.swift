@@ -7,8 +7,9 @@ import os.signpost
 /// One article-list row, rendered entirely from its `EntryRowDTO` snapshot and
 /// the pre-decoded favicon image: no `modelContext`, no `model(for:)`, no
 /// relationship fault, and no store access on MainActor. The optimistic
-/// `pendingReadIDs` overlay dims a just-opened row before the committed state
-/// lands in a refetched DTO.
+/// `pendingReadIDs` overlay dims a just-opened row, and the `pendingUnreadIDs`
+/// overlay undims a row marked unread, before the committed state lands in a
+/// refetched DTO.
 ///
 /// Layout constants live in `EntryRowMetrics`. The text column has a fixed
 /// height, so the row's natural height is the same for every content shape.
@@ -20,10 +21,16 @@ struct EntryRowView: View {
   let faviconImage: NSImage?
   @Environment(\.pendingReadIDs)
   private var pendingReadIDs
+  @Environment(\.pendingUnreadIDs)
+  private var pendingUnreadIDs
   @Environment(AppFontSettings.self)
   private var fontSettings
 
-  private var isRead: Bool { row.isRead || pendingReadIDs.contains(row.feedbinEntryID) }
+  private var isRead: Bool {
+    effectiveIsRead(
+      feedbinEntryID: row.feedbinEntryID, storeIsRead: row.isRead,
+      pendingRead: pendingReadIDs, pendingUnread: pendingUnreadIDs)
+  }
 
   /// Domain line text. The reader maps a stored empty domain to `nil`, and the
   /// view guards the empty string too, because previews and tests build DTOs

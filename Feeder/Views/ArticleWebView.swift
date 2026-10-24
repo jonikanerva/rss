@@ -19,7 +19,7 @@ nonisolated func loadStaticResource(_ name: String, ext: String) -> String {
 /// Where a bare keypress inside the article web view routes. `nonisolated`, so
 /// the classifier below and its tests can use the `Equatable` conformance.
 nonisolated enum BareKeyRoute: Equatable, Sendable {
-  case j, k, r, b
+  case j, k, r, b, m, c
 }
 
 /// Decides whether a key event is one of the app's bare-key shortcuts, with
@@ -41,6 +41,8 @@ nonisolated func bareKeyRoute(
   case "k", "K": return .k
   case "r", "R": return .r
   case "b", "B": return .b
+  case "m", "M": return .m
+  case "c", "C": return .c
   default: return nil
   }
 }
@@ -73,6 +75,8 @@ private final class BareKeyForwardingWebView: WKWebView {
       case .k: bareKeyActions.onK()
       case .r: bareKeyActions.onR()
       case .b: bareKeyActions.onB()
+      case .m: bareKeyActions.onM()
+      case .c: bareKeyActions.onC()
       }
     if result != .handled {
       super.keyDown(with: event)

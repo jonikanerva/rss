@@ -14,7 +14,7 @@ struct ArticleFilterTests {
 
   @Test
   func menuTitleNamesTheFilterThatTheCommandShows() {
-    #expect(ArticleFilter.unread.toggleMenuTitle == "Show Read Articles\t U")
-    #expect(ArticleFilter.read.toggleMenuTitle == "Show Unread Articles\t U")
+    #expect(ArticleFilter.unread.toggleMenuTitle == "Show Read Articles")
+    #expect(ArticleFilter.read.toggleMenuTitle == "Show Unread Articles")
   }
 }

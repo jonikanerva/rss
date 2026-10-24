@@ -87,6 +87,7 @@ struct AccountSwitchResetTests {
     let syncHandle = Task { await engine.sync() }
     try await waitUntil("the first page is persisted") { await (try? fixture.writer.entryCount()) == 3 }
     engine.queueReadIDs([1])
+    engine.queueUnreadIDs([3])
     engine.recordPendingReads([2], forWindow: UUID())
     let previousEntryModelIDs = try await fixture.writer.entryModelIDs()
 
@@ -113,6 +114,7 @@ struct AccountSwitchResetTests {
     await engine.sync()
     #expect(await fixture.nextClient.deleteUnreadEntriesCallLog.isEmpty)
     #expect(await fixture.previousClient.deleteUnreadEntriesCallLog.allSatisfy { !$0.contains(1) })
+    #expect(await fixture.nextClient.createUnreadEntriesCallLog.isEmpty)
     #expect(await fixture.nextClient.fetchEntryPagesSinceLog.first == engine.queryCutoffDate)
   }
 

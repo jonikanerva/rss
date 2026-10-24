@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Focused Command Context
@@ -11,11 +12,15 @@ struct FeederCommandContext {
   let toggleFilterAction: () -> Void
   let openInBrowserAction: () -> Void
   let copyLinkAction: () -> Void
+  let toggleReadAction: () -> Void
   let moveSelectionDownAction: () -> Void
   let moveSelectionUpAction: () -> Void
   let canMarkAllRead: Bool
   let canOpenInBrowser: Bool
   let hasSelectedEntry: Bool
+  /// The read state that the window shows for the selected article, or `nil`
+  /// without a selected article.
+  let selectedEntryIsRead: Bool?
   let isSyncing: Bool
   let currentViewMode: ArticleViewMode
   let currentFilter: ArticleFilter
@@ -73,51 +78,80 @@ struct FeederCommands: Commands {
       .keyboardShortcut("0", modifiers: .command)
     }
 
-    // The bare-key shortcuts are handled per panel, so they intercept before
-    // type-to-select and never fire inside a text field. These menu items show
-    // the key for discoverability only.
+    // A shortcut without the Command modifier reaches the menu only when no
+    // responder handled the key: a text field types it, and the per-panel
+    // handlers in `KeyHandling.swift` handle it first.
 
     CommandMenu("Article") {
       // The mark-all-read chord has no confirmation dialog; `KeyHandling.swift`
       // holds that contract.
-      Button("Mark All as Read\t ⇧A") {
+      Button("Mark All as Read") {
+        guard !Self.isShortcutKeyPress("a") else { return }
         context?.markAllReadAction()
       }
+      .keyboardShortcut("a", modifiers: .shift)
       .disabled(context == nil || context?.canMarkAllRead != true)
 
       Button((context?.currentFilter ?? .unread).toggleMenuTitle) {
+        guard !Self.isShortcutKeyPress("u") else { return }
         context?.toggleFilterAction()
       }
+      .keyboardShortcut("u", modifiers: [])
       .disabled(context == nil || context?.hasSidebarSelection != true)
 
       Divider()
 
-      Button("\(context?.currentViewMode == .web ? "Reader Mode" : "Web Mode")\t R") {
+      Button(context?.selectedEntryIsRead == false ? "Mark as Read" : "Mark as Unread") {
+        context?.toggleReadAction()
+      }
+      .keyboardShortcut("m", modifiers: [])
+      .disabled(context?.selectedEntryIsRead == nil)
+
+      Button(context?.currentViewMode == .web ? "Reader Mode" : "Web Mode") {
         context?.toggleViewModeAction()
       }
+      .keyboardShortcut("r", modifiers: [])
       .disabled(context == nil || context?.hasSelectedEntry != true)
 
-      Button("Open in Browser\t B") {
+      Button("Open in Browser") {
         context?.openInBrowserAction()
       }
+      .keyboardShortcut("b", modifiers: [])
       .disabled(context == nil || context?.canOpenInBrowser != true)
 
       Button("Copy Link") {
         context?.copyLinkAction()
       }
+      .keyboardShortcut("c", modifiers: [])
       .disabled(context == nil || context?.canOpenInBrowser != true)
     }
 
     CommandMenu("Navigate") {
-      Button("Next Category\t J") {
+      Button("Next Category") {
         context?.moveSelectionDownAction()
       }
+      .keyboardShortcut("j", modifiers: [])
       .disabled(context == nil)
 
-      Button("Previous Category\t K") {
+      Button("Previous Category") {
         context?.moveSelectionUpAction()
       }
+      .keyboardShortcut("k", modifiers: [])
       .disabled(context == nil)
     }
   }
+
+  private static func isShortcutKeyPress(_ key: String) -> Bool {
+    isMenuShortcutKeyPress(
+      eventType: NSApp.currentEvent?.type, characters: NSApp.currentEvent?.charactersIgnoringModifiers, key: key)
+  }
+}
+
+/// True when the shortcut key of a menu item, not a click or a keyboard
+/// selection in the open menu, chose the item. The U key and the
+/// mark-all-read chord act only from the panels whose handlers take them, so a
+/// key press that reaches the menu from another surface, such as the article
+/// web view, must do nothing.
+nonisolated func isMenuShortcutKeyPress(eventType: NSEvent.EventType?, characters: String?, key: String) -> Bool {
+  eventType == .keyDown && characters?.lowercased() == key
 }

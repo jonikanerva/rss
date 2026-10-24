@@ -36,6 +36,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   /// Thrown after the call enters `deleteUnreadEntriesCallLog`, so the log
   /// also holds the batch of a failed push.
   var deleteUnreadEntriesError: Error?
+  /// Thrown after the call enters `createUnreadEntriesCallLog`.
+  var createUnreadEntriesError: Error?
 
   // MARK: Gates
 
@@ -65,6 +67,8 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
 
   /// Each entry is the ID batch passed to one `deleteUnreadEntries` call.
   var deleteUnreadEntriesCallLog: [[Int]] = []
+  /// Each entry is the ID batch passed to one `createUnreadEntries` call.
+  var createUnreadEntriesCallLog: [[Int]] = []
   /// Recorded URLs `fetchExtractedContent(from:)` was called with.
   var extractedContentCallLog: [String] = []
   /// How many times the page stream was entered. The stream bumps it in the
@@ -102,6 +106,11 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
     deleteUnreadEntriesCallLog.append(ids)
     if let deleteUnreadEntriesGate { await deleteUnreadEntriesGate.wait() }
     if let deleteUnreadEntriesError { throw deleteUnreadEntriesError }
+  }
+
+  func createUnreadEntries(_ ids: [Int]) async throws {
+    createUnreadEntriesCallLog.append(ids)
+    if let createUnreadEntriesError { throw createUnreadEntriesError }
   }
 
   func verifyCredentials() async throws -> Bool {
@@ -155,6 +164,7 @@ actor FakeFeedbinClient: FeedbinClientProtocol {
   func holdVerification(until gate: AsyncGate) { verifyGate = gate }
   func setDeleteUnreadEntriesError(_ value: Error?) { deleteUnreadEntriesError = value }
   func holdDeleteUnreadEntries(until gate: AsyncGate) { deleteUnreadEntriesGate = gate }
+  func setCreateUnreadEntriesError(_ value: Error?) { createUnreadEntriesError = value }
   func holdEntryPages(until gate: AsyncGate) { entryPagesGate = gate }
   func holdLaterEntryPages(until gate: AsyncGate) { laterEntryPagesGate = gate }
   func setDefaultExtractedContentResult(_ value: Result<String, ExtractedContentFailure>) {

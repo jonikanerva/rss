@@ -188,6 +188,87 @@ struct TimelineStateTests {
     #expect(timeline.listVersion == 0)
   }
 
+  // MARK: - Single-article read state
+
+  private var queuedUnreadIDs: Set<Int> {
+    Set(defaults.array(forKey: pendingUnreadIDsUserDefaultsKey) as? [Int] ?? [])
+  }
+
+  @Test
+  func markUnreadQueuesBeforeTheWriteAndRefreshesAfterTheCommit() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await select(1, timeline)
+    await timeline.flushPendingReads(.sceneInactive)?.value
+    timeline.sceneBecameActive()
+    let listVersion = timeline.listVersion
+
+    let task = timeline.markUnread(feedbinEntryID: 1)
+    #expect(timeline.pendingReadIDs.isEmpty)
+    #expect(timeline.pendingUnreadIDs == [1])
+    #expect(timeline.isRead(feedbinEntryID: 1, storeIsRead: true) == false)
+    #expect(queuedReadIDs.isEmpty)
+    #expect(queuedUnreadIDs == [1])
+    #expect(timeline.listVersion == listVersion)
+    await task.value
+
+    #expect(try await isRead(1, store) == false)
+    #expect(timeline.listVersion == listVersion + 1)
+  }
+
+  @Test
+  func unreadOverlayStaysUntilTheSnapshotAndTheRowsShowTheArticleUnread() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    try await store.writer.markEntriesRead(feedbinEntryIDs: [1])
+    let timeline = makeTimeline(store: store, engine: engine)
+    await timeline.markUnread(feedbinEntryID: 1).value
+
+    timeline.visibleEntriesChanged(renderedUnreadIDs: [])
+    await timeline.refreshUnreadSnapshot(cutoffDate: .distantPast)
+    #expect(timeline.pendingUnreadIDs == [1])
+
+    timeline.visibleEntriesChanged(renderedUnreadIDs: [1])
+    #expect(timeline.pendingUnreadIDs.isEmpty)
+  }
+
+  @Test
+  func markReadAfterMarkUnreadJoinsTheReadOverlay() async throws {
+    let (store, engine) = try await inMemory()
+    try await seedUnread([1], in: store.writer)
+    let timeline = makeTimeline(store: store, engine: engine)
+    await timeline.markUnread(feedbinEntryID: 1).value
+
+    timeline.markRead(feedbinEntryID: 1)
+    #expect(timeline.pendingUnreadIDs.isEmpty)
+    #expect(timeline.isRead(feedbinEntryID: 1, storeIsRead: false) == true)
+    await timeline.flushPendingReads(.sidebarChange)?.value
+
+    #expect(queuedReadIDs == [1])
+    #expect(queuedUnreadIDs.isEmpty)
+    #expect(try await isRead(1, store) == true)
+  }
+
+  @Test
+  func failedMarkUnreadSendsNoSignalAndKeepsTheQueue() async throws {
+    let failing = try FailingWriteStore()
+    defer { failing.removeFolder() }
+    let (writer, reader) = try await failing.makeWriterAndReader()
+    try await seedUnread([1], in: writer)
+    try await writer.markEntriesRead(feedbinEntryIDs: [1])
+    let store = StoreActors(writer: writer, reader: reader)
+    let timeline = makeTimeline(store: store, engine: makeEngine(writer: writer))
+    try failing.installFailingTrigger("UPDATE", on: "ZENTRY")
+
+    await timeline.markUnread(feedbinEntryID: 1).value
+
+    #expect(timeline.listVersion == 0)
+    #expect(timeline.pendingUnreadIDs == [1])
+    #expect(queuedUnreadIDs == [1])
+    #expect(try await isRead(1, store) == true)
+  }
+
   // MARK: - Scheduling
 
   @Test

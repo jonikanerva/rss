@@ -16,6 +16,8 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "k", modifiers: []) == .k)
     #expect(bareKeyRoute(characters: "r", modifiers: []) == .r)
     #expect(bareKeyRoute(characters: "b", modifiers: []) == .b)
+    #expect(bareKeyRoute(characters: "m", modifiers: []) == .m)
+    #expect(bareKeyRoute(characters: "c", modifiers: []) == .c)
   }
 
   @Test
@@ -24,6 +26,8 @@ struct BareKeyRoutingTests {
     #expect(bareKeyRoute(characters: "K", modifiers: .shift) == .k)
     #expect(bareKeyRoute(characters: "R", modifiers: .shift) == .r)
     #expect(bareKeyRoute(characters: "B", modifiers: .shift) == .b)
+    #expect(bareKeyRoute(characters: "M", modifiers: .shift) == .m)
+    #expect(bareKeyRoute(characters: "C", modifiers: .shift) == .c)
   }
 
   @Test
