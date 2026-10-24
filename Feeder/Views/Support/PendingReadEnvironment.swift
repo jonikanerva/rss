@@ -13,3 +13,17 @@ extension EnvironmentValues {
     set { self[PendingReadIDsKey.self] = newValue }
   }
 }
+
+/// Environment key carrying the set of entry IDs that the user marked unread
+/// in this window, until the refetched rows show them unread. EntryRowView
+/// reads this to render the row undimmed while the write is in flight.
+private struct PendingUnreadIDsKey: EnvironmentKey {
+  static let defaultValue: Set<Int> = []
+}
+
+extension EnvironmentValues {
+  var pendingUnreadIDs: Set<Int> {
+    get { self[PendingUnreadIDsKey.self] }
+    set { self[PendingUnreadIDsKey.self] = newValue }
+  }
+}

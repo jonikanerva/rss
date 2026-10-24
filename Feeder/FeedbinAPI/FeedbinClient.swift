@@ -110,9 +110,21 @@ actor FeedbinClient {
   /// Mark entries as read on Feedbin by removing them from the unread list.
   /// DELETE /v2/unread_entries.json — max 1000 IDs per request.
   func deleteUnreadEntries(_ ids: [Int]) async throws {
+    try await sendUnreadEntries(ids, method: "DELETE")
+    FeedbinClient.logger.info("Pushed \(ids.count) read entries to Feedbin")
+  }
+
+  /// Mark entries as unread on Feedbin by adding them to the unread list.
+  /// POST /v2/unread_entries.json — max 1000 IDs per request.
+  func createUnreadEntries(_ ids: [Int]) async throws {
+    try await sendUnreadEntries(ids, method: "POST")
+    FeedbinClient.logger.info("Pushed \(ids.count) unread entries to Feedbin")
+  }
+
+  private func sendUnreadEntries(_ ids: [Int], method: String) async throws {
     guard !ids.isEmpty else { return }
     var request = try apiRequest(path: "unread_entries.json")
-    request.httpMethod = "DELETE"
+    request.httpMethod = method
     request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
     let batches = stride(from: 0, to: ids.count, by: 1000).map {
       Array(ids[$0..<min($0 + 1000, ids.count)])
@@ -122,7 +134,6 @@ actor FeedbinClient {
       let (_, response) = try await send(request)
       try checkResponse(response)
     }
-    FeedbinClient.logger.info("Pushed \(ids.count) read entries to Feedbin")
   }
 
   // MARK: - Entries

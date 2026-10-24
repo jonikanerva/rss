@@ -1,9 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Header above the sidebar: the app name plus the sync and classification
-/// progress strings. Isolated from the article list, so a progress tick never
-/// re-renders the list.
+/// The activity area at the bottom of the sidebar: the sync and classification
+/// progress strings and the error banners. It sits below the rows, so a change
+/// of its height never moves a row. Isolated from the article list, so a
+/// progress tick never re-renders the list.
 struct SyncStatusView: View {
   @Environment(SyncEngine.self)
   private var syncEngine
@@ -45,11 +46,6 @@ struct SyncStatusView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("News")
-        .font(fontSettings.sectionHeader)
-        .foregroundStyle(.primary)
-        .textCase(nil)
-
       if let fetchStatus = fetchStatusText {
         Text(fetchStatus)
           .font(fontSettings.status)
@@ -74,7 +70,10 @@ struct SyncStatusView: View {
         classificationBanner(abort: abort)
       }
     }
-    .padding(.bottom, 4)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 16)
+    .padding(.top, 8)
+    .padding(.bottom, 14)
   }
 
   // MARK: - Account banner

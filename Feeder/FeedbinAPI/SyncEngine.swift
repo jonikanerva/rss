@@ -20,6 +20,10 @@ nonisolated let entryCoverageCursorUserDefaultsKey = "entryCoverageCursor"
 /// (`StoreRecovery.startOver`) keeps this key. A switch to another Feedbin
 /// account clears it.
 nonisolated let pendingReadIDsUserDefaultsKey = "pendingReadIDsToSync"
+/// Entry IDs queued to push to Feedbin as unread. It holds no ID of the read
+/// queue. Start Over keeps this key. A switch to another Feedbin account
+/// clears it.
+nonisolated let pendingUnreadIDsUserDefaultsKey = "pendingUnreadIDsToSync"
 
 /// Maximum age for articles, in days. Nothing older is fetched or persisted,
 /// and an older row is purged.
@@ -318,6 +322,15 @@ final class SyncEngine {
     }
   }
 
+  private var pendingUnreadIDsToSync: Set<Int> {
+    get {
+      Set(defaults.array(forKey: pendingUnreadIDsUserDefaultsKey) as? [Int] ?? [])
+    }
+    set {
+      defaults.set(Array(newValue), forKey: pendingUnreadIDsUserDefaultsKey)
+    }
+  }
+
   @ObservationIgnored
   private var pendingReadsByWindow: [UUID: Set<Int>] = [:]
   @ObservationIgnored
@@ -549,6 +562,7 @@ final class SyncEngine {
     lastSyncDate = nil
     entryCoverageCursor = nil
     defaults.removeObject(forKey: pendingReadIDsUserDefaultsKey)
+    defaults.removeObject(forKey: pendingUnreadIDsUserDefaultsKey)
     previousAccountWindowReadIDs = Set(pendingReadsByWindow.values.joined())
     readIDsQueuedThisLaunch = []
     extractedContentRetry = ExtractedContentRetrySchedule()
@@ -576,12 +590,25 @@ final class SyncEngine {
   /// `DataWriter.updateReadState` keeps a queued ID read, and
   /// `applyQueuedReads()` writes a queued ID to the store as read at launch.
   /// Also record the IDs, so that `queueRecordedPendingReads()` does not queue
-  /// them again.
+  /// them again. The IDs leave the unread queue.
   func queueReadIDs(_ ids: Set<Int>) {
     let ids = ids.subtracting(previousAccountWindowReadIDs)
     guard !ids.isEmpty else { return }
+    pendingUnreadIDsToSync.subtract(ids)
     pendingReadIDsToSync.formUnion(ids)
     readIDsQueuedThisLaunch.formUnion(ids)
+  }
+
+  /// Queue entry IDs to push to Feedbin as unread. The IDs leave the read
+  /// queue. Until a push succeeds, `DataWriter.updateReadState` keeps a queued
+  /// ID unread, and `applyQueuedReads()` writes it to the store as unread at
+  /// launch. A later read of the same ID in a window is a new read, so the
+  /// quit step queues it again.
+  func queueUnreadIDs(_ ids: Set<Int>) {
+    guard !ids.isEmpty else { return }
+    pendingReadIDsToSync.subtract(ids)
+    readIDsQueuedThisLaunch.subtract(ids)
+    pendingUnreadIDsToSync.formUnion(ids)
   }
 
   /// Mark every unread entry in `scope` as read, and queue the IDs for the
@@ -637,24 +664,27 @@ final class SyncEngine {
     logger.info("Quit: queued \(ids.count, privacy: .public) pending reads")
   }
 
-  /// Write the queued reads to the store as read. It needs the attached
-  /// writer, and it is safe to call more than once.
+  /// Write the queued reads to the store as read, and the queued unreads as
+  /// unread. It needs the attached writer, and it is safe to call more than
+  /// once.
   func applyQueuedReads() async {
     guard let writer else { return }
     let ids = pendingReadIDsToSync
-    if !ids.isEmpty {
-      do {
-        try await writer.markEntriesRead(feedbinEntryIDs: ids)
-      } catch {
-        logger.error("Launch: failed to apply queued reads: \(error.localizedDescription)")
-        return
-      }
+    let unreadIDs = pendingUnreadIDsToSync
+    do {
+      try await writer.markEntriesRead(feedbinEntryIDs: ids)
+      try await writer.markEntriesUnread(feedbinEntryIDs: unreadIDs)
+    } catch {
+      logger.error("Launch: failed to apply queued read state: \(error.localizedDescription)")
+      return
     }
-    logger.info("Launch: applied \(ids.count, privacy: .public) queued reads")
+    logger.info(
+      "Launch: applied \(ids.count, privacy: .public) queued reads and \(unreadIDs.count, privacy: .public) queued unreads"
+    )
   }
 
-  /// Push the queued read IDs to Feedbin. Only the pushed IDs leave the queue,
-  /// and a failed push keeps all of them. A call while `isSyncing` is true does
+  /// Push the queued read and unread IDs to Feedbin. Only the pushed IDs leave
+  /// their queue, and a failed push keeps all IDs of that queue. A call while `isSyncing` is true does
   /// nothing, and the IDs stay queued for a later push, such as the next
   /// `sync()`.
   func pushPendingReads() async {
@@ -672,15 +702,29 @@ final class SyncEngine {
   }
 
   private func pushQueuedReads() async {
+    guard let client else { return }
+    // Subtract, never clear: an ID queued during a request is not pushed yet.
+    // Log only, and set no `lastError`: a failed push keeps its IDs queued for
+    // the next push.
     let ids = pendingReadIDsToSync
-    guard let client, !ids.isEmpty else { return }
-    do {
-      try await client.deleteUnreadEntries(Array(ids))
-      // Subtract, never clear: an ID queued during the request is not pushed yet.
-      pendingReadIDsToSync.subtract(ids)
-    } catch {
-      // Log only, and set no `lastError`: the IDs stay queued for the next push.
-      logger.error("Failed to push read state: \(error.localizedDescription)")
+    if !ids.isEmpty {
+      do {
+        try await client.deleteUnreadEntries(Array(ids))
+        pendingReadIDsToSync.subtract(ids)
+      } catch {
+        logger.error("Failed to push read state: \(error.localizedDescription)")
+      }
+    }
+    // Read the unread queue after the read push: a read queued during that
+    // request removed its ID from this queue.
+    let unreadIDs = pendingUnreadIDsToSync
+    if !unreadIDs.isEmpty {
+      do {
+        try await client.createUnreadEntries(Array(unreadIDs))
+        pendingUnreadIDsToSync.subtract(unreadIDs)
+      } catch {
+        logger.error("Failed to push unread state: \(error.localizedDescription)")
+      }
     }
   }
 
@@ -841,7 +885,8 @@ final class SyncEngine {
     }
     fetchedCount = totalFetched
 
-    let readStateFlips = try await writer.updateReadState(unreadIDs: unreadIDSet, queuedReadIDs: pendingReadIDsToSync)
+    let readStateFlips = try await writer.updateReadState(
+      unreadIDs: unreadIDSet, queuedReadIDs: pendingReadIDsToSync, queuedUnreadIDs: pendingUnreadIDsToSync)
     if readStateFlips > 0 { lastPersistedPageVersion &+= 1 }
 
     if totalNew > 0 || readStateFlips > 0 {

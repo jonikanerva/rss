@@ -89,6 +89,10 @@ struct FeedbinClientRequestTests {
       url: "https://api.feedbin.com/v2/unread_entries.json", authorization: basicAuthorization,
       call: { try await $0.deleteUnreadEntries([1, 2]) }),
     FeedbinRequestCase(
+      testDescription: "createUnreadEntries", responseBody: "", method: "POST",
+      url: "https://api.feedbin.com/v2/unread_entries.json", authorization: basicAuthorization,
+      call: { try await $0.createUnreadEntries([1, 2]) }),
+    FeedbinRequestCase(
       testDescription: "fetchExtractedContent", responseBody: #"{"content":"<p>Full</p>"}"#, method: "GET",
       url: extractURL, authorization: nil,
       call: { _ = try await $0.fetchExtractedContent(from: extractURL) }),
@@ -163,14 +167,19 @@ struct FeedbinClientRequestTests {
     #expect(await fetch.value == .failure(.cancelled))
   }
 
-  @Test
-  func deleteSendsAtMostOneThousandIDsPerRequest() async throws {
+  @Test(arguments: ["DELETE", "POST"])
+  func readStatePushSendsAtMostOneThousandIDsPerRequest(method: String) async throws {
     let recorder = FeedbinRequestRecorder(body: "")
-    try await Self.client(sendingTo: recorder).deleteUnreadEntries(Array(1...1001))
+    let client = Self.client(sendingTo: recorder)
+    if method == "DELETE" {
+      try await client.deleteUnreadEntries(Array(1...1001))
+    } else {
+      try await client.createUnreadEntries(Array(1...1001))
+    }
     let requests = await recorder.requests
     #expect(requests.count == 2)
     for request in requests {
-      #expect(request.httpMethod == "DELETE")
+      #expect(request.httpMethod == method)
       #expect(request.url?.absoluteString == "https://api.feedbin.com/v2/unread_entries.json")
       #expect(request.value(forHTTPHeaderField: "Authorization") == Self.basicAuthorization)
       #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json; charset=utf-8")

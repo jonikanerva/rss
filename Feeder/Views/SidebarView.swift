@@ -34,11 +34,10 @@ nonisolated struct SidebarCategorySnapshot: Sendable, Equatable, Identifiable {
 /// previous render. Keyboard navigation and mark-read overlay flips mutate
 /// state that feeds none of these inputs, so they never re-render the sidebar.
 ///
-/// The header lives inside this view and reads the engines from
-/// `@Environment`: the `Equatable` skip short-circuits the outer body only, so
-/// nested observation still re-renders the header as sync progresses. The
-/// toolbar stays at the call site, outside the wrap, so it keeps observing the
-/// engines.
+/// The activity area at the bottom lives inside this view and reads the engines
+/// from `@Environment`: the `Equatable` skip short-circuits the outer body only,
+/// so nested observation still re-renders it as sync progresses. The toolbar
+/// stays at the call site, outside the wrap, so it keeps observing the engines.
 struct SidebarView: View, Equatable {
   let allArticlesUnreadCount: Int
   let visibleFolderGroups: [SidebarFolderGroup]
@@ -88,30 +87,26 @@ struct SidebarView: View, Equatable {
           categoryRow(category)
         }
       } header: {
-        SyncStatusView()
+        SidebarHeaderTitle()
       }
     }
     .listStyle(.sidebar)
+    .safeAreaBar(edge: .bottom) {
+      SyncStatusView()
+    }
   }
 
   // MARK: - Row builders
 
   /// The All Articles row: every article newest first, also an article that
-  /// has no category yet. The identifier sits on the title `Text` for the same
-  /// reason as in `folderGroup`.
+  /// has no category yet. It has no icon, so its title aligns with the titles
+  /// of the root categories.
   private var allArticlesRow: some View {
-    HStack(spacing: 6) {
-      Label {
-        Text("All Articles")
-          .font(fontBody)
-          .lineLimit(1)
-          .accessibilityIdentifier("sidebar.allArticles")
-      } icon: {
-        Image(systemName: "tray.full")
-      }
-      Spacer(minLength: 4)
-      SidebarUnreadBadge(count: allArticlesUnreadCount)
-    }
+    rowLabel(
+      title: "All Articles",
+      count: allArticlesUnreadCount,
+      titleAccessibilityIdentifier: "sidebar.allArticles"
+    )
     .tag(SidebarSelection.allArticles)
     .contextMenu { markAllReadMenu(for: .allArticles) }
   }
@@ -181,6 +176,23 @@ struct SidebarView: View, Equatable {
       Spacer(minLength: 4)
       SidebarUnreadBadge(count: count)
     }
+  }
+}
+
+// MARK: - Header
+
+/// The title above the sidebar rows. It reads the font from the environment,
+/// so a text-size change reaches it through the `Equatable` skip.
+private struct SidebarHeaderTitle: View {
+  @Environment(AppFontSettings.self)
+  private var fontSettings
+
+  var body: some View {
+    Text("News")
+      .font(fontSettings.sectionHeader)
+      .foregroundStyle(.primary)
+      .textCase(nil)
+      .padding(.bottom, 8)
   }
 }
 

@@ -350,20 +350,20 @@ actor DataWriter: ModelActor {
   // MARK: - Read state
 
   /// Set `isRead` on every entry in the store: an ID in `queuedReadIDs` is
-  /// read, and any other ID is read unless `unreadIDs` lists it. Returns the
+  /// read, an ID in `queuedUnreadIDs` is unread, and any other ID is read
+  /// unless `unreadIDs` lists it. The two queues hold disjoint IDs. Returns the
   /// number of rows that actually flipped so callers can tell whether a sync
   /// changed anything (cross-device read-state propagation), not just whether
   /// new entries were inserted.
-  func updateReadState(unreadIDs: Set<Int>, queuedReadIDs: Set<Int>) throws -> Int {
+  func updateReadState(unreadIDs: Set<Int>, queuedReadIDs: Set<Int>, queuedUnreadIDs: Set<Int>) throws -> Int {
     dispatchPrecondition(condition: .notOnQueue(.main))
     let descriptor = FetchDescriptor<Entry>()
     let allEntries = try modelContext.fetch(descriptor)
 
     var updatedCount = 0
     for entry in allEntries {
-      // A change that marks an entry unread must first remove its ID from the
-      // `SyncEngine` read queue, or this line keeps the entry read.
-      let shouldBeRead = queuedReadIDs.contains(entry.feedbinEntryID) || !unreadIDs.contains(entry.feedbinEntryID)
+      let id = entry.feedbinEntryID
+      let shouldBeRead = queuedReadIDs.contains(id) || (!unreadIDs.contains(id) && !queuedUnreadIDs.contains(id))
       if entry.isRead != shouldBeRead {
         entry.isRead = shouldBeRead
         updatedCount += 1
@@ -389,6 +389,24 @@ actor DataWriter: ModelActor {
     guard !entries.isEmpty else { return }
     for entry in entries {
       entry.isRead = true
+    }
+    try commit()
+  }
+
+  /// Batch mark multiple entries as unread in a single save.
+  func markEntriesUnread(feedbinEntryIDs ids: Set<Int>) throws {
+    dispatchPrecondition(condition: .notOnQueue(.main))
+    guard !ids.isEmpty else { return }
+    let signpost = perfSignposter.beginInterval(PerformanceSignpostName.markUnread)
+    defer { perfSignposter.endInterval(PerformanceSignpostName.markUnread, signpost) }
+    let idArray = Array(ids)
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: #Predicate<Entry> { idArray.contains($0.feedbinEntryID) && $0.isRead }
+    )
+    let entries = try modelContext.fetch(descriptor)
+    guard !entries.isEmpty else { return }
+    for entry in entries {
+      entry.isRead = false
     }
     try commit()
   }

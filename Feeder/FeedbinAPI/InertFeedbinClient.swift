@@ -19,6 +19,11 @@ actor InertFeedbinClient: FeedbinClientProtocol {
     throw URLError(.notConnectedToInternet)
   }
 
+  // Must throw, for the same reason as `deleteUnreadEntries(_:)`.
+  func createUnreadEntries(_ ids: [Int]) async throws {
+    throw URLError(.notConnectedToInternet)
+  }
+
   func verifyCredentials() async throws -> Bool { true }
 
   func fetchExtractedContent(from extractedContentURL: String) async throws(ExtractedContentFailure) -> String {

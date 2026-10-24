@@ -137,10 +137,10 @@ struct AppTextSizeTests {
 
   // MARK: - Utility-text legibility floor
 
-  /// Pins each sidebar-utility alias to its shipping base point size at the
-  /// smallest setting, which locks the base size as a contract: a redesign may
-  /// change it, but only by updating this test in the same change. The
-  /// companion test then holds the resolved size above the legibility floor.
+  /// Pins the resolved point size of each sidebar-utility alias at the
+  /// smallest setting, which locks the size as a contract: a redesign may
+  /// change it, but only by updating this test in the same change. `status`
+  /// resolves to its 10-pt floor here.
   @Test
   func utilityAliasesAtSmallMatchExpectedBaseSizes() {
     let settings = makeIsolatedSettings(textSize: .small)
@@ -148,10 +148,18 @@ struct AppTextSizeTests {
 
     #expect(settings.sidebarBadge == .system(size: 12 * smallScale, weight: .regular))
     #expect(settings.rowFeedName == .system(size: 12 * smallScale))
-    #expect(settings.status == .system(size: 12 * smallScale))
+    #expect(settings.status == .system(size: 10))
   }
 
-  /// Holds the resolved point size of the three sidebar utility aliases at the
+  /// The status text has an 11-pt base and a 10-pt floor, so it follows the
+  /// text size above the floor and never goes below it.
+  @Test
+  func statusFollowsTheTextSizeAboveTheFloor() {
+    #expect(makeIsolatedSettings(textSize: .medium).status == .system(size: 11 * AppTextSize.medium.scaleFactor))
+    #expect(makeIsolatedSettings(textSize: .xxLarge).status == .system(size: 11 * AppTextSize.xxLarge.scaleFactor))
+  }
+
+  /// Holds the resolved point size of the sidebar utility aliases at the
   /// smallest setting above the macOS HIG legibility floor. A base size dropped
   /// far enough crosses that floor once scaled and fails here.
   @Test
@@ -163,10 +171,7 @@ struct AppTextSizeTests {
     // computed resolved-at-Small size drops below 10pt and the test fails.
     let sidebarBadgeBase: CGFloat = 12
     let rowFeedNameBase: CGFloat = 12
-    let statusBase: CGFloat = 12
-
     #expect(sidebarBadgeBase * smallScale >= floor)
     #expect(rowFeedNameBase * smallScale >= floor)
-    #expect(statusBase * smallScale >= floor)
   }
 }

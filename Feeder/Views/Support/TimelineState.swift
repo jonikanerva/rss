@@ -34,6 +34,10 @@ final class TimelineState {
   private(set) var pendingReadIDs: Set<Int> = [] {
     didSet { readQueue.recordPendingReads(pendingReadIDs, forWindow: windowID) }
   }
+  /// Articles that the user marked unread, until the snapshot and the rendered
+  /// rows both show them unread. The rows render undimmed. The read overlay
+  /// and this overlay hold disjoint IDs.
+  private(set) var pendingUnreadIDs: Set<Int> = []
   /// The cached sidebar aggregation. Only `refreshUnreadSnapshot(cutoffDate:)`
   /// writes it; never aggregate inside `body`.
   private(set) var unreadSnapshot: UnreadCountsSnapshot = .empty
@@ -90,7 +94,46 @@ final class TimelineState {
       guard generation == self.sessionGeneration else { return }
       // The store holds the article as unread again, so this is a new read.
       self.queuedOverlayIDs.remove(id)
+      self.pendingUnreadIDs.remove(id)
       self.pendingReadIDs.insert(id)
+    }
+  }
+
+  /// The read state that this window shows for one article.
+  func isRead(feedbinEntryID id: Int, storeIsRead: Bool) -> Bool {
+    effectiveIsRead(
+      feedbinEntryID: id, storeIsRead: storeIsRead, pendingRead: pendingReadIDs, pendingUnread: pendingUnreadIDs)
+  }
+
+  /// Mark one article as read. It joins the overlay, the same as an opened
+  /// article, and the next flush queues it and writes it.
+  func markRead(feedbinEntryID id: Int) {
+    pendingUnreadIDs.remove(id)
+    queuedOverlayIDs.remove(id)
+    pendingReadIDs.insert(id)
+  }
+
+  /// Mark one article as unread. The row undims at once. The ID leaves the read
+  /// overlay and goes to the unread queue before the store write, so a sync
+  /// keeps it unread. The list refreshes only after the write commits. On
+  /// failure the ID stays queued, and the push and the next sync write it.
+  @discardableResult
+  func markUnread(feedbinEntryID id: Int) -> Task<Void, Never> {
+    pendingReadIDs.remove(id)
+    queuedOverlayIDs.remove(id)
+    pendingUnreadIDs.insert(id)
+    readQueue.queueUnreadIDs([id])
+    let generation = sessionGeneration
+    let writer = writer
+    return Task {
+      do {
+        try await writer.markEntriesUnread(feedbinEntryIDs: [id])
+      } catch {
+        logger.error("Mark unread failed: \(error.localizedDescription)")
+        return
+      }
+      guard generation == sessionGeneration else { return }
+      listVersion &+= 1
     }
   }
 
@@ -101,6 +144,9 @@ final class TimelineState {
   @discardableResult
   func flushPendingReads(_ reason: FlushReason) -> Task<Void, Never>? {
     if reason == .sceneInactive { isSceneActive = false }
+    // A sidebar or filter change reloads the rows, so the unread overlay is
+    // not needed. A row that left the list would otherwise keep its ID.
+    if reason != .sceneInactive { pendingUnreadIDs = [] }
     let ids = pendingReadIDs
     guard !ids.isEmpty else { return nil }
     let unqueued = ids.subtracting(queuedOverlayIDs)
@@ -142,6 +188,7 @@ final class TimelineState {
     if !unqueued.isEmpty { readQueue.queueReadIDs(unqueued) }
     sessionGeneration &+= 1
     pendingReadIDs = []
+    pendingUnreadIDs = []
     renderedUnreadIDs = []
     queuedOverlayIDs = []
     guard !ids.isEmpty else { return nil }
@@ -169,6 +216,7 @@ final class TimelineState {
   /// only after the store write commits.
   @discardableResult
   func markAllAsRead(_ plan: MarkAllReadPlan) -> Task<Void, Never> {
+    pendingUnreadIDs.subtract(plan.optimisticIDs)
     pendingReadIDs.formUnion(plan.optimisticIDs)
     let generation = sessionGeneration
     return Task {
@@ -201,6 +249,14 @@ final class TimelineState {
   /// show it read, so a snapshot that lands before the rows refetch cannot
   /// un-dim a row.
   private func prunePendingReadIDs() {
+    if !pendingUnreadIDs.isEmpty {
+      let retainedUnread = retainedPendingUnreadIDs(
+        pending: pendingUnreadIDs,
+        snapshotUnread: unreadSnapshot.unreadFeedbinEntryIDs,
+        renderedUnread: renderedUnreadIDs
+      )
+      if retainedUnread != pendingUnreadIDs { pendingUnreadIDs = retainedUnread }
+    }
     guard !pendingReadIDs.isEmpty else { return }
     let retained = retainedPendingReadIDs(
       pending: pendingReadIDs,
@@ -291,6 +347,7 @@ final class TimelineState {
   func resetForAccountSwitch() {
     sessionGeneration &+= 1
     pendingReadIDs = []
+    pendingUnreadIDs = []
     renderedUnreadIDs = []
     queuedOverlayIDs = []
   }

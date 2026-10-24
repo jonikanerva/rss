@@ -384,6 +384,76 @@ struct SyncEngineTests {
     #expect(await client.deleteUnreadEntriesCallLog == [[1]])
   }
 
+  // MARK: - 7a. Unread queue
+
+  @Test
+  func queuedUnreadIDStaysUnreadThroughSyncAndPushesAsUnread() async throws {
+    let client = FakeFeedbinClient()
+    await client.setUnreadIDsResponse([])
+    let (engine, writer) = try await makeEngine(with: client)
+    try await seedUnreadEntries([1, 2], in: writer)
+    try await writer.markEntriesRead(feedbinEntryIDs: [1, 2])
+    await client.setCreateUnreadEntriesError(URLError(.notConnectedToInternet))
+    engine.queueUnreadIDs([1])
+
+    await engine.sync()
+
+    #expect(try await isRead(1, in: writer) == false)
+    #expect(try await isRead(2, in: writer) == true)
+    #expect(engine.lastError == nil)
+    await client.setCreateUnreadEntriesError(nil)
+    await engine.pushPendingReads()
+    #expect(await client.createUnreadEntriesCallLog == [[1], [1]])
+    await engine.pushPendingReads()
+    #expect(await client.createUnreadEntriesCallLog == [[1], [1]])
+  }
+
+  @Test
+  func newestIntentRemovesTheIDFromTheOtherQueue() async throws {
+    let client = FakeFeedbinClient()
+    let (engine, _) = try await makeEngine(with: client)
+
+    engine.queueReadIDs([1, 2])
+    engine.queueUnreadIDs([1])
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[2]])
+    #expect(await client.createUnreadEntriesCallLog == [[1]])
+
+    engine.queueUnreadIDs([3])
+    engine.queueReadIDs([3])
+    await engine.pushPendingReads()
+    #expect(await client.deleteUnreadEntriesCallLog == [[2], [3]])
+    #expect(await client.createUnreadEntriesCallLog == [[1]])
+  }
+
+  @Test
+  func quitQueuesAReadAgainAfterAnUnread() async throws {
+    let client = FakeFeedbinClient()
+    let (engine, _) = try await makeEngine(with: client)
+    engine.queueReadIDs([1])
+    engine.queueUnreadIDs([1])
+    engine.recordPendingReads([1], forWindow: UUID())
+
+    engine.queueRecordedPendingReads()
+    await engine.pushPendingReads()
+
+    #expect(await client.deleteUnreadEntriesCallLog == [[1]])
+    #expect(await client.createUnreadEntriesCallLog.isEmpty)
+  }
+
+  @Test
+  func launchAppliesQueuedUnreads() async throws {
+    let writer = try await DataWriterTestSupport.makeWriter()
+    try await seedUnreadEntries([1, 2], in: writer)
+    try await writer.markEntriesRead(feedbinEntryIDs: [1, 2])
+    makeEngine(writer: writer).queueUnreadIDs([1])
+
+    await makeEngine(writer: writer).applyQueuedReads()
+
+    #expect(try await isRead(1, in: writer) == false)
+    #expect(try await isRead(2, in: writer) == true)
+  }
+
   // MARK: - 7b. Mark all read
 
   private var queuedReadIDs: Set<Int> {
@@ -461,7 +531,7 @@ struct SyncEngineTests {
     engine.queueReadIDs(ids)
     let syncSnapshot = queuedReadIDs
     try await writer.markEntriesRead(feedbinEntryIDs: ids)
-    let flips = try await writer.updateReadState(unreadIDs: [1, 2, 3, 4], queuedReadIDs: syncSnapshot)
+    let flips = try await writer.updateReadState(unreadIDs: [1, 2, 3, 4], queuedReadIDs: syncSnapshot, queuedUnreadIDs: [])
 
     #expect(flips == 1, "only entry 4 becomes unread")
     #expect(try await isRead(1, in: writer) == true)

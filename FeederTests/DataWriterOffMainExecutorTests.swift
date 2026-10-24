@@ -37,4 +37,13 @@ struct DataWriterOffMainExecutorTests {
     let deletion = try await writer.deleteAccountData()
     #expect(deletion == AccountDataDeletion(feedCount: 0, entryModelIDs: []))
   }
+
+  @Test
+  func markUnreadWriteRunsOffMainWhenAwaitedFromMainActor() async throws {
+    let container = try DataWriterTestSupport.makeInMemoryContainer()
+    let writer = await DataWriter.makeDetached(
+      modelContainer: container, defaultsFlagStore: InMemoryFlagStore())
+
+    try await writer.markEntriesUnread(feedbinEntryIDs: [1])
+  }
 }

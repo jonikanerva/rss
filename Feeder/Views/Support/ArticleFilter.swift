@@ -16,8 +16,8 @@ enum ArticleFilter: String, CaseIterable {
   /// The Article menu title of the command that switches to `toggled`.
   var toggleMenuTitle: String {
     switch self {
-    case .unread: "Show Read Articles\t U"
-    case .read: "Show Unread Articles\t U"
+    case .unread: "Show Read Articles"
+    case .read: "Show Unread Articles"
     }
   }
 }
