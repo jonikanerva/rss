@@ -117,4 +117,23 @@ struct MarkAllReadPlanTests {
     #expect(plan(for: .category("apple"), currentSelection: nil).clearsArticleSelection == false)
     #expect(plan(for: .folder("tech"), currentSelection: nil).clearsArticleSelection == false)
   }
+
+  // MARK: - Search
+
+  @Test("a search narrows only the current list, and the overlay holds only its shown unread rows")
+  func searchNarrowsCurrentListOnly() {
+    let term = ArticleSearchTerm("swift")
+    #expect(
+      markAllReadPlan(
+        for: .folder("tech"), currentSelection: .folder("tech"), snapshot: Self.snapshot,
+        search: term, renderedUnreadIDs: [2, 3, 9])
+        == MarkAllReadPlan(
+          markTarget: .folder("tech"), search: term, optimisticIDs: [2, 3], clearsArticleSelection: true))
+    #expect(
+      markAllReadPlan(
+        for: .category("world"), currentSelection: .folder("tech"), snapshot: Self.snapshot,
+        search: term, renderedUnreadIDs: [2, 3])
+        == MarkAllReadPlan(
+          markTarget: .category("world"), optimisticIDs: [4, 5], clearsArticleSelection: false))
+  }
 }

@@ -37,6 +37,7 @@ enum FeedbinFixtures {
     feedId: Int = 100,
     title: String? = "Test Article",
     content: String? = "<p>Hello <b>world</b></p>",
+    summary: String? = nil,
     url: String = "https://example.com/article",
     published: String = "2025-06-15T12:00:00.000000Z",
     createdAt: String? = nil,
@@ -51,6 +52,7 @@ enum FeedbinFixtures {
     ]
     if let title { json["title"] = title }
     if let content { json["content"] = content }
+    if let summary { json["summary"] = summary }
     if let extractedContentURL { json["extracted_content_url"] = extractedContentURL }
     let data = try JSONSerialization.data(withJSONObject: json)
     return try makeFeedbinDecoder().decode(FeedbinEntry.self, from: data)

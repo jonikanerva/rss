@@ -68,7 +68,7 @@ final class TimelineState {
   private var classificationBaseline = 0
   /// Unread rows of the loaded window, one side of the overlay prune.
   @ObservationIgnored
-  private var renderedUnreadIDs: Set<Int> = []
+  private(set) var renderedUnreadIDs: Set<Int> = []
   /// Overlay IDs that a flush or Mark All of this window queued. A flush or
   /// the close does not queue them again: a push can have sent them, and a
   /// second push would undo a later mark-unread on another device.
@@ -220,11 +220,11 @@ final class TimelineState {
     pendingReadIDs.formUnion(plan.optimisticIDs)
     let generation = sessionGeneration
     return Task {
-      let outcome = await readQueue.markAllAsRead(scope: plan.markTarget)
+      let outcome = await readQueue.markAllAsRead(scope: plan.markTarget, search: plan.search)
       guard generation == sessionGeneration else { return }
       switch outcome {
       case .written:
-        // `SyncEngine.markAllAsRead(scope:)` queued the unread rows of the
+        // `SyncEngine.markAllAsRead(scope:search:)` queued the unread rows of the
         // scope before its write.
         queuedOverlayIDs.formUnion(plan.optimisticIDs)
         listVersion &+= 1

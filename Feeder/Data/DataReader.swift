@@ -74,7 +74,7 @@ actor DataReader: ModelActor {
   /// pinned row's sort position, so the selected row never falls outside the
   /// window.
   func fetchEntrySections(
-    scope: EntryScope, showRead: Bool, cutoffDate: Date,
+    scope: EntryScope, showRead: Bool, cutoffDate: Date, search: ArticleSearchTerm? = nil,
     pinnedFeedbinEntryID: Int? = nil, window: EntryListWindow
   ) throws -> EntryListFetchResult {
     // `BackgroundSerialModelExecutor` must keep this read off the main thread.
@@ -128,7 +128,7 @@ actor DataReader: ModelActor {
     }
     guard
       var descriptor = entryListDescriptor(
-        scope: scope, showRead: showRead, cutoffDate: cutoffDate,
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate, search: search,
         pinned: pinned, cursor: cursor, usesAfterClause: usesAfterClause)
     else { return .empty }
     if let pageLimit {
@@ -156,8 +156,8 @@ actor DataReader: ModelActor {
     if case .firstPage(let requestedLimit) = window, pinned > 0,
       !entries.contains(where: { $0.feedbinEntryID == pinned }),
       let coveringLimit = try pinCoveringLimit(
-        scope: scope, showRead: showRead,
-        cutoffDate: cutoffDate, pinned: pinned, requested: requestedLimit),
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate, search: search,
+        pinned: pinned, requested: requestedLimit),
       coveringLimit > requestedLimit
     {
       effectiveLimit = coveringLimit
@@ -179,7 +179,7 @@ actor DataReader: ModelActor {
     // `hasMore` exact across refreshes.
     if case .atOrAbove = window, let lastRow = rows.last {
       hasMore = try hasRowsBelow(
-        scope: scope, showRead: showRead, cutoffDate: cutoffDate,
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate, search: search,
         pinned: pinned,
         cursor: EntryListCursor(
           publishedAt: lastRow.publishedAt, feedbinEntryID: lastRow.feedbinEntryID))
@@ -197,14 +197,29 @@ actor DataReader: ModelActor {
   }
 
   /// The one builder for every article-list descriptor: the eligibility core
-  /// composed with one of the two keyset clauses. Six `#Predicate` literals,
-  /// because `#Predicate` cannot compose sub-predicates — this clause pair is
-  /// the single place the keyset ordering rule lives:
+  /// composed with one of the two keyset clauses. `keysetDescriptor` holds the
+  /// single place the keyset ordering rule lives:
   /// - after(C):     `publishedAt < C.date OR (== AND feedbinEntryID < C.id)`
   /// - atOrAbove(C): `publishedAt > C.date OR (== AND feedbinEntryID >= C.id)`
   /// The two partition the sorted result exactly at C, so pages tile with no
-  /// duplicate and no skip. Returns nil for an empty folder or category label.
+  /// duplicate and no skip. A search term narrows the result and never
+  /// changes the order. Returns nil for an empty folder or category label.
   private func entryListDescriptor(
+    scope: EntryScope, showRead: Bool, cutoffDate: Date, search: ArticleSearchTerm?,
+    pinned: Int, cursor: EntryListCursor, usesAfterClause: Bool
+  ) -> FetchDescriptor<Entry>? {
+    guard
+      var descriptor = keysetDescriptor(
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate,
+        pinned: pinned, cursor: cursor, usesAfterClause: usesAfterClause)
+    else { return nil }
+    if let base = descriptor.predicate {
+      descriptor.predicate = ArticleSearchTerm.narrowing(base, to: search)
+    }
+    return descriptor
+  }
+
+  private func keysetDescriptor(
     scope: EntryScope, showRead: Bool, cutoffDate: Date,
     pinned: Int, cursor: EntryListCursor, usesAfterClause: Bool
   ) -> FetchDescriptor<Entry>? {
@@ -297,12 +312,12 @@ actor DataReader: ModelActor {
   /// limit: 1)` fetch through the same descriptor builder. A non-empty result
   /// means the store holds an eligible row below the returned window.
   private func hasRowsBelow(
-    scope: EntryScope, showRead: Bool, cutoffDate: Date,
+    scope: EntryScope, showRead: Bool, cutoffDate: Date, search: ArticleSearchTerm?,
     pinned: Int, cursor: EntryListCursor
   ) throws -> Bool {
     guard
       var probe = entryListDescriptor(
-        scope: scope, showRead: showRead, cutoffDate: cutoffDate,
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate, search: search,
         pinned: pinned, cursor: cursor, usesAfterClause: true)
     else { return false }
     probe.fetchLimit = 1
@@ -320,11 +335,12 @@ actor DataReader: ModelActor {
   /// `atOrAbove` clause family and position counting can never disagree with
   /// window fetching on the ordering rule.
   private func pinCoveringLimit(
-    scope: EntryScope, showRead: Bool, cutoffDate: Date,
+    scope: EntryScope, showRead: Bool, cutoffDate: Date, search: ArticleSearchTerm?,
     pinned: Int, requested: Int
   ) throws -> Int? {
     var pinDescriptor = FetchDescriptor<Entry>(
-      predicate: #Predicate<Entry> { $0.feedbinEntryID == pinned })
+      predicate: ArticleSearchTerm.narrowing(
+        #Predicate<Entry> { $0.feedbinEntryID == pinned }, to: search))
     pinDescriptor.fetchLimit = 1
     pinDescriptor.propertiesToFetch = [
       \.feedbinEntryID, \.publishedAt, \.primaryCategory, \.primaryFolder,
@@ -338,7 +354,7 @@ actor DataReader: ModelActor {
     }
     guard
       let positionDescriptor = entryListDescriptor(
-        scope: scope, showRead: showRead, cutoffDate: cutoffDate,
+        scope: scope, showRead: showRead, cutoffDate: cutoffDate, search: search,
         pinned: pinned,
         cursor: EntryListCursor(
           publishedAt: pin.publishedAt, feedbinEntryID: pin.feedbinEntryID),

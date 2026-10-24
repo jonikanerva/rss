@@ -113,6 +113,28 @@ struct TimelineStateTests {
     #expect(try await isRead(2, store) == true)
   }
 
+  /// Only entry 1 matches the term, so entry 2 stays unread and unqueued.
+  @Test
+  func searchedMarkAllMarksOnlyTheMatches() async throws {
+    let (store, engine) = try await inMemory()
+    try await store.writer.syncFeeds([try FeedbinFixtures.subscription(id: 1, feedId: 100)])
+    let published = formatDateForFeedbin(.now)
+    _ = try await store.writer.persistEntries(
+      [
+        try FeedbinFixtures.entry(id: 1, feedId: 100, title: "Swift notes", published: published),
+        try FeedbinFixtures.entry(id: 2, feedId: 100, title: "Other", published: published),
+      ], unreadIDs: [1, 2])
+    let timeline = makeTimeline(store: store, engine: engine)
+    let plan = MarkAllReadPlan(
+      markTarget: .all, search: ArticleSearchTerm("swift"), optimisticIDs: [1], clearsArticleSelection: true)
+
+    await timeline.markAllAsRead(plan).value
+
+    #expect(queuedReadIDs == [1])
+    #expect(try await isRead(1, store) == true)
+    #expect(try await isRead(2, store) == false)
+  }
+
   @Test
   func markAllWithNothingUnreadRefreshesTheSnapshotOnly() async throws {
     let (store, engine) = try await inMemory()
