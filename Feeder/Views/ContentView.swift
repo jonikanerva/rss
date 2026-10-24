@@ -474,7 +474,7 @@ struct ContentView: View {
       pinnedFeedbinEntryID: selectedEntry?.feedbinEntryID,
       selectedEntryID: entrySelectionBinding, onMarkAllRead: markAllAsRead,
       isRead: timeline.isRead(feedbinEntryID:storeIsRead:),
-      onToggleRead: toggleRead(feedbinEntryID:storeIsRead:),
+      onToggleRead: toggleRowRead(_:),
       onPageDetail: pageDetail(modifiers:),
       tabSelectionRequest: articleListTabRequest,
       onTabSelection: { selectedEntryID = $0 }
@@ -541,6 +541,14 @@ struct ContentView: View {
   private func toggleSelectedEntryRead() {
     guard let selectedEntry else { return }
     toggleRead(feedbinEntryID: selectedEntry.feedbinEntryID, storeIsRead: selectedEntry.isRead)
+  }
+
+  /// A row of an entry that an account switch deleted can stay until the list
+  /// refreshes. Its ID belongs to the previous account, so it must not reach
+  /// the read queues.
+  private func toggleRowRead(_ row: EntryRowDTO) {
+    guard !syncEngine.isDeletedEntry(row.persistentID) else { return }
+    toggleRead(feedbinEntryID: row.feedbinEntryID, storeIsRead: row.isRead)
   }
 
   /// Toggle the read state that the window shows for one article.

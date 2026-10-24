@@ -74,8 +74,8 @@ struct EntryListView: View {
   /// ID and its stored read state. The context menu calls it when it opens,
   /// so the list body does not depend on the read overlays.
   var isRead: (Int, Bool) -> Bool = { _, storeIsRead in storeIsRead }
-  /// Toggles the read state of one article, with the same arguments.
-  var onToggleRead: (Int, Bool) -> Void = { _, _ in }
+  /// Toggles the read state of the article of one row.
+  var onToggleRead: (EntryRowDTO) -> Void = { _ in }
   /// Space and Shift-Space in the list page the detail pane.
   var onPageDetail: (EventModifiers) -> KeyPress.Result = { _ in .ignored }
   /// A change asks for the row that Tab selects. Only rows on screen qualify,
@@ -356,7 +356,7 @@ struct EntryListView: View {
   @ViewBuilder
   private func entryLinkMenu(for ids: Set<PersistentIdentifier>) -> some View {
     if let row = entryRow(for: ids, in: sections) {
-      Button(isRead(row.feedbinEntryID, row.isRead) ? "Mark as Unread" : "Mark as Read") { onToggleRead(row.feedbinEntryID, row.isRead) }
+      Button(isRead(row.feedbinEntryID, row.isRead) ? "Mark as Unread" : "Mark as Read") { onToggleRead(row) }
       if let url = entryLinkURL(from: row.url) {
         Divider()
         Button("Open in Browser") { NSWorkspace.shared.openInBackground(url) }
