@@ -192,6 +192,7 @@ private struct SidebarHeaderTitle: View {
       .font(fontSettings.sectionHeader)
       .foregroundStyle(.primary)
       .textCase(nil)
+      .padding(.bottom, 8)
   }
 }
 

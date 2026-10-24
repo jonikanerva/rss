@@ -72,7 +72,8 @@ struct SyncStatusView: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 16)
-    .padding(.vertical, 8)
+    .padding(.top, 8)
+    .padding(.bottom, 14)
   }
 
   // MARK: - Account banner

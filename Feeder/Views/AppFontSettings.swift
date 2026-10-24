@@ -142,9 +142,9 @@ final class AppFontSettings {
   /// Article header metadata: date, author, domain.
   var metadata: Font { .system(size: scaled(11), weight: .medium) }
 
-  /// Sync and classification status under the sidebar header. The base size
-  /// keeps the smallest text-size setting above the macOS HIG legibility floor.
-  var status: Font { .system(size: scaled(12)) }
+  /// Sync and classification status at the bottom of the sidebar. The size
+  /// never goes below 10 pt, the macOS HIG legibility floor.
+  var status: Font { .system(size: max(10, scaled(11))) }
 
   /// Day-section labels in the entry list.
   var sectionLabel: Font { .system(size: scaled(11), weight: .medium) }
