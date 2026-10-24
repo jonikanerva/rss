@@ -72,6 +72,22 @@ struct ArticleSearchTests {
     #expect(ArticleSearchTerm("  swift ")?.text == "swift")
   }
 
+  /// Mark All as Read reads `typedTerm`, so a write that starts inside the
+  /// typing pause follows the field, not the term of the shown rows.
+  @MainActor
+  @Test("The typed term leads the committed term until the typing pause ends")
+  func typedTermLeadsCommittedTerm() {
+    let state = ArticleSearchState()
+    state.text = "swift"
+    #expect(state.typedTerm?.text == "swift")
+    #expect(state.term == nil)
+    state.commitTypedTerm()
+    #expect(state.term?.text == "swift")
+    state.text = "  "
+    state.commitTypedTerm()
+    #expect(state.term == nil)
+  }
+
   @Test("The term matches the title, the site name, and the summary only")
   func matchesTitleSiteAndSummary() async throws {
     let (_, reader) = try await seed([

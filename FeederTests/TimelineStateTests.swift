@@ -126,7 +126,7 @@ struct TimelineStateTests {
       ], unreadIDs: [1, 2])
     let timeline = makeTimeline(store: store, engine: engine)
     let plan = MarkAllReadPlan(
-      markTarget: .all, search: ArticleSearchTerm("swift"), optimisticIDs: [1], clearsArticleSelection: true)
+      markTarget: .all, search: ArticleSearchTerm("swift"), optimisticIDs: [], clearsArticleSelection: true)
 
     await timeline.markAllAsRead(plan).value
 

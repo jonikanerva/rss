@@ -8,6 +8,8 @@ import SwiftUI
 struct FeederCommandContext {
   let syncAction: () -> Void
   let markAllReadAction: () -> Void
+  /// Opens the search field of the article list and focuses it.
+  let findAction: () -> Void
   let toggleViewModeAction: () -> Void
   let toggleFilterAction: () -> Void
   let openInBrowserAction: () -> Void
@@ -81,6 +83,15 @@ struct FeederCommands: Commands {
     // A shortcut without the Command modifier reaches the menu only when no
     // responder handled the key: a text field types it, and the per-panel
     // handlers in `KeyHandling.swift` handle it first.
+
+    CommandGroup(after: .pasteboard) {
+      Divider()
+      Button("Find…") {
+        context?.findAction()
+      }
+      .keyboardShortcut("f", modifiers: .command)
+      .disabled(context == nil || context?.hasSidebarSelection != true)
+    }
 
     CommandMenu("Article") {
       // The mark-all-read chord has no confirmation dialog; `KeyHandling.swift`

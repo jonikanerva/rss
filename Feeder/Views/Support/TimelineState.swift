@@ -68,7 +68,7 @@ final class TimelineState {
   private var classificationBaseline = 0
   /// Unread rows of the loaded window, one side of the overlay prune.
   @ObservationIgnored
-  private(set) var renderedUnreadIDs: Set<Int> = []
+  private var renderedUnreadIDs: Set<Int> = []
   /// Overlay IDs that a flush or Mark All of this window queued. A flush or
   /// the close does not queue them again: a push can have sent them, and a
   /// second push would undo a later mark-unread on another device.

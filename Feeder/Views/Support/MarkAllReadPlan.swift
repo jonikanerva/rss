@@ -26,13 +26,12 @@ nonisolated struct MarkAllReadPlan: Sendable, Equatable {
   }
 }
 
-/// `search` and `renderedUnreadIDs` describe the current list. With a search,
-/// the snapshot cannot tell which unread rows match, so the optimistic IDs are
-/// the unread rows that the list shows; the write still covers every match.
+/// `search` narrows only the current list. With a search the plan has no
+/// optimistic IDs: neither the snapshot nor the shown rows tell which unread
+/// rows match the term, and an ID outside the write must not dim.
 nonisolated func markAllReadPlan(
   for target: SidebarSelection, currentSelection: SidebarSelection?,
-  snapshot: UnreadCountsSnapshot, search: ArticleSearchTerm? = nil,
-  renderedUnreadIDs: Set<Int> = []
+  snapshot: UnreadCountsSnapshot, search: ArticleSearchTerm? = nil
 ) -> MarkAllReadPlan {
   let isCurrentList = target == currentSelection
   let markTarget: EntryScope
@@ -53,6 +52,5 @@ nonisolated func markAllReadPlan(
       markTarget: markTarget, optimisticIDs: scopeIDs, clearsArticleSelection: isCurrentList)
   }
   return MarkAllReadPlan(
-    markTarget: markTarget, search: search,
-    optimisticIDs: scopeIDs.intersection(renderedUnreadIDs), clearsArticleSelection: true)
+    markTarget: markTarget, search: search, optimisticIDs: [], clearsArticleSelection: true)
 }

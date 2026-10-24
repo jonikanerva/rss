@@ -54,16 +54,8 @@ struct ContentView: View {
   private var selection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
-  /// The text of the search field. It stays when the sidebar selection
-  /// changes, and it is never persisted.
   @State
-  private var searchText = ""
-  /// The term that narrows the article list: `searchText` after the typing
-  /// debounce.
-  @State
-  private var searchTerm: ArticleSearchTerm?
-  @State
-  private var isSearchPresented = false
+  private var search = ArticleSearchState()
   @FocusState
   private var isSearchFieldFocused: Bool
   @State
@@ -130,8 +122,8 @@ struct ContentView: View {
             .navigationTitle(navigationTitle)
             .modifier(
               ArticleSearchField(
-                text: $searchText, isPresented: $isSearchPresented, isFocused: $isSearchFieldFocused,
-                onSubmit: tabIntoArticleList)
+                state: search, isFocused: $isSearchFieldFocused, onSubmit: tabIntoArticleList,
+                onDismiss: { panelFocus = .articleList })
             )
             .toolbar {
               ToolbarItem(placement: .automatic) {
@@ -170,7 +162,6 @@ struct ContentView: View {
     }
     .environment(\.bareKeyActions, bareKeyActions)
     .environment(faviconStore)
-    .modifier(searchLifecycle)
     .onPreferenceChange(VisibleEntriesKey.self) { payload in
       // Open the interval before the writes below dirty `ContentView`; the
       // paired end fires on the next render pass.
@@ -328,20 +319,12 @@ struct ContentView: View {
   }
 
   // Separated to keep body type-checkable
-  private var searchLifecycle: some ViewModifier {
-    ArticleSearchLifecycle(
-      searchText: searchText, isSearchPresented: isSearchPresented,
-      onFind: focusSearchField,
-      onCommit: { term in if term != searchTerm { searchTerm = term } },
-      onDismiss: { if selection != nil { panelFocus = .articleList } })
-  }
-
-  // Separated to keep body type-checkable
   private var menuBarValues: some ViewModifier {
     FocusedValuesModifier(
       context: FeederCommandContext(
         syncAction: { Task { await syncAndClassify() } },
         markAllReadAction: markAllAsRead,
+        findAction: focusSearchField,
         toggleViewModeAction: toggleArticleViewMode,
         toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
@@ -494,7 +477,7 @@ struct ContentView: View {
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     EntryListView(
-      scope: sel.entryScope, filter: articleFilter, search: searchTerm,
+      scope: sel.entryScope, filter: articleFilter, search: search.term,
       cutoffDate: syncEngine.queryCutoffDate, reader: store.reader,
       refreshVersion: timeline.listVersion,
       accountDataVersion: timeline.accountDataVersion,
@@ -526,7 +509,7 @@ struct ContentView: View {
 
   private func focusSearchField() {
     guard selection != nil else { return }
-    isSearchPresented = true
+    search.isPresented = true
     isSearchFieldFocused = true
   }
 
@@ -555,7 +538,7 @@ struct ContentView: View {
     guard articleFilter == .unread else { return }
     let plan = markAllReadPlan(
       for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot,
-      search: searchTerm, renderedUnreadIDs: timeline.renderedUnreadIDs)
+      search: search.typedTerm)
     if plan.clearsArticleSelection {
       selectedEntryID = nil
     }

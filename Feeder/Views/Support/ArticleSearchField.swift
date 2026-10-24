@@ -1,54 +1,57 @@
-import AppKit
 import SwiftUI
 
-/// The search field of the article list, in the toolbar of the article-list
-/// column. The system collapses the field to a magnifier button when the
-/// toolbar is narrow.
-struct ArticleSearchField: ViewModifier {
-  @Binding
-  var text: String
-  @Binding
-  var isPresented: Bool
-  var isFocused: FocusState<Bool>.Binding
-  /// Return in the field moves focus to the article list.
-  let onSubmit: () -> Void
+/// The search state of one main window. `ContentView` keeps one instance and
+/// reads only `term` in its body, so typing re-renders the search field and
+/// not the window. Nothing here is persisted.
+@Observable
+final class ArticleSearchState {
+  /// The text of the search field. It stays when the sidebar selection
+  /// changes.
+  var text = ""
+  var isPresented = false
+  /// The term that narrows the article list: `text` after the typing pause.
+  private(set) var term: ArticleSearchTerm?
 
-  func body(content: Content) -> some View {
-    content
-      .searchable(text: $text, isPresented: $isPresented, placement: .toolbar, prompt: "Search")
-      .searchFocused(isFocused)
-      .onSubmit(of: .search, onSubmit)
+  /// The term that the field holds now, also before the typing pause ends.
+  /// Mark All as Read uses it, so the write follows what the user typed.
+  var typedTerm: ArticleSearchTerm? { ArticleSearchTerm(text) }
+
+  func commitTypedTerm() {
+    let typed = typedTerm
+    if typed != term { term = typed }
   }
 }
 
-/// The window-level search behaviour: ⌘F, the typing debounce, and the
-/// focus return when the search field closes.
-struct ArticleSearchLifecycle: ViewModifier {
-  let searchText: String
-  let isSearchPresented: Bool
-  /// Edit → Find → Find… (⌘F) from a panel that does not handle the find
-  /// command itself.
-  let onFind: () -> Void
-  /// Receives the term after a pause in typing. A cleared field commits nil at
-  /// once.
-  let onCommit: (ArticleSearchTerm?) -> Void
+/// The search field of the article list, in the toolbar of the article-list
+/// column, with its typing pause and its focus rules.
+struct ArticleSearchField: ViewModifier {
+  @Bindable
+  var state: ArticleSearchState
+  var isFocused: FocusState<Bool>.Binding
+  /// Return in the field moves focus to the article list.
+  let onSubmit: () -> Void
+  /// The field closed: focus returns to the article list.
   let onDismiss: () -> Void
 
   static let debounce: Duration = .milliseconds(200)
 
   func body(content: Content) -> some View {
     content
-      .onCommand(#selector(NSResponder.performTextFinderAction(_:)), perform: onFind)
-      .onCommand(#selector(NSTextView.performFindPanelAction(_:)), perform: onFind)
-      .task(id: searchText) {
-        let term = ArticleSearchTerm(searchText)
-        if term != nil {
+      .searchable(text: $state.text, isPresented: $state.isPresented, placement: .toolbar, prompt: "Search")
+      .searchFocused(isFocused)
+      .onSubmit(of: .search) {
+        state.commitTypedTerm()
+        onSubmit()
+      }
+      .task(id: state.text) {
+        // A cleared field commits at once.
+        if state.typedTerm != nil {
           try? await Task.sleep(for: Self.debounce)
           guard !Task.isCancelled else { return }
         }
-        onCommit(term)
+        state.commitTypedTerm()
       }
-      .onChange(of: isSearchPresented) { _, isPresented in
+      .onChange(of: state.isPresented) { _, isPresented in
         if !isPresented { onDismiss() }
       }
   }
