@@ -156,9 +156,8 @@ func isEditingArticleSearch(in window: NSWindow?) -> Bool {
   return (editor.delegate as AnyObject?) is ArticleNSSearchField
 }
 
-/// True while the article search field of the key window edits text. Every
-/// SwiftUI key handler of the window runs before that field sees the key, so
-/// each one returns `.ignored` while this holds, and the field types the key.
+/// `isEditingArticleSearch(in:)` for the key window. A key handler that would
+/// take a key the field can type returns `.ignored` while this holds.
 func isTypingInArticleSearch() -> Bool {
   isEditingArticleSearch(in: NSApp.keyWindow)
 }

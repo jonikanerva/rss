@@ -300,7 +300,7 @@ struct ContentView: View {
     // Escape and Tab stay at `NavigationSplitView` level so `List`
     // type-to-select cannot consume them.
     .onKeyPress(.escape) {
-      if search.isPresented, isEditingArticleSearch(in: NSApp.keyWindow) {
+      if search.isPresented, isTypingInArticleSearch() {
         closeSearch()
         return .handled
       }
@@ -309,7 +309,6 @@ struct ContentView: View {
       return .handled
     }
     .onKeyPress(.tab) {
-      guard !isTypingInArticleSearch() else { return .ignored }
       switch panelFocus {
       case .sidebar, .none:
         tabIntoArticleList()
