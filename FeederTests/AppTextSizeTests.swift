@@ -137,10 +137,10 @@ struct AppTextSizeTests {
 
   // MARK: - Utility-text legibility floor
 
-  /// Pins each sidebar-utility alias to its shipping base point size at the
-  /// smallest setting, which locks the base size as a contract: a redesign may
-  /// change it, but only by updating this test in the same change. The
-  /// companion test then holds the resolved size above the legibility floor.
+  /// Pins the resolved point size of each sidebar-utility alias at the
+  /// smallest setting, which locks the size as a contract: a redesign may
+  /// change it, but only by updating this test in the same change. `status`
+  /// resolves to its 10-pt floor here.
   @Test
   func utilityAliasesAtSmallMatchExpectedBaseSizes() {
     let settings = makeIsolatedSettings(textSize: .small)
