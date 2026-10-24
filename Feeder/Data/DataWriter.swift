@@ -411,32 +411,31 @@ actor DataWriter: ModelActor {
     try commit()
   }
 
-  /// The feedbin entry IDs of the unread entries in `scope`. The read has no
-  /// side effects; `SyncEngine.markAllAsRead(scope:)` queues these IDs before
-  /// it marks them read.
-  func fetchUnreadEntryIDs(in scope: EntryScope, cutoffDate: Date) throws -> Set<Int> {
+  /// The feedbin entry IDs of the unread entries in `scope` that match
+  /// `search`. The read has no side effects;
+  /// `SyncEngine.markAllAsRead(scope:search:)` queues these IDs before it marks
+  /// them read.
+  func fetchUnreadEntryIDs(
+    in scope: EntryScope, cutoffDate: Date, search: ArticleSearchTerm? = nil
+  ) throws -> Set<Int> {
     dispatchPrecondition(condition: .notOnQueue(.main))
-    let descriptor: FetchDescriptor<Entry>
+    let scopePredicate: Predicate<Entry>
     switch scope {
     case .all:
-      descriptor = FetchDescriptor<Entry>(
-        predicate: #Predicate<Entry> { !$0.isRead && $0.publishedAt >= cutoffDate }
-      )
+      scopePredicate = #Predicate<Entry> { !$0.isRead && $0.publishedAt >= cutoffDate }
     case .folder(let label):
-      descriptor = FetchDescriptor<Entry>(
-        predicate: #Predicate<Entry> {
-          $0.primaryFolder == label && !$0.isRead
-            && $0.publishedAt >= cutoffDate
-        }
-      )
+      scopePredicate = #Predicate<Entry> {
+        $0.primaryFolder == label && !$0.isRead
+          && $0.publishedAt >= cutoffDate
+      }
     case .category(let label):
-      descriptor = FetchDescriptor<Entry>(
-        predicate: #Predicate<Entry> {
-          $0.primaryCategory == label && !$0.isRead
-            && $0.publishedAt >= cutoffDate
-        }
-      )
+      scopePredicate = #Predicate<Entry> {
+        $0.primaryCategory == label && !$0.isRead
+          && $0.publishedAt >= cutoffDate
+      }
     }
+    let descriptor = FetchDescriptor<Entry>(
+      predicate: ArticleSearchTerm.narrowing(scopePredicate, to: search))
     return Set(try modelContext.fetch(descriptor).map(\.feedbinEntryID))
   }
 

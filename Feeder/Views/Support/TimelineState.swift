@@ -220,12 +220,13 @@ final class TimelineState {
     pendingReadIDs.formUnion(plan.optimisticIDs)
     let generation = sessionGeneration
     return Task {
-      let outcome = await readQueue.markAllAsRead(scope: plan.markTarget)
+      let outcome = await readQueue.markAllAsRead(scope: plan.markTarget, search: plan.search)
       guard generation == sessionGeneration else { return }
       switch outcome {
       case .written:
-        // `SyncEngine.markAllAsRead(scope:)` queued the unread rows of the
-        // scope before its write.
+        // `SyncEngine.markAllAsRead(scope:search:)` queued the unread rows of the
+        // scope that match the search before its write. A searched plan has no
+        // optimistic IDs, so this union adds only IDs that the call queued.
         queuedOverlayIDs.formUnion(plan.optimisticIDs)
         listVersion &+= 1
       case .nothingToMark:

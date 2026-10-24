@@ -4,6 +4,9 @@ import Foundation
 
 nonisolated struct MarkAllReadPlan: Sendable, Equatable {
   let markTarget: EntryScope
+  /// Narrows `markTarget` to the matching entries. Only the current list
+  /// carries a search; another sidebar row marks its whole scope.
+  let search: ArticleSearchTerm?
   /// The target's unread IDs in the cached snapshot. The caller adds them to
   /// the optimistic overlay, so the badges drop in the same frame, before the
   /// writer commits.
@@ -11,28 +14,43 @@ nonisolated struct MarkAllReadPlan: Sendable, Equatable {
   /// `true` only when the target is the current sidebar selection. Otherwise
   /// the open article stays selected and pinned in the list.
   let clearsArticleSelection: Bool
+
+  init(
+    markTarget: EntryScope, search: ArticleSearchTerm? = nil, optimisticIDs: Set<Int>,
+    clearsArticleSelection: Bool
+  ) {
+    self.markTarget = markTarget
+    self.search = search
+    self.optimisticIDs = optimisticIDs
+    self.clearsArticleSelection = clearsArticleSelection
+  }
 }
 
+/// `search` narrows only the current list. With a search the plan has no
+/// optimistic IDs: neither the snapshot nor the shown rows tell which unread
+/// rows match the term, and an ID outside the write must not dim.
 nonisolated func markAllReadPlan(
   for target: SidebarSelection, currentSelection: SidebarSelection?,
-  snapshot: UnreadCountsSnapshot
+  snapshot: UnreadCountsSnapshot, search: ArticleSearchTerm? = nil
 ) -> MarkAllReadPlan {
-  let clearsArticleSelection = target == currentSelection
+  let isCurrentList = target == currentSelection
+  let markTarget: EntryScope
+  let scopeIDs: Set<Int>
   switch target {
   case .allArticles:
-    return MarkAllReadPlan(
-      markTarget: .all,
-      optimisticIDs: snapshot.unreadFeedbinEntryIDs,
-      clearsArticleSelection: clearsArticleSelection)
+    markTarget = .all
+    scopeIDs = snapshot.unreadFeedbinEntryIDs
   case .folder(let label):
-    return MarkAllReadPlan(
-      markTarget: .folder(label),
-      optimisticIDs: snapshot.unreadIDByFolder[label] ?? [],
-      clearsArticleSelection: clearsArticleSelection)
+    markTarget = .folder(label)
+    scopeIDs = snapshot.unreadIDByFolder[label] ?? []
   case .category(let label):
-    return MarkAllReadPlan(
-      markTarget: .category(label),
-      optimisticIDs: snapshot.unreadIDByCategory[label] ?? [],
-      clearsArticleSelection: clearsArticleSelection)
+    markTarget = .category(label)
+    scopeIDs = snapshot.unreadIDByCategory[label] ?? []
   }
+  guard isCurrentList, let search else {
+    return MarkAllReadPlan(
+      markTarget: markTarget, optimisticIDs: scopeIDs, clearsArticleSelection: isCurrentList)
+  }
+  return MarkAllReadPlan(
+    markTarget: markTarget, search: search, optimisticIDs: [], clearsArticleSelection: true)
 }
