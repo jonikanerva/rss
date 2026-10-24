@@ -153,5 +153,5 @@ final class ArticleNSSearchField: NSSearchField {}
 /// Escape handler runs before the field sees the key, so it asks this first.
 func isEditingArticleSearch(in window: NSWindow?) -> Bool {
   guard let editor = window?.firstResponder as? NSTextView else { return false }
-  return editor.delegate is ArticleNSSearchField
+  return (editor.delegate as AnyObject?) is ArticleNSSearchField
 }
