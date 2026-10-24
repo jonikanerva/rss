@@ -225,7 +225,8 @@ final class TimelineState {
       switch outcome {
       case .written:
         // `SyncEngine.markAllAsRead(scope:search:)` queued the unread rows of the
-        // scope before its write.
+        // scope that match the search before its write. A searched plan has no
+        // optimistic IDs, so this union adds only IDs that the call queued.
         queuedOverlayIDs.formUnion(plan.optimisticIDs)
         listVersion &+= 1
       case .nothingToMark:
