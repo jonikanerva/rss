@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(make:*)",
+      "Bash(nice -n 19 make:*)",
       "Bash(npx ctx7@latest:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
