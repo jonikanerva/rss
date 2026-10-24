@@ -309,6 +309,7 @@ struct ContentView: View {
       return .handled
     }
     .onKeyPress(.tab) {
+      guard !isTypingInArticleSearch() else { return .ignored }
       switch panelFocus {
       case .sidebar, .none:
         tabIntoArticleList()
@@ -323,12 +324,12 @@ struct ContentView: View {
     // from inside the article web view, where the AppKit first responder
     // swallows key events. This root fallback covers every state in which no
     // focusable surface holds focus.
-    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in bareKeyActions.onM() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in bareKeyActions.onC() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onJ() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onK() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onR() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onB() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onM() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onC() }
     .modifier(menuBarValues)
   }
 
