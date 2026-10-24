@@ -54,6 +54,18 @@ struct ContentView: View {
   private var selection: SidebarSelection?
   @State
   private var articleFilter: ArticleFilter = .unread
+  /// The text of the search field. It stays when the sidebar selection
+  /// changes, and it is never persisted.
+  @State
+  private var searchText = ""
+  /// The term that narrows the article list: `searchText` after the typing
+  /// debounce.
+  @State
+  private var searchTerm: ArticleSearchTerm?
+  @State
+  private var isSearchPresented = false
+  @FocusState
+  private var isSearchFieldFocused: Bool
   @State
   private var articleViewMode: ArticleViewMode = .web
   @State
@@ -116,6 +128,11 @@ struct ContentView: View {
             .environment(\.pendingReadIDs, timeline.pendingReadIDs)
             .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
             .navigationTitle(navigationTitle)
+            .modifier(
+              ArticleSearchField(
+                text: $searchText, isPresented: $isSearchPresented, isFocused: $isSearchFieldFocused,
+                onSubmit: tabIntoArticleList)
+            )
             .toolbar {
               ToolbarItem(placement: .automatic) {
                 Picker("Filter", selection: $articleFilter) {
@@ -153,6 +170,7 @@ struct ContentView: View {
     }
     .environment(\.bareKeyActions, bareKeyActions)
     .environment(faviconStore)
+    .modifier(searchLifecycle)
     .onPreferenceChange(VisibleEntriesKey.self) { payload in
       // Open the interval before the writes below dirty `ContentView`; the
       // paired end fires on the next render pass.
@@ -307,6 +325,15 @@ struct ContentView: View {
     .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in bareKeyActions.onM() }
     .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in bareKeyActions.onC() }
     .modifier(menuBarValues)
+  }
+
+  // Separated to keep body type-checkable
+  private var searchLifecycle: some ViewModifier {
+    ArticleSearchLifecycle(
+      searchText: searchText, isSearchPresented: isSearchPresented,
+      onFind: focusSearchField,
+      onCommit: { term in if term != searchTerm { searchTerm = term } },
+      onDismiss: { if selection != nil { panelFocus = .articleList } })
   }
 
   // Separated to keep body type-checkable
@@ -467,7 +494,7 @@ struct ContentView: View {
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     EntryListView(
-      scope: sel.entryScope, filter: articleFilter,
+      scope: sel.entryScope, filter: articleFilter, search: searchTerm,
       cutoffDate: syncEngine.queryCutoffDate, reader: store.reader,
       refreshVersion: timeline.listVersion,
       accountDataVersion: timeline.accountDataVersion,
@@ -497,6 +524,12 @@ struct ContentView: View {
     articleListTabRequest &+= 1
   }
 
+  private func focusSearchField() {
+    guard selection != nil else { return }
+    isSearchPresented = true
+    isSearchFieldFocused = true
+  }
+
   private func revalidateSelection() {
     switch selection {
     case .folder(let label) where !folders.contains(where: { $0.label == label }):
@@ -521,7 +554,8 @@ struct ContentView: View {
   private func markAllAsRead(target: SidebarSelection) {
     guard articleFilter == .unread else { return }
     let plan = markAllReadPlan(
-      for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot)
+      for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot,
+      search: searchTerm, renderedUnreadIDs: timeline.renderedUnreadIDs)
     if plan.clearsArticleSelection {
       selectedEntryID = nil
     }
