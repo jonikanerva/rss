@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(make:*)",
+      "Bash(taskpolicy -b make:*)",
       "Bash(npx ctx7@latest:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",

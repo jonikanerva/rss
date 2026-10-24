@@ -136,6 +136,17 @@ principles: short sentences, active voice, and consistent domain terms. Keep
 technical vocabulary intact. Do not rewrite compact operating contracts only to
 apply these principles. Chat with the owner in Finnish.
 
+Run resource-heavy local commands at the lowest scheduling priority. These
+commands include builds, compilation, test suites, and other CPU-, memory-, or
+I/O-intensive work. The operating system and the owner's interactive work must
+always keep priority, also when several agents run at the same time. Prefix the
+`make` command with `taskpolicy -b`, for example `taskpolicy -b make test-all`.
+This command also lowers I/O priority. Child processes inherit the priority.
+A host sandbox can refuse `taskpolicy -b` with `setpriority(): Operation not
+permitted`. Then run the command outside the sandbox through the host's
+approval controls. Do not drop the prefix. Never raise the priority of agent
+work.
+
 Use the host's sandbox and approval controls. Custom-agent sandbox defaults
 supplement these rules; they do not replace the current session permissions.
 Never push to `main`, force-push, run a hard reset, or read `.env` files. Never bypass hooks, weaken permissions or
