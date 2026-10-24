@@ -88,6 +88,23 @@ struct ArticleSearchTests {
     #expect(state.term == nil)
   }
 
+  /// Escape closes the bar: the list must leave the search at once, with no
+  /// typing pause.
+  @MainActor
+  @Test("Opening asks for focus, and closing clears the term at once")
+  func openAndClose() {
+    let state = ArticleSearchState()
+    state.open()
+    #expect(state.isPresented)
+    #expect(state.focusRequest == 1)
+    state.text = "swift"
+    state.commitTypedTerm()
+    state.close()
+    #expect(!state.isPresented)
+    #expect(state.text.isEmpty)
+    #expect(state.term == nil)
+  }
+
   @Test("The term matches the title, the site name, and the summary only")
   func matchesTitleSiteAndSummary() async throws {
     let (_, reader) = try await seed([

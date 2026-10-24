@@ -56,8 +56,6 @@ struct ContentView: View {
   private var articleFilter: ArticleFilter = .unread
   @State
   private var search = ArticleSearchState()
-  @FocusState
-  private var isSearchFieldFocused: Bool
   @State
   private var articleViewMode: ArticleViewMode = .web
   @State
@@ -109,45 +107,56 @@ struct ContentView: View {
       // width is the column's, not the window's.
       ZStack {
         if let selection {
-          entryListForSelection(selection)
-            .focused($panelFocus, equals: .articleList)
-            // Only this column: the detail pane, the web view, and a text field
-            // keep their own Copy.
-            .onCommand(
-              #selector(NSText.copy(_:)),
-              perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
-            )
-            .environment(\.pendingReadIDs, timeline.pendingReadIDs)
-            .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
-            .navigationTitle(navigationTitle)
-            .modifier(
-              ArticleSearchField(
-                state: search, isFocused: $isSearchFieldFocused, onSubmit: tabIntoArticleList,
-                onDismiss: { panelFocus = .articleList })
-            )
-            .toolbar {
-              ToolbarItem(placement: .automatic) {
-                Picker("Filter", selection: $articleFilter) {
-                  ForEach(ArticleFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
-                  }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .accessibilityIdentifier("article.filter")
-              }
-              ToolbarItem(placement: .automatic) {
-                Button {
-                  markAllAsRead()
-                } label: {
-                  Image(systemName: "checkmark")
-                }
-                .disabled(articleFilter == .read)
-                .help("Mark all as read (⇧A)")
-                .accessibilityIdentifier("toolbar.markAllRead")
-              }
+          VStack(spacing: 0) {
+            if search.isPresented {
+              ArticleSearchBar(
+                state: search, onSubmit: tabIntoArticleList,
+                onCancel: { panelFocus = .articleList })
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
+            entryListForSelection(selection)
+              .focused($panelFocus, equals: .articleList)
+              // Only the list: the detail pane, the web view, and a text field
+              // keep their own Copy.
+              .onCommand(
+                #selector(NSText.copy(_:)),
+                perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
+              )
+          }
+          .environment(\.pendingReadIDs, timeline.pendingReadIDs)
+          .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
+          .navigationTitle(navigationTitle)
+          .toolbar {
+            ToolbarItem(placement: .automatic) {
+              Picker("Filter", selection: $articleFilter) {
+                ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                  Text(filter.rawValue).tag(filter)
+                }
+              }
+              .pickerStyle(.segmented)
+              .labelsHidden()
+              .accessibilityIdentifier("article.filter")
+            }
+            ToolbarItem(placement: .automatic) {
+              Button {
+                markAllAsRead()
+              } label: {
+                Image(systemName: "checkmark")
+              }
+              .disabled(articleFilter == .read)
+              .help("Mark all as read (⇧A)")
+              .accessibilityIdentifier("toolbar.markAllRead")
+            }
+            ToolbarItem(placement: .automatic) {
+              Button {
+                search.open()
+              } label: {
+                Label("Search", systemImage: "magnifyingglass")
+              }
+              .help("Search this list (⌘F)")
+              .accessibilityIdentifier("toolbar.search")
+            }
+          }
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
         } else {
           ContentUnavailableView {
             Label("No Category", systemImage: "newspaper")
@@ -509,8 +518,7 @@ struct ContentView: View {
 
   private func focusSearchField() {
     guard selection != nil else { return }
-    search.isPresented = true
-    isSearchFieldFocused = true
+    search.open()
   }
 
   private func revalidateSelection() {
