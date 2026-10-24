@@ -154,12 +154,13 @@ Run resource-heavy local commands at the lowest scheduling priority. These
 commands include builds, compilation, test suites, and other CPU-, memory-, or
 I/O-intensive work. The operating system and the owner's interactive work must
 always keep priority, also when several agents run at the same time. Prefix the
-`make` command with `taskpolicy -b`, for example `taskpolicy -b make test-all`.
-This command also lowers I/O priority. Child processes inherit the priority.
-A host sandbox can refuse `taskpolicy -b` with `setpriority(): Operation not
-permitted`. Then run the command outside the sandbox through the host's
-approval controls. Do not drop the prefix. Never raise the priority of agent
-work.
+`make` command with `nice -n 19`, for example `nice -n 19 make test-all`. Child
+processes inherit the priority. Do not use `taskpolicy -b`. On Apple silicon, it
+confines work to efficiency cores, also when performance cores are idle. A host
+sandbox can refuse the priority change. Then `nice` prints `setpriority:
+Operation not permitted` and runs the command at normal priority. Run the
+command outside the sandbox through the host's approval controls instead.
+Never raise the priority of agent work.
 
 Use the host's sandbox and approval controls. `.claude/settings.json` blocks
 pushes to `main`, force pushes, recursive deletion, hard resets, `.env` reads,
