@@ -55,6 +55,8 @@ struct ContentView: View {
   @State
   private var articleFilter: ArticleFilter = .unread
   @State
+  private var search = ArticleSearchState()
+  @State
   private var articleViewMode: ArticleViewMode = .web
   @State
   private var detailPageCommand = DetailPageCommand.initial
@@ -105,40 +107,57 @@ struct ContentView: View {
       // width is the column's, not the window's.
       ZStack {
         if let selection {
-          entryListForSelection(selection)
-            .focused($panelFocus, equals: .articleList)
-            // Only this column: the detail pane, the web view, and a text field
-            // keep their own Copy.
-            .onCommand(
-              #selector(NSText.copy(_:)),
-              perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
-            )
-            .environment(\.pendingReadIDs, timeline.pendingReadIDs)
-            .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
-            .navigationTitle(navigationTitle)
-            .toolbar {
-              ToolbarItem(placement: .automatic) {
-                Picker("Filter", selection: $articleFilter) {
-                  ForEach(ArticleFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
-                  }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .accessibilityIdentifier("article.filter")
-              }
-              ToolbarItem(placement: .automatic) {
-                Button {
-                  markAllAsRead()
-                } label: {
-                  Image(systemName: "checkmark")
-                }
-                .disabled(articleFilter == .read)
-                .help("Mark all as read (⇧A)")
-                .accessibilityIdentifier("toolbar.markAllRead")
-              }
+          VStack(spacing: 0) {
+            if search.isPresented {
+              ArticleSearchBar(state: search, onSubmit: tabIntoArticleList, onCancel: closeSearch)
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
+            entryListForSelection(selection)
+              // An empty list must still fill the column, so the bar stays
+              // under the toolbar.
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .focused($panelFocus, equals: .articleList)
+              // Only the list: the detail pane, the web view, and a text field
+              // keep their own Copy.
+              .onCommand(
+                #selector(NSText.copy(_:)),
+                perform: articleLinkCopyAction(url: selectedEntryURL) { NSPasteboard.general.writeLink($0) }
+              )
+          }
+          .environment(\.pendingReadIDs, timeline.pendingReadIDs)
+          .environment(\.pendingUnreadIDs, timeline.pendingUnreadIDs)
+          .navigationTitle(navigationTitle)
+          .toolbar {
+            ToolbarItem(placement: .automatic) {
+              Picker("Filter", selection: $articleFilter) {
+                ForEach(ArticleFilter.allCases, id: \.self) { filter in
+                  Text(filter.rawValue).tag(filter)
+                }
+              }
+              .pickerStyle(.segmented)
+              .labelsHidden()
+              .accessibilityIdentifier("article.filter")
+            }
+            ToolbarItem(placement: .automatic) {
+              Button {
+                markAllAsRead()
+              } label: {
+                Image(systemName: "checkmark")
+              }
+              .disabled(articleFilter == .read)
+              .help("Mark all as read (⇧A)")
+              .accessibilityIdentifier("toolbar.markAllRead")
+            }
+            ToolbarItem(placement: .automatic) {
+              Button {
+                toggleSearch()
+              } label: {
+                Label("Search", systemImage: "magnifyingglass")
+              }
+              .help("Search this list (⌘F)")
+              .accessibilityIdentifier("toolbar.search")
+            }
+          }
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: articleFilter)
         } else {
           ContentUnavailableView {
             Label("No Category", systemImage: "newspaper")
@@ -281,6 +300,10 @@ struct ContentView: View {
     // Escape and Tab stay at `NavigationSplitView` level so `List`
     // type-to-select cannot consume them.
     .onKeyPress(.escape) {
+      if search.isPresented, isTypingInArticleSearch() {
+        closeSearch()
+        return .handled
+      }
       selectedEntryID = nil
       panelFocus = .sidebar
       return .handled
@@ -300,12 +323,12 @@ struct ContentView: View {
     // from inside the article web view, where the AppKit first responder
     // swallows key events. This root fallback covers every state in which no
     // focusable surface holds focus.
-    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in bareKeyActions.onJ() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in bareKeyActions.onK() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in bareKeyActions.onR() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in bareKeyActions.onB() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in bareKeyActions.onM() }
-    .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in bareKeyActions.onC() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onJ() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onK() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onR() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onB() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onM() }
+    .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in isTypingInArticleSearch() ? .ignored : bareKeyActions.onC() }
     .modifier(menuBarValues)
   }
 
@@ -315,6 +338,7 @@ struct ContentView: View {
       context: FeederCommandContext(
         syncAction: { Task { await syncAndClassify() } },
         markAllReadAction: markAllAsRead,
+        findAction: toggleSearch,
         toggleViewModeAction: toggleArticleViewMode,
         toggleFilterAction: toggleArticleFilter,
         openInBrowserAction: openInBackground,
@@ -467,7 +491,7 @@ struct ContentView: View {
   @ViewBuilder
   private func entryListForSelection(_ sel: SidebarSelection) -> some View {
     EntryListView(
-      scope: sel.entryScope, filter: articleFilter,
+      scope: sel.entryScope, filter: articleFilter, search: search.term,
       cutoffDate: syncEngine.queryCutoffDate, reader: store.reader,
       refreshVersion: timeline.listVersion,
       accountDataVersion: timeline.accountDataVersion,
@@ -497,6 +521,19 @@ struct ContentView: View {
     articleListTabRequest &+= 1
   }
 
+  /// The magnifier button and Command-F share this toggle.
+  private func toggleSearch() {
+    guard selection != nil else { return }
+    let wasPresented = search.isPresented
+    search.toggle()
+    if wasPresented { panelFocus = .articleList }
+  }
+
+  private func closeSearch() {
+    search.close()
+    panelFocus = .articleList
+  }
+
   private func revalidateSelection() {
     switch selection {
     case .folder(let label) where !folders.contains(where: { $0.label == label }):
@@ -521,7 +558,8 @@ struct ContentView: View {
   private func markAllAsRead(target: SidebarSelection) {
     guard articleFilter == .unread else { return }
     let plan = markAllReadPlan(
-      for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot)
+      for: target, currentSelection: selection, snapshot: timeline.unreadSnapshot,
+      search: search.typedTerm)
     if plan.clearsArticleSelection {
       selectedEntryID = nil
     }

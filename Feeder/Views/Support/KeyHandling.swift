@@ -22,6 +22,7 @@ struct MarkAllReadKeyHandler: ViewModifier {
   func body(content: Content) -> some View {
     content
       .onKeyPress(characters: CharacterSet(charactersIn: "A")) { _ in
+        guard !isTypingInArticleSearch() else { return .ignored }
         action()
         return .handled
       }
@@ -50,7 +51,9 @@ struct DetailPageKeyHandler: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .onKeyPress(keys: [.space], phases: [.down, .repeat]) { press in action(press.modifiers) }
+      .onKeyPress(keys: [.space], phases: [.down, .repeat]) { press in
+        isTypingInArticleSearch() ? .ignored : action(press.modifiers)
+      }
   }
 }
 
@@ -93,14 +96,14 @@ struct BareKeyHandler: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in actions.onJ() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in actions.onK() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in actions.onR() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in actions.onB() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in actions.onM() }
-      .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in actions.onC() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "jJ")) { _ in isTypingInArticleSearch() ? .ignored : actions.onJ() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "kK")) { _ in isTypingInArticleSearch() ? .ignored : actions.onK() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in isTypingInArticleSearch() ? .ignored : actions.onR() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "bB")) { _ in isTypingInArticleSearch() ? .ignored : actions.onB() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in isTypingInArticleSearch() ? .ignored : actions.onM() }
+      .onKeyPress(characters: CharacterSet(charactersIn: "cC")) { _ in isTypingInArticleSearch() ? .ignored : actions.onC() }
       .onKeyPress(characters: CharacterSet(charactersIn: "uU")) { _ in
-        handlesFilterKey ? actions.onU() : .ignored
+        handlesFilterKey && !isTypingInArticleSearch() ? actions.onU() : .ignored
       }
   }
 }

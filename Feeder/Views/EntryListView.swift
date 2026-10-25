@@ -56,6 +56,9 @@ struct VisibleEntriesKey: PreferenceKey {
 struct EntryListView: View {
   let scope: EntryScope
   let filter: ArticleFilter
+  /// Narrows the list to the matching articles. It is part of
+  /// `structuralKey`, so a new term reloads the list from the top.
+  var search: ArticleSearchTerm?
   let cutoffDate: Date
   let reader: DataReader
   let refreshVersion: Int
@@ -187,10 +190,14 @@ struct EntryListView: View {
       case .error:
         EntryListFetchErrorView()
       case .noArticles:
-        ContentUnavailableView {
-          Label("No Articles", systemImage: "newspaper")
-        } description: {
-          Text(emptyListMessage)
+        if let search {
+          ContentUnavailableView.search(text: search.text)
+        } else {
+          ContentUnavailableView {
+            Label("No Articles", systemImage: "newspaper")
+          } description: {
+            Text(emptyListMessage)
+          }
         }
       case .blank, .list:
         List(selection: $selectedEntryID) {
@@ -372,7 +379,7 @@ struct EntryListView: View {
     do {
       return try await reader.fetchEntrySections(
         scope: scope, showRead: filter == .read,
-        cutoffDate: cutoffDate, pinnedFeedbinEntryID: pinnedFeedbinEntryID,
+        cutoffDate: cutoffDate, search: search, pinnedFeedbinEntryID: pinnedFeedbinEntryID,
         window: window
       )
     } catch is CancellationError {
@@ -564,7 +571,7 @@ struct EntryListView: View {
   /// which rides on a separate task so an in-place refresh does not tear down
   /// the `List` and drop the scroll position.
   private var structuralKey: String {
-    "\(String(describing: scope))|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(accountDataVersion)"
+    "\(String(describing: scope))|\(filter.rawValue)|\(cutoffDate.timeIntervalSince1970)|\(accountDataVersion)|\(search?.text ?? "")"
   }
 
   private var emptyListMessage: String {
@@ -630,6 +637,7 @@ private struct EntryListPreviewHost: View {
   let container: ModelContainer
   var scope: EntryScope = .category("apple")
   var filter: ArticleFilter = .unread
+  var search: String = ""
   var cutoffDate: Date = .now.addingTimeInterval(-7 * 86_400)
   var fontSettings = AppFontSettings()
   var syncEngine = SyncEngine.preview()
@@ -647,6 +655,7 @@ private struct EntryListPreviewHost: View {
         EntryListView(
           scope: scope,
           filter: filter,
+          search: ArticleSearchTerm(search),
           cutoffDate: cutoffDate,
           reader: reader,
           refreshVersion: 0,
@@ -934,6 +943,14 @@ private enum EntryListPreviewFixtures {
 
 #Preview("Row Matrix - Medium, 200 pt") {
   EntryListPreviewFixtures.rowMatrixPreview(textSize: .medium, width: 200)
+}
+
+#Preview("Search - Matches") {
+  EntryListPreviewHost(container: EntryListPreviewFixtures.rowMatrix(), search: "twin")
+}
+
+#Preview("Search - No Results") {
+  EntryListPreviewHost(container: EntryListPreviewFixtures.rowMatrix(), search: "nothing matches this")
 }
 
 #Preview("Read Filter") {

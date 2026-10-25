@@ -575,7 +575,7 @@ final class SyncEngine {
 
   // MARK: - Read queue
 
-  /// The result of `markAllAsRead(scope:)`.
+  /// The result of `markAllAsRead(scope:search:)`.
   enum MarkAllReadOutcome: Equatable {
     /// The store holds the entries as read.
     case written
@@ -611,15 +611,15 @@ final class SyncEngine {
     pendingUnreadIDsToSync.formUnion(ids)
   }
 
-  /// Mark every unread entry in `scope` as read, and queue the IDs for the
-  /// push. Returns after the store write ends. Only `.written` means that the
-  /// store changed.
-  func markAllAsRead(scope: EntryScope) async -> MarkAllReadOutcome {
+  /// Mark every unread entry in `scope` that matches `search` as read, and
+  /// queue the IDs for the push. Returns after the store write ends. Only
+  /// `.written` means that the store changed.
+  func markAllAsRead(scope: EntryScope, search: ArticleSearchTerm? = nil) async -> MarkAllReadOutcome {
     guard let writer else { return .failed(queuedIDs: []) }
     let generation = accountGeneration
     let ids: Set<Int>
     do {
-      ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate)
+      ids = try await writer.fetchUnreadEntryIDs(in: scope, cutoffDate: queryCutoffDate, search: search)
     } catch {
       logger.error("Mark all read: failed to fetch \(scope.logDescription): \(error.localizedDescription)")
       return .failed(queuedIDs: [])
