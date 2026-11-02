@@ -196,10 +196,11 @@ Profile before optimizing. Stay inside these budgets unless a measurement-backed
 When one of these feels slow more than once, the owner records a trace: a sidebar move, an article open, a scroll, the UI during a sync, or a launch. The owner records every trace.
 
 - Record in the daily app with the real data, and do not relaunch the app first. For a slow launch, let Instruments launch Feeder.
-- Use the Time Profiler template, which includes Hangs, and add the os_signpost instrument. For a scroll hitch, use the Animation Hitches template. Record for 30 to 60 seconds, and repeat the slow action three to five times.
+- Use the Time Profiler template, which includes Hangs, and add the os_signpost and Swift Executors instruments. For a scroll hitch, use the Animation Hitches template. Record for 30 to 60 seconds, and repeat the slow action three to five times.
 - Save the trace as `~/Desktop/feeder-<topic>.trace`. The trace stays on the Mac, because the repository is public.
 - Add one sentence to the issue: what felt slow, the trace file name, and the build identity. The build identity is the branch and the `git log -1 --oneline` of the installed build.
-- Find `read-fetch-sections` in the os_signpost instrument. The interval runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
+- Find the `read-fetch-sections` track in the os_signpost instrument. Each signpost name has its own track below the `com.feeder.app` subsystem and the `PointsOfInterest` category. The interval runs on a background thread, and the instrument shows the start thread and the end thread of each interval. A failed executor binding (§ 5) stops the app at a `dispatchPrecondition` guard before the interval begins. The end message holds the paging mode and the row count: `mode=first|above|after rows=<n>`.
+- Check the executor of slow work in the Swift Executors instrument. It shows a track for the Main Actor and a track for each serial executor, so it shows `DataReader` and `DataWriter` work (§ 5) apart from Main Actor work.
 
 ### Signposts
 
