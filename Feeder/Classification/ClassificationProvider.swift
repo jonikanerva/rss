@@ -246,18 +246,10 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     "title: \(title)\nurl: \(url)\ncontent: "
   }
 
-  private static func contextSize(of model: SystemLanguageModel) -> Int {
-    if #available(macOS 26.4, *) { model.contextSize } else { 4096 }
-  }
-
   @Sendable
   private static func measureWithSystemModel(_ instructions: String) async throws -> InstructionMeasure {
     let model = SystemLanguageModel.default
-    let contextSize = contextSize(of: model)
-    guard #available(macOS 26.4, *) else {
-      return InstructionMeasure(tokenCount: charEstimatedTokens(instructions.count), contextSize: contextSize)
-    }
-    return InstructionMeasure(tokenCount: try await model.tokenCount(for: instructions), contextSize: contextSize)
+    return InstructionMeasure(tokenCount: try await model.tokenCount(for: instructions), contextSize: model.contextSize)
   }
 
   @Sendable
@@ -271,7 +263,7 @@ nonisolated struct AppleFMClassificationProvider: ClassificationProvider {
     let model = SystemLanguageModel.default
     let session = LanguageModelSession(model: model, instructions: instructions)
 
-    let maxInputTokens = contextSize(of: model) - outputTokenReserve
+    let maxInputTokens = model.contextSize - outputTokenReserve
     let promptPrefix = promptPrefix(title: title, url: url)
     let truncatedBody = try await fitBody(
       body: body,
@@ -330,12 +322,8 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
     if error is CancellationError { return nil }
     if !isModelAvailable {
       self = .modelUnavailable
-    } else if #available(macOS 27.0, *), let failure = Self.macOS27Failure(error, now: now) {
-      self = failure
-    } else if let error = error as? LanguageModelSession.GenerationError {
-      self = Self.failure(error)
     } else {
-      self = .unexpected(detail: String(describing: error))
+      self = Self.frameworkFailure(error, now: now) ?? .unexpected(detail: String(describing: error))
     }
   }
 
@@ -375,8 +363,7 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
 
   // Each Foundation Models switch in this type lists every case and ends with
   // `@unknown default`, so a new SDK case gives a build warning.
-  @available(macOS 27.0, *)
-  private static func macOS27Failure(_ error: any Error, now: Date) -> Self? {
+  private static func frameworkFailure(_ error: any Error, now: Date) -> Self? {
     let unexpected = Self.unexpected(detail: String(describing: error))
     if let error = error as? LanguageModelError {
       switch error {
@@ -403,46 +390,13 @@ nonisolated enum AppleFMClassificationError: Error, ClassificationFailure, Equat
     }
     return error is GeneratedContent.ParsingError ? unexpected : nil
   }
-
-  private static func failure(_ error: LanguageModelSession.GenerationError) -> Self {
-    switch error {
-    case .exceededContextWindowSize: .contextSizeExceeded
-    case .guardrailViolation: .guardrailViolation
-    case .refusal: .refusal
-    case .unsupportedLanguageOrLocale: .unsupportedLanguage
-    case .rateLimited: .rateLimited(retryAfter: nil)
-    case .assetsUnavailable, .decodingFailure, .concurrentRequests, .unsupportedGuide: .unexpected(detail: String(describing: error))
-    @unknown default: .unexpected(detail: String(describing: error))
-    }
-  }
 }
 
 // MARK: - Token-aware body fitting
 
-/// Fit as much article body as the token budget allows: native token counting
-/// with a binary search where it is available, and a character-based estimate
-/// otherwise.
+/// Fit as much article body as the token budget allows, with a binary search
+/// over native token counts.
 nonisolated private func fitBody(
-  body: String,
-  prefix: String,
-  instructions: String,
-  maxInputTokens: Int,
-  model: SystemLanguageModel
-) async throws -> String {
-  guard #available(macOS 26.4, *) else {
-    return fitBodyWithCharEstimate(
-      body: body, prefix: prefix, instructions: instructions,
-      maxInputTokens: maxInputTokens
-    )
-  }
-  return try await fitBodyWithTokenCounting(
-    body: body, prefix: prefix, instructions: instructions,
-    maxInputTokens: maxInputTokens, model: model
-  )
-}
-
-@available(macOS 26.4, *)
-nonisolated private func fitBodyWithTokenCounting(
   body: String,
   prefix: String,
   instructions: String,
@@ -473,24 +427,6 @@ nonisolated private func fitBodyWithTokenCounting(
   }
 
   return String(body.prefix(bestEnd))
-}
-
-nonisolated private func fitBodyWithCharEstimate(
-  body: String,
-  prefix: String,
-  instructions: String,
-  maxInputTokens: Int
-) -> String {
-  let maxChars = maxInputTokens * charsPerEstimatedToken
-  let usedChars = instructions.count + prefix.count
-  let maxBodyChars = max(500, maxChars - usedChars)
-  return String(body.prefix(maxBodyChars))
-}
-
-nonisolated private let charsPerEstimatedToken = 4
-
-nonisolated private func charEstimatedTokens(_ characterCount: Int) -> Int {
-  (characterCount + charsPerEstimatedToken - 1) / charsPerEstimatedToken
 }
 
 // MARK: - Apple FM generable output type

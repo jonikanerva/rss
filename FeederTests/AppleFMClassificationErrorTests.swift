@@ -18,7 +18,6 @@ nonisolated struct AppleFMFailureContract: Sendable, CustomTestStringConvertible
 @Suite("Apple Foundation Models error mapping")
 struct AppleFMClassificationErrorTests {
   nonisolated private static let now = Date(timeIntervalSince1970: 1_000_000)
-  nonisolated private static let context = LanguageModelSession.GenerationError.Context(debugDescription: "context")
 
   // MARK: - Cancellation and availability
 
@@ -28,8 +27,8 @@ struct AppleFMClassificationErrorTests {
   }
 
   nonisolated private static let errorsWhileUnavailable: [any Error] = [
-    LanguageModelSession.GenerationError.rateLimited(context),
-    LanguageModelSession.GenerationError.guardrailViolation(context),
+    LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "rate limit")),
+    LanguageModelError.guardrailViolation(.init(debugDescription: "guardrail")),
     URLError(.notConnectedToInternet),
   ]
 
@@ -38,39 +37,14 @@ struct AppleFMClassificationErrorTests {
     #expect(AppleFMClassificationError(error, isModelAvailable: false, now: Self.now) == .modelUnavailable)
   }
 
-  // MARK: - GenerationError
-
-  nonisolated private static let mappedGenerationErrors: [(LanguageModelSession.GenerationError, AppleFMClassificationError)] = [
-    (.exceededContextWindowSize(context), .contextSizeExceeded),
-    (.guardrailViolation(context), .guardrailViolation),
-    (.refusal(.init(transcriptEntries: []), context), .refusal),
-    (.unsupportedLanguageOrLocale(context), .unsupportedLanguage),
-    (.rateLimited(context), .rateLimited(retryAfter: nil)),
-  ]
-
-  @Test(arguments: AppleFMClassificationErrorTests.mappedGenerationErrors)
-  func generationErrorMapsByCause(_ error: LanguageModelSession.GenerationError, expected: AppleFMClassificationError) {
-    #expect(AppleFMClassificationError(error, isModelAvailable: true, now: Self.now) == expected)
-  }
-
-  nonisolated private static let otherGenerationErrors: [LanguageModelSession.GenerationError] = [
-    .assetsUnavailable(context), .decodingFailure(context), .concurrentRequests(context), .unsupportedGuide(context),
-  ]
-
-  @Test(arguments: AppleFMClassificationErrorTests.otherGenerationErrors)
-  func otherGenerationErrorIsUnexpected(_ error: LanguageModelSession.GenerationError) {
-    #expect(AppleFMClassificationError(error, isModelAvailable: true, now: Self.now) == .unexpected(detail: String(describing: error)))
-  }
-
   @Test
   func unknownErrorIsUnexpected() {
     let error: any Error = URLError(.timedOut)
     #expect(AppleFMClassificationError(error, isModelAvailable: true, now: Self.now) == .unexpected(detail: String(describing: error)))
   }
 
-  // MARK: - macOS 27 errors
+  // MARK: - Foundation Models errors
 
-  @available(macOS 27.0, *)
   @Test
   func languageModelErrorMapsByCause() {
     let mapped: [(LanguageModelError, AppleFMClassificationError)] = [
@@ -84,7 +58,6 @@ struct AppleFMClassificationErrorTests {
     }
   }
 
-  @available(macOS 27.0, *)
   @Test
   func rateLimitResetDateBecomesABoundedRetryAfter() {
     let resets: [(Date?, TimeInterval?)] = [
@@ -99,9 +72,8 @@ struct AppleFMClassificationErrorTests {
     }
   }
 
-  @available(macOS 27.0, *)
   @Test
-  func otherMacOS27ErrorIsUnexpected() {
+  func otherFrameworkErrorIsUnexpected() {
     let errors: [any Error] = [
       LanguageModelError.unsupportedCapability(.init(capability: .toolCalling, debugDescription: "capability")),
       LanguageModelError.unsupportedTranscriptContent(.init(unsupportedContent: [], debugDescription: "transcript")),
@@ -115,13 +87,6 @@ struct AppleFMClassificationErrorTests {
     for error in errors {
       #expect(AppleFMClassificationError(error, isModelAvailable: true, now: Self.now) == .unexpected(detail: String(describing: error)))
     }
-  }
-
-  @available(macOS 27.0, *)
-  @Test
-  func unavailableModelOutranksAMacOS27Error() {
-    let error = LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "rate limit"))
-    #expect(AppleFMClassificationError(error, isModelAvailable: false, now: Self.now) == .modelUnavailable)
   }
 
   // MARK: - Failure contract

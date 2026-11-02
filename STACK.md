@@ -8,7 +8,7 @@ Policy revision: 2
 
 ## 0. Project shape
 
-- **Shape:** UI app (macOS / SwiftUI). Native Xcode project: `Feeder.xcodeproj`.
+- **Shape:** UI app (macOS / SwiftUI). Native Xcode project: `Feeder.xcodeproj`, with the JSON project configuration file `project.xcproj`.
 - **Critical execution path:** the main actor / UI thread (one display frame).
 - **Applicable states:** every user-visible surface handles awaiting-first-data (loading), success, empty, degraded, offline, error, and permission-blocked (when applicable), plus product-specific states from `VISION.md`.
 
@@ -39,13 +39,13 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 
 ## 1. Language & Runtime
 
-- **Primary language:** Swift 6.1
+- **Primary language:** Swift 6.4
 - **Strictness mode:** `SWIFT_VERSION = 6.0`, `SWIFT_STRICT_CONCURRENCY = complete`, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `SWIFT_APPROACHABLE_CONCURRENCY = YES`. No new warnings; no `@preconcurrency` ratchet-loosening.
-- **Target runtime:** macOS 26.2+
-- **Minimum runtime version:** macOS 26.2 (no back-deployment, no `#available` for older OSes)
+- **Target runtime:** macOS 27.2+
+- **Minimum runtime version:** macOS 27.2 (no back-deployment, no `#available` for older OSes). Do not use 27.1: the Xcode 27.2 SDKs accept 27.1 as a deployment target by mistake. The target builds for Apple silicon only, because `ARCHS_STANDARD` excludes x86_64 for a macOS 27 target.
 - **Package manager:** Swift Package Manager (`Package.resolved`)
 - **Lockfile:** `Feeder.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
-- **Dev-environment provisioning:** Xcode 26+; everything else is driven through `make` (§3). No additional toolchain files.
+- **Dev-environment provisioning:** Xcode 27.2+; everything else is driven through `make` (§3). No additional toolchain files.
 
 ---
 
@@ -67,7 +67,7 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 | Telemetry           | None                                                                           | No third-party analytics, no crash reporter                                                    |
 | Testing             | Swift Testing (`@Test`, `@Suite`, `#expect`); XCTest / XCUITest for end-to-end UI |                                                                                             |
 | Formatting          | `swift-format` with repo `.swift-format`                                       | No SwiftLint                                                                                   |
-| Build               | Xcode 26+, Swift 6 language mode, complete strict concurrency                  |                                                                                                |
+| Build               | Xcode 27.2+, Swift 6 language mode, complete strict concurrency                |                                                                                                |
 
 ---
 

@@ -21,11 +21,11 @@ Articles synced from [Feedbin](https://feedbin.com/) appear in strict newest-fir
 - SwiftUI + SwiftData
 - Apple Foundation Models / Vercel AI Gateway (JEV, Decision-1, GPT-6 Luna Decisions)
 - Swift 6, strict concurrency
-- macOS 26.2+
+- macOS 27.2+ (Apple silicon)
 
 ## Build
 
-Requires Xcode 26 and a Feedbin account.
+Requires Xcode 27.2 and a Feedbin account.
 
 ```bash
 make test-all   # lint + build + unit tests
