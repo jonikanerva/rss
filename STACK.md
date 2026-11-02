@@ -8,7 +8,7 @@ Policy revision: 2
 
 ## 0. Project shape
 
-- **Shape:** UI app (macOS / SwiftUI). Native Xcode project: `Feeder.xcodeproj`.
+- **Shape:** UI app (macOS / SwiftUI). Native Xcode project: `Feeder.xcodeproj`, with the JSON project configuration file `project.xcproj`.
 - **Critical execution path:** the main actor / UI thread (one display frame).
 - **Applicable states:** every user-visible surface handles awaiting-first-data (loading), success, empty, degraded, offline, error, and permission-blocked (when applicable), plus product-specific states from `VISION.md`.
 
@@ -39,13 +39,13 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 
 ## 1. Language & Runtime
 
-- **Primary language:** Swift 6.1
+- **Primary language:** Swift 6.4
 - **Strictness mode:** `SWIFT_VERSION = 6.0`, `SWIFT_STRICT_CONCURRENCY = complete`, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `SWIFT_APPROACHABLE_CONCURRENCY = YES`. No new warnings; no `@preconcurrency` ratchet-loosening.
-- **Target runtime:** macOS 26.2+
-- **Minimum runtime version:** macOS 26.2 (no back-deployment, no `#available` for older OSes)
+- **Target runtime:** macOS 27.2+
+- **Minimum runtime version:** macOS 27.2 (no back-deployment, no `#available` for older OSes). Do not use 27.1: the Xcode 27.2 SDKs accept 27.1 as a deployment target by mistake. The target builds for Apple silicon only, because `ARCHS_STANDARD` excludes x86_64 for a macOS 27 target.
 - **Package manager:** Swift Package Manager (`Package.resolved`)
 - **Lockfile:** `Feeder.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
-- **Dev-environment provisioning:** Xcode 26+; everything else is driven through `make` (§3). No additional toolchain files.
+- **Dev-environment provisioning:** Xcode 27.2+; everything else is driven through `make` (§3). No additional toolchain files.
 
 ---
 
@@ -67,7 +67,7 @@ Feeder maps the doctrine's interface / domain / infrastructure layers onto a two
 | Telemetry           | None                                                                           | No third-party analytics, no crash reporter                                                    |
 | Testing             | Swift Testing (`@Test`, `@Suite`, `#expect`); XCTest / XCUITest for end-to-end UI |                                                                                             |
 | Formatting          | `swift-format` with repo `.swift-format`                                       | No SwiftLint                                                                                   |
-| Build               | Xcode 26+, Swift 6 language mode, complete strict concurrency                  |                                                                                                |
+| Build               | Xcode 27.2+, Swift 6 language mode, complete strict concurrency                |                                                                                                |
 
 ---
 
@@ -100,8 +100,8 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 
 | Variable         | Command                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------ |
-| `$FORMAT_CMD`    | `make lint-fix`                                                                      |
-| `$LINT_CMD`      | `make lint`                                                                          |
+| `$FORMAT_CMD`    | `make lint-fix` (`swift-format`, then `xcprojformatter` on the project file)         |
+| `$LINT_CMD`      | `make lint` (`swift-format`, then a canonical-form check of `project.xcproj`)        |
 | `$BUILD_CMD`     | `make build`                                                                         |
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
@@ -115,7 +115,7 @@ Name additional checks below. The `/project-manager` delivery flow runs the depe
   - **Apple Foundation Models:** after a new SDK, read the `FoundationModels` documentation of that SDK for a new model, use case, or variant. Record a finding in an issue labelled `follow-up`.
   - **Delivery:** deliver a due model update first, in a dedicated `chore/deps-<topic>` PR through the normal review path. After the owner merges it, the owner builds and installs the app with `make install` (§ 16).
 
-The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
+The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcprojformatter`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`. An agent edits `Feeder.xcodeproj/project.xcproj` as text and then runs `$FORMAT_CMD`.
 
 One narrow exception: when an issue or the owner names an owner trace (§ 4 → Owner trace), an agent may read that trace with `xcrun xctrace export`, also with `--toc`. The raw export stays on the Mac. Only counts and durations go into an issue or a PR. An agent never runs `xctrace record` or `xctrace import`, and never uses `--launch` or `--attach`.
 

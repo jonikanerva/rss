@@ -1,7 +1,7 @@
 # Feeder — Build, Test & Lint
 # Usage: make <target>
-#   make lint       — check code style
-#   make lint-fix   — auto-fix code style
+#   make lint       — check code style and the canonical project file
+#   make lint-fix   — auto-fix code style and the project file
 #   make build      — build for testing
 #   make test       — unit tests (builds first)
 #   make test-ui    — UI smoke tests (builds first)
@@ -64,13 +64,18 @@ help: ## Show this help
 # Lint
 # ---------------------------------------------------------------------------
 
-lint: ## Check code style (swift-format --strict)
+lint: ## Check code style (swift-format --strict) and the canonical project file
 	@echo "==> swift-format lint"
 	@xcrun swift-format lint --strict --recursive --parallel .
+	@echo "==> xcprojformatter check"
+	@set -euo pipefail; xcrun xcprojformatter --input $(PROJECT) | diff -u $(PROJECT)/project.xcproj - \
+		|| { echo "error: $(PROJECT)/project.xcproj is not canonical: run make lint-fix" >&2; exit 1; }
 
-lint-fix: ## Auto-fix code style (swift-format)
+lint-fix: ## Auto-fix code style (swift-format) and the project file (xcprojformatter)
 	@echo "==> swift-format fix"
 	@xcrun swift-format format --in-place --recursive --parallel .
+	@echo "==> xcprojformatter fix"
+	@xcrun xcprojformatter --update $(PROJECT)
 
 # ---------------------------------------------------------------------------
 # Build

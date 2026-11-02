@@ -38,11 +38,12 @@ actor InstructionMeasureRecorder {
 @Suite("Apple Foundation Models failure policy")
 struct AppleFMProviderPolicyTests {
   nonisolated private static let now = Date(timeIntervalSince1970: 1_000_000)
-  nonisolated private static let context = LanguageModelSession.GenerationError.Context(debugDescription: "context")
   nonisolated private static let success = ProviderClassificationResult.generative(category: "tech", confidence: 0.9)
   nonisolated private static let fits = AppleFMClassificationProvider.InstructionMeasure(tokenCount: 100, contextSize: 4096)
-  nonisolated private static let rateLimit: any Error = LanguageModelSession.GenerationError.rateLimited(context)
-  nonisolated private static let guardrail: any Error = LanguageModelSession.GenerationError.guardrailViolation(context)
+  nonisolated private static let rateLimit: any Error =
+    LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "rate limit"))
+  nonisolated private static let guardrail: any Error =
+    LanguageModelError.guardrailViolation(.init(debugDescription: "guardrail"))
 
   private func provider(
     _ script: AppleFMGenerateScript,
@@ -217,7 +218,6 @@ struct AppleFMProviderPolicyTests {
     #expect(await script.callCount == 1)
   }
 
-  @available(macOS 27.0, *)
   @Test
   func shortResetDateExtendsTheRetryWait() async throws {
     let error = LanguageModelError.rateLimited(.init(resetDate: Self.now.addingTimeInterval(5), debugDescription: "rate limit"))
@@ -227,7 +227,6 @@ struct AppleFMProviderPolicyTests {
     #expect(await clock.delays == [.seconds(5)])
   }
 
-  @available(macOS 27.0, *)
   @Test
   func longResetDateStopsAtOnceAndKeepsTheWait() async {
     let error = LanguageModelError.rateLimited(.init(resetDate: Self.now.addingTimeInterval(30), debugDescription: "rate limit"))
