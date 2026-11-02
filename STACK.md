@@ -100,8 +100,8 @@ Categorization runs without interruption when Feeder can heal a failure by itsel
 
 | Variable         | Command                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------ |
-| `$FORMAT_CMD`    | `make lint-fix`                                                                      |
-| `$LINT_CMD`      | `make lint`                                                                          |
+| `$FORMAT_CMD`    | `make lint-fix` (`swift-format`, then `xcprojformatter` on the project file)         |
+| `$LINT_CMD`      | `make lint` (`swift-format`, then a canonical-form check of `project.xcproj`)        |
 | `$BUILD_CMD`     | `make build`                                                                         |
 | `$TEST_CMD`      | `make test` (unit tests); `make test UNIT_TEST=FeederTests/<Suite>` runs one suite   |
 | `$VERIFY_CMD`    | `make test-all` (lint → build → unit tests → `verify:` line)                         |
@@ -115,7 +115,7 @@ Name additional checks below. The `/project-manager` delivery flow runs the depe
   - **Apple Foundation Models:** after a new SDK, read the `FoundationModels` documentation of that SDK for a new model, use case, or variant. Record a finding in an issue labelled `follow-up`.
   - **Delivery:** deliver a due model update first, in a dedicated `chore/deps-<topic>` PR through the normal review path. After the owner merges it, the owner builds and installs the app with `make install` (§ 16).
 
-The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`.
+The `Makefile` at the repository root is the single source of truth for these commands. Never invoke `swift-format`, `xcprojformatter`, `xcodebuild`, or `xcrun` directly from commits, CI, or agent scripts — always go through `make`. An agent edits `Feeder.xcodeproj/project.xcproj` as text and then runs `$FORMAT_CMD`.
 
 One narrow exception: when an issue or the owner names an owner trace (§ 4 → Owner trace), an agent may read that trace with `xcrun xctrace export`, also with `--toc`. The raw export stays on the Mac. Only counts and durations go into an issue or a PR. An agent never runs `xctrace record` or `xctrace import`, and never uses `--launch` or `--attach`.
 
